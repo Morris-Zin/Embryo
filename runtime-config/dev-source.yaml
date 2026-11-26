@@ -1,0 +1,22 @@
+services:
+  backend:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  frontend:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  configurator:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  scheduler:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  websocket:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  queue-short:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
+  queue-long:
+    volumes:
+      - ${DEV_SOURCE_ROOT:-/srv/embryo-dev}/apps/erpnext:/home/frappe/frappe-bench/apps/erpnext
