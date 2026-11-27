@@ -4,11 +4,11 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<title>Khitmee Sales Counter</title>
-	<link rel="stylesheet" href="/assets/khitmee_ops/css/counter.css">
+	<link rel="stylesheet" href="/assets/khitmee_ops/css/counter.css?v={{ asset_versions["css/counter.css"] }}">
 	<script>window.csrf_token = "{{ csrf_token }}";</script>
-	<script defer src="/assets/khitmee_ops/js/counter_core.js"></script>
-	<script defer src="/assets/khitmee_ops/js/print_bridge.js"></script>
-	<script defer src="/assets/khitmee_ops/js/sales_counter.js"></script>
+	<script defer src="/assets/khitmee_ops/js/counter_core.js?v={{ asset_versions["js/counter_core.js"] }}"></script>
+	<script defer src="/assets/khitmee_ops/js/print_bridge.js?v={{ asset_versions["js/print_bridge.js"] }}"></script>
+	<script defer src="/assets/khitmee_ops/js/sales_counter.js?v={{ asset_versions["js/sales_counter.js"] }}"></script>
 </head>
 <body>
 	<main class="counter-app" aria-labelledby="page-title">

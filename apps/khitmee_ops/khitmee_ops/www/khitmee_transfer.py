@@ -2,6 +2,8 @@ from urllib.parse import urlencode
 
 import frappe
 
+from khitmee_ops.counter_assets import counter_asset_versions
+
 no_cache = 1
 
 
@@ -10,5 +12,6 @@ def get_context(context):
 		frappe.redirect(f"/login?{urlencode({'redirect-to': frappe.request.path})}")
 
 	context.csrf_token = frappe.sessions.get_csrf_token()
+	context.asset_versions = counter_asset_versions()
 	frappe.db.commit()  # nosemgrep
 	context.title = "Khitmee Stock Transfer"

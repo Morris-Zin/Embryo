@@ -28,6 +28,16 @@ async function openAuthenticatedCounter(page, counterPath = "/khitmee_sales") {
 }
 
 test.describe("cashier counter performance regressions", () => {
+  test("counter static assets carry file-version cache keys", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    const scriptVersion = await page.locator('script[src*="counter_core.js"]').getAttribute("src");
+    const styleVersion = await page.locator('link[href*="counter.css"]').getAttribute("href");
+    for (const assetUrl of [scriptVersion, styleVersion]) {
+      expect(assetUrl, "counter asset URL should be present").toBeTruthy();
+      expect(new URL(assetUrl, baseUrl).searchParams.get("v"), "counter assets must bust browser cache when files change").toMatch(/^\d+$/);
+    }
+  });
+
   test("exact barcode scan uses one bounded search request and adds the correct row", async ({ page }) => {
     await openAuthenticatedCounter(page);
     const apiRequests = [];
