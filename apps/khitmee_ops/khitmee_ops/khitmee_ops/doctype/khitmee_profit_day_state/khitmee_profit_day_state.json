@@ -1,0 +1,164 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "posting_date",
+  "dirty_generation",
+  "built_generation",
+  "status",
+  "claim_token",
+  "claim_expires_at",
+  "repost_watermark",
+  "repost_completed_count",
+  "repost_set_digest",
+  "calc_version",
+  "currency_precision",
+  "float_precision",
+  "rounding_method",
+  "is_additive_safe",
+  "last_error",
+  "rebuilt_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "dirty_generation",
+   "fieldtype": "Long Int",
+   "label": "Dirty Generation",
+   "default": "1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "built_generation",
+   "fieldtype": "Long Int",
+   "label": "Built Generation",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "label": "Status",
+   "length": 16,
+   "default": "dirty",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "claim_token",
+   "fieldtype": "Data",
+   "label": "Claim Token",
+   "length": 64,
+   "read_only": 1
+  },
+  {
+   "fieldname": "claim_expires_at",
+   "fieldtype": "Datetime",
+   "label": "Claim Expires At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repost_watermark",
+   "fieldtype": "Datetime",
+   "label": "Repost Watermark",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repost_completed_count",
+   "fieldtype": "Int",
+   "label": "Repost Completed Count",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repost_set_digest",
+   "fieldtype": "Long Int",
+   "label": "Repost Set Digest",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "calc_version",
+   "fieldtype": "Int",
+   "label": "Calc Version",
+   "default": "1"
+  },
+  {
+   "fieldname": "currency_precision",
+   "fieldtype": "Int",
+   "label": "Currency Precision",
+   "default": "3"
+  },
+  {
+   "fieldname": "float_precision",
+   "fieldtype": "Int",
+   "label": "Float Precision",
+   "default": "2"
+  },
+  {
+   "fieldname": "rounding_method",
+   "fieldtype": "Data",
+   "label": "Rounding Method",
+   "length": 64,
+   "reqd": 1
+  },
+  {
+   "fieldname": "is_additive_safe",
+   "fieldtype": "Check",
+   "label": "Is Additive Safe",
+   "default": "1"
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Text",
+   "label": "Last Error"
+  },
+  {
+   "fieldname": "rebuilt_at",
+   "fieldtype": "Datetime",
+   "label": "Rebuilt At"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Khitmee Ops",
+ "name": "Khitmee Profit Day State",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_seen": 1
+}

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 import importlib.util
 from pathlib import Path
 import subprocess
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(frozen=True)

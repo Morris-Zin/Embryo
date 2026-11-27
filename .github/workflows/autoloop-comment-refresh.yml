@@ -85,7 +85,15 @@ jobs:
                   body = resp.read().decode("utf-8")
                   return json.loads(body) if body.strip() else {}
 
-          def find_pr_gate_run(pr_num, head_sha):
+          def find_pr_gate_run(pr_obj):
+              pr_num = int(pr_obj["number"])
+              head = pr_obj.get("head") or {}
+              head_sha = head.get("sha") or ""
+              head_ref = head.get("ref") or ""
+              head_repo_full = ((head.get("repo") or {}).get("full_name") or "").lower()
+              head_owner = ((head.get("user") or {}).get("login") or "")
+
+              unassociated_candidates = []
               page = 1
               while page <= 5:
                   runs_data = api(
@@ -93,14 +101,31 @@ jobs:
                   )
                   runs = runs_data.get("workflow_runs") or []
                   if not runs:
-                      return None
+                      break
                   for run in runs:
                       prs = run.get("pull_requests") or []
                       if any(int(p.get("number") or 0) == pr_num for p in prs if isinstance(p, dict)):
                           return run
+                      # GitHub may omit `pull_requests` on fork PR runs; collect matching head repo/branch candidates.
+                      if not prs and run.get("event") in ("pull_request", "pull_request_review"):
+                          run_repo = ((run.get("head_repository") or {}).get("full_name") or "").lower()
+                          if run.get("head_branch") == head_ref and (not head_repo_full or run_repo == head_repo_full):
+                              unassociated_candidates.append(run)
                   if len(runs) < 100:
-                      return None
+                      break
                   page += 1
+
+              if unassociated_candidates and head_owner and head_ref:
+                  # Only accept an unassociated fork run when THIS PR is the sole open PR for head_owner:head_ref.
+                  open_same_head = api(
+                      f"/repos/{repo}/pulls?state=open&head={head_owner}:{head_ref}&per_page=10"
+                  )
+                  matching_open = [
+                      p for p in (open_same_head or [])
+                      if (p.get("head") or {}).get("sha") == head_sha
+                  ]
+                  if len(matching_open) == 1 and int(matching_open[0].get("number") or 0) == pr_num:
+                      return unassociated_candidates[0]
               return None
 
           for pr_num in sorted(pr_numbers):
@@ -111,9 +136,9 @@ jobs:
               head_sha = (pr.get("head") or {}).get("sha") or ""
               if not head_sha:
                   continue
-              target = find_pr_gate_run(pr_num, head_sha)
+              target = find_pr_gate_run(pr)
               if target is None:
-                  print(f"No Autoloop Gate run matched PR #{pr_num} at head {head_sha[:8]}; refusing ambiguous rerun.")
+                  print(f"No unambiguous Autoloop Gate run matched PR #{pr_num} at head {head_sha[:8]}; refusing rerun.")
                   continue
               run_id = target["id"]
               if target.get("status") != "completed":
@@ -121,12 +146,32 @@ jobs:
                   try:
                       api(f"/repos/{repo}/actions/runs/{run_id}/cancel", method="POST")
                   except urllib.error.HTTPError as exc:
-                      print(f"Cancel returned HTTP {exc.code}; waiting for completion.")
-                  for _ in range(15):
-                      time.sleep(2)
+                      print(f"Cancel returned HTTP {exc.code}; waiting for run completion.")
+                  completed = False
+                  # Wait up to GitHub's documented 5-minute cancellation window for confirmed completion.
+                  for _ in range(60):
+                      time.sleep(5)
                       refreshed = api(f"/repos/{repo}/actions/runs/{run_id}")
                       if refreshed.get("status") == "completed":
+                          completed = True
                           break
+                  if not completed:
+                      raise SystemExit(
+                          f"ERROR: Autoloop Gate run {run_id} for PR #{pr_num} did not finish cancelling within 300s"
+                      )
               print(f"Re-running Autoloop Gate run {run_id} for PR #{pr_num} head {head_sha[:8]}.")
-              api(f"/repos/{repo}/actions/runs/{run_id}/rerun", method="POST")
+              last_err = None
+              for attempt in range(6):
+                  try:
+                      api(f"/repos/{repo}/actions/runs/{run_id}/rerun", method="POST")
+                      last_err = None
+                      break
+                  except urllib.error.HTTPError as exc:
+                      if exc.code in (403, 409, 422):
+                          last_err = exc
+                          time.sleep(5)
+                          continue
+                      raise
+              if last_err is not None:
+                  raise last_err
           PY

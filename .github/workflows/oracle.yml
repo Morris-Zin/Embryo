@@ -1,0 +1,88 @@
+name: Oracle parity
+
+# The live ERPNext oracle gate needs the khitmee-perf stack and a year of seeded
+# data (~90 min), so it does not run per pull request.  It runs nightly and on
+# demand on a self-hosted runner labelled `khitmee-perf`, and only for the
+# default branch: fork pull requests and unmerged branches never reach that
+# machine.  Set the repository variable KHITMEE_PERF_RUNNER=true once the runner
+# is registered; until then the job is skipped, not failed.
+
+on:
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+    inputs:
+      gp_1y:
+        description: "1-year stock oracle cases"
+        required: true
+        type: choice
+        options:
+          - warehouse
+          - all
+          - none
+        default: warehouse
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khitmee-perf-oracle
+  cancel-in-progress: false
+
+jobs:
+  integration-oracle-gate:
+    name: Integration oracle gate
+    if: >-
+      vars.KHITMEE_PERF_RUNNER == 'true' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: [self-hosted, khitmee-perf]
+    timeout-minutes: 240
+    env:
+      # Passed through the environment, never interpolated into shell source.
+      GP_1Y: ${{ inputs.gp_1y || 'warehouse' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          case "$GP_1Y" in
+            warehouse|all|none) ;;
+            *) echo "invalid gp_1y" >&2; exit 2 ;;
+          esac
+
+      # up.sh generates fresh passwords when perf-suite/docker/.env is missing,
+      # which would not match the seeded MariaDB volume.  Reuse the runner's
+      # persistent env file (the one used to provision and seed the stack).
+      - name: Load the runner's perf stack credentials
+        run: |
+          env_file="${KHITMEE_PERF_ENV_FILE:-/srv/khitmee-perf/perf.env}"
+          if [ ! -f "$env_file" ]; then
+            echo "Missing perf stack env file $env_file (set KHITMEE_PERF_ENV_FILE on the runner)" >&2
+            exit 2
+          fi
+          install -m 600 "$env_file" perf-suite/docker/.env
+
+      # The gate runs against the perf backend's mounted app, so sync this
+      # checkout into it first; otherwise the gate would test stale code.
+      - name: Sync checkout into the perf stack
+        run: bash perf-suite/scripts/up.sh --profile 2gb --with-khitmee-ops
+
+      # Apply this checkout's migrations, then register missing/outdated summary
+      # days and rebuild them so the gate's 1-year coverage check is meaningful.
+      - name: Prepare profit summaries
+        run: |
+          # Same site the stack was provisioned with (up.sh honours SITE_NAME).
+          # Source it the way up.sh does, so quoting is resolved identically.
+          site="$(set -a; . perf-suite/docker/.env; printf '%s' "${SITE_NAME:-}")"
+          site="${site:-bench-loadtest.localhost}"
+          docker exec -w /home/frappe/frappe-bench khitmee-perf-backend-1 \
+            bench --site "$site" migrate --skip-search-index
+          docker exec -w /home/frappe/frappe-bench khitmee-perf-backend-1 \
+            bench --site "$site" khitmee-prepare-profit-summary --timeout-seconds 3600
+
+      # Fail-closed: tools/perf_parity.py --require-db exits non-zero when the bench
+      # database is unavailable, executed_cases == 0, skipped_cases > 0, or
+      # failed_cases > 0.
+      - name: Run required ERPNext oracle parity suite
+        run: python3 tools/perf_parity.py --require-db --profile 2gb --gp-1y "$GP_1Y"

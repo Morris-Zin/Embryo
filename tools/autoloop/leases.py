@@ -5,6 +5,7 @@ Pure Python 3.11+ stdlib. Never calls os.kill(pid, 0) on Windows.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
@@ -19,7 +20,7 @@ import socket
 import sys
 import tempfile
 import time
-from typing import Any, Iterator
+from typing import Any, ClassVar
 
 if sys.platform == "win32":
     import msvcrt
@@ -47,7 +48,7 @@ class MutexTimeoutError(LeaseError):
 
 
 class _FILETIME(ctypes.Structure):
-    _fields_ = [
+    _fields_: ClassVar[list[tuple[str, Any]]] = [
         ("dwLowDateTime", wintypes.DWORD),
         ("dwHighDateTime", wintypes.DWORD),
     ]

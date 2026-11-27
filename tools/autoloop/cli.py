@@ -168,7 +168,6 @@ def cmd_bootstrap_repo(repo: Path, *, repo_slug: str | None = None, dry_run: boo
                     "required_status_checks": [
                         {"context": "autoloop-preflight", "integration_id": 15368},
                         {"context": "autoloop-candidate-checks", "integration_id": 15368},
-                        {"context": "autoloop-shard-checks", "integration_id": 15368},
                         {"context": "autoloop-integrity", "integration_id": 15368},
                     ],
                 },
@@ -576,11 +575,20 @@ def main(argv: list[str] | None = None) -> int:
                 pr_body=str(pr_body or ""),
             )
             if args.github_output is not None:
+                shard_checks_list = result.get("shard_checks") or []
                 manifest_bytes = json.dumps(
-                    result.get("shard_checks") or [], sort_keys=True, separators=(",", ":")
+                    shard_checks_list, sort_keys=True, separators=(",", ":")
                 ).encode("utf-8")
                 shard_b64 = base64.b64encode(manifest_bytes).decode("ascii")
                 shard_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+                matrix_entries = [
+                    {
+                        "shard_id": str(item.get("shard_id") or ""),
+                        "shard_key": hashlib.sha256(str(item.get("shard_id") or "").encode("utf-8")).hexdigest()[:16],
+                    }
+                    for item in shard_checks_list
+                ]
+                matrix_json = json.dumps(matrix_entries, sort_keys=True, separators=(",", ":"))
                 with args.github_output.open("a", encoding="utf-8", newline="\n") as handle:
                     handle.write(f"enrolled={'true' if result['enrolled'] else 'false'}\n")
                     handle.write("bootstrap=false\n")
@@ -588,6 +596,7 @@ def main(argv: list[str] | None = None) -> int:
                     handle.write(f"code_tree_sha256={result.get('code_tree_sha256') or ''}\n")
                     handle.write(f"shard_checks_b64={shard_b64}\n")
                     handle.write(f"shard_checks_sha256={shard_sha256}\n")
+                    handle.write(f"shard_matrix_json={matrix_json}\n")
             _emit(result)
         elif cmd == "lease":
             if args.action == "acquire":

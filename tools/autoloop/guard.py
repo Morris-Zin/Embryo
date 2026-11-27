@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import ctypes
+from collections.abc import Iterable
 from dataclasses import dataclass
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
-from typing import Any, Iterable
+from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -333,8 +335,21 @@ def is_framework_metadata_path(path: str, run_id: str) -> bool:
     return norm == f".autoloop/runs/{run_id}.json" or is_valid_experiment_path(norm, run_id)
 
 
+def _resolve_git_bin() -> str:
+    if sys.platform == "win32":
+        git_path = shutil.which("git")
+        if git_path:
+            mingw_git = Path(git_path).resolve().parent.parent / "mingw64/bin/git.exe"
+            if mingw_git.is_file():
+                return str(mingw_git)
+    return "git"
+
+
+_GIT_BIN = _resolve_git_bin()
+
+
 def _run_git(repo: Path, args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[bytes]:
-    cmd = ["git", "-c", f"safe.directory={repo}", *args]
+    cmd = [_GIT_BIN, "-c", f"safe.directory={repo}", *args]
     proc = subprocess.run(
         cmd,
         cwd=repo,
@@ -455,7 +470,7 @@ def git_read_tree_blobs(
     batch_input = "".join(f"{e.sha}\n" for e in entries).encode("utf-8")
 
     proc = subprocess.Popen(
-        ["git", "-c", f"safe.directory={repo}", "cat-file", "--batch"],
+        [_GIT_BIN, "-c", f"safe.directory={repo}", "cat-file", "--batch"],
         cwd=repo,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -508,9 +523,15 @@ def git_is_ancestor(repo: Path, ancestor_sha: str, descendant_sha: str) -> bool:
     raise GuardError(f"git merge-base --is-ancestor failed: {err}")
 
 
-def compute_code_tree_sha256(repo: Path, tree_ish: str, *, run_id: str | None = None) -> str:
+def compute_code_tree_sha256(
+    repo: Path,
+    tree_ish: str,
+    *,
+    run_id: str | None = None,
+    tree_entries: list[TreeEntry] | None = None,
+) -> str:
     """Hash sorted NUL-delimited `git ls-tree -r -z` records excluding only run checkpoint & valid experiment logs."""
-    entries = git_ls_tree(repo, tree_ish)
+    entries = list(tree_entries) if tree_entries is not None else git_ls_tree(repo, tree_ish)
     entries.sort(key=lambda e: e.path.encode("utf-8"))
     hasher = hashlib.sha256()
 
@@ -1239,6 +1260,31 @@ def _parse_all_owner_contracts(
 _ISSUE_REF_RE = re.compile(r"(?<![A-Za-z0-9_/#])#(\d+)\b")
 
 
+def _git_log_messages_and_run_paths(repo: Path, base_sha: str, head_sha: str) -> tuple[list[str], str]:
+    """Single `git log` pass returning touched `.autoloop/runs/*` paths and combined commit messages."""
+    proc = _run_git(
+        repo,
+        ["log", "--name-only", "--format=%x1e%B%x1f", f"{base_sha}..{head_sha}"],
+        check=True,
+    )
+    text = proc.stdout.decode("utf-8", errors="replace")
+    messages: list[str] = []
+    run_paths: set[str] = set()
+    for chunk in text.split("\x1e"):
+        if not chunk:
+            continue
+        if "\x1f" in chunk:
+            msg_part, files_part = chunk.split("\x1f", 1)
+        else:
+            msg_part, files_part = chunk, ""
+        messages.append(msg_part)
+        for line in files_part.splitlines():
+            norm = _normalize_posix_path(line.strip())
+            if norm and RUN_FILE_RE.match(norm):
+                run_paths.add(norm)
+    return sorted(run_paths), "\n".join(messages)
+
+
 def _extract_referenced_issue_numbers(
     repo: Path,
     mb_target: str,
@@ -1247,13 +1293,17 @@ def _extract_referenced_issue_numbers(
     pr_comments: list[dict[str, Any]],
     present_run_paths: list[str],
     trusted_owners: set[str],
+    *,
+    commit_messages: str | None = None,
 ) -> list[int]:
     """Collect candidate GitHub issue numbers from PR body, commits, run blobs, and owner comments."""
     found: set[int] = set()
     for raw in _ISSUE_REF_RE.findall(pr_body or ""):
         found.add(int(raw))
-    log_proc = _run_git(repo, ["log", "--format=%B", f"{mb_target}..{head_sha}"], check=True)
-    for raw in _ISSUE_REF_RE.findall(log_proc.stdout.decode("utf-8", errors="replace")):
+    if commit_messages is None:
+        log_proc = _run_git(repo, ["log", "--format=%B", f"{mb_target}..{head_sha}"], check=True)
+        commit_messages = log_proc.stdout.decode("utf-8", errors="replace")
+    for raw in _ISSUE_REF_RE.findall(commit_messages):
         found.add(int(raw))
     for comment in pr_comments:
         if _is_comment_owner_authentic(comment, trusted_owners):
@@ -1474,7 +1524,9 @@ def verify_untampered(
         "shard_id": shard_id,
         "base_sha": base_sha,
         "head_sha": head_sha,
-        "code_tree_sha256": compute_code_tree_sha256(target_repo, head_sha, run_id=run_id),
+        "code_tree_sha256": compute_code_tree_sha256(
+            target_repo, head_sha, run_id=run_id, tree_entries=head_entries
+        ),
         "changed_files": [e.path for e in target_diff],
         "worktree": str(target_repo),
         "contract_shards": {
@@ -1557,7 +1609,6 @@ def verify_pr_integrity(
     pr_reviews: list[dict[str, Any]] = []
     pr_commits_api: list[dict[str, Any]] = []
     pr_review_threads: list[dict[str, Any]] = []
-    pr_check_runs: list[dict[str, Any]] = []
     if github_client is not None:
         pr_events = github_client.get_pr_events(pr_number)
         pr_comments = github_client.get_issue_comments_graphql(pr_number)
@@ -1569,13 +1620,19 @@ def verify_pr_integrity(
     ever_owner_autoloop_labeled = _ever_owner_labeled(pr_events, "autoloop", trusted_owners)
 
     # Detect any .autoloop/runs/*.json touched in diff OR in commit history since mb_target
+    is_fast_forward = mb_target == resolved_base
+    head_entries_cached = merge_entries if is_fast_forward else None
+    head_blobs_cached: dict[str, bytes] | None = merge_file_map if is_fast_forward else None
+
+    def _read_head_blob(rel_path: str) -> bytes | None:
+        if head_blobs_cached is not None:
+            return head_blobs_cached.get(rel_path)
+        return git_read_blob(repo, resolved_head, rel_path)
+
     diff_run_paths = [e.path for e in target_diff if RUN_FILE_RE.match(e.path)]
-    history_run_paths = [
-        p for p in git_paths_ever_touched_in_range(repo, mb_target, resolved_head, ".autoloop/runs")
-        if RUN_FILE_RE.match(p)
-    ]
+    history_run_paths, commit_messages_text = _git_log_messages_and_run_paths(repo, mb_target, resolved_head)
     all_touched_run_paths = sorted(set(diff_run_paths) | set(history_run_paths))
-    present_run_paths = [p for p in all_touched_run_paths if git_read_blob(repo, resolved_head, p) is not None]
+    present_run_paths = [p for p in all_touched_run_paths if _read_head_blob(p) is not None]
 
     pr_contracts = _parse_all_owner_contracts(pr_comments, trusted_owners) if pr_comments else []
     pr_bound_contract = pr_contracts[0] if pr_contracts else None
@@ -1586,12 +1643,19 @@ def verify_pr_integrity(
     if github_client is not None:
         incidental_issues = set(
             _extract_referenced_issue_numbers(
-                repo, mb_target, resolved_head, pr_body, pr_comments, [], trusted_owners
+                repo,
+                mb_target,
+                resolved_head,
+                pr_body,
+                pr_comments,
+                [],
+                trusted_owners,
+                commit_messages=commit_messages_text,
             )
         )
         authoritative_issues: set[int] = set()
         for run_path in present_run_paths:
-            blob = git_read_blob(repo, resolved_head, run_path)
+            blob = _read_head_blob(run_path)
             if blob is not None:
                 try:
                     parsed = json.loads(blob.decode("utf-8"))
@@ -1722,7 +1786,7 @@ def verify_pr_integrity(
     assert match is not None
     run_id = match.group(1)
 
-    run_blob = git_read_blob(repo, resolved_head, run_path)
+    run_blob = _read_head_blob(run_path)
     if run_blob is None:
         raise GuardError(f"missing run checkpoint blob {run_path} at {resolved_head}")
     try:
@@ -1822,7 +1886,9 @@ def verify_pr_integrity(
         )
 
     # Compute authoritative code_tree_sha256
-    actual_code_hash = compute_code_tree_sha256(repo, resolved_head, run_id=run_id)
+    actual_code_hash = compute_code_tree_sha256(
+        repo, resolved_head, run_id=run_id, tree_entries=head_entries_cached
+    )
 
     if run_data.get("pending_contract_amendments"):
         raise GuardError("enrolled PR has unresolved contract amendment requests")

@@ -22,14 +22,15 @@ REPO_ROOT = TOOLS_DIR.parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from autoloop import (  # noqa: E402
+from autoloop import (
     EXIT_ILLEGAL_TRANSITION,
     EXIT_POLICY_OR_INTEGRITY,
     EXIT_UNSAFE_ROLLBACK,
 )
-from autoloop.cli import cmd_bootstrap_repo, cmd_sync_skill, main as cli_main  # noqa: E402
-from autoloop.failures import normalize_failure  # noqa: E402
-from autoloop.guard import (  # noqa: E402
+from autoloop.cli import cmd_bootstrap_repo, cmd_sync_skill, main as cli_main
+from autoloop.failures import normalize_failure
+from autoloop.guard import (
+    _GIT_BIN,
     GitHubAPIClient,
     GraphQLNotFoundError,
     GuardError,
@@ -51,7 +52,7 @@ from autoloop.guard import (  # noqa: E402
     verify_pr_integrity,
     verify_untampered,
 )
-from autoloop.leases import (  # noqa: E402
+from autoloop.leases import (
     LeaseConflictError,
     LeaseError,
     WIN_ERROR_ACCESS_DENIED,
@@ -64,7 +65,7 @@ from autoloop.leases import (  # noqa: E402
     renew_lease,
     resource_key_hash,
 )
-from autoloop.state import (  # noqa: E402
+from autoloop.state import (
     IllegalTransitionError,
     apply_replan,
     bind_pr,
@@ -88,7 +89,7 @@ from autoloop.state import (  # noqa: E402
     start_shard,
     submit_for_review,
 )
-from autoloop.static_rules import evaluate_file_map, lint_repo, load_working_tree_file_map  # noqa: E402
+from autoloop.static_rules import evaluate_file_map, lint_repo, load_working_tree_file_map
 
 
 def _git(repo: Path, *args: str, env_extra: dict[str, str] | None = None) -> str:
@@ -100,7 +101,7 @@ def _git(repo: Path, *args: str, env_extra: dict[str, str] | None = None) -> str
     if env_extra:
         env.update(env_extra)
     proc = subprocess.run(
-        ["git", *args],
+        [_GIT_BIN, *args],
         cwd=repo,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -177,10 +178,11 @@ class FakeGitHubClient:
 
 
 _TEMPLATE_REPO_ROOT: Path | None = None
+_TEMPLATE_MAIN_SHA: str | None = None
 
 
 def _get_template_repo() -> Path:
-    global _TEMPLATE_REPO_ROOT
+    global _TEMPLATE_REPO_ROOT, _TEMPLATE_MAIN_SHA
     if _TEMPLATE_REPO_ROOT is not None and _TEMPLATE_REPO_ROOT.is_dir():
         return _TEMPLATE_REPO_ROOT
     base_tmp = Path(tempfile.mkdtemp(prefix="autoloop-tpl-"))
@@ -191,6 +193,7 @@ def _get_template_repo() -> Path:
     _git(repo, "config", "user.name", "Morris-Zin")
     _git(repo, "config", "user.email", "morris@example.com")
     _git(repo, "config", "core.autocrlf", "false")
+    _git(repo, "config", "gc.auto", "0")
 
     # Copy real trusted config, rules, .gitignore, and synced SKILL.md into the fixture repo.
     shutil.copy2(REPO_ROOT / ".gitignore", repo / ".gitignore")
@@ -209,6 +212,7 @@ def _get_template_repo() -> Path:
     main_sha = _git(repo, "rev-parse", "HEAD")
     _git(repo, "update-ref", "refs/remotes/origin/main", main_sha)
     _TEMPLATE_REPO_ROOT = repo
+    _TEMPLATE_MAIN_SHA = main_sha
     return repo
 
 
@@ -216,6 +220,12 @@ def _create_temp_repo(tmp_dir: Path) -> Path:
     repo = tmp_dir / "repo"
     shutil.copytree(_get_template_repo(), repo)
     return repo
+
+
+def _template_main_sha() -> str:
+    _get_template_repo()
+    assert _TEMPLATE_MAIN_SHA is not None
+    return _TEMPLATE_MAIN_SHA
 
 
 def _ensure_parent(path: Path) -> Path:
@@ -227,7 +237,7 @@ class TestScenario1OrdinaryDocsAndPolicyGuard(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.repo = _create_temp_repo(Path(self._tmp.name))
-        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.main_sha = _template_main_sha()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -341,7 +351,7 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.lock_dir = Path(self._tmp.name) / "locks"
         self.repo = _create_temp_repo(Path(self._tmp.name))
-        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.main_sha = _template_main_sha()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -577,7 +587,7 @@ class TestScenario3FindingsSafeguardsAndZeroReviewer(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.lock_dir = Path(self._tmp.name) / "locks"
         self.repo = _create_temp_repo(Path(self._tmp.name))
-        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.main_sha = _template_main_sha()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -714,7 +724,7 @@ class TestScenario4StackedPRAndContractAmendment(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.lock_dir = Path(self._tmp.name) / "locks"
         self.repo = _create_temp_repo(Path(self._tmp.name))
-        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.main_sha = _template_main_sha()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -1244,7 +1254,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self._tmp.name)
         self.repo = _create_temp_repo(self.tmp_path)
-        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.main_sha = _template_main_sha()
         self.lock_dir = self.tmp_path / "locks"
 
     def tearDown(self) -> None:
@@ -1262,7 +1272,6 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             {
                 "autoloop-preflight": 15368,
                 "autoloop-candidate-checks": 15368,
-                "autoloop-shard-checks": 15368,
                 "autoloop-integrity": 15368,
             },
         )
@@ -1549,6 +1558,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
 
             _git(wt_a, "add", "src/a.py")
             _git(wt_a, "commit", "-m", "shard a work")
+            sha_a = _git(wt_a, "rev-parse", "HEAD")
             # Mismatched --head-ref vs HEAD must refuse `cli check`
             self.assertNotEqual(
                 cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_a", "--head-ref", self.main_sha, "--skip-fast-check"]),
@@ -1563,6 +1573,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             _write_lf(wt_b / "src/b.py", "def b():\n    return 22\n")
             _git(wt_b, "add", "src/b.py")
             _git(wt_b, "commit", "-m", "shard b work")
+            sha_b = _git(wt_b, "rev-parse", "HEAD")
             self.assertEqual(
                 cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_b", "--skip-fast-check"]),
                 0,
@@ -1572,28 +1583,51 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             _git(self.repo, "checkout", "-b", "feat/integrated", self.main_sha)
             _git(self.repo, "merge", "--no-ff", "-m", "merge a", "feat/shard-a")
             _git(self.repo, "merge", "--no-ff", "-m", "merge b", "feat/shard-b")
+            int_sha = _git(self.repo, "rev-parse", "HEAD")
             self.assertEqual(
                 cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
                 0,
             )
             st = load_run(self.repo, run_id)
             self.assertEqual(st["status"], "gate_passed")
+            self.assertEqual(st["last_integrated_sha"], int_sha)
+            # Shard-local rollback anchors MUST stay shard-local (not overwritten with integration commit)
+            self.assertEqual(st["shards"]["shard_a"]["last_green_sha"], sha_a)
+            self.assertEqual(st["shards"]["shard_b"]["last_green_sha"], sha_b)
 
-            # Review -> reject F1 -> fix + pass -> safeguard_pending -> add safeguard test -> recheck via `--all-shards` -> re-review
+            # Review -> reject F1 -> shard_a strikes out -> clean shard-local rollback on wt_a without UnsafeRollbackError!
             submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
             h1 = st["shards"]["shard_a"]["passed_code_tree_sha256"]
             record_review(
                 self.repo, run_id, stage="cloud", verdict="reject", reviewer="alice", code_tree_sha256=h1,
                 findings=[{"finding_id": "F1", "summary": "Add test"}], lock_dir=self.lock_dir,
             )
+            _write_lf(wt_a / "src/a.py", "def a():\n    return -999\n")
+            _git(wt_a, "add", "src/a.py")
+            _git(wt_a, "commit", "-m", "bad fix in a")
+            for attempt in range(3):
+                st_r = retry_shard(
+                    self.repo, run_id, "shard_a", check_name="pytest", error_output=f"fail {attempt}", lock_dir=self.lock_dir,
+                )
+            self.assertEqual(st_r["status"], "needs_replan")
+            self.assertEqual((wt_a / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 11\n")
+            apply_replan(self.repo, run_id, plan_summary="Re-run cleanly", shard_id="shard_a", lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "shard_a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_a", "--skip-fast-check"]),
+                0,
+            )
+            # Refresh integration branch to include shard_a's rollback commit, then verify --all-shards & safeguard flow
+            _git(self.repo, "merge", "--no-ff", "-m", "merge a rollback", "feat/shard-a")
             resolve_finding(self.repo, run_id, "F1", fix_summary="fixed", lock_dir=self.lock_dir)
             self.assertEqual(
                 cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
                 0,
             )
+            h1_post = load_run(self.repo, run_id)["shards"]["shard_a"]["passed_code_tree_sha256"]
             submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
-            record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h1, lock_dir=self.lock_dir)
-            record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h1, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h1_post, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h1_post, lock_dir=self.lock_dir)
             self.assertEqual(load_run(self.repo, run_id)["status"], "safeguard_pending")
 
             # Add regression test committed under shard_b scope -> re-run `--all-shards` -> transitions to gate_passed!
@@ -1607,7 +1641,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             st_recheck = load_run(self.repo, run_id)
             self.assertEqual(st_recheck["status"], "gate_passed")
             h2 = st_recheck["shards"]["shard_a"]["passed_code_tree_sha256"]
-            self.assertNotEqual(h2, h1)
+            self.assertNotEqual(h2, h1_post)
             submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
             record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h2, lock_dir=self.lock_dir)
             record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h2, lock_dir=self.lock_dir)
@@ -1617,16 +1651,29 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             )
             self.assertEqual(load_run(self.repo, run_id)["status"], "ready_to_merge")
 
-            # Base refresh & post-ready contract amendment work cleanly
+            # Base refresh & post-ready contract amendment work cleanly AND clear has_passed_individually!
             st_req = request_contract_change(self.repo, run_id, "shard_a", reason="Expand", proposed_paths=["README.md"], lock_dir=self.lock_dir)
             self.assertEqual(st_req["status"], "needs_contract_amendment")
             resolve_contract_change(self.repo, run_id, decision="approve", add_paths={"shard_a": ["README.md"]}, lock_dir=self.lock_dir)
-            st_ref = refresh_base(self.repo, run_id, new_base_sha=self.main_sha, lock_dir=self.lock_dir)
-            self.assertEqual(st_ref["status"], "locked")
-        finally:
             _git(self.repo, "checkout", "main")
-            _git(self.repo, "worktree", "remove", "--force", str(wt_a))
-            _git(self.repo, "worktree", "remove", "--force", str(wt_b))
+            _write_lf(self.repo / "README.md", "# Updated main M2\n")
+            _git(self.repo, "add", "README.md")
+            _git(self.repo, "commit", "-m", "main M2")
+            m2_sha = _git(self.repo, "rev-parse", "HEAD")
+            st_ref = refresh_base(self.repo, run_id, new_base_sha=m2_sha, lock_dir=self.lock_dir)
+            self.assertEqual(st_ref["status"], "locked")
+            self.assertFalse(st_ref["shards"]["shard_a"]["has_passed_individually"])
+            self.assertFalse(st_ref["shards"]["shard_b"]["has_passed_individually"])
+            start_shard(self.repo, run_id, "shard_a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "shard_b", worktree_path=str(wt_b), lock_dir=self.lock_dir)
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
+                EXIT_ILLEGAL_TRANSITION,
+            )
+        finally:
+            subprocess.run(["git", "checkout", "main"], cwd=self.repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=self.repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_b)], cwd=self.repo, capture_output=True)
 
     def test_local_allow_policy_paths_and_rollback_restore_and_oversized_blobs(self) -> None:
         # Local allow_policy_paths authorization
@@ -1916,93 +1963,6 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 lock_dir=self.lock_dir,
             )
         self.assertIn("unknown shard", str(ctx.exception))
-
-    def test_multi_shard_rollback_after_integration_and_refresh_base_clears_individual_pass(self) -> None:
-        run_id = "run-ms-rollback"
-        init_run(self.repo, run_id, "Multi-shard rollback", base_sha=self.main_sha, lock_dir=self.lock_dir)
-        complete_grill(
-            self.repo,
-            run_id,
-            summary="Two shards",
-            shards={"a": ["src/a.py"], "b": ["src/b.py"]},
-            lock_dir=self.lock_dir,
-        )
-        lock_run(self.repo, run_id, base_sha=self.main_sha, lock_dir=self.lock_dir)
-
-        wt_a = self.tmp_path / "wt_rb_a"
-        wt_b = self.tmp_path / "wt_rb_b"
-        _git(self.repo, "worktree", "add", "-b", "rb/a", str(wt_a), "main")
-        _git(self.repo, "worktree", "add", "-b", "rb/b", str(wt_b), "main")
-        try:
-            start_shard(self.repo, run_id, "a", worktree_path=str(wt_a), last_green_sha=self.main_sha, lock_dir=self.lock_dir)
-            start_shard(self.repo, run_id, "b", worktree_path=str(wt_b), last_green_sha=self.main_sha, lock_dir=self.lock_dir)
-
-            _write_lf(wt_a / "src/a.py", "def a():\n    return 10\n")
-            _git(wt_a, "add", "src/a.py")
-            _git(wt_a, "commit", "-m", "a green")
-            sha_a = _git(wt_a, "rev-parse", "HEAD")
-
-            _write_lf(wt_b / "src/b.py", "def b():\n    return 20\n")
-            _git(wt_b, "add", "src/b.py")
-            _git(wt_b, "commit", "-m", "b green")
-            sha_b = _git(wt_b, "rev-parse", "HEAD")
-
-            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "a", "--skip-fast-check"]), 0)
-            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "b", "--skip-fast-check"]), 0)
-
-            _git(self.repo, "checkout", "-b", "rb/int")
-            _git(self.repo, "merge", "--no-ff", "rb/a", "-m", "merge a")
-            _git(self.repo, "merge", "--no-ff", "rb/b", "-m", "merge b")
-            int_sha = _git(self.repo, "rev-parse", "HEAD")
-            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]), 0)
-
-            st_int = load_run(self.repo, run_id)
-            self.assertEqual(st_int["last_integrated_sha"], int_sha)
-            # Shard-local rollback anchors MUST stay shard-local (not overwritten with integration commit)
-            self.assertEqual(st_int["shards"]["a"]["last_green_sha"], sha_a)
-            self.assertEqual(st_int["shards"]["b"]["last_green_sha"], sha_b)
-
-            # Review rejects integration -> worker A edits and hits 3 strikes -> clean rollback without UnsafeRollbackError
-            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
-            h_int = compute_code_tree_sha256(self.repo, int_sha, run_id=run_id)
-            record_review(
-                self.repo, run_id, stage="cloud", verdict="reject", reviewer="alice", code_tree_sha256=h_int,
-                findings=[{"finding_id": "F-INT", "summary": "Fix edge case in a"}], lock_dir=self.lock_dir,
-            )
-
-            _write_lf(wt_a / "src/a.py", "def a():\n    return -999\n")
-            _git(wt_a, "add", "src/a.py")
-            _git(wt_a, "commit", "-m", "bad fix in a")
-            for attempt in range(3):
-                st_r = retry_shard(
-                    self.repo, run_id, "a", check_name="pytest", error_output=f"fail {attempt}", lock_dir=self.lock_dir,
-                )
-            self.assertEqual(st_r["status"], "needs_replan")
-            self.assertEqual(st_r["shards"]["a"]["status"], "needs_replan")
-            self.assertEqual((wt_a / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 10\n")
-
-            # Refresh base MUST clear has_passed_individually so check --all-shards cannot bypass individual rechecks
-            apply_replan(self.repo, run_id, plan_summary="Retry cleanly", shard_id="a", lock_dir=self.lock_dir)
-            _git(self.repo, "checkout", "main")
-            _write_lf(self.repo / "README.md", "# Updated main M2\n")
-            _git(self.repo, "add", "README.md")
-            _git(self.repo, "commit", "-m", "main M2")
-            m2_sha = _git(self.repo, "rev-parse", "HEAD")
-
-            st_ref = refresh_base(self.repo, run_id, new_base_sha=m2_sha, lock_dir=self.lock_dir)
-            self.assertFalse(st_ref["shards"]["a"]["has_passed_individually"])
-            self.assertFalse(st_ref["shards"]["b"]["has_passed_individually"])
-            start_shard(self.repo, run_id, "a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
-            start_shard(self.repo, run_id, "b", worktree_path=str(wt_b), lock_dir=self.lock_dir)
-            # Even on a clean commit descending from M2, check --all-shards MUST fail until each shard passes individually
-            self.assertEqual(
-                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
-                EXIT_ILLEGAL_TRANSITION,
-            )
-        finally:
-            subprocess.run(["git", "checkout", "main"], cwd=self.repo, capture_output=True)
-            subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=self.repo, capture_output=True)
-            subprocess.run(["git", "worktree", "remove", "--force", str(wt_b)], cwd=self.repo, capture_output=True)
 
     def test_post_review_safeguard_failure_supports_retry_and_recovery(self) -> None:
         run_id = "run-post-review-retry"
@@ -2418,17 +2378,15 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         release_lease("res:r2-tok", "worker-1", token=l1["token"], lock_dir=self.lock_dir)
 
         # 2) Staged rename from src/b.py -> .autoloop/runs/demo.json MUST be refused by BOTH rollback and check cleanliness guards
-        ren_parent = self.tmp_path / "ren_repo"
-        ren_parent.mkdir(parents=True, exist_ok=True)
-        ren_repo = _create_temp_repo(ren_parent)
-        _write_lf(ren_repo / ".autoloop/runs/demo.json", "{}\n")
-        _git(ren_repo, "add", ".autoloop/runs/demo.json")
-        _git(ren_repo, "commit", "-m", "add run file")
-        _git(ren_repo, "mv", "-f", "src/b.py", ".autoloop/runs/demo.json")
+        _write_lf(self.repo / ".autoloop/runs/demo.json", "{}\n")
+        _git(self.repo, "add", ".autoloop/runs/demo.json")
+        _git(self.repo, "mv", "-f", "src/b.py", ".autoloop/runs/demo.json")
         with self.assertRaises(UnsafeRollbackError):
-            assert_clean_worktree_for_rollback(ren_repo, allow_paths={".autoloop/runs/demo.json"})
+            assert_clean_worktree_for_rollback(self.repo, allow_paths={".autoloop/runs/demo.json"})
         with self.assertRaises(GuardError):
-            assert_clean_worktree_for_check(ren_repo, run_id="demo")
+            assert_clean_worktree_for_check(self.repo, run_id="demo")
+        _git(self.repo, "reset", "--hard", "HEAD")
+        (self.repo / ".autoloop/runs/demo.json").unlink(missing_ok=True)
 
         # 3) Local `check` runs FrozenContractV1 checks even under --skip-fast-check & rejects mutable tampering
         run_chk = "run-r2-frozen-chk"
@@ -2542,6 +2500,31 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             self.assertEqual(_git(int_repo, "rev-parse", "HEAD"), int_main)
             self.assertEqual((int_repo / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 1\n")
             self.assertEqual(st_rb["history"][-1].get("rolled_back_to"), int_sha)
+
+            # Detached integration pass MUST record "__DETACHED__" and refuse rollback if later switched to a named branch
+            apply_replan(int_repo, run_int, plan_summary="Detached check", shard_id="a", lock_dir=self.lock_dir)
+            start_shard(int_repo, run_int, "a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
+            record_shard_pass(int_repo, run_int, "a", code_tree_sha256=compute_code_tree_sha256(wt_a, "HEAD", run_id=run_int), head_sha=_git(wt_a, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+            _git(wt_int, "checkout", "--detach", int_sha)
+            st_det = record_all_shards_pass(
+                int_repo,
+                run_int,
+                code_tree_sha256=compute_code_tree_sha256(wt_int, "HEAD", run_id=run_int),
+                head_sha=int_sha,
+                worktree_path=str(wt_int),
+                lock_dir=self.lock_dir,
+            )
+            self.assertEqual(st_det["last_integrated_branch"], "__DETACHED__")
+            # Switch wt_int onto a new named branch descending from int_sha and hit strike limit -> MUST refuse rollback!
+            _git(wt_int, "checkout", "-b", "irb/wrong-branch")
+            _write_lf(wt_int / "src/a.py", "def a():\n    return 777\n")
+            _git(wt_int, "add", "src/a.py")
+            _git(wt_int, "commit", "-m", "other branch work")
+            retry_shard(int_repo, run_int, "a", check_name="c", error_output="e1", integrated=True, lock_dir=self.lock_dir)
+            retry_shard(int_repo, run_int, "a", check_name="c", error_output="e2", integrated=True, lock_dir=self.lock_dir)
+            with self.assertRaises(UnsafeRollbackError):
+                retry_shard(int_repo, run_int, "a", check_name="c", error_output="e3", integrated=True, lock_dir=self.lock_dir)
+            self.assertEqual((wt_int / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 777\n")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=int_repo, capture_output=True)
             subprocess.run(["git", "worktree", "remove", "--force", str(wt_b)], cwd=int_repo, capture_output=True)
@@ -2708,6 +2691,24 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 b'    return export_query(**kwargs)\n'
             ),
             [],
+        )
+        # 1-arg setdefault("export_in_background") defaults to None -> safe; truthy default -> unsafe
+        self.assertEqual(
+            _hits(
+                b'def run():\n'
+                b'    kwargs = {}\n'
+                b'    kwargs.setdefault("export_in_background")\n'
+                b'    return export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        self.assertTrue(
+            _hits(
+                b'def run(flag):\n'
+                b'    kwargs = {}\n'
+                b'    kwargs.setdefault("export_in_background", flag)\n'
+                b'    return export_query(**kwargs)\n'
+            )
         )
 
     def test_cli_smoke_lint_and_dry_run_sync(self) -> None:

@@ -567,7 +567,7 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                 return None
             if expr.func.attr == "setdefault":
                 if expr.args and isinstance(expr.args[0], ast.Constant) and expr.args[0].value == "export_in_background":
-                    if len(expr.args) >= 2 and _is_falsy_const(expr.args[1]):
+                    if len(expr.args) < 2 or _is_falsy_const(expr.args[1]):
                         return None
                     return target
                 if expr.args and not isinstance(expr.args[0], ast.Constant):

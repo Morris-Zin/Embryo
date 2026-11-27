@@ -630,6 +630,9 @@ def record_shard_pass(
         return state
 
 
+DETACHED_HEAD_SENTINEL = "__DETACHED__"
+
+
 def record_all_shards_pass(
     repo: Path,
     run_id: str,
@@ -659,9 +662,8 @@ def record_all_shards_pass(
             state["last_integrated_sha"] = head_sha
             int_wt = Path(worktree_path).resolve() if worktree_path else repo.resolve()
             state["last_integrated_worktree"] = str(int_wt)
-            state["last_integrated_branch"] = (
-                branch_name if branch_name is not None else git_current_branch(int_wt)
-            )
+            resolved_branch = branch_name if branch_name is not None else git_current_branch(int_wt)
+            state["last_integrated_branch"] = resolved_branch or DETACHED_HEAD_SENTINEL
         single_shard = len(state["shards"]) == 1
         for sdata in state["shards"].values():
             sdata["status"] = "passed"
@@ -778,8 +780,12 @@ def retry_shard(
                         f"refusing integrated rollback: worktree {rollback_wt} does not exist"
                     )
                 expected_branch = state.get("last_integrated_branch")
-                actual_branch = git_current_branch(rollback_wt)
-                if expected_branch is not None and actual_branch != expected_branch:
+                if not expected_branch:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_branch is not recorded"
+                    )
+                actual_branch = git_current_branch(rollback_wt) or DETACHED_HEAD_SENTINEL
+                if actual_branch != expected_branch:
                     raise UnsafeRollbackError(
                         f"refusing integrated rollback: worktree {rollback_wt} is on branch {actual_branch!r}, "
                         f"expected {expected_branch!r}"

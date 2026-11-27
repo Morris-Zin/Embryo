@@ -69,7 +69,7 @@ Before locking any contract or writing implementation code:
    3. `layer_3_static_lint` (AST/config static rule in `.autoloop/rules/`)
    4. `layer_4_runtime_test` (requires non-empty `--why-not-static` justification; 15-line prose cap)
 4. If a safeguard commit modifies code after review, run `check --run-id <id> --all-shards`, re-submit (`submit-for-review`), and re-record review on the new `code_tree_sha256` (existing finding/safeguard records are preserved).
-5. Once `status == ready_to_merge`, verify with `verify-untampered` before opening/updating the PR. CI verifies `autoloop-preflight` -> `autoloop-candidate-checks` -> `autoloop-integrity --mode finalize`.
+5. Once `status == ready_to_merge`, verify with `verify-untampered` before opening/updating the PR. CI verifies `autoloop-preflight` -> (`autoloop-candidate-checks` + per-shard isolated `autoloop-shard-checks` matrix) -> `autoloop-integrity --mode finalize`, and `autoloop-comment-refresh.yml` re-runs the bound PR gate when owner contract/approval comments change.
 
 ## Cross-Agent Skill Sync
 
