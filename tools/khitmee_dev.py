@@ -16,6 +16,7 @@ PROJECT = "khitmee-perf"
 LABEL = 'index .Config.Labels "com.docker.compose.project"'
 HELP = """khitmee-dev commands (WSL Bash or tools/khitmee-dev.ps1)
   fast-check                         local Python, JS, knip, Bash and Compose gate
+  browser-perf-check                 Playwright cashier frontend performance regression gate
   status                             containers, live fingerprint, report flags
   sql|explain|analyze 'SELECT ...'    one statement, up to 40 output rows
   py [--write] 'print(...)'           trusted Frappe snippet; DB read-only by default
@@ -123,6 +124,12 @@ def main(args):
         probe(*args)
     elif cmd == "status" and not args:
         status()
+    elif cmd == "browser-perf-check" and not args:
+        if docker("port", container("frontend"), "8080/tcp") != "127.0.0.1:18086":
+            raise ValueError("unexpected perf port")
+        browser_dir = ROOT / "perf-suite/browser"
+        subprocess.run(["pnpm", "install", "--frozen-lockfile", "--ignore-scripts"], cwd=browser_dir, check=True)
+        subprocess.run(["pnpm", "exec", "playwright", "test"], cwd=browser_dir, check=True)
     elif cmd == "fast-check" and not args:
         from fast_check import check
         check(ROOT)

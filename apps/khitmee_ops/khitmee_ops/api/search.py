@@ -574,6 +574,29 @@ def _pick_price(candidates, requested_uom, stock_uom, customer):
 	return next((row for row in pool if not (row.uom or "")), None)
 
 
+def _search_include_rates(value):
+	if isinstance(value, str):
+		return value.strip().lower() not in {"0", "false", "no", "off"}
+	return bool(value)
+
+
+def _fetch_quantities(rows, warehouse):
+	item_codes = [row.item_code for row in rows]
+	if not item_codes:
+		return {}
+	placeholders = ", ".join(["%s"] * len(item_codes))
+	bin_rows = frappe.db.sql(
+		f"""
+		SELECT item_code, actual_qty
+		FROM `tabBin`
+		WHERE warehouse = %s AND item_code IN ({placeholders})
+		""",
+		[warehouse, *item_codes],
+		as_dict=True,
+	)
+	return {row.item_code: row.actual_qty for row in bin_rows}
+
+
 def _fetch_rates_and_quantities(rows, warehouse, price_list, customer=None, uom=None):
 	item_codes = [row.item_code for row in rows]
 	if not item_codes:
@@ -596,21 +619,11 @@ def _fetch_rates_and_quantities(rows, warehouse, price_list, customer=None, uom=
 		[price_list, *item_codes, customer or ""],
 		as_dict=True,
 	)
-	bin_rows = frappe.db.sql(
-		f"""
-		SELECT item_code, actual_qty
-		FROM `tabBin`
-		WHERE warehouse = %s AND item_code IN ({placeholders})
-		""",
-		[warehouse, *item_codes],
-		as_dict=True,
-	)
-
 	price_candidates = {}
 	for price in price_rows:
 		price_candidates.setdefault(price.item_code, []).append(price)
 
-	quantities = {row.item_code: row.actual_qty for row in bin_rows}
+	quantities = _fetch_quantities(rows, warehouse)
 	for row in rows:
 		price = _pick_price(price_candidates.get(row.item_code) or [], uom, row.stock_uom, customer)
 		row.rate = price.price_list_rate if price else 0
@@ -688,7 +701,7 @@ def _ranked_item_codes(term, limit, catalog=None, folded_term=None):
 
 
 @frappe.whitelist()
-def search_items(q, warehouse, price_list, limit=15, customer=None, uom=None):
+def search_items(q, warehouse, price_list=None, limit=15, customer=None, uom=None, include_rates=True):
 	"""Counter-safe item search.
 
 	The response is intentionally limited to public selling fields. Cost, valuation,
@@ -698,7 +711,9 @@ def search_items(q, warehouse, price_list, limit=15, customer=None, uom=None):
 	_validate_warehouse(warehouse)
 
 	term = str(q or "").strip()
-	_validate_price_list(price_list)
+	include_rates = _search_include_rates(include_rates)
+	if include_rates:
+		_validate_price_list(price_list)
 	folded_term = _fold_search_text(term)
 	if not folded_term:
 		return {"items": []}
@@ -718,7 +733,13 @@ def search_items(q, warehouse, price_list, limit=15, customer=None, uom=None):
 	order = {item_code: index for index, item_code in enumerate(candidate_codes)}
 	metadata.sort(key=lambda row: order.get(row.item_code, len(order)))
 	metadata = metadata[:limit]
-	_fetch_rates_and_quantities(metadata, warehouse, price_list, customer=customer, uom=uom)
+	if include_rates:
+		_fetch_rates_and_quantities(metadata, warehouse, price_list, customer=customer, uom=uom)
+	else:
+		quantities = _fetch_quantities(metadata, warehouse)
+		for row in metadata:
+			row.rate = 0
+			row.actual_qty = quantities.get(row.item_code) or 0
 
 	return {"items": [public_item_row(row) for row in metadata]}
 

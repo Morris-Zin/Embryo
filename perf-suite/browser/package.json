@@ -1,0 +1,19 @@
+{
+  "name": "khitmee-browser-perf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible cashier browser performance benchmarks and regression checks",
+  "scripts": {
+    "bench": "node run_benchmarks.mjs",
+    "test": "playwright test",
+    "devtools": "chrome-devtools",
+    "guidance": "modern-web-guidance"
+  },
+  "dependencies": {
+    "@playwright/test": "1.65.1",
+    "chrome-devtools-mcp": "1.14.0",
+    "modern-web-guidance": "1.0.2"
+  },
+  "devDependencies": {}
+}

@@ -144,7 +144,7 @@ h2 { font-size: 1rem; }
 
 .controls-panel { grid-area: controls; }
 .scan-panel { grid-area: scan; position: relative; }
-.lines-panel { grid-area: lines; padding: 0; overflow: clip; }
+.lines-panel { grid-area: lines; padding: 0; overflow: clip; contain: layout style; }
 
 .field-grid {
 	display: grid;
@@ -293,7 +293,15 @@ kbd {
 	inline-size: 100%;
 	min-inline-size: 42rem;
 	border-collapse: collapse;
+	table-layout: fixed;
 }
+
+.lines-table th:nth-child(1) { inline-size: 27%; }
+.lines-table th:nth-child(2) { inline-size: 29%; }
+.lines-table th:nth-child(3) { inline-size: 7%; }
+.lines-table th:nth-child(4) { inline-size: 12%; }
+.lines-table th:nth-child(5) { inline-size: 16%; }
+.lines-table th:nth-child(6) { inline-size: 9%; }
 
 .lines-table th,
 .lines-table td {
