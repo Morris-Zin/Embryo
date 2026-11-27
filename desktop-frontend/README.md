@@ -25,10 +25,10 @@ Run the native pilot with MCP inspection enabled. On this Windows VM use the MSV
 
 ```bash
 cd desktop-frontend
-SLINT_MCP_PORT=49272 SLINT_EMIT_DEBUG_INFO=1 KHITMEE_CATALOG_ROWS=10000 KHITMEE_INVOICE_ROWS=10000 ./cargo-msvc.cmd cargo run -p khitmee-desktop --no-default-features
+SLINT_MCP_PORT=49272 SLINT_EMIT_DEBUG_INFO=1 KHITMEE_CATALOG_ROWS=10000 KHITMEE_INVOICE_ROWS=10000 ./cargo-msvc.cmd cargo run -p khitmee-desktop
 ```
 
-Encrypted-catalog validation uses the Chocolatey OpenSSL installation with `OPENSSL_DIR=C:\Program Files\OpenSSL-Win64`, `OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib\VCd\MD`, and `OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include`; default-feature SQLCipher tests pass on this VM.
+Encrypted-catalog validation uses the Chocolatey OpenSSL installation with `OPENSSL_DIR=C:\Program Files\OpenSSL-Win64`, `OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib\VC\x64\MD`, and `OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include`; default-feature SQLCipher tests pass on this VM.
 
 Capture deterministic web references (requires the isolated `khitmee-perf` stack or another approved test site):
 
