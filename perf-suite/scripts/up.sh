@@ -8,7 +8,7 @@ DEFAULT_PROFILE="2gb"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus]
+Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
 Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086.
 The script never targets the live khitmee-erpnext project.
@@ -17,6 +17,7 @@ Options:
   --profile 2gb|4gb   Memory profile to use (default: 2gb)
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
+  --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
   -h, --help          Show this help
 EOF_USAGE
 }
@@ -24,6 +25,7 @@ EOF_USAGE
 PROFILE="$DEFAULT_PROFILE"
 WITH_KHITMEE_OPS=0
 WITH_OPTIMUS=0
+WITH_BINLOG=0
 
 while (($#)); do
   case "$1" in
@@ -42,6 +44,10 @@ while (($#)); do
       ;;
     --with-optimus)
       WITH_OPTIMUS=1
+      shift
+      ;;
+    --with-binlog)
+      WITH_BINLOG=1
       shift
       ;;
     -h|--help)
@@ -63,6 +69,11 @@ case "$PROFILE" in
     exit 2
     ;;
 esac
+
+if [[ "$WITH_BINLOG" == "1" && "$PROFILE" != "2gb" ]]; then
+  echo "--with-binlog currently mirrors only the 2gb MariaDB command; use --profile 2gb" >&2
+  exit 2
+fi
 
 if [[ "$PROJECT_NAME" == "$FORBIDDEN_PROJECT" ]]; then
   echo "Refusing to target the live $FORBIDDEN_PROJECT project" >&2
@@ -139,6 +150,10 @@ COMPOSE_FILE_ARGS=(
 
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$PROFILE.yaml" )
+fi
+
+if [[ "$WITH_BINLOG" == "1" ]]; then
+  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/compose.binlog.yaml" )
 fi
 
 OPTIMUS_REPO="${OPTIMUS_REPO:-https://github.com/Aerele-RnD/optimus.git}"

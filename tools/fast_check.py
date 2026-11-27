@@ -26,7 +26,7 @@ def check(root):
 
     def python_tests():
         import re
-        for folder in (app / "khitmee_ops/tests", perf / "seeder", perf / "k6", root / "tools"):
+        for folder in (app / "khitmee_ops/tests", perf / "seeder", perf / "k6", perf / "offload", root / "tools"):
             output = run([sys.executable, "-B", "-m", "unittest", "discover", "-s", str(folder), "-p", "test_*.py"], root)
             match = re.search(r"Ran (\d+) tests?", output)
             if not match or int(match.group(1)) < 1:
