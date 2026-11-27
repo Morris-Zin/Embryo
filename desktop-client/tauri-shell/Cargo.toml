@@ -1,0 +1,21 @@
+[package]
+name = "khitmee-tauri-shell"
+version = "0.1.0"
+edition = "2021"
+description = "Experimental Tauri shell for the Khitmee ERPNext counter"
+license = "MIT"
+
+[dependencies]
+khitmee-catalog-service = { path = ".." }
+tauri = { version = "2", features = [] }
+url = "2.5.4"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

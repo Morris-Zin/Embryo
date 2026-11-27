@@ -4,25 +4,22 @@ ubuntu.wsl
 
 # Downloaded upstream archive (already extracted in frappe-config/)
 frappe-docker.tar.gz
-
 # Windows shortcut to local runtime files
 ERPNext source.lnk
-
 # Private local-only notes and secrets
 private-docs/
-
 # Local secrets and environment overrides
 .env
 *.env.local
-
 # Agent tooling local to this machine
 .agents/
-
 # Generated caches and dependencies
 __pycache__/
 *.py[cod]
 node_modules/
 test-results/
-
+desktop-client/target/
+desktop-client/tauri-shell/target/
 # Local benchmark outputs and ledgers
 perf-suite/results/
+desktop-client/tauri-shell/gen/

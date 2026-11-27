@@ -4,7 +4,7 @@
   "private": true,
   "description": "Khitmee counter operations browser assets",
   "scripts": {
-    "check": "node --check khitmee_ops/public/js/counter_core.js && node --check khitmee_ops/public/js/print_bridge.js && node --check khitmee_ops/public/js/sales_counter.js && node --check khitmee_ops/public/js/stock_transfer.js"
+    "check": "node --check khitmee_ops/public/js/catalog_bridge.js && node --check khitmee_ops/public/js/counter_core.js && node --check khitmee_ops/public/js/print_bridge.js && node --check khitmee_ops/public/js/sales_counter.js && node --check khitmee_ops/public/js/stock_transfer.js"
   },
   "devDependencies": {
     "knip": "6.46.1"

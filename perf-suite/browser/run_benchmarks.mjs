@@ -48,6 +48,7 @@ Options:
   --scenarios <list>      search,scan,repeat-scan,inflight-scan,keyboard,lines,memory,page-load (default: search,scan,repeat-scan,keyboard,lines,memory)
   --line-counts <list>    Invoice sizes for the lines scenario (default: 10,50,200)
   --repeat <n>            Repetitions for search/scan/keyboard scenarios (default: 1)
+  --catalog-mode <mode>   off, browser, or rust (default: off)
   --headed                Run Chrome headed
   --help                  Show this help
 
@@ -83,8 +84,29 @@ async function createHarness(browser, options, profile) {
   await network.start();
   await applyThrottling(cdp, profile);
   await installProbe(page);
-  await openCounter(page, options.baseUrl);
-  return { browser, context, page, cdp, network };
+  const counterPath = options.catalogMode && options.catalogMode !== "off"
+    ? `/khitmee_sales?khitmee_catalog=${encodeURIComponent(options.catalogMode)}`
+    : "/khitmee_sales";
+  await openCounter(page, options.baseUrl, counterPath);
+  let catalogSync = null;
+  if (options.catalogMode && options.catalogMode !== "off") {
+    const selectedWarehouse = await page.locator("#warehouse").inputValue();
+    await page.waitForFunction((warehouse) => {
+      const status = window.__khitmeeCatalogStatus;
+      return status && ["ready", "error"].includes(status.state) && status.scope && status.scope.split("\u001f")[0] === warehouse;
+    }, selectedWarehouse, { timeout: 30_000 });
+    const catalogStatus = await page.evaluate(() => window.__khitmeeCatalogStatus);
+    if (catalogStatus.state !== "ready") {
+      throw new Error(`Catalog mode ${options.catalogMode} failed to sync: ${catalogStatus.lastError || "unknown error"}`);
+    }
+    const initialNetwork = network.summary();
+    const endpoint = Object.entries(initialNetwork.endpoints || {}).find(([key]) => key.includes("sync_catalog"));
+    catalogSync = {
+      status: catalogStatus,
+      network: endpoint ? endpoint[1] : null,
+    };
+  }
+  return { browser, context, page, cdp, network, catalogSync };
 }
 
 async function runMeasuredScenario(harness, outputDir, label, profile, scenario, captureTrace, fn) {
@@ -120,6 +142,7 @@ async function runMeasuredScenario(harness, outputDir, label, profile, scenario,
     metricsDelta: metricDelta(metricsBefore, metricsAfter),
     probe,
     network: network.summary(),
+    catalogSync: harness.catalogSync || null,
     artifacts: {
       trace: compressedTrace,
     },
@@ -308,6 +331,7 @@ async function main() {
       profiles: { type: "string", default: "normal,throttled" },
       scenarios: { type: "string", default: "search,scan,repeat-scan,inflight-scan,keyboard,lines,memory" },
       "line-counts": { type: "string", default: "10,50,200" },
+      "catalog-mode": { type: "string", default: "off" },
       repeat: { type: "string", default: "1" },
       headed: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
@@ -323,7 +347,11 @@ async function main() {
     baseUrl: values.url,
     user: process.env.BENCH_ADMIN_USER || "Administrator",
     password: process.env.BENCH_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || envFile.ADMIN_PASSWORD,
+    catalogMode: values["catalog-mode"],
   };
+  if (!["off", "browser", "rust"].includes(options.catalogMode)) {
+    throw new Error(`Unknown catalog mode ${options.catalogMode}; expected off, browser, or rust`);
+  }
   if (!options.password) throw new Error("Admin password is unavailable; expected BENCH_ADMIN_PASSWORD or perf-suite/docker/.env");
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -351,6 +379,7 @@ async function main() {
           profiles: requestedProfiles,
           scenarios,
           lineCounts,
+          catalogMode: options.catalogMode,
           gitCommit: process.env.GIT_COMMIT || null,
         },
         results,
@@ -417,6 +446,7 @@ async function main() {
         profiles: requestedProfiles,
         scenarios,
         lineCounts,
+        catalogMode: options.catalogMode,
         gitCommit: process.env.GIT_COMMIT || null,
       },
       results,
