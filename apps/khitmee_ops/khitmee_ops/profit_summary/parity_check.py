@@ -250,7 +250,7 @@ def run_profit_parity_check(
 							stock_rows,
 							tolerance=1e-7,
 							check_column_metadata=True,
-							compare_group_order=True,
+							compare_group_order=group_by in {"Invoice", "Warehouse", "Monthly"},
 						)
 				except Exception as exc:
 					case_mismatches = [

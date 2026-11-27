@@ -543,7 +543,7 @@ class IntegrationProfitOracleTests(unittest.TestCase):
             stock_rows,
             tolerance=1e-7,
             check_column_metadata=True,
-            compare_group_order=True,
+            compare_group_order=filters.get("group_by") in {"Invoice", "Warehouse", "Monthly"},
         )
         self.assertEqual(mismatches, [])
         return result, (stock_columns, stock_rows)

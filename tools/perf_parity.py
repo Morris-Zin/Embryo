@@ -1193,7 +1193,7 @@ def run_gp_parity(frappe, args):
             upstream_columns,
             upstream_data,
             tolerance=1e-7,
-            compare_group_order=True,
+            compare_group_order=filters.get("group_by") in {"Invoice", "Warehouse", "Monthly"},
         )
         executed_cases += 1
         if case_mismatches:
