@@ -1,0 +1,38 @@
+services:
+  configurator:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  backend:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  queue-short:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  queue-long:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  scheduler:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  websocket:
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw
+
+  frontend:
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:ro

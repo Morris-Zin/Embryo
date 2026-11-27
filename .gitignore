@@ -22,3 +22,6 @@ private-docs/
 __pycache__/
 *.py[cod]
 node_modules/
+
+# Local benchmark outputs and ledgers
+perf-suite/results/
