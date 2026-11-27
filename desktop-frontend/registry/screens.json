@@ -328,7 +328,7 @@
       "id": "stock-transfer",
       "title": "Stock Transfer",
       "source_route": "/khitmee_transfer",
-      "status": "discovered",
+      "status": "implemented-pilot",
       "dependencies": [
         "catalog_bridge.js",
         "counter_core.js",
@@ -447,22 +447,29 @@
           "mutation": true
         }
       ],
-      "native_component": "",
-      "owner_scope": "screens/stock-transfer",
+      "native_component": "CounterScreen transfer mode",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#stock-transfer",
       "evidence": [
-        {
-          "kind": "static-source-scan",
-          "path": "apps/khitmee_ops/khitmee_ops/www/khitmee_transfer.html",
-          "sha256": "1d0ac386c1b878dbcb6b4047fb1bd06d12445d8bc95431c3718233811f17eb41",
-          "note": "Deterministic source evidence; not visual parity evidence."
-        }
+        "evidence/journeys/stock-transfer-initial.json",
+        "evidence/journeys/stock-transfer-validation.json",
+        "evidence/journeys/stock-transfer-same-warehouse.json",
+        "evidence/journeys/stock-transfer-interactions.json",
+        "evidence/journeys/stock-transfer-keyboard.json",
+        "evidence/journeys/stock-transfer-warehouse-search.json",
+        "evidence/journeys/stock-transfer-submission.json",
+        "evidence/journeys/stock-transfer-dispatch-validation.json",
+        "evidence/journeys/stock-transfer-dispatch-success.json",
+        "evidence/journeys/stock-transfer-receive-validation.json",
+        "evidence/journeys/stock-transfer-transit-receive.json",
+        "evidence/journeys/stock-transfer-permission-denied.json",
+        "evidence/journeys/stock-transfer-idempotency.json",
+        "evidence/benchmarks/stock-transfer-comparison.json",
+        "experiments/0007-stock-transfer-qualification.md"
       ],
       "failures": [
-        "initial: visual comparison failed or inputs were incomparable",
-        "draft-line: visual comparison failed or inputs were incomparable",
-        "search-results: visual comparison failed or inputs were incomparable",
-        "business outcome evidence missing",
-        "performance evidence missing"
+        "cross-process memory/frame/network-byte performance evidence pending",
+        "visual/video qualification pending",
+        "real barcode scanner and printer hardware evidence pending"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,

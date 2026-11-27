@@ -13,6 +13,8 @@ const baseUrl=arg('base-url','http://127.0.0.1:18086').replace(/\/$/,'');
 const username=arg('username','Administrator'),password=arg('password',process.env.ERPNEXT_PASSWORD||'');
 const token=arg('desktop-token',process.env.KHITMEE_DESKTOP_TOKEN||'');
 const iterations=Number(arg('iterations','5'));
+const screen=arg('screen','sales-voucher');
+const route=screen==='stock-transfer'?'/khitmee_transfer':'/khitmee_sales';
 const out=path.resolve(arg('out','desktop-frontend/evidence/benchmarks/sales-voucher-comparison.json'));
 const nativeExe=path.resolve(arg('native-exe','desktop-frontend/target/debug/khitmee-desktop.exe'));
 const serviceExe=path.resolve(arg('service-exe','desktop-client/target/release/khitmee-catalog-service.exe'));
@@ -30,7 +32,7 @@ async function nativeObs(ctx){const els=(await tree(ctx)).elements||[];return{li
 async function waitNative(ctx,predicate,timeout=3000){const start=performance.now();while(performance.now()-start<timeout){const obs=await nativeObs(ctx);if(predicate(obs))return{obs,ms:performance.now()-start};await sleep(25)}throw Error('native benchmark predicate timed out')}
 async function waitWeb(page,predicate,timeout=3000){const start=performance.now();while(performance.now()-start<timeout){const obs=await page.evaluate(()=>({lineCount:document.querySelectorAll('#lines-body tr').length,resultCount:document.querySelectorAll('#search-results .search-option-button').length,quantities:[...document.querySelectorAll('#lines-body input[aria-label="Quantity"]')].map(x=>x.value)}));if(predicate(obs))return{obs,ms:performance.now()-start};await sleep(25)}throw Error('web benchmark predicate timed out')}
 async function benchWeb(page,mode){
- await page.goto(`${baseUrl}/khitmee_sales?khitmee_catalog=${mode}`);await page.waitForLoadState('networkidle').catch(()=>{});await page.waitForTimeout(700);
+ await page.goto(`${baseUrl}${route}?khitmee_catalog=${mode}`);await page.waitForLoadState('networkidle').catch(()=>{});await page.waitForTimeout(700);
  // Prime the identical local-catalog synchronization path before measuring warm interactions.
  await page.locator('#item-search').fill('Mekong');
  await waitWeb(page,o=>o.resultCount>0,10000).catch(()=>{throw Error(mode+' catalog warmup produced no results: '+JSON.stringify({status:'unavailable'}))});
@@ -70,7 +72,7 @@ async function main(){
  if(!token)throw Error('KHITMEE_DESKTOP_TOKEN is required for the PR8 rust service benchmark');
  const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'khitmee-bench-'));
  const service=spawn(serviceExe,['serve','--db',path.join(tmp,'catalog.db'),'--key',path.join(tmp,'catalog.key'),'--port','18422','--allowed-origin',baseUrl,'--token',token],{stdio:'ignore'});
- const native=spawn(nativeExe,{cwd:path.resolve('desktop-frontend'),env:{...process.env,SLINT_MCP_PORT:String(port),SLINT_EMIT_DEBUG_INFO:'1',KHITMEE_CATALOG_ROWS:'10000',KHITMEE_INVOICE_ROWS:'10000',KHITMEE_ERP_URL:baseUrl,KHITMEE_ERP_USERNAME:username,KHITMEE_ERP_PASSWORD:password,KHITMEE_ERP_WAREHOUSE:'Dist Hub 1 - KMD',KHITMEE_ERP_CUSTOMER:'KM-CUST-0001',KHITMEE_ERP_PRICE_LIST:'Standard Selling'},stdio:'ignore'});
+ const native=spawn(nativeExe,{cwd:path.resolve('desktop-frontend'),env:{...process.env,SLINT_MCP_PORT:String(port),SLINT_EMIT_DEBUG_INFO:'1',KHITMEE_CATALOG_ROWS:'10000',KHITMEE_INVOICE_ROWS:'10000',KHITMEE_ERP_URL:baseUrl,KHITMEE_ERP_USERNAME:username,KHITMEE_ERP_PASSWORD:password,KHITMEE_ERP_WAREHOUSE:'Dist Hub 1 - KMD',KHITMEE_ERP_CUSTOMER:'KM-CUST-0001',KHITMEE_ERP_PRICE_LIST:'Standard Selling',KHITMEE_INITIAL_SCREEN:screen==='stock-transfer'?'stock-transfer':'sales'},stdio:'ignore'});
  try{
   const deadline=Date.now()+30000;while(Date.now()<deadline&&!(await nativeReady()))await sleep(100);
   const launch={headless:true};const devinChrome='C:/devin/chrome/chrome-win64/chrome.exe';if(process.platform==='win32'&&existsSync(devinChrome))launch.executablePath=devinChrome;else if(process.platform==='win32')launch.channel='chrome';
@@ -80,7 +82,7 @@ async function main(){
   const pr8RustLoopback=await benchWeb(page,'rust');
   const ctx=await nativeContext();const nativeSlint=await benchNative(ctx);
   await browser.close();
-  const report={schemaVersion:1,generatedAt:new Date().toISOString(),iterations,workload:{searchTerm:'Mekong',barcodes,catalogRows:10000,note:'wall-clock UI latency from input action to observable result/line; includes web debounce/rendering and native reactive rendering'},results:{originalWeb,pr8RustLoopback,nativeSlint},pendingRequiredMeasurements:['cross-process memory comparison','frame latency during scrolling','network byte totals','barcode hardware latency','printer latency','low-end Windows hardware']};
+  const report={schemaVersion:1,generatedAt:new Date().toISOString(),iterations,workload:{screen,searchTerm:'Mekong',barcodes,catalogRows:10000,note:'wall-clock UI latency from input action to observable result/line; includes web debounce/rendering and native reactive rendering'},results:{originalWeb,pr8RustLoopback,nativeSlint},pendingRequiredMeasurements:['cross-process memory comparison','frame latency during scrolling','network byte totals','barcode hardware latency','printer latency','low-end Windows hardware']};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+String.fromCharCode(10));
   console.log(JSON.stringify({out,web:originalWeb.scanMs.p50,pr8:pr8RustLoopback.scanMs.p50,native:nativeSlint.scanMs.p50}));
  }finally{service.kill();native.kill()}

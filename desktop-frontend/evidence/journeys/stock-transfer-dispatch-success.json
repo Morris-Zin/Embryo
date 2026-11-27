@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": true,
+    "matched": true,
+    "webVoucher": "MAT-STE-2026-00235",
+    "nativeVoucher": "MAT-STE-2026-00236",
+    "web": {
+      "docstatus": 1,
+      "fromWarehouse": "Dist Hub 1 - KMD",
+      "toWarehouse": "Goods In Transit - KMD",
+      "addToTransit": 1,
+      "totalQty": 1,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "uom": "Nos",
+        "sourceWarehouse": "Dist Hub 1 - KMD",
+        "targetWarehouse": "Goods In Transit - KMD"
+      }
+    },
+    "native": {
+      "docstatus": 1,
+      "fromWarehouse": "Dist Hub 1 - KMD",
+      "toWarehouse": "Goods In Transit - KMD",
+      "addToTransit": 1,
+      "totalQty": 1,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "uom": "Nos",
+        "sourceWarehouse": "Dist Hub 1 - KMD",
+        "targetWarehouse": "Goods In Transit - KMD"
+      }
+    },
+    "mismatches": []
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 0,
+      "action": {
+        "op": "target-warehouse",
+        "value": "Goods In Transit"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "transfer-mode",
+        "value": "Dispatch to transit"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "f9"
+      },
+      "web": {
+        "status": "Submitted MAT-STE-2026-00235 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Submitted MAT-STE-2026-00236 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Goods In Transit",
+        "transferMode": "Dispatch to transit",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    }
+  ]
+}

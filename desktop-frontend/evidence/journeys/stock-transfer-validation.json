@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": false,
+    "reason": "submission voucher number missing"
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 0,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "f9"
+      },
+      "web": {
+        "status": "Choose a target warehouse.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Choose a target warehouse.",
+        "totalQty": "1",
+        "subtotal": "1",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "targetWarehouse": "Choose target warehouse",
+        "transferMode": "Direct transfer",
+        "outgoingDisabled": true,
+        "outgoingValue": "",
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": -1,
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    }
+  ]
+}

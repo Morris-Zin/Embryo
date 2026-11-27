@@ -30,6 +30,9 @@ struct PilotState {
     customers: Vec<(String, String)>,
     payment_modes: Vec<(String, String)>,
     warehouse: String,
+    target_warehouse: String,
+    transfer_mode: String,
+    outgoing_stock_entry: String,
     customer: String,
     payment_mode: String,
     price_list: String,
@@ -536,7 +539,14 @@ fn refresh_voucher(app: &AppWindow, state: &PilotState) {
         .map(|line| line.qty * line.item.rate)
         .sum();
     app.set_total_qty_text(qty(total_qty).into());
-    app.set_subtotal_text(money(subtotal).into());
+    app.set_subtotal_text(
+        if app.get_current_screen() == 1 {
+            qty(total_qty)
+        } else {
+            money(subtotal)
+        }
+        .into(),
+    );
 }
 
 fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
@@ -576,7 +586,12 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         app.set_status_text("ERP login failed while loading Sales Invoices".into());
         return;
     };
-    match client.sales_invoice_list(&filter, 0, state.invoice_limit, state.invoice_sort_ascending) {
+    match client.sales_invoice_list(
+        &filter,
+        0,
+        state.invoice_limit,
+        state.invoice_sort_ascending,
+    ) {
         Ok(payload) => {
             state.invoices = parse_invoice_rows(&payload);
             app.set_invoice_rows(invoice_model(&state.invoices, ""));
@@ -895,6 +910,9 @@ fn main() -> Result<(), slint::PlatformError> {
         customers,
         payment_modes,
         warehouse,
+        target_warehouse: String::new(),
+        transfer_mode: "direct".into(),
+        outgoing_stock_entry: String::new(),
         customer: String::new(),
         payment_mode: String::new(),
         price_list,
@@ -915,18 +933,27 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_warehouse_options(label_model(&state_ref.warehouses));
         app.set_customer_options(label_model(&state_ref.customers));
         app.set_payment_options(label_model(&state_ref.payment_modes));
+        let mut target_rows = vec![("Choose target warehouse".to_owned(), String::new())];
+        target_rows.extend(state_ref.warehouses.iter().cloned());
+        app.set_target_warehouse_options(label_model(&target_rows));
+        app.set_transfer_mode_options(label_model(&[
+            ("Direct transfer".to_owned(), "direct".to_owned()),
+            ("Dispatch to transit".to_owned(), "dispatch".to_owned()),
+            ("Receive from transit".to_owned(), "receive".to_owned()),
+        ]));
     }
-    {
-        let mut state_ref = state.borrow_mut();
-        refresh_invoice_rows(&app, &mut state_ref);
-    }
-    app.set_search_results(search_model(&state.borrow().catalog, "retail"));
-    app.set_current_screen(match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
+    let initial_screen = match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
         Ok("stock-transfer") | Ok("transfer") | Ok("1") => 1,
         Ok("invoice-list") | Ok("invoices") | Ok("2") => 2,
         Ok("item-search") | Ok("4") => 4,
         _ => 0,
-    });
+    };
+    app.set_current_screen(initial_screen);
+    if initial_screen == 2 {
+        let mut state_ref = state.borrow_mut();
+        refresh_invoice_rows(&app, &mut state_ref);
+    }
+    app.set_search_results(search_model(&state.borrow().catalog, "retail"));
     refresh_voucher(&app, &state.borrow());
 
     app.on_warehouse_selected({
@@ -983,6 +1010,37 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 state.payment_mode = value;
             }
+        }
+    });
+
+    app.on_target_warehouse_selected({
+        let state = state.clone();
+        move |label| {
+            let mut state = state.borrow_mut();
+            state.target_warehouse = state
+                .warehouses
+                .iter()
+                .find(|(candidate, _)| candidate == label.as_str())
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default();
+        }
+    });
+
+    app.on_transfer_mode_selected({
+        let state = state.clone();
+        move |label| {
+            state.borrow_mut().transfer_mode = match label.as_str() {
+                "Dispatch to transit" => "dispatch".into(),
+                "Receive from transit" => "receive".into(),
+                _ => "direct".into(),
+            };
+        }
+    });
+
+    app.on_outgoing_stock_entry_edited({
+        let state = state.clone();
+        move |text| {
+            state.borrow_mut().outgoing_stock_entry = text.to_string();
         }
     });
 
@@ -1137,7 +1195,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             let sales_mode = app.get_current_screen() != 1;
-            let (items, client_voucher_id, warehouse, customer, price_list, payment_mode) = {
+            let (items, client_voucher_id, warehouse, customer, target_warehouse, transfer_mode, outgoing_stock_entry, price_list, payment_mode) = {
                 let state = state.borrow();
                 if sales_mode && state.warehouse.is_empty() {
                     app.set_status_text("Choose a shop warehouse.".into());
@@ -1151,6 +1209,22 @@ fn main() -> Result<(), slint::PlatformError> {
                     app.set_status_text("Price list is not configured.".into());
                     return;
                 }
+                if !sales_mode && state.warehouse.is_empty() {
+                    app.set_status_text("Choose a source warehouse.".into());
+                    return;
+                }
+                if !sales_mode && state.target_warehouse.is_empty() {
+                    app.set_status_text("Choose a target warehouse.".into());
+                    return;
+                }
+                if !sales_mode && state.warehouse == state.target_warehouse {
+                    app.set_status_text("Source and target warehouses must be different.".into());
+                    return;
+                }
+                if !sales_mode && state.transfer_mode == "receive" && state.outgoing_stock_entry.trim().is_empty() {
+                    app.set_status_text("Enter the outgoing stock entry to receive.".into());
+                    return;
+                }
                 (
                     state.lines.iter().map(|line| SaleItem {
                         item_code: line.item.item_code.clone(),
@@ -1161,6 +1235,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     state.client_voucher_id.clone(),
                     state.warehouse.clone(),
                     state.customer.clone(),
+                    state.target_warehouse.clone(),
+                    state.transfer_mode.clone(),
+                    state.outgoing_stock_entry.clone(),
                     state.price_list.clone(),
                     state.payment_mode.clone(),
                 )
@@ -1171,7 +1248,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     if sales_mode {
                         client.submit_sale(&client_voucher_id, &warehouse, &customer, &price_list, &items, (!payment_mode.is_empty()).then_some(payment_mode.as_str()), "voucher")
                     } else {
-                        client.submit_transfer(&client_voucher_id, &warehouse, &config.target_warehouse, "direct", None, &items, "voucher")
+                        client.submit_transfer(&client_voucher_id, &warehouse, &target_warehouse, &transfer_mode, (!outgoing_stock_entry.trim().is_empty()).then_some(outgoing_stock_entry.trim()), &items, "voucher")
                     }
                 });
             match result {
@@ -1236,7 +1313,12 @@ fn main() -> Result<(), slint::PlatformError> {
             let mut state = state.borrow_mut();
             state.invoice_sort_ascending = !state.invoice_sort_ascending;
             app.set_invoice_sort_label(
-                if state.invoice_sort_ascending { "ascending" } else { "descending" }.into(),
+                if state.invoice_sort_ascending {
+                    "ascending"
+                } else {
+                    "descending"
+                }
+                .into(),
             );
             refresh_invoice_rows(&app, &mut state);
         }

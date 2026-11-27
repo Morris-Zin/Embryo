@@ -249,8 +249,26 @@ impl ErpClient {
 }
 
 fn compact_error(body: &Value) -> String {
-    if let Some(message) = body.get("_error_message").and_then(|value| value.as_str()) {
-        return message.to_owned();
+    for key in ["_error_message", "exception", "message"] {
+        if let Some(message) = body.get(key).and_then(|value| value.as_str()) {
+            return message.to_owned();
+        }
+    }
+    if let Some(messages) = body
+        .get("_server_messages")
+        .and_then(|value| value.as_str())
+    {
+        if let Ok(parsed) = serde_json::from_str::<Value>(messages) {
+            if let Some(first) = parsed.as_array().and_then(|items| items.first()) {
+                if let Ok(message) =
+                    serde_json::from_str::<Value>(first.as_str().unwrap_or_default())
+                {
+                    if let Some(text) = message.get("message").and_then(|value| value.as_str()) {
+                        return text.to_owned();
+                    }
+                }
+            }
+        }
     }
     body.to_string().chars().take(300).collect()
 }

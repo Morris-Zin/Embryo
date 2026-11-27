@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-27T18:01:07.007Z",
+  "iterations": 10,
+  "workload": {
+    "screen": "stock-transfer",
+    "searchTerm": "Mekong",
+    "barcodes": [
+      "8850000000010",
+      "8850000000027",
+      "8850000000034",
+      "8850000000041",
+      "8850000000058",
+      "8850000000065",
+      "8850000000072",
+      "8850000000089",
+      "8850000000096",
+      "8850000000102",
+      "8850000000119",
+      "8850000000126",
+      "8850000000133",
+      "8850000000140",
+      "8850000000157",
+      "8850000000164",
+      "8850000000171",
+      "8850000000188",
+      "8850000000195",
+      "8850000000201"
+    ],
+    "catalogRows": 10000,
+    "note": "wall-clock UI latency from input action to observable result/line; includes web debounce/rendering and native reactive rendering"
+  },
+  "results": {
+    "originalWeb": {
+      "samples": [
+        {
+          "barcode": "8850000000010",
+          "searchMs": 129.08899999999994,
+          "scanMs": 30.586100000000442,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000027",
+          "searchMs": 123.38169999999991,
+          "scanMs": 30.837099999999737,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000034",
+          "searchMs": 122.34490000000005,
+          "scanMs": 27.76459999999952,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000041",
+          "searchMs": 127.72420000000056,
+          "scanMs": 30.445299999999406,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000058",
+          "searchMs": 126.69210000000021,
+          "scanMs": 28.184400000000096,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000065",
+          "searchMs": 149.8104999999996,
+          "scanMs": 30.578700000000026,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000072",
+          "searchMs": 150.52739999999903,
+          "scanMs": 31.10490000000027,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000089",
+          "searchMs": 123.8770999999997,
+          "scanMs": 29.277600000001257,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000096",
+          "searchMs": 122.82809999999881,
+          "scanMs": 29.5666999999994,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000102",
+          "searchMs": 122.74049999999988,
+          "scanMs": 28.652400000000853,
+          "searchResults": 10
+        }
+      ],
+      "searchMs": {
+        "mean": 129.90154999999976,
+        "p50": 123.8770999999997,
+        "p95": 150.52739999999903,
+        "min": 122.34490000000005,
+        "max": 150.52739999999903
+      },
+      "scanMs": {
+        "mean": 29.6997800000001,
+        "p50": 29.5666999999994,
+        "p95": 31.10490000000027,
+        "min": 27.76459999999952,
+        "max": 31.10490000000027
+      }
+    },
+    "pr8RustLoopback": {
+      "samples": [
+        {
+          "barcode": "8850000000010",
+          "searchMs": 130.7559999999994,
+          "scanMs": 32.50790000000052,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000027",
+          "searchMs": 129.51579999999922,
+          "scanMs": 30.059900000000198,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000034",
+          "searchMs": 124.15630000000056,
+          "scanMs": 29.002700000000914,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000041",
+          "searchMs": 126.51039999999921,
+          "scanMs": 31.283900000000358,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000058",
+          "searchMs": 122.05140000000029,
+          "scanMs": 32.063200000000506,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000065",
+          "searchMs": 138.45089999999982,
+          "scanMs": 28.425999999999476,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000072",
+          "searchMs": 125.42180000000008,
+          "scanMs": 31.764799999999013,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000089",
+          "searchMs": 126.48520000000099,
+          "scanMs": 32.747699999999895,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000096",
+          "searchMs": 125.20160000000033,
+          "scanMs": 30.414300000000367,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000102",
+          "searchMs": 135.88620000000083,
+          "scanMs": 30.236899999999878,
+          "searchResults": 10
+        }
+      ],
+      "searchMs": {
+        "mean": 128.44356000000008,
+        "p50": 126.48520000000099,
+        "p95": 138.45089999999982,
+        "min": 122.05140000000029,
+        "max": 138.45089999999982
+      },
+      "scanMs": {
+        "mean": 30.850730000000112,
+        "p50": 30.414300000000367,
+        "p95": 32.747699999999895,
+        "min": 28.425999999999476,
+        "max": 32.747699999999895
+      }
+    },
+    "nativeSlint": {
+      "samples": [
+        {
+          "barcode": "8850000000010",
+          "searchMs": 33.73979999999938,
+          "scanMs": 21.79490000000078,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000027",
+          "searchMs": 20.071899999999005,
+          "scanMs": 14.86420000000362,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000034",
+          "searchMs": 27.350099999999657,
+          "scanMs": 20.855999999999767,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000041",
+          "searchMs": 27.23439999999755,
+          "scanMs": 20.823899999999412,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000058",
+          "searchMs": 28.19380000000092,
+          "scanMs": 20.820599999999104,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000065",
+          "searchMs": 27.23910000000251,
+          "scanMs": 20.977199999997538,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000072",
+          "searchMs": 27.16349999999875,
+          "scanMs": 20.751399999997375,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000089",
+          "searchMs": 27.745599999998376,
+          "scanMs": 20.262300000002142,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000096",
+          "searchMs": 31.95850000000064,
+          "scanMs": 19.900799999999435,
+          "searchResults": 10
+        },
+        {
+          "barcode": "8850000000102",
+          "searchMs": 27.536299999999756,
+          "scanMs": 20.036000000000058,
+          "searchResults": 10
+        }
+      ],
+      "searchMs": {
+        "mean": 27.823299999999655,
+        "p50": 27.350099999999657,
+        "p95": 33.73979999999938,
+        "min": 20.071899999999005,
+        "max": 33.73979999999938
+      },
+      "scanMs": {
+        "mean": 20.108729999999923,
+        "p50": 20.751399999997375,
+        "p95": 21.79490000000078,
+        "min": 14.86420000000362,
+        "max": 21.79490000000078
+      }
+    }
+  },
+  "pendingRequiredMeasurements": [
+    "cross-process memory comparison",
+    "frame latency during scrolling",
+    "network byte totals",
+    "barcode hardware latency",
+    "printer latency",
+    "low-end Windows hardware"
+  ]
+}

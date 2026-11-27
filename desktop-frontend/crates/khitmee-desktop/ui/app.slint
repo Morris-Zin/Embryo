@@ -292,6 +292,8 @@ component CounterScreen inherits FocusScope {
     in property <[string]> warehouse-options;
     in property <[string]> customer-options;
     in property <[string]> payment-options;
+    in property <[string]> target-warehouse-options;
+    in property <[string]> transfer-mode-options;
     in property <length> initial-scroll-offset: 0px;
     in-out property <length> content-y: 0px;
     property <length> side-width: (root.width - 72px) * 0.39;
@@ -317,6 +319,9 @@ component CounterScreen inherits FocusScope {
     callback warehouse-selected(string);
     callback customer-selected(string);
     callback payment-selected(string);
+    callback target-warehouse-selected(string);
+    callback transfer-mode-selected(string);
+    callback outgoing-stock-entry-edited(string);
     callback search-edited(string);
     callback sales-scan-accepted(string);
     callback choose-item(string);
@@ -417,17 +422,31 @@ component CounterScreen inherits FocusScope {
         PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 304px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
 
         Text { visible: !root.sales-mode; x: 21px; y: 144px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 167.78125px; width: root.side-width - 42px; height: 40px; value: "Choose target warehouse"; label-text: "Target warehouse"; use-label-text: true; }
+        ComboBox {
+            visible: !root.sales-mode;
+            x: 21px; y: 167.78125px; width: root.side-width - 42px; height: 40px;
+            model: root.target-warehouse-options;
+            accessible-label: "Target warehouse";
+            selected(value) => { root.target-warehouse-selected(value); }
+        }
         Text { visible: !root.sales-mode; x: 21px; y: 221px; text: "Transfer mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 244.96875px; width: root.side-width - 42px; height: 40px; value: "Direct transfer"; label-text: "Transfer mode"; use-label-text: true; }
+        transfer-mode-combo := ComboBox {
+            visible: !root.sales-mode;
+            x: 21px; y: 244.96875px; width: root.side-width - 42px; height: 40px;
+            model: root.transfer-mode-options;
+            accessible-label: "Transfer mode";
+            selected(value) => { root.transfer-mode-selected(value); }
+        }
         Text { visible: !root.sales-mode; x: 21px; y: 298px; text: "Outgoing stock entry"; color: Design.muted; font-size: 13px; font-weight: 700; }
         LineEdit {
             visible: !root.sales-mode;
             x: 21px; y: 322.15625px; width: root.side-width - 42px; height: 40px;
-            enabled: false;
+            enabled: transfer-mode-combo.current-value == "Receive from transit";
             placeholder-text: "Required in receive mode";
+            accessible-enabled: transfer-mode-combo.current-value == "Receive from transit";
             accessible-role: text-input;
             accessible-label: "Outgoing stock entry";
+            edited => { root.outgoing-stock-entry-edited(self.text); }
         }
         Text { visible: !root.sales-mode; x: 21px; y: 375px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
         PrintRadio { visible: !root.sales-mode; x: 21px; y: 399.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
@@ -556,9 +575,10 @@ component CounterScreen inherits FocusScope {
         Text { x: 102px; y: 19px; width: 35px; text: root.total-qty-text; color: Design.text; font-size: 20px; font-weight: 800; vertical-alignment: center; }
         Text { x: 150px; y: 24px; width: 70px; text: root.sales-mode ? "Subtotal" : "Total"; color: Design.text; font-size: 14px; vertical-alignment: center; }
         Text { x: 224px; y: 19px; width: 70px; text: root.subtotal-text; color: Design.text; font-size: 20px; font-weight: 800; vertical-alignment: center; }
-        Text {
+        status-text := Text {
             x: root.sales-mode ? (root.subtotal-text == "0.00" ? 241.953125px : 253px) : 189.09375px; y: 26px; width: root.width - 488px; height: 20px;
             text: root.status-text;
+            accessible-label: root.status-text;
             color: Design.muted;
             font-size: 14px;
             horizontal-alignment: center;
@@ -1118,6 +1138,9 @@ export component AppWindow inherits Window {
     in property <[string]> warehouse-options: [];
     in property <[string]> customer-options: [];
     in property <[string]> payment-options: [];
+    in property <[string]> target-warehouse-options: [];
+    in property <[string]> transfer-mode-options: [];
+    in property <bool> outgoing-entry-enabled: false;
     in-out property <string> status-text: "Ready. Scan a barcode or press F2 to search.";
     in-out property <string> total-qty-text: "0";
     in-out property <string> subtotal-text: "0.00";
@@ -1133,6 +1156,9 @@ export component AppWindow inherits Window {
     callback warehouse-selected(string);
     callback customer-selected(string);
     callback payment-selected(string);
+    callback target-warehouse-selected(string);
+    callback transfer-mode-selected(string);
+    callback outgoing-stock-entry-edited(string);
     callback search-edited(string);
     callback sales-scan-accepted(string);
     callback choose-item(string);
@@ -1182,6 +1208,8 @@ export component AppWindow inherits Window {
         warehouse-options: root.warehouse-options;
         customer-options: root.customer-options;
         payment-options: root.payment-options;
+        target-warehouse-options: root.target-warehouse-options;
+        transfer-mode-options: root.transfer-mode-options;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
         search-open <=> root.search-open;
@@ -1194,6 +1222,9 @@ export component AppWindow inherits Window {
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }
+        target-warehouse-selected(value) => { root.target-warehouse-selected(value); }
+        transfer-mode-selected(value) => { root.transfer-mode-selected(value); }
+        outgoing-stock-entry-edited(text) => { root.outgoing-stock-entry-edited(text); }
         search-edited(text) => { root.search-edited(text); }
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }
