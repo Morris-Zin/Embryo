@@ -104,9 +104,14 @@ class TestCatalogTombstones(unittest.TestCase):
 class TestCatalogEndpoint(unittest.TestCase):
 	def setUp(self):
 		catalog.frappe.session.user = "counter@example.com"
-		restrictions = patch.object(catalog, "_item_permission_restrictions_active", return_value=False)
-		restrictions.start()
-		self.addCleanup(restrictions.stop)
+		for target, replacement in {
+			"_item_permission_restrictions_active": lambda: False,
+			"_validate_warehouse": lambda value: value,
+			"_validate_price_list": lambda value: value,
+		}.items():
+			patcher = patch.object(catalog, target, side_effect=replacement)
+			patcher.start()
+			self.addCleanup(patcher.stop)
 
 	def test_reset_payload_is_public_and_has_monotonic_state(self):
 		now = datetime(2026, 1, 2, 12, 0, 0, 123456)
