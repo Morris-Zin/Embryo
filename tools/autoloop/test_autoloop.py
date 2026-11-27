@@ -28,8 +28,11 @@ from autoloop import (  # noqa: E402
 from autoloop.cli import cmd_bootstrap_repo, cmd_sync_skill, main as cli_main  # noqa: E402
 from autoloop.failures import normalize_failure  # noqa: E402
 from autoloop.guard import (  # noqa: E402
+    GitHubAPIClient,
+    GraphQLNotFoundError,
     GuardError,
     UnsafeRollbackError,
+    _verify_safeguard_artifact,
     assert_clean_worktree_for_rollback,
     assert_safe_local_path,
     check_governed_lf_and_bom,
@@ -434,10 +437,27 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
             },
             check_runs={
                 checkpoint_head: [
-                    {"name": "autoloop-candidate-checks", "status": "completed", "conclusion": "success"}
+                    {
+                        "name": "autoloop-candidate-checks",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "app_id": 15368,
+                    }
                 ]
             },
         )
+        # Missing per-shard trusted_shard_results when candidate_checks_result is supplied MUST fail closed
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=checkpoint_head,
+                pr_number=55,
+                pr_author="devin-worker",
+                pr_labels=["autoloop"],
+                github_client=gh_client,
+                candidate_checks_result="success",
+            )
         verdict = verify_pr_integrity(
             self.repo,
             base_sha=self.main_sha,
@@ -447,6 +467,7 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
             pr_labels=["autoloop"],
             github_client=gh_client,
             candidate_checks_result="success",
+            trusted_shard_results={"shard_a": code_tree_hash, "shard_b": code_tree_hash},
         )
         self.assertEqual(verdict["verdict"], "enrolled-pass")
         self.assertTrue(verdict["enrolled"])
@@ -1324,6 +1345,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 12: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_bound["comment_markdown"]}]
             }
         )
+        h_bound = compute_code_tree_sha256(self.repo, bound_head, run_id="run-no-pr")
         res_bound = verify_pr_integrity(
             self.repo,
             base_sha=self.main_sha,
@@ -1333,6 +1355,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             pr_labels=[],
             github_client=gh_bound,
             candidate_checks_result="success",
+            trusted_shard_results={"s1": h_bound},
         )
         self.assertEqual(res_bound["verdict"], "enrolled-pass")
 
@@ -1421,6 +1444,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         fin_unres = verify_pr_integrity(
             self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
             pr_labels=[], github_client=gh_unresolved, mode="finalize", candidate_checks_result="success",
+            trusted_shard_results={"s1": h},
         )
         self.assertEqual(fin_unres["verdict"], "enrolled-pass")
         self.assertEqual(fin_unres["unresolved_review_threads"], 1)
@@ -1443,6 +1467,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         fin = verify_pr_integrity(
             self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
             pr_labels=[], github_client=gh_ok, mode="finalize", candidate_checks_result="success",
+            trusted_shard_results={"s1": h},
         )
         self.assertEqual(fin["verdict"], "enrolled-pass")
         self.assertEqual(fin["unresolved_review_threads"], 0)
@@ -2042,6 +2067,526 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             mode="finalize",
         )
         self.assertEqual(res_ord["verdict"], "non-enrolled-pass")
+
+    def test_round2_security_hardening_contracts_provenance_app_id_and_stacked_threads(self) -> None:
+        # 1) Unsigned owner-attributed policy commit MUST be rejected without explicit approval
+        _git(self.repo, "checkout", "-b", "feat/unsigned-policy")
+        _write_lf(self.repo / "AGENTS.md", "## Unsigned policy edit\n")
+        _git(self.repo, "add", "AGENTS.md")
+        _git(self.repo, "commit", "-m", "unsigned owner commit")
+        pol_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        gh_unsigned = FakeGitHubClient(
+            pr_commits=[
+                {
+                    "sha": pol_head,
+                    "author_login": "Morris-Zin",
+                    "committer_login": "Morris-Zin",
+                    "author_type": "User",
+                    "committer_type": "User",
+                    "verified": False,
+                }
+            ]
+        )
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=pol_head,
+                pr_number=201,
+                pr_author="Morris-Zin",
+                pr_labels=[],
+                github_client=gh_unsigned,
+            )
+
+        gh_verified = FakeGitHubClient(
+            pr_commits=[
+                {
+                    "sha": pol_head,
+                    "author_login": "Morris-Zin",
+                    "committer_login": "Morris-Zin",
+                    "author_type": "User",
+                    "committer_type": "User",
+                    "verified": True,
+                }
+            ]
+        )
+        res_ver = verify_pr_integrity(
+            self.repo,
+            base_sha=self.main_sha,
+            head_sha=pol_head,
+            pr_number=201,
+            pr_author="Morris-Zin",
+            pr_labels=[],
+            github_client=gh_verified,
+        )
+        self.assertEqual(res_ver["verdict"], "non-enrolled-pass")
+
+        # 2) Contract selection across ALL discovered issues + conflict rejection + check-run app_id + stacked threads
+        run_id = "run-r2-contract"
+        init_run(
+            self.repo, run_id, "R2 contract", issue_number=30, pr_number=202,
+            base_sha=self.main_sha, cloud_review=False, deep_review=False, lock_dir=self.lock_dir,
+        )
+        complete_grill(self.repo, run_id, summary="g", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, base_sha=self.main_sha, pr_number=202, lock_dir=self.lock_dir)
+        pub_rev1 = publish_contract(self.repo, run_id, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+
+        _git(self.repo, "checkout", "-b", "feat/r2-contract")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 55\n")
+        _git(self.repo, "add", "src/a.py")
+        _git(self.repo, "commit", "-m", "edit a")
+        h_a = compute_code_tree_sha256(self.repo, "HEAD", run_id=run_id)
+        record_shard_pass(self.repo, run_id, "s1", code_tree_sha256=h_a, head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        _git(self.repo, "add", f".autoloop/runs/{run_id}.json")
+        _git(self.repo, "commit", "-m", "checkpoint rev1")
+        pr_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        # Newer rev=2 posted on ANOTHER discovered issue (#31) MUST supersede rev=1 on #30 (failing rev mismatch)
+        c_rev2 = json.loads((self.repo / f".autoloop/trusted-contracts/{run_id}.rev1.json").read_text(encoding="utf-8"))
+        c_rev2["contract_revision"] = 2
+        gh_newer_other_issue = FakeGitHubClient(
+            comments_by_number={
+                30: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_rev1["comment_markdown"]}],
+                31: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": format_contract_comment(c_rev2)}],
+            },
+            contract_issue_numbers=[30, 31],
+        )
+        with self.assertRaises(GuardError) as ctx_rev:
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=202,
+                pr_author="worker", pr_labels=[], github_client=gh_newer_other_issue,
+                candidate_checks_result="success", trusted_shard_results={"s1": h_a},
+            )
+        self.assertIn("contract_revision mismatch", str(ctx_rev.exception))
+
+        # Conflicting contracts at same revision MUST raise GuardError
+        c_conflict = json.loads((self.repo / f".autoloop/trusted-contracts/{run_id}.rev1.json").read_text(encoding="utf-8"))
+        c_conflict["goal"] = "Tampered goal at same rev"
+        gh_conflict = FakeGitHubClient(
+            comments_by_number={
+                30: [
+                    {"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_rev1["comment_markdown"]},
+                    {"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": format_contract_comment(c_conflict)},
+                ],
+            },
+        )
+        with self.assertRaises(GuardError) as ctx_conf:
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=202,
+                pr_author="worker", pr_labels=[], github_client=gh_conflict,
+                candidate_checks_result="success", trusted_shard_results={"s1": h_a},
+            )
+        self.assertIn("conflicting owner contracts", str(ctx_conf.exception))
+
+        # Standalone check-run fallback MUST reject forged app_id and accept app_id=15368
+        gh_wrong_app = FakeGitHubClient(
+            comments_by_number={
+                30: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_rev1["comment_markdown"]}],
+            },
+            check_runs={
+                pr_head: [{"name": "autoloop-candidate-checks", "status": "completed", "conclusion": "success", "app_id": 99999}]
+            },
+        )
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=202,
+                pr_author="worker", pr_labels=[], github_client=gh_wrong_app,
+            )
+
+        gh_right_app = FakeGitHubClient(
+            comments_by_number={
+                30: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_rev1["comment_markdown"]}],
+            },
+            check_runs={
+                pr_head: [{"name": "autoloop-candidate-checks", "status": "completed", "conclusion": "success", "app_id": 15368}]
+            },
+            review_threads=[{"id": "PRRT_STACK", "isResolved": False, "comments": []}],
+        )
+        # Stacked target branch MUST fail on unresolved threads; default target branch passes
+        with self.assertRaises(GuardError) as ctx_stack:
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=202,
+                pr_author="worker", pr_labels=[], base_branch="feat/parent", github_client=gh_right_app,
+            )
+        self.assertIn("unresolved review thread", str(ctx_stack.exception))
+        ok_main = verify_pr_integrity(
+            self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=202,
+            pr_author="worker", pr_labels=[], base_branch="main", github_client=gh_right_app,
+        )
+        self.assertEqual(ok_main["verdict"], "enrolled-pass")
+
+    def test_round2_timeline_filters_cross_repo_and_incidental_not_found(self) -> None:
+        client = GitHubAPIClient("Morris-Zin/Embryo", token="fake")
+        responses = [
+            {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [
+                                {
+                                    "__typename": "CrossReferencedEvent",
+                                    "isCrossRepository": True,
+                                    "source": {"__typename": "Issue", "number": 480, "repository": {"nameWithOwner": "other/repo"}},
+                                },
+                                {
+                                    "__typename": "CrossReferencedEvent",
+                                    "isCrossRepository": False,
+                                    "source": {"__typename": "Issue", "number": 10, "repository": {"nameWithOwner": "Morris-Zin/Embryo"}},
+                                },
+                                {
+                                    "__typename": "ConnectedEvent",
+                                    "isCrossRepository": False,
+                                    "subject": {"__typename": "Issue", "number": 15, "repository": {"nameWithOwner": "other/fork"}},
+                                },
+                                {
+                                    "__typename": "ConnectedEvent",
+                                    "isCrossRepository": False,
+                                    "subject": {"__typename": "Issue", "number": 12, "repository": {"nameWithOwner": "morris-zin/embryo"}},
+                                },
+                            ],
+                        }
+                    }
+                }
+            },
+            {
+                "search": {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": [
+                        {"__typename": "Issue", "number": 14, "repository": {"nameWithOwner": "Morris-Zin/Embryo"}},
+                        {"__typename": "Issue", "number": 999, "repository": {"nameWithOwner": "someone/else"}},
+                    ],
+                }
+            },
+        ]
+        with mock.patch.object(client, "_graphql", side_effect=responses):
+            nums = client.find_contract_issue_numbers(11)
+        self.assertEqual(nums, [10, 12, 14])
+
+        # Incidental `#9999` in PR body returning GraphQLNotFoundError must NOT break ordinary PRs
+        _git(self.repo, "checkout", "-b", "feat/incidental-ref")
+        _write_lf(self.repo / "docs/guide.md", "Mentions upstream #9999\n")
+        _git(self.repo, "add", "docs/guide.md")
+        _git(self.repo, "commit", "-m", "docs mention #9999")
+        inc_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        class _NotFoundGH(FakeGitHubClient):
+            def get_issue_comments_graphql(self, issue_or_pr_number: int) -> list[dict]:
+                if int(issue_or_pr_number) == 9999:
+                    raise GraphQLNotFoundError("Could not resolve to an issue or pull request with the number of 9999")
+                return super().get_issue_comments_graphql(issue_or_pr_number)
+
+        res = verify_pr_integrity(
+            self.repo, base_sha=self.main_sha, head_sha=inc_head, pr_number=203,
+            pr_author="contributor", pr_labels=[], pr_body="Relates to #9999",
+            github_client=_NotFoundGH(forbid_check_runs=True),
+        )
+        self.assertEqual(res["verdict"], "non-enrolled-pass")
+
+    def test_round2_safeguard_rejects_readme_and_untouched_tests(self) -> None:
+        _git(self.repo, "checkout", "-b", "feat/sg-readme")
+        _write_lf(self.repo / "perf-suite/offload/README.md", "# Readme\n")
+        _write_lf(self.repo / "tools/test_real.py", "import unittest\n")
+        _git(self.repo, "add", "perf-suite/offload/README.md", "tools/test_real.py")
+        _git(self.repo, "commit", "-m", "add readme and test")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        fmap = git_read_tree_blobs(self.repo, head)
+        _git(self.repo, "checkout", "main")
+
+        # README under perf-suite/ MUST be rejected for layer_4_runtime_test
+        with self.assertRaises(GuardError):
+            _verify_safeguard_artifact(
+                self.repo, head, fmap, "run-sg", "F1",
+                {
+                    "safeguard": {
+                        "layer": "layer_4_runtime_test",
+                        "artifact": "perf-suite/offload/README.md",
+                        "summary": "Docs",
+                        "why_not_static": "Runtime check",
+                    }
+                },
+                15,
+                changed_paths={"perf-suite/offload/README.md", "tools/test_real.py"},
+            )
+        # Untouched test file (not in changed_paths) MUST be rejected
+        with self.assertRaises(GuardError):
+            _verify_safeguard_artifact(
+                self.repo, head, fmap, "run-sg", "F1",
+                {
+                    "safeguard": {
+                        "layer": "layer_4_runtime_test",
+                        "artifact": "tools/test_real.py",
+                        "summary": "Pre-existing test",
+                        "why_not_static": "Runtime check",
+                    }
+                },
+                15,
+                changed_paths=set(),
+            )
+        # Real modified test file PASSES
+        _verify_safeguard_artifact(
+            self.repo, head, fmap, "run-sg", "F1",
+            {
+                "safeguard": {
+                    "layer": "layer_4_runtime_test",
+                    "artifact": "tools/test_real.py",
+                    "summary": "Added regression test",
+                    "why_not_static": "Runtime check",
+                }
+            },
+            15,
+            changed_paths={"tools/test_real.py"},
+        )
+
+    def test_round2_local_check_frozen_commands_lease_token_amended_checks_and_integrated_rollback(self) -> None:
+        # 1) Lease reacquisition without existing token MUST fail with LeaseConflictError
+        l1 = acquire_lease("res:r2-tok", "worker-1", ttl_s=60.0, holder_pid=os.getpid(), lock_dir=self.lock_dir)
+        with self.assertRaises(LeaseConflictError):
+            acquire_lease("res:r2-tok", "worker-1", ttl_s=60.0, holder_pid=os.getpid(), lock_dir=self.lock_dir)
+        l2 = acquire_lease(
+            "res:r2-tok", "worker-1", ttl_s=120.0, holder_pid=os.getpid(), token=l1["token"], lock_dir=self.lock_dir
+        )
+        self.assertEqual(l2["token"], l1["token"])
+        release_lease("res:r2-tok", "worker-1", token=l1["token"], lock_dir=self.lock_dir)
+
+        # 2) Staged rename from src/b.py -> .autoloop/runs/demo.json MUST be refused by rollback cleanliness check
+        ren_parent = self.tmp_path / "ren_repo"
+        ren_parent.mkdir(parents=True, exist_ok=True)
+        ren_repo = _create_temp_repo(ren_parent)
+        _write_lf(ren_repo / ".autoloop/runs/demo.json", "{}\n")
+        _git(ren_repo, "add", ".autoloop/runs/demo.json")
+        _git(ren_repo, "commit", "-m", "add run file")
+        _git(ren_repo, "mv", "-f", "src/b.py", ".autoloop/runs/demo.json")
+        with self.assertRaises(UnsafeRollbackError):
+            assert_clean_worktree_for_rollback(ren_repo, allow_paths={".autoloop/runs/demo.json"})
+
+        # 3) Local `check` runs FrozenContractV1 checks even under --skip-fast-check & rejects mutable tampering
+        run_chk = "run-r2-frozen-chk"
+        init_run(self.repo, run_chk, "Frozen check", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(
+            self.repo, run_chk, summary="g", shards={"s1": ["src/a.py"]},
+            shard_checks={"s1": [f'"{sys.executable}" -c "import sys; sys.exit(1)"']},
+            lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, run_chk, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_chk, "s1", lock_dir=self.lock_dir)
+        # --skip-fast-check MUST still execute frozen shard check and fail!
+        self.assertEqual(
+            cli_main(["--repo", str(self.repo), "check", "--run-id", run_chk, "--shard", "s1", "--skip-fast-check"]),
+            EXIT_POLICY_OR_INTEGRITY,
+        )
+        # Clearing mutable checkpoint checks MUST be detected by verify_untampered
+        run_file = self.repo / f".autoloop/runs/{run_chk}.json"
+        tampered = json.loads(run_file.read_text(encoding="utf-8"))
+        tampered["shards"]["s1"]["checks"] = []
+        run_file.write_text(json.dumps(tampered), encoding="utf-8")
+        with self.assertRaises(GuardError):
+            verify_untampered(self.repo, run_chk, shard_id="s1")
+
+        # 4) Amending shard B's checks MUST reopen shard B to locked and block check --all-shards
+        run_am = "run-r2-amend-chk"
+        init_run(self.repo, run_am, "Amend checks", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(
+            self.repo, run_am, summary="g", shards={"a": ["src/a.py"], "b": ["src/b.py"]}, lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, run_am, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_am, "a", lock_dir=self.lock_dir)
+        start_shard(self.repo, run_am, "b", lock_dir=self.lock_dir)
+        h0 = compute_code_tree_sha256(self.repo, "HEAD", run_id=run_am)
+        record_shard_pass(self.repo, run_am, "a", code_tree_sha256=h0, head_sha=self.main_sha, lock_dir=self.lock_dir)
+        record_shard_pass(self.repo, run_am, "b", code_tree_sha256=h0, head_sha=self.main_sha, lock_dir=self.lock_dir)
+        request_contract_change(self.repo, run_am, "a", reason="Add check on b", lock_dir=self.lock_dir)
+        st_am = resolve_contract_change(
+            self.repo, run_am, decision="approve",
+            shard_checks={"b": [f'"{sys.executable}" -c "print(1)"']}, lock_dir=self.lock_dir,
+        )
+        self.assertEqual(st_am["shards"]["b"]["status"], "locked")
+        self.assertFalse(st_am["shards"]["b"]["has_passed_individually"])
+
+        # 5) Integrated post-review safeguard failure rolls back the integration branch to last_integrated_sha
+        int_parent = self.tmp_path / "int_rb_repo"
+        int_parent.mkdir(parents=True, exist_ok=True)
+        int_repo = _create_temp_repo(int_parent)
+        int_main = _git(int_repo, "rev-parse", "HEAD")
+        run_int = "run-r2-int-rb"
+        init_run(
+            int_repo, run_int, "Int rollback", base_sha=int_main,
+            cloud_review=False, deep_review=False, lock_dir=self.lock_dir,
+        )
+        complete_grill(int_repo, run_int, summary="g", shards={"a": ["src/a.py"], "b": ["src/b.py"]}, lock_dir=self.lock_dir)
+        lock_run(int_repo, run_int, base_sha=int_main, lock_dir=self.lock_dir)
+        wt_a = self.tmp_path / "int_wt_a"
+        wt_b = self.tmp_path / "int_wt_b"
+        _git(int_repo, "worktree", "add", "-b", "irb/a", str(wt_a), "main")
+        _git(int_repo, "worktree", "add", "-b", "irb/b", str(wt_b), "main")
+        try:
+            start_shard(int_repo, run_int, "a", worktree_path=str(wt_a), last_green_sha=int_main, lock_dir=self.lock_dir)
+            start_shard(int_repo, run_int, "b", worktree_path=str(wt_b), last_green_sha=int_main, lock_dir=self.lock_dir)
+            _write_lf(wt_a / "src/a.py", "def a():\n    return 11\n")
+            _git(wt_a, "add", "src/a.py")
+            _git(wt_a, "commit", "-m", "a")
+            _write_lf(wt_b / "src/b.py", "def b():\n    return 22\n")
+            _git(wt_b, "add", "src/b.py")
+            _git(wt_b, "commit", "-m", "b")
+            self.assertEqual(cli_main(["--repo", str(int_repo), "check", "--run-id", run_int, "--shard", "a", "--skip-fast-check"]), 0)
+            self.assertEqual(cli_main(["--repo", str(int_repo), "check", "--run-id", run_int, "--shard", "b", "--skip-fast-check"]), 0)
+
+            _git(int_repo, "checkout", "-b", "irb/int")
+            _git(int_repo, "merge", "--no-ff", "irb/a", "-m", "merge a")
+            _git(int_repo, "merge", "--no-ff", "irb/b", "-m", "merge b")
+            int_sha = _git(int_repo, "rev-parse", "HEAD")
+            self.assertEqual(cli_main(["--repo", str(int_repo), "check", "--run-id", run_int, "--all-shards", "--skip-fast-check"]), 0)
+            # Enter safeguard_pending then commit a bad safeguard edit on the integration branch
+            st = load_run(int_repo, run_int)
+            st["findings"]["F-SG"] = {"finding_id": "F-SG", "status": "fixed_pending_review", "summary": "Add guard"}
+            (int_repo / f".autoloop/runs/{run_int}.json").write_text(json.dumps(st), encoding="utf-8")
+            self.assertEqual(submit_for_review(int_repo, run_int, lock_dir=self.lock_dir)["status"], "safeguard_pending")
+
+            _write_lf(int_repo / "src/a.py", "def a():\n    return -1\n")
+            _git(int_repo, "add", "src/a.py")
+            _git(int_repo, "commit", "-m", "broken safeguard commit")
+            for idx in range(3):
+                st_rb = retry_shard(
+                    int_repo, run_int, "a", check_name="fast_check", error_output=f"err {idx}", lock_dir=self.lock_dir,
+                )
+            self.assertEqual(st_rb["status"], "needs_replan")
+            # Integration branch MUST be rolled back to int_sha (a=11, b=22 preserved!)
+            self.assertEqual((int_repo / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 11\n")
+            self.assertEqual((int_repo / "src/b.py").read_text(encoding="utf-8"), "def b():\n    return 22\n")
+            self.assertEqual(st_rb["history"][-1].get("rolled_back_to"), int_sha)
+        finally:
+            subprocess.run(["git", "checkout", "main"], cwd=int_repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=int_repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_b)], cwd=int_repo, capture_output=True)
+
+    def test_round2_static_rules_worker_zero_and_export_edge_cases(self) -> None:
+        rules_dir = REPO_ROOT / ".autoloop/rules"
+        base_skills = {
+            "tools/autoloop/skill/SKILL.md": (REPO_ROOT / "tools/autoloop/skill/SKILL.md").read_bytes(),
+            ".devin/skills/autoloop/SKILL.md": (REPO_ROOT / ".devin/skills/autoloop/SKILL.md").read_bytes(),
+        }
+
+        # Rule 2: `workers == 0` MUST NOT protect a single-worker (workers == 1) process!
+        v_zero = evaluate_file_map(
+            rules_dir,
+            {
+                **base_skills,
+                "apps/khitmee_ops/khitmee_ops/hooks.py": b'after_request = ["khitmee_ops.api.m.bad0"]\n',
+                "apps/khitmee_ops/khitmee_ops/api/m.py": (
+                    b"import os, signal\n"
+                    b"def bad0(workers=1):\n"
+                    b"    if workers == 0:\n        return\n"
+                    b"    os.kill(os.getpid(), signal.SIGTERM)\n"
+                ),
+            },
+        )
+        self.assertTrue(any(v.rule_id == "no-self-sigterm-single-worker" for v in v_zero))
+
+        report_path = "apps/khitmee_ops/khitmee_ops/api/rep.py"
+
+        def _hits(code: bytes) -> list:
+            return [
+                v for v in evaluate_file_map(rules_dir, {**base_skills, report_path: code})
+                if v.rule_id == "no-background-email-export"
+            ]
+
+        # DictComp filtering value (not emitted key) MUST FAIL
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs = {k: v for k, v in kwargs.items() if v != "export_in_background"}\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Closed flag-free dictionary literal MUST PASS
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs = {"format": kwargs.get("format")}\n'
+                b'    return export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        # Computed key after False override MUST FAIL (named & inline)
+        self.assertTrue(
+            _hits(
+                b'def run(opt, val, **kwargs):\n'
+                b'    kwargs = {**kwargs, "export_in_background": False, opt: val}\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        self.assertTrue(
+            _hits(
+                b'def run(opt, val, **kwargs):\n'
+                b'    return export_query(**{**kwargs, "export_in_background": False, opt: val})\n'
+            )
+        )
+        # Unconditional pop in `if` condition MUST PASS; short-circuited RHS MUST FAIL
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    if kwargs.pop("export_in_background", False):\n'
+                b'        return None\n'
+                b'    return export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        self.assertTrue(
+            _hits(
+                b'def run(flag, **kwargs):\n'
+                b'    if flag and kwargs.pop("export_in_background", False):\n'
+                b'        return None\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Lambda default with truthy export_in_background MUST FAIL
+        self.assertTrue(
+            _hits(
+                b'def run():\n'
+                b'    return lambda r=export_query(export_in_background=True): r\n'
+            )
+        )
+        # Try/except where kwargs is rebound before exception MUST FAIL in except
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs = {"export_in_background": False}\n'
+                b'    try:\n'
+                b'        kwargs = frappe.form_dict\n'
+                b'        prepare()\n'
+                b'    except ValueError:\n'
+                b'        return export_query(**kwargs)\n'
+            )
+        )
+        # Try/finally where kwargs is popped before return MUST PASS in finally;
+        # if prepare() runs BEFORE pop, an exception can enter finally unsanitized -> MUST FAIL
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    try:\n'
+                b'        kwargs.pop("export_in_background", None)\n'
+                b'        return prepare()\n'
+                b'    finally:\n'
+                b'        export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    try:\n'
+                b'        prepare()\n'
+                b'        kwargs.pop("export_in_background", None)\n'
+                b'    finally:\n'
+                b'        export_query(**kwargs)\n'
+            )
+        )
 
     def test_cli_smoke_lint_and_dry_run_sync(self) -> None:
         import io

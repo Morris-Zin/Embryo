@@ -562,6 +562,7 @@ def refresh_base(
             sdata["worker_strikes"] = 0
             sdata["passed_code_tree_sha256"] = None
             sdata["has_passed_individually"] = False
+            sdata["retry_scope"] = None
             sdata["last_green_sha"] = resolved_base
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
@@ -605,6 +606,7 @@ def record_shard_pass(
         shard["pending_dead_end_sig"] = None
         shard["passed_code_tree_sha256"] = eff_code_hash
         shard["has_passed_individually"] = True
+        shard["retry_scope"] = None
         if head_sha:
             shard["last_green_sha"] = head_sha
         _apply_post_pass_status(state, prev_status, eff_code_hash)
@@ -652,6 +654,7 @@ def record_all_shards_pass(
             sdata["worker_strikes"] = 0
             sdata["pending_dead_end_sig"] = None
             sdata["passed_code_tree_sha256"] = eff_code_hash
+            sdata["retry_scope"] = None
             if single_shard:
                 sdata["has_passed_individually"] = True
                 if head_sha:
@@ -677,11 +680,13 @@ def retry_shard(
     check_name: str,
     error_output: str,
     worktree: Path | None = None,
+    integrated: bool = False,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Record a failed shard attempt; enforce strikes/replan/max-attempts & safe rollback restore (exit 4)."""
     with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
         state = load_run(repo, run_id)
+        prev_run_status = state["status"]
         _require_status(
             state,
             ("in_progress", "retrying", "gate_passed", "safeguard_pending", "ready_to_merge"),
@@ -692,6 +697,21 @@ def retry_shard(
             raise IllegalTransitionError(
                 f"cannot retry shard {shard_id!r} from status {shard['status']!r}"
             )
+
+        # Determine whether this retry applies to the integrated checkout (e.g. post-review safeguard failure)
+        # versus the shard-local worker worktree.
+        shard_wt_resolved = Path(shard["worktree_path"]).resolve() if shard.get("worktree_path") else None
+        is_integrated_retry = bool(integrated) or shard.get("retry_scope") == "integrated"
+        if not is_integrated_retry and state.get("last_integrated_sha"):
+            if worktree is not None:
+                wt_res = worktree.resolve()
+                if shard_wt_resolved is None or wt_res != shard_wt_resolved:
+                    if wt_res == repo.resolve():
+                        is_integrated_retry = True
+            elif prev_run_status in ("gate_passed", "safeguard_pending", "ready_to_merge"):
+                is_integrated_retry = True
+        if is_integrated_retry:
+            shard["retry_scope"] = "integrated"
 
         limits = state.get("limits") or _limits_from_repo(repo)
         max_strikes = int(limits.get("max_worker_strikes", DEFAULT_MAX_WORKER_STRIKES))
@@ -711,17 +731,25 @@ def retry_shard(
         rolled_back_to: str | None = None
         rollback_commit: str | None = None
         if needs_rollback:
-            rollback_wt = worktree or (Path(shard["worktree_path"]) if shard.get("worktree_path") else repo)
+            if is_integrated_retry and state.get("last_integrated_sha"):
+                rollback_wt = worktree or repo
+                target_sha = state.get("last_integrated_sha")
+                rb_allowed = list(state.get("allowed_paths") or [])
+                for sdata in (state.get("shards") or {}).values():
+                    rb_allowed.extend(sdata.get("allowed_paths") or [])
+            else:
+                rollback_wt = worktree or (Path(shard["worktree_path"]) if shard.get("worktree_path") else repo)
+                target_sha = shard.get("last_green_sha") or state.get("base_sha")
+                rb_allowed = list(shard.get("allowed_paths") or [])
             # Safe rollback check: exit 4 on ANY dirty/untracked edit anywhere in worktree
             # (excluding only this run's own checkpoint file if rolling back in the coordinator repo).
             assert_clean_worktree_for_rollback(rollback_wt, allow_paths={f".autoloop/runs/{run_id}.json"})
-            target_sha = shard.get("last_green_sha") or state.get("base_sha")
             if target_sha:
                 rollback_commit = git_restore_to_commit(
                     rollback_wt,
                     target_sha,
                     run_id=run_id,
-                    allowed_paths=list(shard.get("allowed_paths") or []),
+                    allowed_paths=rb_allowed,
                 )
                 rolled_back_to = target_sha
 
@@ -863,6 +891,7 @@ def apply_replan(
             shard["worker_strikes"] = 0
             shard["passed_code_tree_sha256"] = None
             shard["has_passed_individually"] = False
+            shard["retry_scope"] = None
         state["status"] = derive_run_status(state)
         state["history"].append(
             {
@@ -906,8 +935,11 @@ def resolve_contract_change(
                 for sid, cmds in shard_checks.items():
                     shard = _require_shard(state, sid)
                     shard["checks"] = list(cmds)
+                    shard["status"] = "locked"
+                    shard["worker_strikes"] = 0
                     shard["has_passed_individually"] = False
                     shard["passed_code_tree_sha256"] = None
+                    shard["retry_scope"] = None
             if new_base_sha:
                 resolved_base = git_rev_parse(repo, new_base_sha)
                 state["base_sha"] = resolved_base
@@ -1099,6 +1131,7 @@ def record_review(
             for sdata in state["shards"].values():
                 sdata["status"] = "in_progress"
                 sdata["passed_code_tree_sha256"] = None
+                sdata["retry_scope"] = None
             state["status"] = "in_progress"
         else:
             # Review passed: transition fixed_pending_review findings -> closed_needs_safeguard

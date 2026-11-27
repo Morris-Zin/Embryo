@@ -32,7 +32,9 @@ jobs:
       enrolled: ${{ steps.gate.outputs.enrolled }}
       bootstrap: ${{ steps.gate.outputs.bootstrap }}
       run_id: ${{ steps.gate.outputs.run_id }}
+      code_tree_sha256: ${{ steps.gate.outputs.code_tree_sha256 }}
       shard_checks_b64: ${{ steps.gate.outputs.shard_checks_b64 }}
+      shard_checks_sha256: ${{ steps.gate.outputs.shard_checks_sha256 }}
     steps:
       - name: Checkout trusted default branch
         uses: actions/checkout@v4
@@ -95,7 +97,9 @@ jobs:
             echo "enrolled=false" >> "$GITHUB_OUTPUT"
             echo "bootstrap=true" >> "$GITHUB_OUTPUT"
             echo "run_id=" >> "$GITHUB_OUTPUT"
+            echo "code_tree_sha256=" >> "$GITHUB_OUTPUT"
             echo "shard_checks_b64=W10=" >> "$GITHUB_OUTPUT"
+            echo "shard_checks_sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945" >> "$GITHUB_OUTPUT"
             echo "verdict=bootstrap-rollout"
             exit 0
           fi
@@ -113,11 +117,21 @@ jobs:
     if: needs.autoloop-preflight.outputs.enrolled == 'true'
     runs-on: ubuntu-latest
     permissions: {}
+    outputs:
+      trusted_shard_results_b64: ${{ steps.shard_harness.outputs.trusted_shard_results_b64 }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout candidate PR head for fast-check
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate-fast
+          persist-credentials: false
+
+      - name: Checkout fresh candidate PR head for frozen shard checks
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate-shards
           persist-credentials: false
 
       - name: Set up Node
@@ -133,21 +147,67 @@ jobs:
       - name: Warm pinned Knip cache
         run: npx --yes knip@6.46.1 --version
 
-      - name: Run candidate fast-check and trusted FrozenContractV1 shard checks
+      - name: Run candidate fast-check (isolated checkout)
+        working-directory: candidate-fast
         env:
           AUTOLOOP_PINNED_KNIP: "6.46.1"
-          SHARD_CHECKS_B64: ${{ needs.autoloop-preflight.outputs.shard_checks_b64 }}
         run: |
           set -euo pipefail
-          python -B tools/khitmee_dev.py fast-check
+          env -u GITHUB_OUTPUT -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+            python -B tools/khitmee_dev.py fast-check
+
+      - name: Run trusted FrozenContractV1 shard checks and emit per-shard attestation
+        id: shard_harness
+        env:
+          SHARD_CHECKS_B64: ${{ needs.autoloop-preflight.outputs.shard_checks_b64 }}
+          EXPECTED_SHARD_CHECKS_SHA256: ${{ needs.autoloop-preflight.outputs.shard_checks_sha256 }}
+          CODE_TREE_SHA256: ${{ needs.autoloop-preflight.outputs.code_tree_sha256 }}
+        run: |
+          set -euo pipefail
           python - <<'PY'
-          import base64, json, os, subprocess
-          payload = json.loads(base64.b64decode(os.environ.get("SHARD_CHECKS_B64") or "W10=").decode("utf-8"))
+          import base64, hashlib, json, os, subprocess, sys
+
+          raw_b64 = (os.environ.get("SHARD_CHECKS_B64") or "").strip()
+          expected_sha = (os.environ.get("EXPECTED_SHARD_CHECKS_SHA256") or "").strip()
+          code_tree_sha = (os.environ.get("CODE_TREE_SHA256") or "").strip()
+          gh_out = os.environ.get("GITHUB_OUTPUT") or ""
+
+          if not raw_b64 or not expected_sha or not code_tree_sha:
+              print("ERROR: missing preflight shard manifest outputs", file=sys.stderr)
+              sys.exit(3)
+
+          manifest_bytes = base64.b64decode(raw_b64)
+          actual_sha = hashlib.sha256(manifest_bytes).hexdigest()
+          if actual_sha != expected_sha:
+              print(f"ERROR: shard manifest sha256 mismatch ({actual_sha} != {expected_sha})", file=sys.stderr)
+              sys.exit(3)
+
+          payload = json.loads(manifest_bytes.decode("utf-8"))
+          if not isinstance(payload, list) or not payload:
+              print("ERROR: frozen shard checks manifest must be a non-empty list", file=sys.stderr)
+              sys.exit(3)
+
+          child_env = {
+              k: v
+              for k, v in os.environ.items()
+              if k not in ("GITHUB_OUTPUT", "GITHUB_ENV", "GITHUB_PATH", "GITHUB_STEP_SUMMARY")
+          }
+          passed_shards = {}
           for item in payload:
-              sid = item.get("shard_id")
+              sid = str(item.get("shard_id") or "").strip()
+              if not sid:
+                  print("ERROR: shard manifest item missing shard_id", file=sys.stderr)
+                  sys.exit(3)
               for cmd in item.get("checks") or []:
                   print(f"Running frozen shard check [{sid}]: {cmd}")
-                  subprocess.run(cmd, shell=True, check=True)
+                  subprocess.run(cmd, shell=True, cwd="candidate-shards", env=child_env, check=True)
+              passed_shards[sid] = code_tree_sha
+
+          att_b64 = base64.b64encode(
+              json.dumps(passed_shards, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          ).decode("ascii")
+          with open(gh_out, "a", encoding="utf-8", newline="\n") as fh:
+              fh.write(f"trusted_shard_results_b64={att_b64}\n")
           PY
 
   autoloop-integrity:
@@ -215,11 +275,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CANDIDATE_CHECKS_RESULT: ${{ needs.autoloop-candidate-checks.result }}
+          TRUSTED_SHARD_RESULTS_B64: ${{ needs.autoloop-candidate-checks.outputs.trusted_shard_results_b64 }}
         run: |
           set -euo pipefail
+          EXTRA_ARGS=()
+          if [ -n "${TRUSTED_SHARD_RESULTS_B64}" ]; then
+            EXTRA_ARGS+=(--trusted-shard-results-b64 "${TRUSTED_SHARD_RESULTS_B64}")
+          fi
           python -B tools/autoloop/cli.py verify-pr-integrity \
             --mode finalize \
             --candidate-checks-result "${CANDIDATE_CHECKS_RESULT}" \
+            "${EXTRA_ARGS[@]}" \
             --event-path "${GITHUB_EVENT_PATH}" \
             --repo-slug "${{ github.repository }}" \
             --main-ref "origin/${DEFAULT_BRANCH}"

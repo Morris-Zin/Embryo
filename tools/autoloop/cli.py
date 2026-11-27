@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -289,6 +290,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_retry.add_argument("--check-name", required=True)
     p_retry.add_argument("--error-output", required=True)
     p_retry.add_argument("--worktree", type=Path, default=None)
+    p_retry.add_argument("--integrated", action="store_true", help="Roll back the integrated branch to last_integrated_sha")
 
     # verify-untampered
     p_vu = sub.add_parser("verify-untampered", help="Verify local branch/shard against FrozenContractV1")
@@ -310,8 +312,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vpi.add_argument("--pr-body", default=None)
     p_vpi.add_argument("--label", action="append", default=[])
     p_vpi.add_argument("--main-ref", default="origin/main")
+    p_vpi.add_argument("--base-branch", default=None)
     p_vpi.add_argument("--mode", choices=("preflight", "finalize"), default="finalize")
     p_vpi.add_argument("--candidate-checks-result", default=None)
+    p_vpi.add_argument("--trusted-shard-results-b64", default=None)
     p_vpi.add_argument("--github-output", type=Path, default=None)
     p_vpi.add_argument("--offline", action="store_true")
 
@@ -491,6 +495,7 @@ def main(argv: list[str] | None = None) -> int:
                     check_name=args.check_name,
                     error_output=args.error_output,
                     worktree=args.worktree,
+                    integrated=args.integrated,
                 )
             )
         elif cmd == "verify-untampered":
@@ -517,6 +522,7 @@ def main(argv: list[str] | None = None) -> int:
             pr_number = args.pr_number
             pr_author = args.pr_author
             pr_body = args.pr_body
+            base_branch = args.base_branch
             labels = list(args.label or [])
             repo_slug = args.repo_slug
 
@@ -524,6 +530,7 @@ def main(argv: list[str] | None = None) -> int:
                 event = json.loads(args.event_path.read_text(encoding="utf-8"))
                 pr = event.get("pull_request") or {}
                 base_sha = base_sha or (pr.get("base") or {}).get("sha")
+                base_branch = base_branch or (pr.get("base") or {}).get("ref")
                 head_sha = head_sha or (pr.get("head") or {}).get("sha")
                 pr_number = pr_number or pr.get("number")
                 pr_author = pr_author or (pr.get("user") or {}).get("login")
@@ -535,6 +542,16 @@ def main(argv: list[str] | None = None) -> int:
 
             if not (base_sha and head_sha and pr_number and pr_author):
                 raise GuardError("verify-pr-integrity requires base_sha, head_sha, pr_number, and pr_author")
+
+            trusted_shard_results: dict[str, str] | None = None
+            if args.trusted_shard_results_b64:
+                try:
+                    decoded = json.loads(base64.b64decode(args.trusted_shard_results_b64).decode("utf-8"))
+                except Exception as exc:
+                    raise GuardError(f"invalid --trusted-shard-results-b64 payload: {exc}") from exc
+                if not isinstance(decoded, dict):
+                    raise GuardError("--trusted-shard-results-b64 must decode to a JSON object")
+                trusted_shard_results = {str(k): str(v) for k, v in decoded.items()}
 
             client = None
             if not args.offline and repo_slug:
@@ -548,25 +565,39 @@ def main(argv: list[str] | None = None) -> int:
                 pr_author=str(pr_author),
                 pr_labels=labels,
                 main_ref=args.main_ref,
+                base_branch=base_branch,
                 github_client=client,
                 trusted_contracts_dir=(repo / ".autoloop/trusted-contracts") if args.offline else None,
                 mode=args.mode,
                 candidate_checks_result=args.candidate_checks_result,
+                trusted_shard_results=trusted_shard_results,
                 pr_body=str(pr_body or ""),
             )
             if args.github_output is not None:
-                shard_b64 = base64.b64encode(
-                    json.dumps(result.get("shard_checks") or []).encode("utf-8")
-                ).decode("ascii")
+                manifest_bytes = json.dumps(
+                    result.get("shard_checks") or [], sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")
+                shard_b64 = base64.b64encode(manifest_bytes).decode("ascii")
+                shard_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
                 with args.github_output.open("a", encoding="utf-8", newline="\n") as handle:
                     handle.write(f"enrolled={'true' if result['enrolled'] else 'false'}\n")
                     handle.write("bootstrap=false\n")
                     handle.write(f"run_id={result.get('run_id') or ''}\n")
+                    handle.write(f"code_tree_sha256={result.get('code_tree_sha256') or ''}\n")
                     handle.write(f"shard_checks_b64={shard_b64}\n")
+                    handle.write(f"shard_checks_sha256={shard_sha256}\n")
             _emit(result)
         elif cmd == "lease":
             if args.action == "acquire":
-                _emit(acquire_lease(args.resource, args.owner, ttl_s=args.ttl, holder_pid=args.holder_pid))
+                _emit(
+                    acquire_lease(
+                        args.resource,
+                        args.owner,
+                        ttl_s=args.ttl,
+                        holder_pid=args.holder_pid,
+                        token=args.token,
+                    )
+                )
             elif args.action == "renew":
                 if not args.token:
                     raise LeaseError("lease renew requires --token")
@@ -621,7 +652,7 @@ def main(argv: list[str] | None = None) -> int:
                             f"check --all-shards requires shard {sid!r} to be started first "
                             f"(current status={sdata.get('status')!r})"
                         )
-                    if not (sdata.get("status") == "passed" or sdata.get("has_passed_individually")):
+                    if not sdata.get("has_passed_individually"):
                         raise IllegalTransitionError(
                             f"check --all-shards requires shard {sid!r} to pass individually first "
                             f"(current status={sdata.get('status')!r})"
@@ -641,12 +672,15 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     if proc.returncode != 0:
                         raise GuardError(f"fast_check.py failed with exit {proc.returncode}")
-                check_shards = sorted(run_shards) if args.all_shards else [args.shard]
-                for sid in check_shards:
-                    for cmd_str in (run_shards.get(sid) or {}).get("checks") or []:
-                        proc = subprocess.run(cmd_str, shell=True, cwd=target_wt)
-                        if proc.returncode != 0:
-                            raise GuardError(f"shard {sid!r} check {cmd_str!r} failed with exit {proc.returncode}")
+
+            # Always execute authenticated FrozenContractV1 shard checks before advancing pass/rollback state.
+            frozen_shards = untampered.get("contract_shards") or {}
+            check_shards = sorted(frozen_shards) if args.all_shards else [args.shard]
+            for sid in check_shards:
+                for cmd_str in (frozen_shards.get(sid) or {}).get("checks") or []:
+                    proc = subprocess.run(cmd_str, shell=True, cwd=target_wt)
+                    if proc.returncode != 0:
+                        raise GuardError(f"shard {sid!r} check {cmd_str!r} failed with exit {proc.returncode}")
 
             if args.all_shards:
                 state = record_all_shards_pass(

@@ -591,7 +591,8 @@ def git_restore_to_commit(
     if restore_paths:
         _run_git(worktree, ["checkout", resolved_target, "--", *restore_paths])
 
-    has_staged = _run_git(worktree, ["diff", "--cached", "--quiet"], check=False).returncode != 0
+    rollback_paths = sorted(set(added_paths) | set(restore_paths))
+    has_staged = _run_git(worktree, ["diff", "--cached", "--quiet", "--", *rollback_paths], check=False).returncode != 0
     if not has_staged:
         return None
 
@@ -605,6 +606,8 @@ def git_restore_to_commit(
             "commit",
             "-m",
             f"autoloop: rollback to {resolved_target[:8]}",
+            "--",
+            *rollback_paths,
         ],
     )
     return git_rev_parse(worktree, "HEAD")
@@ -612,19 +615,26 @@ def git_restore_to_commit(
 
 def assert_clean_worktree_for_rollback(worktree: Path, *, allow_paths: set[str] | None = None) -> None:
     """Refuse rollback if ANY dirty/untracked edit exists anywhere in `worktree` (exit 4)."""
-    proc = _run_git(worktree, ["status", "--porcelain", "--untracked-files=all"])
+    proc = _run_git(worktree, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
     ignored = {_normalize_posix_path(p) for p in (allow_paths or set())}
     dirty_lines: list[str] = []
-    for raw_line in proc.stdout.decode("utf-8", errors="replace").splitlines():
-        if not raw_line.strip():
+    tokens = proc.stdout.decode("utf-8", errors="replace").split("\0")
+    i = 0
+    while i < len(tokens):
+        entry = tokens[i]
+        i += 1
+        if not entry:
             continue
-        # Porcelain v1 format: XY <path> (or XY <orig> -> <new>)
-        path_part = raw_line[3:].strip().strip('"')
-        if " -> " in path_part:
-            path_part = path_part.split(" -> ", 1)[1].strip().strip('"')
-        if _normalize_posix_path(path_part) in ignored:
+        xy = entry[:2]
+        path1 = entry[3:]
+        endpoints = [_normalize_posix_path(path1)]
+        if ("R" in xy or "C" in xy) and i < len(tokens) and tokens[i]:
+            path2 = tokens[i]
+            i += 1
+            endpoints.append(_normalize_posix_path(path2))
+        if all(ep in ignored for ep in endpoints):
             continue
-        dirty_lines.append(raw_line)
+        dirty_lines.append(f"{xy} {' -> '.join(reversed(endpoints))}" if len(endpoints) == 2 else f"{xy} {endpoints[0]}")
     if dirty_lines:
         first_lines = "; ".join(dirty_lines[:5])
         raise UnsafeRollbackError(
@@ -708,6 +718,7 @@ def parse_latest_owner_contract(
 ) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     best_rev = 0
+    best_sha: str | None = None
     for comment in comments:
         if not _is_comment_owner_authentic(comment, trusted_owners):
             continue
@@ -735,9 +746,14 @@ def parse_latest_owner_contract(
             raise GuardError(
                 f"owner contract sha256 mismatch: marker={expected_sha} actual={actual_sha}"
             )
-        if rev >= best_rev:
+        if rev > best_rev:
             best_rev = rev
             best = contract
+            best_sha = actual_sha
+        elif rev == best_rev and best_sha is not None and actual_sha != best_sha:
+            raise GuardError(
+                f"conflicting owner contracts at contract_revision={rev} for run {contract.get('run_id')!r}"
+            )
     return best
 
 
@@ -760,6 +776,10 @@ def _is_bot_identity(name: str, email: str = "", login: str = "") -> bool:
         if "[bot]" in lowered or lowered.endswith("-bot") or "bot@" in lowered:
             return True
     return False
+
+
+class GraphQLNotFoundError(GuardError):
+    """Raised when a GitHub GraphQL lookup returns only NOT_FOUND errors."""
 
 
 class GitHubAPIClient:
@@ -800,7 +820,12 @@ class GitHubAPIClient:
             payload={"query": query, "variables": variables},
         )
         if result.get("errors"):
-            raise GuardError(f"GitHub GraphQL error: {result['errors']}")
+            errors = result["errors"]
+            if isinstance(errors, list) and errors and all(
+                isinstance(e, dict) and e.get("type") == "NOT_FOUND" for e in errors
+            ):
+                raise GraphQLNotFoundError(f"GitHub GraphQL NOT_FOUND: {errors}")
+            raise GuardError(f"GitHub GraphQL error: {errors}")
         return result.get("data") or {}
 
     def get_pr_events(self, pr_number: int) -> list[dict[str, Any]]:
@@ -913,6 +938,7 @@ class GitHubAPIClient:
             if not batch:
                 break
             for item in batch:
+                verification = ((item.get("commit") or {}).get("verification") or {})
                 commits.append(
                     {
                         "sha": item.get("sha") or "",
@@ -920,6 +946,7 @@ class GitHubAPIClient:
                         "committer_login": (item.get("committer") or {}).get("login") or "",
                         "author_type": (item.get("author") or {}).get("type") or "",
                         "committer_type": (item.get("committer") or {}).get("type") or "",
+                        "verified": bool(verification.get("verified")),
                     }
                 )
             if len(batch) < 100:
@@ -934,12 +961,14 @@ class GitHubAPIClient:
             return None
         if not isinstance(item, dict):
             return None
+        verification = ((item.get("commit") or {}).get("verification") or {})
         return {
             "sha": item.get("sha") or sha,
             "author_login": (item.get("author") or {}).get("login") or "",
             "committer_login": (item.get("committer") or {}).get("login") or "",
             "author_type": (item.get("author") or {}).get("type") or "",
             "committer_type": (item.get("committer") or {}).get("type") or "",
+            "verified": bool(verification.get("verified")),
         }
 
     def get_check_runs(self, ref: str) -> list[dict[str, Any]]:
@@ -1015,12 +1044,13 @@ class GitHubAPIClient:
         return threads
 
     def find_contract_issue_numbers(self, pr_number: int) -> list[int]:
-        """Discover issue numbers linked via PR timeline or containing autoloop-contract markers.
+        """Discover same-repository issue numbers linked via PR timeline or containing autoloop-contract markers.
 
         Uses only `issues: read` + `pull-requests: read` so PR body/commit edits cannot sever
-        issue-only enrollment.
+        issue-only enrollment, while strictly ignoring cross-repository issue references.
         """
         found: set[int] = set()
+        expected_repo = self.repo_slug.lower()
         timeline_query = """
         query($owner: String!, $name: String!, $number: Int!, $after: String) {
           repository(owner: $owner, name: $name) {
@@ -1030,15 +1060,23 @@ class GitHubAPIClient:
                 nodes {
                   __typename
                   ... on CrossReferencedEvent {
+                    isCrossRepository
                     source {
                       __typename
-                      ... on Issue { number }
+                      ... on Issue {
+                        number
+                        repository { nameWithOwner }
+                      }
                     }
                   }
                   ... on ConnectedEvent {
+                    isCrossRepository
                     subject {
                       __typename
-                      ... on Issue { number }
+                      ... on Issue {
+                        number
+                        repository { nameWithOwner }
+                      }
                     }
                   }
                 }
@@ -1057,9 +1095,15 @@ class GitHubAPIClient:
             for item in node.get("nodes") or []:
                 if not isinstance(item, dict):
                     continue
+                if item.get("isCrossRepository") is True:
+                    continue
                 src = item.get("source") if item.get("__typename") == "CrossReferencedEvent" else item.get("subject")
-                if isinstance(src, dict) and src.get("__typename") == "Issue" and isinstance(src.get("number"), int):
-                    found.add(int(src["number"]))
+                if not (isinstance(src, dict) and src.get("__typename") == "Issue" and isinstance(src.get("number"), int)):
+                    continue
+                repo_nwo = ((src.get("repository") or {}).get("nameWithOwner") or "").lower()
+                if repo_nwo and repo_nwo != expected_repo:
+                    continue
+                found.add(int(src["number"]))
             page_info = node.get("pageInfo") or {}
             if not page_info.get("hasNextPage"):
                 break
@@ -1071,7 +1115,10 @@ class GitHubAPIClient:
             pageInfo { hasNextPage endCursor }
             nodes {
               __typename
-              ... on Issue { number }
+              ... on Issue {
+                number
+                repository { nameWithOwner }
+              }
             }
           }
         }
@@ -1082,8 +1129,12 @@ class GitHubAPIClient:
             data = self._graphql(search_query, {"q": q_str, "after": after})
             node = data.get("search") or {}
             for item in node.get("nodes") or []:
-                if isinstance(item, dict) and item.get("__typename") == "Issue" and isinstance(item.get("number"), int):
-                    found.add(int(item["number"]))
+                if not (isinstance(item, dict) and item.get("__typename") == "Issue" and isinstance(item.get("number"), int)):
+                    continue
+                repo_nwo = ((item.get("repository") or {}).get("nameWithOwner") or "").lower()
+                if repo_nwo and repo_nwo != expected_repo:
+                    continue
+                found.add(int(item["number"]))
             page_info = node.get("pageInfo") or {}
             if not page_info.get("hasNextPage"):
                 break
@@ -1220,6 +1271,9 @@ def _resolve_effective_reviews(pr_reviews: list[dict[str, Any]]) -> dict[str, di
     return effective
 
 
+_EXECUTABLE_TEST_EXTS = (".py", ".js", ".ts", ".mjs", ".cjs", ".rs", ".sh", ".go", ".rb")
+
+
 def _verify_safeguard_artifact(
     repo: Path,
     tree_ish: str,
@@ -1228,6 +1282,8 @@ def _verify_safeguard_artifact(
     fid: str,
     fdata: dict[str, Any],
     max_prose_lines: int,
+    *,
+    changed_paths: set[str] | None = None,
 ) -> None:
     """Verify closed finding safeguard metadata aligns with actual tree artifacts and layer rules."""
     sg = fdata.get("safeguard")
@@ -1259,13 +1315,23 @@ def _verify_safeguard_artifact(
             raise GuardError(
                 f"finding {fid!r} layer_3_static_lint safeguard artifact {artifact!r} must live under .autoloop/rules/*.py"
             )
+        if changed_paths is not None and artifact not in changed_paths:
+            raise GuardError(
+                f"finding {fid!r} layer_3_static_lint safeguard artifact {artifact!r} was not introduced or updated in this PR"
+            )
     elif layer == "layer_4_runtime_test":
         if not why_not_static:
             raise GuardError(f"finding {fid!r} layer_4_runtime_test safeguard requires non-empty why_not_static")
         leaf = artifact.rsplit("/", 1)[-1].lower()
-        if "test" not in leaf and "/tests/" not in f"/{artifact}" and not artifact.startswith("perf-suite/"):
+        has_test_ext = any(leaf.endswith(ext) for ext in _EXECUTABLE_TEST_EXTS)
+        is_test_location = ("test" in leaf) or ("/tests/" in f"/{artifact}") or ("/test/" in f"/{artifact}")
+        if not (has_test_ext and is_test_location):
             raise GuardError(
-                f"finding {fid!r} layer_4_runtime_test safeguard artifact {artifact!r} must reference a test file"
+                f"finding {fid!r} layer_4_runtime_test safeguard artifact {artifact!r} must reference an executable test file"
+            )
+        if changed_paths is not None and artifact not in changed_paths:
+            raise GuardError(
+                f"finding {fid!r} layer_4_runtime_test safeguard artifact {artifact!r} was not introduced or updated in this PR"
             )
 
 
@@ -1294,7 +1360,12 @@ def verify_untampered(
     if not contract_path.is_file():
         contract_path = contracts_dir / f"{run_id}.json"
     assert_safe_local_path(contracts_dir, contract_path, allow_missing_leaf=False)
-    if trusted_contracts_dir is None:
+    try:
+        contract_path.relative_to(repo)
+        in_repo = True
+    except ValueError:
+        in_repo = False
+    if trusted_contracts_dir is None or in_repo:
         assert_safe_local_path(repo, contract_path, allow_missing_leaf=False)
     if not contract_path.is_file():
         raise GuardError(f"missing local trusted FrozenContractV1 at {contract_path}")
@@ -1303,6 +1374,18 @@ def verify_untampered(
         raise GuardError("local FrozenContractV1 revision mismatch")
     if run_data.get("contract_sha256") != contract_sha256(contract):
         raise GuardError("run checkpoint contract_sha256 does not match FrozenContractV1")
+
+    # Verify mutable run checkpoint shard checks and allowed_paths match authenticated FrozenContractV1
+    contract_shards_map = contract.get("shards") or {}
+    run_shards_map = run_data.get("shards") or {}
+    if set(contract_shards_map.keys()) != set(run_shards_map.keys()) or not contract_shards_map:
+        raise GuardError("run checkpoint shards do not match FrozenContractV1")
+    for sid_k, cshard_k in contract_shards_map.items():
+        rshard_k = run_shards_map.get(sid_k) or {}
+        if list(cshard_k.get("allowed_paths") or []) != list(rshard_k.get("allowed_paths") or []):
+            raise GuardError(f"run checkpoint shard {sid_k!r} allowed_paths tampered vs FrozenContractV1")
+        if list(cshard_k.get("checks") or []) != list(rshard_k.get("checks") or []):
+            raise GuardError(f"run checkpoint shard {sid_k!r} checks tampered vs FrozenContractV1")
 
     target_repo = git_repo or repo
     eff_base = base_ref or run_data.get("base_sha") or contract.get("base_branch") or main_ref
@@ -1380,6 +1463,13 @@ def verify_untampered(
         "code_tree_sha256": compute_code_tree_sha256(target_repo, head_sha, run_id=run_id),
         "changed_files": [e.path for e in target_diff],
         "worktree": str(target_repo),
+        "contract_shards": {
+            sid_k: {
+                "allowed_paths": list(cshard_k.get("allowed_paths") or []),
+                "checks": list(cshard_k.get("checks") or []),
+            }
+            for sid_k, cshard_k in sorted(contract_shards_map.items())
+        },
     }
 
 
@@ -1392,6 +1482,7 @@ def verify_pr_integrity(
     pr_author: str,
     pr_labels: list[str],
     main_ref: str = "origin/main",
+    base_branch: str | None = None,
     github_client: Any = None,
     trusted_contracts_dir: Path | None = None,
     mode: str = "finalize",
@@ -1474,23 +1565,40 @@ def verify_pr_integrity(
     pr_bound_contract = pr_contracts[0] if pr_contracts else None
 
     # Resolve linked issue comments BEFORE early non-enrolled exit so issue-only enrollment is sticky!
-    referenced_issues_set = set(
+    incidental_issues = set(
         _extract_referenced_issue_numbers(
-            repo, mb_target, resolved_head, pr_body, pr_comments, present_run_paths, trusted_owners
+            repo, mb_target, resolved_head, pr_body, pr_comments, [], trusted_owners
         )
     )
+    authoritative_issues: set[int] = set()
+    for run_path in present_run_paths:
+        blob = git_read_blob(repo, resolved_head, run_path)
+        if blob is not None:
+            try:
+                parsed = json.loads(blob.decode("utf-8"))
+                inum = parsed.get("issue_number") if isinstance(parsed, dict) else None
+                if isinstance(inum, int) and inum > 0:
+                    authoritative_issues.add(inum)
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                pass
     if github_client is not None and hasattr(github_client, "find_contract_issue_numbers"):
         for inum in github_client.find_contract_issue_numbers(pr_number):
             if isinstance(inum, int) and inum > 0:
-                referenced_issues_set.add(inum)
-    referenced_issues = sorted(referenced_issues_set)
+                authoritative_issues.add(inum)
+    referenced_issues = sorted(incidental_issues | authoritative_issues)
     issue_comments_cache: dict[int, list[dict[str, Any]]] = {}
     issue_bound_contracts: list[dict[str, Any]] = []
     if github_client is not None and referenced_issues:
         for inum in referenced_issues:
             if int(inum) == int(pr_number):
                 continue
-            icomm = github_client.get_issue_comments_graphql(int(inum))
+            try:
+                icomm = github_client.get_issue_comments_graphql(int(inum))
+            except GraphQLNotFoundError:
+                if int(inum) not in authoritative_issues:
+                    # Incidental `#123` mention in PR prose/commits that does not exist in this repo.
+                    continue
+                raise
             issue_comments_cache[int(inum)] = icomm
             for c in _parse_all_owner_contracts(icomm, trusted_owners):
                 if c.get("pr_number") is not None and int(c["pr_number"]) == int(pr_number):
@@ -1536,8 +1644,10 @@ def verify_pr_integrity(
                 c_login = api_c.get("committer_login") or ""
                 a_type = (api_c.get("author_type") or "").lower()
                 c_type = (api_c.get("committer_type") or "").lower()
+                is_verified = api_c.get("verified") is True
                 if (
-                    a_type == "bot"
+                    not is_verified
+                    or a_type == "bot"
                     or c_type == "bot"
                     or _is_bot_identity("", "", a_login)
                     or _is_bot_identity("", "", c_login)
@@ -1608,18 +1718,16 @@ def verify_pr_integrity(
         raise GuardError(f"run_id mismatch in {run_path}: got {run_data.get('run_id')!r}")
 
     issue_number = run_data.get("issue_number")
-    # Load authoritative FrozenContractV1
+    # Load authoritative FrozenContractV1 across ALL discovered issues + explicit issue_number + PR comments
     contract: dict[str, Any] | None = None
     if github_client is not None:
         search_comments: list[dict[str, Any]] = []
         if issue_number is not None:
             inum = int(issue_number)
-            if inum not in issue_comments_cache:
+            if inum not in issue_comments_cache and inum != int(pr_number):
                 issue_comments_cache[inum] = github_client.get_issue_comments_graphql(inum)
-            search_comments.extend(issue_comments_cache[inum])
-        else:
-            for cached in issue_comments_cache.values():
-                search_comments.extend(cached)
+        for cached_num in sorted(issue_comments_cache):
+            search_comments.extend(issue_comments_cache[cached_num])
         search_comments.extend(pr_comments)
         contract = parse_latest_owner_contract(search_comments, trusted_owners, run_id=run_id)
     elif trusted_contracts_dir is not None:
@@ -1628,6 +1736,13 @@ def verify_pr_integrity(
         if not cand.is_file():
             cand = trusted_contracts_dir / f"{run_id}.json"
         assert_safe_local_path(trusted_contracts_dir, cand, allow_missing_leaf=False)
+        try:
+            cand.relative_to(repo)
+            in_repo = True
+        except ValueError:
+            in_repo = False
+        if in_repo:
+            assert_safe_local_path(repo, cand, allow_missing_leaf=False)
         if cand.is_file():
             contract = json.loads(cand.read_text(encoding="utf-8"))
 
@@ -1716,7 +1831,15 @@ def verify_pr_integrity(
             raise GuardError(
                 f"enrolled PR requires passing autoloop-candidate-checks (got {candidate_checks_result!r})"
             )
-        shard_exec_verified = True
+        if trusted_shard_results is None:
+            raise GuardError(
+                "enrolled PR finalize requires per-shard trusted_shard_results attestation matching FrozenContractV1"
+            )
+        shard_exec_verified = all(
+            trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
+        )
+        if not shard_exec_verified:
+            raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
     elif trusted_shard_results is not None:
         shard_exec_verified = all(
             trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
@@ -1730,12 +1853,13 @@ def verify_pr_integrity(
             cr.get("name") == "autoloop-candidate-checks"
             and cr.get("status") == "completed"
             and cr.get("conclusion") == "success"
+            and cr.get("app_id") == 15368
             for cr in pr_check_runs
         )
 
     if not shard_exec_verified:
         raise GuardError(
-            "missing independently authenticated shard execution results (require autoloop-candidate-checks success)"
+            "missing independently authenticated shard execution results (require GitHub Actions autoloop-candidate-checks success)"
         )
 
     for sid, rshard in run_shards.items():
@@ -1751,11 +1875,20 @@ def verify_pr_integrity(
     if run_data.get("status") != "ready_to_merge":
         raise GuardError(f"enrolled PR run status must be 'ready_to_merge', got {run_data.get('status')!r}")
 
-    # Conversation resolution is enforced natively by the GitHub Ruleset (`required_review_thread_resolution: true`)
-    # because GitHub Actions does not trigger on thread-resolution events; surface count as telemetry only.
+    # On the default branch (`main`), native GitHub Ruleset (`required_review_thread_resolution: true`) enforces
+    # conversation resolution without deadlocking CI on thread-resolution events. On non-default/stacked target
+    # branches lacking that ruleset, fail closed on unresolved threads here.
+    default_branch = str(config.get("default_branch") or "main")
+    is_default_target = (
+        (base_branch == default_branch) if base_branch is not None else (resolved_base == resolved_main)
+    )
     if github_client is not None and hasattr(github_client, "get_pr_review_threads"):
         pr_review_threads = github_client.get_pr_review_threads(pr_number)
     unresolved_threads = [t for t in pr_review_threads if not t.get("isResolved")]
+    if not is_default_target and unresolved_threads:
+        raise GuardError(
+            f"stacked enrolled PR targeting non-default branch has {len(unresolved_threads)} unresolved review thread(s)"
+        )
 
     # Cross-check independent owner-declared findings + run findings + safeguard artifacts on tree
     findings = run_data.get("findings") or {}
@@ -1780,6 +1913,7 @@ def verify_pr_integrity(
     if unsafeguarded:
         raise GuardError(f"enrolled PR has unsafeguarded findings: {', '.join(sorted(unsafeguarded))}")
 
+    changed_pr_paths = {e.path for e in target_diff}
     for fid, fdata in sorted(findings.items()):
         _verify_safeguard_artifact(
             repo,
@@ -1789,6 +1923,7 @@ def verify_pr_integrity(
             fid,
             fdata or {},
             max_prose_lines,
+            changed_paths=changed_pr_paths,
         )
 
     # Verify independent review evidence unless reviewers explicitly disabled in FrozenContractV1

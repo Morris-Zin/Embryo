@@ -351,6 +351,7 @@ def acquire_lease(
     *,
     ttl_s: float = 300.0,
     holder_pid: int | None = None,
+    token: str | None = None,
     lock_dir: Path | None = None,
     timeout_s: float = 10.0,
     stale_mutex_s: float = 30.0,
@@ -391,12 +392,13 @@ def acquire_lease(
             if _is_lease_reclaimable(existing, now, _win_api=_win_api):
                 reclaimed = True
             elif (
-                recorded_pid is not None
+                token is not None
+                and existing.get("token") == token
                 and existing.get("owner") == owner
-                and existing.get("pid") == recorded_pid
                 and existing.get("host") == host
+                and (recorded_pid is None or existing.get("pid") == recorded_pid)
             ):
-                # Idempotent re-acquire by the same bound live worker process.
+                # Idempotent re-acquire requires proving ownership with the existing lease token.
                 existing["renewed_at"] = now
                 existing["expires_at"] = now + float(ttl_s)
                 atomic_write_json(lease_path, existing)
