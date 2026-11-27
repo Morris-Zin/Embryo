@@ -84,6 +84,13 @@ test.describe("cashier counter performance regressions", () => {
     page.on("request", (request) => {
       if (request.url().includes("/api/method/khitmee_ops.api.search.search_items")) apiRequests.push(request.url());
     });
+    await page.locator("#item-search").fill("KM-000");
+    await expect(page.locator("#search-results li").first()).toBeVisible();
+    await expect(page.locator("#search-results li .rate").first()).toHaveText("—");
+    await page.keyboard.press("Escape");
+    await page.locator("#item-search").fill("");
+    apiRequests.length = 0;
+
     await measureBarcodeScan(page, itemCode(0), 0);
 
     await expect(page.locator("#lines-body tr")).toHaveCount(1);

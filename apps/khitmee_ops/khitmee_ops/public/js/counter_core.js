@@ -286,7 +286,7 @@
 				button.querySelector("strong").textContent = item.item_code;
 				button.querySelector(".search-item-main span").textContent = item.item_name || "";
 				button.querySelector(".qty").textContent = "Stock " + formatQty(item.actual_qty);
-				button.querySelector(".rate").textContent = formatMoney(item.rate);
+				button.querySelector(".rate").textContent = config.showRates ? formatMoney(item.rate) : "—";
 				li.appendChild(button);
 				fragment.appendChild(li);
 			});
