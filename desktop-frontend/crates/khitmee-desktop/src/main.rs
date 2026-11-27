@@ -61,7 +61,9 @@ fn seed_fixture_items() -> Vec<CatalogItem> {
     let rows: Vec<SeedItemFixture> = serde_json::from_str(include_str!("../../../fixtures/smoke-items.json"))
         .expect("valid smoke item fixture");
     rows.into_iter()
-        .map(|row| CatalogItem {
+        .map(|row| {
+            let actual_qty = if row.item_code == "KM-00001" { 485.0 } else { 500.0 };
+            CatalogItem {
             barcode: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
             barcode_text: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
             item_code: row.item_code,
@@ -70,9 +72,10 @@ fn seed_fixture_items() -> Vec<CatalogItem> {
             item_group: Some("Smoke fixture".into()),
             brand: Some("Khitmee".into()),
             rate: row.rate,
-            actual_qty: 100.0,
+            actual_qty,
             modified: Some("2026-11-27 00:00:00.000000".into()),
             deleted: false,
+            }
         })
         .collect()
 }
@@ -361,11 +364,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let state = state.borrow();
             app.set_search_results(search_model(&state.catalog, term.as_str()));
             app.set_search_open(!term.trim().is_empty());
-            app.set_status_text(SharedString::from(format!(
-                "Local catalog search: {} visible matches from {} rows",
-                app.get_search_results().row_count(),
-                state.catalog_size
-            )));
+
         }
     });
 
