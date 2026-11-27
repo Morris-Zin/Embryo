@@ -167,6 +167,15 @@ def build_match_conditions(doctype: str, user: str | None = None):
 	if not callable(builder):
 		builder = getattr(frappe_obj, "build_match_conditions", None)
 	if not callable(builder):
+		reportview = getattr(getattr(frappe_obj, "desk", None), "reportview", None)
+		builder = getattr(reportview, "build_match_conditions", None) if reportview is not None else None
+	if not callable(builder):
+		try:
+			from frappe.desk.reportview import build_match_conditions as reportview_builder
+		except ImportError:
+			reportview_builder = None
+		builder = reportview_builder
+	if not callable(builder):
 		raise RuntimeError("build_match_conditions is unavailable")
 	try:
 		return builder(doctype, user=user)

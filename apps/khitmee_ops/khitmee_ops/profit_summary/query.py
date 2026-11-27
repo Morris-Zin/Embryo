@@ -105,9 +105,33 @@ def _decimal(value) -> Decimal:
 	return Decimal(str(value or 0))
 
 
+class _AttrDict(dict):
+	def __getattr__(self, key):
+		try:
+			return self[key]
+		except KeyError as error:
+			raise AttributeError(key) from error
+
+
 def _float_decimal(value: Decimal, precision: int):
 	quantum = Decimal("1").scaleb(-int(precision))
 	return float(value.quantize(quantum))
+
+
+def _flt_value(value, precision: int | None = None):
+	flt_fn = None
+	if frappe is not None:
+		try:
+			from frappe.utils import flt as frappe_flt
+
+			flt_fn = frappe_flt
+		except Exception:
+			flt_fn = None
+	if callable(flt_fn):
+		return float(flt_fn(float(value or 0), precision))
+	if precision is None:
+		return float(value or 0)
+	return _float_decimal(Decimal(str(value or 0)), precision)
 
 
 def _precision_safe_number(value, precision: int) -> bool:
@@ -190,28 +214,37 @@ def _fast_gross_profit_module():
 def _fallback_columns(group_by):
 	group_field = "warehouse" if group_by == "Warehouse" else "monthly"
 	group_label = "Warehouse" if group_by == "Warehouse" else "Monthly"
+	group_column = (
+		{"fieldname": "warehouse", "label": group_label, "fieldtype": "Link", "options": "Warehouse", "width": 100}
+		if group_field == "warehouse"
+		else {"fieldname": "monthly", "label": group_label, "fieldtype": "Data", "width": 100}
+	)
 	return [
-		{"fieldname": group_field, "label": group_label, "fieldtype": "Data", "width": 180},
-		{"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "width": 100},
-		{"fieldname": "avg._selling_rate", "label": "Avg. Selling Rate", "fieldtype": "Currency", "width": 120},
-		{"fieldname": "valuation_rate", "label": "Valuation Rate", "fieldtype": "Currency", "width": 120},
-		{"fieldname": "selling_amount", "label": "Selling Amount", "fieldtype": "Currency", "width": 130},
-		{"fieldname": "buying_amount", "label": "Buying Amount", "fieldtype": "Currency", "width": 130},
-		{"fieldname": "gross_profit", "label": "Gross Profit", "fieldtype": "Currency", "width": 130},
-		{"fieldname": "gross_profit_%", "label": "Gross Profit %", "fieldtype": "Percent", "width": 100},
-		{"fieldname": "currency", "label": "Currency", "fieldtype": "Link", "options": "Currency", "width": 80},
+		group_column,
+		{"fieldname": "qty", "label": "Qty", "fieldtype": "Float", "width": 80},
+		{"fieldname": "avg._selling_rate", "label": "Avg. Selling Rate", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "valuation_rate", "label": "Valuation Rate", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "selling_amount", "label": "Selling Amount", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "buying_amount", "label": "Buying Amount", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "gross_profit", "label": "Gross Profit", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "gross_profit_%", "label": "Gross Profit Percent", "fieldtype": "Percent", "width": 100},
+		{"fieldname": "currency", "label": "Currency", "fieldtype": "Link", "options": "Currency", "hidden": 1},
 	]
 
 
 def get_summary_columns(filters: dict):
+	wrapped = filters
+	if isinstance(filters, dict) and not hasattr(filters, "group_by"):
+		frappe_dict = getattr(frappe, "_dict", None) if frappe is not None else None
+		wrapped = frappe_dict(filters) if callable(frappe_dict) else _AttrDict(filters)
 	try:
 		fast_module = _fast_gross_profit_module()
 		standard = getattr(fast_module, "standard_gross_profit", None)
 		if standard is not None:
-			return standard.get_columns(fast_module._group_wise_columns(), filters)
+			return standard.get_columns(fast_module._group_wise_columns(), wrapped)
 	except Exception:
 		pass
-	return _fallback_columns(filters.get("group_by"))
+	return _fallback_columns((filters or {}).get("group_by"))
 
 
 def _normalize_datetime_value(value):
@@ -352,7 +385,15 @@ def _group_id_for_row(group_by, warehouse, posting_date):
 	return _month_label(posting_date)
 
 
-def aggregate_summary_rows(stored_rows, contributions, filters, *, currency_precision=3, warehouse_scope=None) -> dict:
+def aggregate_summary_rows(
+	stored_rows,
+	contributions,
+	filters,
+	*,
+	currency_precision=3,
+	float_precision=2,
+	warehouse_scope=None,
+) -> dict:
 	"""Aggregate stored and live/replay rows using exact Python Decimal arithmetic.
 
 	Returns aggregate groups plus certification flags. No output rows are emitted here;
@@ -418,8 +459,10 @@ def aggregate_summary_rows(stored_rows, contributions, filters, *, currency_prec
 		if not warehouse_allowed(warehouse):
 			continue
 		input_row_count += 1
-		if not row.get("is_precision_safe") or not all(
-			_precision_safe_number(row.get(field), currency_precision) for field in ("qty", "base_amount", "buying_amount")
+		if not row.get("is_precision_safe") or not (
+			_precision_safe_number(row.get("qty"), float_precision)
+			and _precision_safe_number(row.get("base_amount"), currency_precision)
+			and _precision_safe_number(row.get("buying_amount"), currency_precision)
 		):
 			row_precision_safe = False
 		group_id = _group_id_for_row(group_by, warehouse, posting_date)
@@ -432,9 +475,12 @@ def aggregate_summary_rows(stored_rows, contributions, filters, *, currency_prec
 			_canonical_first_seen_key(row),
 		)
 
-	cap = Decimal(str(MAX_SAFE_ABS_SUM(currency_precision)))
+	qty_cap = Decimal(str(MAX_SAFE_ABS_SUM(float_precision)))
+	money_cap = Decimal(str(MAX_SAFE_ABS_SUM(currency_precision)))
 	cap_exceeded = any(
-		max(group["abs_qty_sum"], group["abs_base_sum"], group["abs_buying_sum"]) > cap for group in groups.values()
+		group["abs_qty_sum"] > qty_cap
+		or max(group["abs_base_sum"], group["abs_buying_sum"]) > money_cap
+		for group in groups.values()
 	)
 	return {
 		"groups": groups,
@@ -455,8 +501,8 @@ def format_summary_groups(groups, filters, *, currency_precision=3, float_precis
 		key=lambda group: (group.get("first_seen_key") or "9|9999-12-31|999999999999", str(group.get("group_id") or "")),
 	)
 	data = []
-	total_base = Decimal("0")
-	total_buying = Decimal("0")
+	total_base = 0.0
+	total_buying = 0.0
 	currency = filters.get("currency")
 
 	for group in ordered:
@@ -464,34 +510,38 @@ def format_summary_groups(groups, filters, *, currency_precision=3, float_precis
 		base_amount = group["base_amount"]
 		buying_amount = group["buying_amount"]
 		gross_profit = base_amount + abs(buying_amount) if buying_amount < 0 else base_amount - buying_amount
+		qty_val = _flt_value(qty, float_precision)
+		selling_val = _flt_value(base_amount, currency_precision)
+		buying_val = _flt_value(buying_amount, currency_precision)
+		gross_profit_val = _flt_value(gross_profit, currency_precision)
 		row = {
 			group_field: group["group_id"],
-			"qty": _float_decimal(qty, currency_precision),
-			"avg._selling_rate": _float_decimal(base_amount / qty, float_precision) if qty else 0.0,
-			"valuation_rate": _float_decimal(buying_amount / qty, float_precision) if qty else 0.0,
-			"selling_amount": _float_decimal(base_amount, currency_precision),
-			"buying_amount": _float_decimal(buying_amount, currency_precision),
-			"gross_profit": _float_decimal(gross_profit, currency_precision),
-			"gross_profit_%": _float_decimal((gross_profit / abs(base_amount)) * Decimal("100"), currency_precision)
-			if base_amount
+			"qty": qty_val,
+			"avg._selling_rate": _flt_value(selling_val / qty_val, float_precision) if qty_val else 0.0,
+			"valuation_rate": _flt_value(buying_val / qty_val, float_precision) if qty_val else 0.0,
+			"selling_amount": selling_val,
+			"buying_amount": buying_val,
+			"gross_profit": gross_profit_val,
+			"gross_profit_%": _flt_value((gross_profit_val / abs(selling_val)) * 100.0, currency_precision)
+			if selling_val
 			else 0.0,
 			"currency": currency,
 		}
 		data.append(row)
-		total_base += base_amount
-		total_buying += buying_amount
+		total_base += selling_val
+		total_buying += buying_val
 
-	total_gross = total_base + abs(total_buying) if total_buying < 0 else total_base - total_buying
+	total_gross = _flt_value(total_base + abs(total_buying) if total_buying < 0 else total_base - total_buying)
 	data.append(
 		{
 			group_field: "Total",
 			"qty": None,
 			"avg._selling_rate": None,
 			"valuation_rate": None,
-			"selling_amount": _float_decimal(total_base, currency_precision),
-			"buying_amount": _float_decimal(total_buying, currency_precision),
-			"gross_profit": _float_decimal(total_gross, currency_precision),
-			"gross_profit_%": _float_decimal((total_gross / abs(total_base)) * Decimal("100"), currency_precision)
+			"selling_amount": total_base,
+			"buying_amount": total_buying,
+			"gross_profit": total_gross,
+			"gross_profit_%": _flt_value((total_gross / abs(total_base)) * 100.0, currency_precision)
 			if total_base
 			else 0.0,
 			"currency": currency,
@@ -603,7 +653,8 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 	replay_contributions = list((replay_batch or {}).get("contributions") or [])
 	all_contributions = [*live_contributions, *replay_contributions]
 	for row in all_contributions:
-		row["query_phase"] = 0 if int(row.get("is_return") or 0) == 1 and row.get("return_against") else 1
+		if row.get("query_phase") not in (0, 1):
+			row["query_phase"] = 0 if int(row.get("is_return") or 0) == 1 and row.get("return_against") else 1
 	currency_precision, float_precision, _rounding_method = _batch_metadata(all_batches)
 
 	today = _site_today()
@@ -629,6 +680,7 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 		all_contributions,
 		filters,
 		currency_precision=currency_precision,
+		float_precision=float_precision,
 		warehouse_scope=warehouse_scope,
 	)
 	counts = _empty_budget_counts("summary")

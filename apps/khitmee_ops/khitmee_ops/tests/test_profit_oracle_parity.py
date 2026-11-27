@@ -59,7 +59,7 @@ def decimal_micros(values):
 
 
 def first_seen_key(query_phase, posting_date, posting_time):
-    return f"{query_phase}|{posting_date}|{posting_time.replace(':', '')}"
+    return f"{query_phase}|{posting_date}|{posting_time.replace(':', '').ljust(12, '0')}"
 
 
 def numeric_group_fields(amount=100.0):

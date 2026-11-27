@@ -391,27 +391,36 @@ def get_active_dirty_ranges(company: str, to_date: str):
 	return rows or []
 
 
+def batched(values: Iterable, chunk_size: int = 1000):
+	"""Yield bounded slices of values so SQL IN predicates stay capped."""
+	items = list(values or [])
+	size = max(1, int(chunk_size))
+	for offset in range(0, len(items), size):
+		yield items[offset : offset + size]
+
+
 def get_shop_day_rows(company: str, posting_dates: Iterable[str]):
 	dates = sorted(set(_as_date_string(value) for value in posting_dates if value))
 	if not dates:
 		return []
-	placeholders = ", ".join(["%s"] * len(dates))
 	fields = ", ".join(f"`{field}`" for field in SHOP_DAY_FIELDS)
-	rows = _require_frappe().db.sql(
-		f"""
-		SELECT {fields}
-		FROM `tabDaily Profit by Shop`
-		WHERE `company` = %s AND `posting_date` IN ({placeholders})
-		ORDER BY `company` ASC, `posting_date` ASC, `warehouse` ASC
-		""",
-		[company, *dates],
-		as_dict=True,
-	)
 	result = []
-	for row in rows or []:
-		decoded = _row_dict(row, SHOP_DAY_FIELDS)
-		decoded["posting_date"] = _as_date_string(decoded.get("posting_date"))
-		result.append(decoded)
+	for chunk in batched(dates, 1000):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		rows = _require_frappe().db.sql(
+			f"""
+			SELECT {fields}
+			FROM `tabDaily Profit by Shop`
+			WHERE `company` = %s AND `posting_date` IN ({placeholders})
+			ORDER BY `company` ASC, `posting_date` ASC, `warehouse` ASC
+			""",
+			[company, *chunk],
+			as_dict=True,
+		)
+		for row in rows or []:
+			decoded = _row_dict(row, SHOP_DAY_FIELDS)
+			decoded["posting_date"] = _as_date_string(decoded.get("posting_date"))
+			result.append(decoded)
 	return result
 
 
@@ -419,20 +428,23 @@ def get_replay_candidates(company: str, posting_dates: Iterable[str]):
 	dates = sorted(set(_as_date_string(value) for value in posting_dates if value))
 	if not dates:
 		return []
-	placeholders = ", ".join(["%s"] * len(dates))
-	rows = _require_frappe().db.sql(
-		f"""
-		SELECT `company`, `posting_date`, `sales_invoice`, `reason`
-		FROM `tabKhitmee Profit Replay Candidate`
-		WHERE `company` = %s AND `posting_date` IN ({placeholders})
-		ORDER BY `company` ASC, `posting_date` ASC, `sales_invoice` ASC
-		""",
-		[company, *dates],
-		as_dict=True,
-	)
-	for row in rows or []:
-		row["posting_date"] = _as_date_string(row.get("posting_date"))
-	return rows or []
+	result = []
+	for chunk in batched(dates, 1000):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		rows = _require_frappe().db.sql(
+			f"""
+			SELECT `company`, `posting_date`, `sales_invoice`, `reason`
+			FROM `tabKhitmee Profit Replay Candidate`
+			WHERE `company` = %s AND `posting_date` IN ({placeholders})
+			ORDER BY `company` ASC, `posting_date` ASC, `sales_invoice` ASC
+			""",
+			[company, *chunk],
+			as_dict=True,
+		)
+		for row in rows or []:
+			row["posting_date"] = _as_date_string(row.get("posting_date"))
+			result.append(row)
+	return result
 
 
 def claim_next_dirty_day(company: str | None = None) -> ClaimRecord | None:

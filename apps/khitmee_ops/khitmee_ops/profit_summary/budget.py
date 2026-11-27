@@ -126,9 +126,29 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		"`si`.`is_opening` != 'Yes'",
 		"`si`.`posting_date` BETWEEN %s AND %s",
 	]
-	if filters.get("warehouse"):
-		where.append("`sii`.`warehouse` = %s")
-		params.append(filters.get("warehouse"))
+	warehouse = filters.get("warehouse")
+	if warehouse:
+		lft_rgt = (
+			frappe.get_cached_value("Warehouse", warehouse, ["lft", "rgt"])
+			if frappe is not None and hasattr(frappe, "get_cached_value")
+			else None
+		)
+		if (
+			lft_rgt
+			and len(lft_rgt) == 2
+			and lft_rgt[0] is not None
+			and lft_rgt[1] is not None
+			and int(lft_rgt[1]) > int(lft_rgt[0]) + 1
+		):
+			where.append(
+				"`sii`.`warehouse` IN ("
+				"SELECT `w`.`name` FROM `tabWarehouse` AS `w` WHERE `w`.`lft` >= %s AND `w`.`rgt` <= %s"
+				")"
+			)
+			params.extend([int(lft_rgt[0]), int(lft_rgt[1])])
+		else:
+			where.append("`sii`.`warehouse` = %s")
+			params.append(warehouse)
 
 	joins = []
 	group_by = str(filters.get("group_by") or "").lower()

@@ -321,6 +321,159 @@ class TestPrecisionAndOrdering(unittest.TestCase):
 		self.assertEqual(set(aggregated["groups"]), {"CHILD", "OUTSIDE"})
 		self.assertNotIn("", aggregated["groups"])
 
+	def test_float_precision_governs_qty_and_abs_qty_cap_independently(self):
+		from datetime import timedelta
+
+		filters = {"group_by": "Warehouse", "from_date": "2026-01-01", "to_date": "2026-01-31", "currency": "USD"}
+		# float_precision=1 -> max qty abs cap is 10**13; float_precision=6 -> cap is 10**8 (100_000_000).
+		large_qty_rows = [
+			contribution("A", item_row="R1", qty=80_000_000.0, base_amount=10.0, buying_amount=5.0),
+			contribution("B", item_row="R2", qty=30_000_000.0, base_amount=10.0, buying_amount=5.0),
+		]
+		res_p2 = query.aggregate_summary_rows(
+			[], large_qty_rows, filters, currency_precision=6, float_precision=2, warehouse_scope=set()
+		)
+		self.assertFalse(res_p2["cap_exceeded"])
+		res_p6 = query.aggregate_summary_rows(
+			[], large_qty_rows, filters, currency_precision=2, float_precision=6, warehouse_scope=set()
+		)
+		self.assertTrue(res_p6["cap_exceeded"])
+
+		fractional_qty = [contribution(qty=1.123, base_amount=10.1234, buying_amount=5.1234)]
+		safe_p3 = query.aggregate_summary_rows(
+			[], fractional_qty, filters, currency_precision=6, float_precision=3, warehouse_scope=set()
+		)
+		self.assertTrue(safe_p3["row_precision_safe"])
+		formatted = query.format_summary_groups(
+			safe_p3["groups"], filters, currency_precision=6, float_precision=3
+		)
+		self.assertEqual(formatted[0]["qty"], 1.123)
+
+		unsafe_p2 = query.aggregate_summary_rows(
+			[], fractional_qty, filters, currency_precision=6, float_precision=2, warehouse_scope=set()
+		)
+		self.assertFalse(unsafe_p2["row_precision_safe"])
+
+		shop_rows, _replay_rows, day_flags = rebuilder.partition_day_contributions(
+			{
+				"contributions": [
+					{
+						"sales_invoice": "SI-1",
+						"item_row": "R1",
+						"posting_date": "2026-01-01",
+						"posting_time": "10:00:00",
+						"warehouse": "W1",
+						"is_return": 0,
+						"return_against": None,
+						"update_stock": 1,
+						"delivered_by_supplier": 0,
+						"valuation_source": "sle",
+						"qty": 60_000_000.0,
+						"base_amount": 1.0,
+						"buying_amount": 1.0,
+						"query_phase": 1,
+						"first_seen_key": "1|2026-01-01|100000000000",
+						"is_precision_safe": True,
+					},
+					{
+						"sales_invoice": "SI-2",
+						"item_row": "R2",
+						"posting_date": "2026-01-01",
+						"posting_time": "10:00:01",
+						"warehouse": "W1",
+						"is_return": 0,
+						"return_against": None,
+						"update_stock": 1,
+						"delivered_by_supplier": 0,
+						"valuation_source": "sle",
+						"qty": 60_000_000.0,
+						"base_amount": 1.0,
+						"buying_amount": 1.0,
+						"query_phase": 1,
+						"first_seen_key": "1|2026-01-01|100001000000",
+						"is_precision_safe": True,
+					},
+				],
+				"currency_precision": 2,
+				"float_precision": 6,
+			},
+			"C",
+			"2026-01-01",
+		)
+		self.assertEqual(len(shop_rows), 1)
+		self.assertFalse(day_flags["is_additive_safe"])
+		self.assertEqual(
+			rebuilder.make_first_seen_key(1, "2026-01-02", timedelta(hours=9, minutes=8, seconds=7, microseconds=654321)),
+			"1|2026-01-02|090807654321",
+		)
+
+	def test_detail_preflight_expands_group_warehouse_subquery_and_leaf_equals(self):
+		base_filters = {"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "warehouse": "W-PARENT"}
+		with patch.object(FRAPPE, "get_cached_value", return_value=(1, 10), create=True):
+			sql_group, params_group = build_detail_preflight_query(base_filters, cap=100)
+		self.assertIn("FROM `tabWarehouse` AS `w` WHERE `w`.`lft` >= %s AND `w`.`rgt` <= %s", sql_group)
+		self.assertEqual(params_group, ["C", "2026-01-01", "2026-01-31", 1, 10, "C", "2026-01-01", "2026-01-31", 1, 10, 101])
+
+		with patch.object(FRAPPE, "get_cached_value", return_value=(2, 3), create=True):
+			sql_leaf, params_leaf = build_detail_preflight_query(base_filters, cap=100)
+		self.assertIn("`sii`.`warehouse` = %s", sql_leaf)
+		self.assertEqual(params_leaf, ["C", "2026-01-01", "2026-01-31", "W-PARENT", "C", "2026-01-01", "2026-01-31", "W-PARENT", 101])
+
+	def test_get_summary_columns_wraps_plain_dict_and_fallback_matches_stock_metadata(self):
+		seen = {}
+
+		class FakeStandard:
+			@staticmethod
+			def get_columns(group_wise, filters):
+				seen["group_by_attr"] = filters.group_by
+				seen["group_by_dict"] = filters.get("group_by")
+				return [{"fieldname": "monthly"}]
+
+		fake_fgp = types.SimpleNamespace(
+			standard_gross_profit=FakeStandard(),
+			_group_wise_columns=lambda: {"monthly": ["monthly"]},
+		)
+		with patch.object(query, "_fast_gross_profit_module", return_value=fake_fgp):
+			cols = query.get_summary_columns({"group_by": "Monthly"})
+		self.assertEqual(cols, [{"fieldname": "monthly"}])
+		self.assertEqual(seen, {"group_by_attr": "Monthly", "group_by_dict": "Monthly"})
+
+		wh_cols = query._fallback_columns("Warehouse")
+		self.assertEqual(
+			wh_cols[0],
+			{"fieldname": "warehouse", "label": "Warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 100},
+		)
+		self.assertEqual(wh_cols[1]["width"], 80)
+		self.assertEqual(wh_cols[4]["options"], "currency")
+		self.assertEqual(wh_cols[-1], {"fieldname": "currency", "label": "Currency", "fieldtype": "Link", "options": "Currency", "hidden": 1})
+
+	def test_format_summary_groups_uses_flt_and_matches_stock_total_math(self):
+		flt_calls = []
+
+		def fake_flt(val, precision=None):
+			flt_calls.append(precision)
+			return round(float(val), precision) if precision is not None else float(val)
+
+		utils_mod = types.ModuleType("frappe.utils")
+		utils_mod.flt = fake_flt
+		filters = {"group_by": "Warehouse", "from_date": "2026-01-01", "to_date": "2026-01-31", "currency": "USD"}
+		rows = [
+			contribution("A", item_row="R1", warehouse="W1", qty=3.0, base_amount=10.004, buying_amount=6.001),
+			contribution("B", item_row="R2", warehouse="W2", qty=2.0, base_amount=20.004, buying_amount=12.001),
+		]
+		agg = query.aggregate_summary_rows([], rows, filters, currency_precision=2, float_precision=2, warehouse_scope=set())
+		with patch.dict(sys.modules, {"frappe.utils": utils_mod}):
+			data = query.format_summary_groups(agg["groups"], filters, currency_precision=2, float_precision=2)
+
+		self.assertIn(2, flt_calls)
+		self.assertIn(None, flt_calls)
+		# Per-group rounded values sum into Total (10.0 + 20.0 = 30.0, 6.0 + 12.0 = 18.0)
+		self.assertEqual(data[-1]["warehouse"], "Total")
+		self.assertEqual(data[-1]["selling_amount"], 30.0)
+		self.assertEqual(data[-1]["buying_amount"], 18.0)
+		self.assertEqual(data[-1]["gross_profit"], 12.0)
+		self.assertEqual(data[-1]["gross_profit_%"], 40.0)
+
 
 class TestTriggersAndStore(unittest.TestCase):
 	def test_trigger_ddl_names_conditions_and_dirty_range_insert_are_frozen(self):
@@ -598,6 +751,50 @@ class TestClaimCursorEligibilityAndHooks(unittest.TestCase):
 			store.on_stock_voucher_change({"doctype": "Purchase Invoice", "company": "C", "posting_date": "2026-01-02", "name": "PI-1", "update_stock": 1})
 			store.on_stock_voucher_change({"doctype": "Purchase Invoice", "company": "C", "posting_date": "2026-01-02", "name": "PI-2", "update_stock": 0})
 		self.assertEqual(recorded, [("C", "2026-01-02", "Purchase Invoice", "PI-1")])
+
+	def test_build_match_conditions_falls_back_to_reportview(self):
+		from khitmee_ops.profit_summary import eligibility
+
+		reportview = types.ModuleType("frappe.desk.reportview")
+		reportview.build_match_conditions = lambda doctype: "`tabSales Invoice`.`company` = 'C'"
+		desk_pkg = types.ModuleType("frappe.desk")
+		desk_pkg.reportview = reportview
+
+		class MinimalFrappe:
+			permissions = types.SimpleNamespace()
+
+		with patch.object(eligibility, "frappe", MinimalFrappe()), patch.dict(
+			sys.modules, {"frappe.desk": desk_pkg, "frappe.desk.reportview": reportview}
+		):
+			self.assertEqual(
+				eligibility.build_match_conditions("Sales Invoice", user="u@example.com"),
+				"`tabSales Invoice`.`company` = 'C'",
+			)
+
+	def test_store_and_rebuilder_in_predicates_are_batched_to_one_thousand(self):
+		chunk_sizes = []
+
+		class ChunkDB:
+			def sql(self, sql, params=None, as_dict=False):
+				chunk_sizes.append(len(params) - 1)
+				if "return_against" in sql:
+					return [("ORIG-1",)] if len(params) - 1 == 5 else []
+				if "tabDaily Profit by Shop" in sql:
+					return [{"company": "C", "posting_date": params[1], "warehouse": "W1"}]
+				return [{"company": "C", "posting_date": params[1], "sales_invoice": "SI-R", "reason": "linked_return"}]
+
+		dates = [f"2026-{(idx // 28) + 1:02d}-{(idx % 28) + 1:02d}" for idx in range(1005)]
+		invoices = [f"SI-{idx:04d}" for idx in range(1005)]
+		db = ChunkDB()
+		with patch.object(store.frappe, "db", db), patch.object(rebuilder.frappe, "db", db):
+			shop_rows = store.get_shop_day_rows("C", dates)
+			replay_rows = store.get_replay_candidates("C", dates)
+			originals = rebuilder.find_globally_linked_originals("C", invoices)
+
+		self.assertEqual(chunk_sizes, [1000, 5, 1000, 5, 1000, 5])
+		self.assertEqual(len(shop_rows), 2)
+		self.assertEqual(len(replay_rows), 2)
+		self.assertEqual(originals, {"ORIG-1"})
 
 
 class TestCleanOnlyQueryIntegration(unittest.TestCase):

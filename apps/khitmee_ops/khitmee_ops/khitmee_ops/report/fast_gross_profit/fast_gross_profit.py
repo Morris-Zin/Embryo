@@ -1,8 +1,10 @@
 # Copyright (c) 2026, Khitmee and contributors
 # License: GNU General Public License v3
 
+import importlib
 import inspect
 import re
+import sys
 from collections import OrderedDict
 from typing import Literal, TypedDict
 
@@ -140,7 +142,7 @@ def merge_posting_rows_descending(*row_groups):
 def posting_time_microseconds(value):
 	"""Return microseconds since midnight for canonical first-seen ordering keys."""
 	if hasattr(value, "total_seconds"):
-		return int(round(value.total_seconds() * 1_000_000))
+		return round(value.total_seconds() * 1_000_000)
 	if hasattr(value, "hour"):
 		return (
 			(value.hour * 3600 + value.minute * 60 + value.second) * 1_000_000
@@ -149,7 +151,7 @@ def posting_time_microseconds(value):
 	parts = str(value or "0:0:0").split(":")
 	try:
 		seconds = float(parts[2])
-		return int(round((int(parts[0]) * 3600 + int(parts[1]) * 60 + seconds) * 1_000_000))
+		return round((int(parts[0]) * 3600 + int(parts[1]) * 60 + seconds) * 1_000_000)
 	except (IndexError, TypeError, ValueError):
 		return 0
 
@@ -1108,7 +1110,9 @@ def _enforce_detail_budget_if_requested(filters, invoice_ids, enforce_budget):
 	if not enforce_budget:
 		return
 	try:
-		from khitmee_ops.profit_summary import budget
+		budget = sys.modules.get("khitmee_ops.profit_summary.budget") or importlib.import_module(
+			"khitmee_ops.profit_summary.budget"
+		)
 	except (ImportError, ModuleNotFoundError):
 		return
 
@@ -1351,12 +1355,12 @@ def execute(filters=None):
 			"Background email export is disabled for Fast Gross Profit; please use Export Profit CSV."
 		)
 
-	validate_date_range(filters)
-
 	if not filters:
 		filters = frappe._dict()
 	elif isinstance(filters, dict) and not hasattr(filters, "__getattr__"):
 		filters = frappe._dict(filters)
+
+	validate_date_range(filters)
 	filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
 
 	from khitmee_ops.profit_summary import query_profit

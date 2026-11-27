@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
 
 from khitmee_ops.profit_summary import store
 from khitmee_ops.profit_summary.budget import MAX_SAFE_ABS_SUM
+from khitmee_ops.profit_summary.store import batched
 
 POSITIVE_VALUATION_SOURCES = frozenset({"sle", "bundle_sle"})
 SET_B_REASONS = frozenset(
@@ -61,10 +62,11 @@ def _today():
 
 def make_first_seen_key(query_phase: int, posting_date: str, posting_time="") -> str:
 	if hasattr(posting_time, "total_seconds"):
-		total = int(posting_time.total_seconds())
-		hours, remainder = divmod(total, 3600)
-		minutes, seconds = divmod(remainder, 60)
-		time_text = f"{hours:02d}{minutes:02d}{seconds:02d}"
+		total_us = max(0, round(posting_time.total_seconds() * 1_000_000))
+		hours, remainder = divmod(total_us, 3_600_000_000)
+		minutes, remainder = divmod(remainder, 60_000_000)
+		seconds, microseconds = divmod(remainder, 1_000_000)
+		time_text = f"{hours:02d}{minutes:02d}{seconds:02d}{microseconds:06d}"
 	else:
 		digits = re.sub(r"\D", "", str(posting_time or ""))
 		time_text = digits[:12].ljust(12, "0")
@@ -169,13 +171,15 @@ def partition_day_contributions(batch, company: str, posting_date: str):
 
 	shop_rows = []
 	currency_precision = int((batch or {}).get("currency_precision") or 3)
-	cap = Decimal(str(MAX_SAFE_ABS_SUM(currency_precision)))
+	float_precision = int((batch or {}).get("float_precision") or 2)
+	qty_cap = Decimal(str(MAX_SAFE_ABS_SUM(float_precision)))
+	money_cap = Decimal(str(MAX_SAFE_ABS_SUM(currency_precision)))
 	is_additive_safe = True
 	for warehouse in sorted(buckets_by_warehouse):
 		normal = buckets_by_warehouse[warehouse]["normal"]
 		unlinked = buckets_by_warehouse[warehouse]["unlinked"]
 		for bucket in (normal, unlinked):
-			if max(bucket["abs_qty_sum"], bucket["abs_base_sum"], bucket["abs_buying_sum"]) > cap:
+			if bucket["abs_qty_sum"] > qty_cap or max(bucket["abs_base_sum"], bucket["abs_buying_sum"]) > money_cap:
 				is_additive_safe = False
 		shop_rows.append(
 			{
@@ -212,19 +216,22 @@ def find_globally_linked_originals(company: str, invoice_ids) -> set[str]:
 	invoice_ids = sorted(set(invoice_ids or []))
 	if not invoice_ids or frappe is None:
 		return set()
-	placeholders = ", ".join(["%s"] * len(invoice_ids))
-	rows = frappe.db.sql(
-		f"""
-		SELECT DISTINCT `return_against`
-		FROM `tabSales Invoice`
-		WHERE `company` = %s
-			AND `docstatus` = 1
-			AND `is_return` = 1
-			AND `return_against` IN ({placeholders})
-		""",
-		[company, *invoice_ids],
-	)
-	return {row.get("return_against") if hasattr(row, "get") else row[0] for row in rows or []}
+	found: set[str] = set()
+	for chunk in batched(invoice_ids, 1000):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		rows = frappe.db.sql(
+			f"""
+			SELECT DISTINCT `return_against`
+			FROM `tabSales Invoice`
+			WHERE `company` = %s
+				AND `docstatus` = 1
+				AND `is_return` = 1
+				AND `return_against` IN ({placeholders})
+			""",
+			[company, *chunk],
+		)
+		found.update(row.get("return_against") if hasattr(row, "get") else row[0] for row in rows or [])
+	return found
 
 
 def augment_linked_original_reasons(batch, company: str):
