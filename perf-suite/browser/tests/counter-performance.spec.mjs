@@ -59,6 +59,33 @@ test.describe("cashier counter performance regressions", () => {
     expect(response.message.items[0]).not.toHaveProperty("supplier");
   });
 
+  test("browser catalog mode serves repeat barcode lookup locally after synchronization", async ({ page }) => {
+    await openAuthenticatedCounter(page, "/khitmee_sales?khitmee_catalog=browser");
+    const warehouse = await page.locator("#warehouse").inputValue();
+    await page.waitForFunction((expectedWarehouse) => {
+      const status = window.__khitmeeCatalogStatus;
+      return status && status.state === "ready" && status.scope && status.scope.split("\u001f")[1] === expectedWarehouse;
+    }, warehouse, { timeout: 30000 });
+    const synced = await page.evaluate(() => window.__khitmeeCatalogStatus.itemCount);
+    expect(synced, "browser catalog sync must load benchmark items").toBeGreaterThan(0);
+
+    const searchApiRequests = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/method/khitmee_ops.api.search.search_items")) searchApiRequests.push(request.url());
+    });
+    await measureBarcodeScan(page, ean13ForIndex(0), 0);
+
+    await expect(page.locator("#lines-body tr")).toHaveCount(1);
+    await expect(page.locator('#lines-body tr[data-index="0"] strong')).toHaveText(itemCode(0));
+    expect(searchApiRequests, "synchronized browser catalog scans must not call server item search").toHaveLength(0);
+
+    const fallbackRequest = page.waitForRequest((request) => request.url().includes("/api/method/khitmee_ops.api.search.search_items"), { timeout: 10000 });
+    await page.locator("#item-search").fill("0000000000000");
+    await page.keyboard.press("Enter");
+    await fallbackRequest;
+    expect(searchApiRequests.length, "an unknown barcode must fall back to authoritative server search").toBeGreaterThan(0);
+  });
+
   test("re-scanning the same barcode reuses a bounded fresh client cache entry", async ({ page }) => {
     await openAuthenticatedCounter(page);
     const apiRequests = [];

@@ -17,8 +17,14 @@ doc_events = {
 	"Item": {
 		"after_insert": "khitmee_ops.api.search.invalidate_item_search_cache",
 		"on_update": "khitmee_ops.api.search.invalidate_item_search_cache",
-		"on_trash": "khitmee_ops.api.search.invalidate_item_search_cache",
-		"after_rename": "khitmee_ops.api.search.invalidate_item_search_cache",
+		"on_trash": [
+			"khitmee_ops.api.search.invalidate_item_search_cache",
+			"khitmee_ops.api.catalog.record_item_catalog_tombstone",
+		],
+		"after_rename": [
+			"khitmee_ops.api.search.invalidate_item_search_cache",
+			"khitmee_ops.api.catalog.record_item_catalog_tombstone",
+		],
 	},
 }
 
