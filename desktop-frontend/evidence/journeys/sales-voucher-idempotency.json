@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "clientVoucherId": "native-proof-48c6d3e226044c919ddcb7fff9dca8e4",
+  "initialStatuses": [
+    200,
+    200
+  ],
+  "voucherAttempts": [
+    "ACC-SINV-2026-04934",
+    "ACC-SINV-2026-04934"
+  ],
+  "distinctVouchers": [
+    "ACC-SINV-2026-04934"
+  ],
+  "oracle": "all concurrent/replayed attempts for one client_voucher_id must resolve to the same Sales Invoice"
+}

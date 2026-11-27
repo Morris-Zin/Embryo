@@ -631,44 +631,140 @@ fn load_catalog(
     fixture_catalog(catalog_rows)
 }
 
-
 fn label_model(rows: &[(String, String)]) -> ModelRc<SharedString> {
-    Rc::new(VecModel::from(rows.iter().map(|(label, _)| SharedString::from(label.as_str())).collect::<Vec<_>>())).into()
+    Rc::new(VecModel::from(
+        rows.iter()
+            .map(|(label, _)| SharedString::from(label.as_str()))
+            .collect::<Vec<_>>(),
+    ))
+    .into()
 }
 
-fn choice_rows(value: &serde_json::Value, key: &str, label_key: &str, blank: Option<&str>) -> Vec<(String, String)> {
+fn choice_rows(
+    value: &serde_json::Value,
+    key: &str,
+    label_key: &str,
+    blank: Option<&str>,
+) -> Vec<(String, String)> {
     let mut rows = Vec::new();
-    if let Some(label) = blank { rows.push((label.to_owned(), String::new())); }
+    if let Some(label) = blank {
+        rows.push((label.to_owned(), String::new()));
+    }
     if let Some(items) = value.as_array() {
         rows.extend(items.iter().filter_map(|row| {
             let name = row.get(key)?.as_str()?.to_owned();
-            let label = row.get(label_key).and_then(|value| value.as_str()).unwrap_or(name.as_str()).to_owned();
+            let label = row
+                .get(label_key)
+                .and_then(|value| value.as_str())
+                .unwrap_or(name.as_str())
+                .to_owned();
             Some((label, name))
         }));
     }
     rows
 }
 
-fn load_counter_context(config: Option<&ErpRuntimeConfig>) -> (Vec<(String, String)>, Vec<(String, String)>, Vec<(String, String)>, String, String, String) {
+fn load_counter_context(
+    config: Option<&ErpRuntimeConfig>,
+) -> (
+    Vec<(String, String)>,
+    Vec<(String, String)>,
+    Vec<(String, String)>,
+    String,
+    String,
+    String,
+) {
     let fallback_warehouses = vec![("Dist Hub 1".into(), "Dist Hub 1 - KMD".into())];
-    let fallback_customers = vec![("Choose customer".into(), String::new()), ("Khit Customer 0001".into(), "KM-CUST-0001".into())];
-    let fallback_payments = vec![("No payment / credit".into(), String::new()), ("Cash".into(), "Cash".into())];
+    let fallback_customers = vec![
+        ("Choose customer".into(), String::new()),
+        ("Khit Customer 0001".into(), "KM-CUST-0001".into()),
+    ];
+    let fallback_payments = vec![
+        ("No payment / credit".into(), String::new()),
+        ("Cash".into(), "Cash".into()),
+    ];
     let fallback_price = "Standard Selling".to_owned();
-    let Some(config) = config else { return (fallback_warehouses, fallback_customers, fallback_payments, fallback_price, "http://127.0.0.1:18421/print".into(), String::new()); };
-    let result = ErpClient::login(&config.base_url, &config.username, &config.password)
-        .and_then(|client| client.post_method("khitmee_ops.api.search.get_counter_context", &serde_json::json!({"mode":"sales"})));
-    let Ok(context) = result else { return (fallback_warehouses, fallback_customers, fallback_payments, fallback_price, "http://127.0.0.1:18421/print".into(), String::new()); };
-    let warehouses = choice_rows(context.get("warehouses").unwrap_or(&serde_json::Value::Null), "name", "warehouse_name", None);
-    let customers = choice_rows(context.get("customers").unwrap_or(&serde_json::Value::Null), "name", "customer_name", Some("Choose customer"));
-    let payments = choice_rows(context.get("modes_of_payment").unwrap_or(&serde_json::Value::Null), "name", "name", Some("No payment / credit"));
-    let price_list = context.get("default_price_list").and_then(|value| value.as_str()).unwrap_or("Standard Selling").to_owned();
+    let Some(config) = config else {
+        return (
+            fallback_warehouses,
+            fallback_customers,
+            fallback_payments,
+            fallback_price,
+            "http://127.0.0.1:18421/print".into(),
+            String::new(),
+        );
+    };
+    let result =
+        ErpClient::login(&config.base_url, &config.username, &config.password).and_then(|client| {
+            client.post_method(
+                "khitmee_ops.api.search.get_counter_context",
+                &serde_json::json!({"mode":"sales"}),
+            )
+        });
+    let Ok(context) = result else {
+        return (
+            fallback_warehouses,
+            fallback_customers,
+            fallback_payments,
+            fallback_price,
+            "http://127.0.0.1:18421/print".into(),
+            String::new(),
+        );
+    };
+    let warehouses = choice_rows(
+        context
+            .get("warehouses")
+            .unwrap_or(&serde_json::Value::Null),
+        "name",
+        "warehouse_name",
+        None,
+    );
+    let customers = choice_rows(
+        context.get("customers").unwrap_or(&serde_json::Value::Null),
+        "name",
+        "customer_name",
+        Some("Choose customer"),
+    );
+    let payments = choice_rows(
+        context
+            .get("modes_of_payment")
+            .unwrap_or(&serde_json::Value::Null),
+        "name",
+        "name",
+        Some("No payment / credit"),
+    );
+    let price_list = context
+        .get("default_price_list")
+        .and_then(|value| value.as_str())
+        .unwrap_or("Standard Selling")
+        .to_owned();
     (
-        if warehouses.is_empty() { fallback_warehouses } else { warehouses },
-        if customers.len() > 1 { customers } else { fallback_customers },
-        if payments.len() > 1 { payments } else { fallback_payments },
+        if warehouses.is_empty() {
+            fallback_warehouses
+        } else {
+            warehouses
+        },
+        if customers.len() > 1 {
+            customers
+        } else {
+            fallback_customers
+        },
+        if payments.len() > 1 {
+            payments
+        } else {
+            fallback_payments
+        },
         price_list,
-        context.get("print_endpoint").and_then(|value| value.as_str()).unwrap_or("http://127.0.0.1:18421/print").to_owned(),
-        context.get("print_token").and_then(|value| value.as_str()).unwrap_or("").to_owned(),
+        context
+            .get("print_endpoint")
+            .and_then(|value| value.as_str())
+            .unwrap_or("http://127.0.0.1:18421/print")
+            .to_owned(),
+        context
+            .get("print_token")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_owned(),
     )
 }
 
@@ -690,8 +786,12 @@ fn main() -> Result<(), slint::PlatformError> {
         .collect::<HashMap<_, _>>();
     let catalog = CatalogIndex::rebuild(stored_rows);
     let runtime_config = ErpRuntimeConfig::from_env();
-    let (warehouses, customers, payment_modes, price_list, print_endpoint, print_token) = load_counter_context(runtime_config.as_ref());
-    let warehouse = warehouses.first().map(|(_, value)| value.clone()).unwrap_or_default();
+    let (warehouses, customers, payment_modes, price_list, print_endpoint, print_token) =
+        load_counter_context(runtime_config.as_ref());
+    let warehouse = warehouses
+        .first()
+        .map(|(_, value)| value.clone())
+        .unwrap_or_default();
     let state = Rc::new(RefCell::new(PilotState {
         catalog_size: catalog.len(),
         catalog,
@@ -737,7 +837,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let state = state.clone();
         move |label| {
             let mut state = state.borrow_mut();
-            if let Some((_, value)) = state.warehouses.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+            if let Some((_, value)) = state
+                .warehouses
+                .iter()
+                .find(|(candidate, _)| candidate == label.as_str())
+                .cloned()
+            {
                 state.warehouse = value;
             }
         }
@@ -747,7 +852,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let state = state.clone();
         move |label| {
             let mut state = state.borrow_mut();
-            if let Some((_, value)) = state.customers.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+            if let Some((_, value)) = state
+                .customers
+                .iter()
+                .find(|(candidate, _)| candidate == label.as_str())
+                .cloned()
+            {
                 state.customer = value;
             }
         }
@@ -757,7 +867,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let state = state.clone();
         move |label| {
             let mut state = state.borrow_mut();
-            if let Some((_, value)) = state.payment_modes.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+            if let Some((_, value)) = state
+                .payment_modes
+                .iter()
+                .find(|(candidate, _)| candidate == label.as_str())
+                .cloned()
+            {
                 state.payment_mode = value;
             }
         }

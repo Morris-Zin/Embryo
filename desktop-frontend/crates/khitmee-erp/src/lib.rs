@@ -117,14 +117,19 @@ impl ErpClient {
     }
 
     pub fn print_receipt(endpoint: &str, token: &str, payload: &Value) -> ErpResult<Value> {
-        let client = Client::builder().timeout(std::time::Duration::from_millis(2500)).build()?;
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_millis(2500))
+            .build()?;
         let mut request = client.post(endpoint).json(payload);
         if !token.is_empty() {
             request = request.header("X-Khitmee-Print-Token", token);
         }
         let response = request.send()?;
         if !response.status().is_success() {
-            return Err(Box::new(ErpError(format!("print companion returned HTTP {}", response.status()))));
+            return Err(Box::new(ErpError(format!(
+                "print companion returned HTTP {}",
+                response.status()
+            ))));
         }
         Ok(response.json().unwrap_or_else(|_| json!({})))
     }

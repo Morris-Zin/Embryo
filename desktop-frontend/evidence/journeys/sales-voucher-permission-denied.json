@@ -101,7 +101,7 @@
         "firstResult": ""
       },
       "native": {
-        "status": "ERPNext submission failed: No permission for Sales Invoice",
+        "status": "No permission for Sales Invoice",
         "totalQty": "1",
         "subtotal": "18.46",
         "submitDisabled": false,
@@ -137,7 +137,7 @@
         "firstResult": ""
       },
       "native": {
-        "status": "ERPNext submission failed: No permission for Sales Invoice",
+        "status": "No permission for Sales Invoice",
         "totalQty": "1",
         "subtotal": "18.46",
         "submitDisabled": false,

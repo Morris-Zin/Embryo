@@ -250,8 +250,8 @@ component VoucherLineRow inherits Rectangle {
     height: 48px;
     property <length> qty-x: root.width * 0.28;
 
-    Text { x: 14px; width: root.qty-x - 20px; height: 48px; text: line.item-name; color: Design.text; font-size: 14px; font-weight: 700; vertical-alignment: center; overflow: elide; }
-    Text { x: 14px; y: 28px; width: 300px; text: line.item-code; color: Design.muted; font-size: 11px; overflow: elide; }
+    Text { x: 14px; y: 3px; width: root.qty-x - 20px; height: 22px; text: line.item-name; color: Design.text; font-size: 14px; font-weight: 700; vertical-alignment: center; overflow: elide; }
+    Text { x: 14px; y: 27px; width: 300px; height: 17px; text: line.item-code; color: Design.muted; font-size: 11px; overflow: elide; }
     Rectangle {
         x: root.qty-x; y: 9.578125px; width: 40px; height: 40px;
         border-radius: 10px; border-color: Design.line; border-width: 1px; background: #ffffff;
