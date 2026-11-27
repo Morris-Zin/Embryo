@@ -37,7 +37,15 @@
       ],
       "api_contracts": [
         {
-          "endpoint": "frappe.client.get_list(Sales Invoice)",
+          "endpoint": "frappe.desk.reportview.get(Sales Invoice)",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice read"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "frappe.desk.reportview.get_count(Sales Invoice)",
           "authority": "ERPNext",
           "required_permissions": [
             "Sales Invoice read"
@@ -50,10 +58,11 @@
       "evidence": [
         "evidence/journeys/invoice-list-initial.json",
         "evidence/journeys/invoice-list-filter.json",
+        "evidence/journeys/invoice-list-load-more.json",
         "experiments/0006-invoice-list-qualification.md"
       ],
       "failures": [
-        "pagination/sorting/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
+        "sorting/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
         "visual/video qualification pending",
         "large-list scrolling and query latency performance evidence pending",
         "synchronous pilot network reads need asynchronous hardening"

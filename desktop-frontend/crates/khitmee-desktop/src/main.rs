@@ -23,6 +23,7 @@ struct PilotState {
     lines: Vec<LineState>,
     invoices: Vec<InvoiceSeed>,
     invoice_filter: String,
+    invoice_limit: usize,
     client_voucher_id: String,
     warehouses: Vec<(String, String)>,
     customers: Vec<(String, String)>,
@@ -509,7 +510,6 @@ fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
                 _ => 157.0,
             },
         })
-        .take(20)
         .collect::<Vec<_>>();
     Rc::new(VecModel::from(rows)).into()
 }
@@ -575,7 +575,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         app.set_status_text("ERP login failed while loading Sales Invoices".into());
         return;
     };
-    match client.sales_invoice_list(&filter, 20) {
+    match client.sales_invoice_list(&filter, 0, state.invoice_limit) {
         Ok(payload) => {
             state.invoices = parse_invoice_rows(&payload);
             app.set_invoice_rows(invoice_model(&state.invoices, ""));
@@ -887,6 +887,7 @@ fn main() -> Result<(), slint::PlatformError> {
         lines: Vec::new(),
         invoices: fixture_invoices(invoice_rows),
         invoice_filter: String::new(),
+        invoice_limit: 20,
         client_voucher_id: new_client_voucher_id(),
         warehouses,
         customers,
@@ -1209,6 +1210,18 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             state.invoice_filter = filter.to_string();
+            state.invoice_limit = 20;
+            refresh_invoice_rows(&app, &mut state);
+        }
+    });
+
+    app.on_invoice_load_more({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            state.invoice_limit += 20;
             refresh_invoice_rows(&app, &mut state);
         }
     });

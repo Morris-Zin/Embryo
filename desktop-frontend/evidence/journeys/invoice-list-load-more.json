@@ -1,0 +1,674 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": true,
+    "reason": "read-only invoice list journey"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "load-more"
+      },
+      "web": {
+        "rows": [
+          {
+            "customer": "Khit Customer 0006",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00114"
+          },
+          {
+            "customer": "Khit Customer 0005",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00113"
+          },
+          {
+            "customer": "Khit Customer 0004",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00112"
+          },
+          {
+            "customer": "Khit Customer 0003",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00111"
+          },
+          {
+            "customer": "Khit Customer 0002",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00110"
+          },
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04921"
+          },
+          {
+            "customer": "Khit Customer 0029",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04920"
+          },
+          {
+            "customer": "Khit Customer 0028",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04919"
+          },
+          {
+            "customer": "Khit Customer 0027",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04918"
+          },
+          {
+            "customer": "Khit Customer 0026",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04917"
+          },
+          {
+            "customer": "Khit Customer 0025",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04916"
+          },
+          {
+            "customer": "Khit Customer 0024",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04915"
+          },
+          {
+            "customer": "Khit Customer 0023",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04914"
+          },
+          {
+            "customer": "Khit Customer 0022",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04913"
+          },
+          {
+            "customer": "Khit Customer 0021",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04912"
+          },
+          {
+            "customer": "Khit Customer 0020",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04911"
+          },
+          {
+            "customer": "Khit Customer 0019",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04910"
+          },
+          {
+            "customer": "Khit Customer 0018",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04909"
+          },
+          {
+            "customer": "Khit Customer 0017",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04908"
+          },
+          {
+            "customer": "Khit Customer 0016",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04907"
+          },
+          {
+            "customer": "Khit Customer 0015",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04906"
+          },
+          {
+            "customer": "Khit Customer 0014",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04905"
+          },
+          {
+            "customer": "Khit Customer 0013",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04904"
+          },
+          {
+            "customer": "Khit Customer 0012",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04903"
+          },
+          {
+            "customer": "Khit Customer 0011",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04902"
+          },
+          {
+            "customer": "Khit Customer 0010",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04901"
+          },
+          {
+            "customer": "Khit Customer 0009",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04900"
+          },
+          {
+            "customer": "Khit Customer 0008",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04899"
+          },
+          {
+            "customer": "Khit Customer 0007",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04898"
+          },
+          {
+            "customer": "Khit Customer 0006",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04897"
+          },
+          {
+            "customer": "Khit Customer 0005",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04896"
+          },
+          {
+            "customer": "Khit Customer 0004",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04895"
+          },
+          {
+            "customer": "Khit Customer 0003",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04894"
+          },
+          {
+            "customer": "Khit Customer 0002",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04893"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04892"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04934"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04933"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04932"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04931"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04930"
+          }
+        ],
+        "rowCount": 40,
+        "countText": "40 of 1,000+",
+        "filterValue": ""
+      },
+      "native": {
+        "rows": [
+          {
+            "customer": "Khit Customer 0006",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00114"
+          },
+          {
+            "customer": "Khit Customer 0005",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00113"
+          },
+          {
+            "customer": "Khit Customer 0004",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00112"
+          },
+          {
+            "customer": "Khit Customer 0003",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00111"
+          },
+          {
+            "customer": "Khit Customer 0002",
+            "status": "Return",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00110"
+          },
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04921"
+          },
+          {
+            "customer": "Khit Customer 0029",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04920"
+          },
+          {
+            "customer": "Khit Customer 0028",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04919"
+          },
+          {
+            "customer": "Khit Customer 0027",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04918"
+          },
+          {
+            "customer": "Khit Customer 0026",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04917"
+          },
+          {
+            "customer": "Khit Customer 0025",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04916"
+          },
+          {
+            "customer": "Khit Customer 0024",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04915"
+          },
+          {
+            "customer": "Khit Customer 0023",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04914"
+          },
+          {
+            "customer": "Khit Customer 0022",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04913"
+          },
+          {
+            "customer": "Khit Customer 0021",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04912"
+          },
+          {
+            "customer": "Khit Customer 0020",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04911"
+          },
+          {
+            "customer": "Khit Customer 0019",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04910"
+          },
+          {
+            "customer": "Khit Customer 0018",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04909"
+          },
+          {
+            "customer": "Khit Customer 0017",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04908"
+          },
+          {
+            "customer": "Khit Customer 0016",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04907"
+          },
+          {
+            "customer": "Khit Customer 0015",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04906"
+          },
+          {
+            "customer": "Khit Customer 0014",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04905"
+          },
+          {
+            "customer": "Khit Customer 0013",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04904"
+          },
+          {
+            "customer": "Khit Customer 0012",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04903"
+          },
+          {
+            "customer": "Khit Customer 0011",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04902"
+          },
+          {
+            "customer": "Khit Customer 0010",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04901"
+          },
+          {
+            "customer": "Khit Customer 0009",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04900"
+          },
+          {
+            "customer": "Khit Customer 0008",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04899"
+          },
+          {
+            "customer": "Khit Customer 0007",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04898"
+          },
+          {
+            "customer": "Khit Customer 0006",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04897"
+          },
+          {
+            "customer": "Khit Customer 0005",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04896"
+          },
+          {
+            "customer": "Khit Customer 0004",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04895"
+          },
+          {
+            "customer": "Khit Customer 0003",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04894"
+          },
+          {
+            "customer": "Khit Customer 0002",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04893"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 79.50",
+            "id": "ACC-SINV-2026-04892"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04934"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04933"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04932"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04931"
+          },
+          {
+            "customer": "Khit Customer 0001",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-11-27",
+            "total": "$ 18.46",
+            "id": "ACC-SINV-2026-04930"
+          }
+        ],
+        "rowCount": 40,
+        "countText": "40 of 1,000+",
+        "filterValue": ""
+      },
+      "differences": []
+    }
+  ]
+}

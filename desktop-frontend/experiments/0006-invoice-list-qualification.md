@@ -4,6 +4,7 @@
 
 - `evidence/journeys/invoice-list-initial.json` — first page parity against `/app/sales-invoice`: all 20 visible ERP rows match exactly for customer, status, posting date, due date, grand total and invoice ID; count text matches `20 of 1,000+`.
 - `evidence/journeys/invoice-list-filter.json` — ID filter `04921` matches exactly: one row, same financial values, count `1 of 1`.
+- `evidence/journeys/invoice-list-load-more.json` — Load More parity matches exactly: both sides expose the same 40 rows in the same order and count `40 of 1,000+`.
 
 ## Implementation changes
 
@@ -11,6 +12,8 @@
 - Native row counts use `frappe.desk.reportview.get_count` with the same capped count semantics as ERPNext (`1,000+`).
 - Invoice ID filtering uses the same server-side `name like` filter as the ERPNext list column.
 - Native rows expose one machine-readable `list-item` accessibility row and visible text for every compared column.
+- Native Load More increases the authoritative ERP page length by 20 and the row list is scrollable through `Flickable`.
+- Invoice MCP extraction uses targeted `query_element_descendants` because `get_element_tree` is hard-capped at 1,000 elements.
 
 ## Defects caught by the harness and fixed
 
@@ -19,6 +22,9 @@
 3. Native had no count text.
 4. Accessibility row extraction initially mis-grouped off-screen rows and the `Load More` control; fixed by exposing one semantic row per invoice.
 5. Browser retained a stale saved ID filter; the harness now clears it before invoice-list comparison.
+6. Native `invoice_model` silently capped every ERP result set at 20 rows even after Load More; the harness caught this and the cap was removed.
+7. Slint MCP tree extraction truncated large lists at 1,000 total elements; the verifier now uses targeted descendant queries rather than weakening row expectations.
+8. Naive descendant queries duplicated results when an extra `matchDescendants` stage was added; corrected to use the query root's built-in descendant traversal.
 
 ## Regression
 
@@ -26,7 +32,7 @@ The sales-voucher default differential journey was rerun after these changes and
 
 ## Remaining honest gaps
 
-- Pagination/load-more, sorting, column customization, bulk actions, opening an invoice, keyboard traversal and permission-denied behavior are not yet qualified.
+- Sorting, column customization, bulk actions, opening an invoice, keyboard traversal and permission-denied behavior are not yet qualified.
 - Visual styling is responsive/native but has not been separately video-qualified.
 - Query latency and large-list scrolling/frame performance are not yet benchmarked.
 - Invoice-list reads are synchronous in the pilot UI callback; correctness is proven, but asynchronous responsiveness under slow networks remains open.
