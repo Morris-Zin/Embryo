@@ -22,7 +22,30 @@
       "signature": "fast-check::UNKNOWN::hash_939f6e485242"
     }
   ],
-  "findings": {},
+  "findings": {
+    "cloud-merge-result": {
+      "finding_id": "cloud-merge-result",
+      "fix_summary": "Restored unconditional ordinary CI execution so pull_request merge results are always exercised; documented that labeled-PR skipping was a rejected optimization",
+      "opened_at": "2026-11-27T17:13:16Z",
+      "resolved_at": "2026-11-27T17:13:21Z",
+      "reviewer": "devin-review",
+      "severity": "P1",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "Skipping ordinary CI for labeled autoloop PRs would leave merge-result behavior untested because candidate checks test only the immutable PR head"
+    },
+    "cloud-zizmor-online": {
+      "finding_id": "cloud-zizmor-online",
+      "fix_summary": "Passed --offline to zizmor, added a regression test proving offline invocation, and verified injected template-injection detection offline",
+      "opened_at": "2026-11-27T17:13:16Z",
+      "resolved_at": "2026-11-27T17:13:21Z",
+      "reviewer": "devin-review",
+      "severity": "P1",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "zizmor inherited GH_TOKEN/GITHUB_TOKEN and could perform online audits, violating the offline fast-check contract in disconnected development"
+    }
+  },
   "goal": "Own Developer Productivity, CI/CD Performance and Verification Engineering for Embryo: maximize verified engineering output per hour, increase defect detection, reduce verification latency/token consumption/deployment time, preserve correctness",
   "grill_summary": "User invoked /autoloop and supplied autonomous scope, constraints, and acceptance criteria. Assumptions: use default routing/model roster, human merge mode, cloud+deep review enabled. Single focused shard may touch verification infrastructure, CI workflows, dependency metadata, tests, and benchmark/research artifacts. Non-goals: no ERP business logic, financial calculations, backend transaction processing, native Rust workspace, or competing orchestration framework. Measured baseline: local fast-check 9.46-9.66s with Python unittest discovery dominating (tools suite 6.02-6.47s sequential vs 3.52-3.70s using unittest-parallel class-level j=4); GitHub main CI 30s total, 7s fast-check, 12s dependency/Knip setup; zizmor 1.33.1 scans workflows in 0.16s and reported 19 baseline findings (16 unpinned actions, 2 credential persistence, 1 intentional issue_comment trigger). Implement only measured high-ROI improvements: parallel unittest execution through existing unittest-parallel, zizmor workflow security gate with explicit justified exception, dependency caching/de-duplication in CI, and evidence documentation.",
   "history": [
@@ -81,6 +104,23 @@
       "at": "2026-11-27T17:06:23Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-27T17:13:16Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-27T17:13:21Z",
+      "event": "resolve-finding",
+      "finding_id": "cloud-merge-result"
+    },
+    {
+      "at": "2026-11-27T17:13:21Z",
+      "event": "resolve-finding",
+      "finding_id": "cloud-zizmor-online"
     }
   ],
   "issue_number": null,
@@ -111,7 +151,15 @@
     "cloud": true,
     "deep": true
   },
-  "reviews": [],
+  "reviews": [
+    {
+      "at": "2026-11-27T17:13:16Z",
+      "code_tree_sha256": "03837a346eaae0333e8364bd22bfc184e10e24709a8d0d040fa3236cdfb06983",
+      "reviewer": "devin-review",
+      "stage": "cloud",
+      "verdict": "reject"
+    }
+  ],
   "run_id": "devprod-verification-20261127",
   "safeguards": [],
   "schema_version": 1,
@@ -135,15 +183,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "0a69af12425eab5f5b8a91fb27f18658d9363e9a",
-      "passed_code_tree_sha256": "03837a346eaae0333e8364bd22bfc184e10e24709a8d0d040fa3236cdfb06983",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:06:23Z"
+  "updated_at": "2026-11-27T17:13:21Z"
 }
