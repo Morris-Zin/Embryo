@@ -682,21 +682,15 @@ fn main() -> Result<(), slint::PlatformError> {
         move |term| {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
-            let matches = state.catalog.search(term.as_str(), 2);
-            app.set_clear_scan_after_accept(matches.len() == 1);
+            let matches = state.catalog.search(term.as_str(), 10);
+            app.set_clear_scan_after_accept(!matches.is_empty());
             app.set_search_open(false);
-            if matches.len() == 1 {
-                let item = matches[0].clone();
-                let item_code = item.item_code.clone();
+            if let Some(item) = matches.first().cloned() {
                 add_item_to_draft(&mut state, item);
                 refresh_voucher(&app, &state);
-            } else if matches.is_empty() {
-                app.set_status_text(
-                    "Scan/search matched no item in the local catalog snapshot".into(),
-                );
             } else {
                 app.set_status_text(
-                    "Scan/search is ambiguous; narrow the term or choose a result".into(),
+                    "Scan/search matched no item in the local catalog snapshot".into(),
                 );
             }
         }

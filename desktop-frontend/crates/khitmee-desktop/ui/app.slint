@@ -396,7 +396,7 @@ component CounterScreen inherits FocusScope {
             edited => { root.search-edited(self.text); }
             accepted => {
                 root.sales-scan-accepted(self.text);
-                if root.clear-scan-after-accept { self.text = ""; } else { self.select-all(); }
+                if root.clear-scan-after-accept { self.text = ""; }
             }
         }
         Rectangle {
