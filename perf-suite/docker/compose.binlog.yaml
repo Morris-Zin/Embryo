@@ -1,3 +1,7 @@
+# Optional MariaDB ROW-binlog variant for CDC overhead experiments.
+# Compose replaces rather than appends `command`, so this intentionally mirrors the
+# 2gb profile command and appends only the binlog settings. `up.sh` therefore
+# rejects --with-binlog for other memory profiles.
 services:
   db:
     command:
@@ -5,6 +9,31 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --skip-character-set-client-handshake
       - --innodb-snapshot-isolation=OFF
+      - --innodb-buffer-pool-size=320M
+      - --innodb-log-file-size=128M
+      - --innodb-buffer-pool-dump-pct=100
+      - --innodb-buffer-pool-load-at-startup=ON
+      - --innodb-buffer-pool-dump-at-shutdown=ON
+      - --innodb-io-capacity=1000
+      - --innodb-io-capacity-max=2000
+      - --innodb-log-buffer-size=16M
+      - --aria-pagecache-buffer-size=8M
+      - --key-buffer-size=1M
+      - --innodb-flush-log-at-trx-commit=1
+      - --innodb-flush-method=O_DIRECT
+      - --max-connections=40
+      - --thread-cache-size=20
+      - --table-open-cache=400
+      - --table-definition-cache=400
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --sort-buffer-size=1M
+      - --join-buffer-size=256K
+      - --innodb-lock-wait-timeout=20
+      - --performance-schema=OFF
+      - --slow-query-log=ON
+      - --log-slow-query-file=/var/lib/mysql/mariadb-slow.log
+      - --long-query-time=1
       - --server-id=11
       - --log-bin=mariadb-bin
       - --binlog-format=ROW

@@ -70,6 +70,11 @@ case "$PROFILE" in
     ;;
 esac
 
+if [[ "$WITH_BINLOG" == "1" && "$PROFILE" != "2gb" ]]; then
+  echo "--with-binlog currently mirrors only the 2gb MariaDB command; use --profile 2gb" >&2
+  exit 2
+fi
+
 if [[ "$PROJECT_NAME" == "$FORBIDDEN_PROJECT" ]]; then
   echo "Refusing to target the live $FORBIDDEN_PROJECT project" >&2
   exit 2

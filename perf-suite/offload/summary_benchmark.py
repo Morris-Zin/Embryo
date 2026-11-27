@@ -116,13 +116,14 @@ def execute_timed(cursor, sql: str, params: tuple[Any, ...] = (), fetch: bool = 
     before = status_snapshot(cursor)
     start = time.perf_counter()
     cursor.execute(sql, params)
+    affected_rows = cursor.rowcount
     rows = cursor.fetchall() if fetch else None
     elapsed_ms = (time.perf_counter() - start) * 1000.0
     after = status_snapshot(cursor)
     return {
         "elapsed_ms": round(elapsed_ms, 3),
         "rows": rows,
-        "row_count": len(rows) if rows is not None else cursor.rowcount,
+        "row_count": len(rows) if rows is not None else affected_rows,
         "status_delta": status_delta(before, after),
     }
 
