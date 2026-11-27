@@ -668,20 +668,36 @@ def check(root):
 			raise RuntimeError("install Bun or Node")
 
 	def knip():
-		version = json.loads((app / "package.json").read_text())["devDependencies"]["knip"]
-		if bun:
+		pinned = os.environ.get("AUTOLOOP_PINNED_KNIP", "").strip()
+		version = pinned or json.loads((app / "package.json").read_text())["devDependencies"]["knip"]
+		npx = shutil.which("npx")
+		pnpm = shutil.which("pnpm")
+		if bun and not pinned:
 			run([bun, "x", "--bun", "--no-install", "knip@" + version], app)
-		elif node and node.endswith(".exe"):
+		elif node and node.lower().endswith(".exe") and (Path(node).parent / "node_modules/npm/bin/npx-cli.js").is_file():
 			# Windows npm cache and Node are visible from the Docker distro.
 			cli = Path(node).parent / "node_modules/npm/bin/npx-cli.js"
-			run([node, subprocess.check_output(["wslpath", "-w", str(cli)], text=True).strip(),
-				"--offline", "--yes", "knip@" + version], app)
-		elif shutil.which("npx"):
-			run(["npx", "--offline", "--yes", "knip@" + version], app)
-		elif shutil.which("pnpm"):
-			run(["pnpm", "dlx", "--offline", "knip@" + version], app)
+			npx_cli = str(cli)
+			if shutil.which("wslpath"):
+				npx_cli = subprocess.check_output(["wslpath", "-w", str(cli)], text=True).strip()
+			run([node, npx_cli, "--offline", "--yes", "knip@" + version], app)
+		elif npx:
+			run([npx, "--offline", "--yes", "knip@" + version], app)
+		elif pnpm:
+			run([pnpm, "dlx", "--offline", "knip@" + version], app)
 		else:
 			raise RuntimeError("install npx or pnpm")
+
+	def autoloop_lint():
+		tools_dir = str(root / "tools")
+		if tools_dir not in sys.path:
+			sys.path.insert(0, tools_dir)
+		from autoloop.static_rules import lint_repo
+
+		violations = lint_repo(root)
+		if violations:
+			lines = [f"{v.rule_id}: {v.path}:{v.line}: {v.message}" for v in violations[:10]]
+			raise RuntimeError("\n".join(lines))
 
 	def compose():
 		for size in ("2gb", "4gb"):
@@ -704,6 +720,7 @@ def check(root):
 		compose=compose,
 		guardrails=guardrails,
 		ruff_and_dev_deps=ruff_gate,
+		autoloop_lint=autoloop_lint,
 	)
 	failed = False
 	with concurrent.futures.ThreadPoolExecutor(max_workers=len(jobs)) as pool:
@@ -722,3 +739,7 @@ def check(root):
 		failed = True
 	if failed:
 		sys.exit(1)
+
+
+if __name__ == "__main__":
+	check(Path(__file__).resolve().parents[1])

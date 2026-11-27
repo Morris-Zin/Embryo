@@ -1,0 +1,1348 @@
+"""Complete 14-state + per-shard serialized state machine for /autoloop (V3)."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+from typing import Any
+
+from . import EXIT_ILLEGAL_TRANSITION, SCHEMA_VERSION
+from .failures import normalize_failure
+from .guard import (
+    RUN_ID_RE,
+    UnsafeRollbackError,
+    assert_clean_worktree_for_rollback,
+    assert_safe_local_path,
+    compute_code_tree_sha256,
+    contract_sha256,
+    format_contract_comment,
+    git_current_branch,
+    git_is_ancestor,
+    git_restore_to_commit,
+    git_rev_parse,
+    load_config,
+)
+from .leases import acquire_mutex, atomic_write_json, default_lock_dir, resource_key_hash
+
+RUN_STATES = (
+    "draft",
+    "grilled",
+    "locked",
+    "in_progress",
+    "gate_passed",
+    "retrying",
+    "needs_replan",
+    "needs_contract_amendment",
+    "blocked_human",
+    "awaiting_cloud_review",
+    "awaiting_deep_review",
+    "safeguard_pending",
+    "ready_to_merge",
+    "terminated",
+)
+
+SHARD_STATES = (
+    "locked",
+    "in_progress",
+    "passed",
+    "retrying",
+    "needs_replan",
+    "needs_contract_amendment",
+    "blocked_human",
+)
+
+FINDING_STATES = (
+    "open",
+    "fixed_pending_review",
+    "closed_needs_safeguard",
+    "safeguarded",
+)
+
+SAFEGUARD_LAYERS = (
+    "layer_1_architecture",
+    "layer_2_type",
+    "layer_3_static_lint",
+    "layer_4_runtime_test",
+)
+
+DEFAULT_MAX_WORKER_STRIKES = 3
+DEFAULT_MAX_REPLAN_COUNT = 1
+DEFAULT_MAX_TOTAL_ATTEMPTS = 8
+DEFAULT_MAX_PROSE_LINES = 15
+
+
+class IllegalTransitionError(RuntimeError):
+    exit_code = EXIT_ILLEGAL_TRANSITION
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _run_file(repo: Path, run_id: str) -> Path:
+    if not run_id or ".." in run_id or not RUN_ID_RE.fullmatch(run_id):
+        raise IllegalTransitionError(f"invalid run_id: {run_id!r}")
+    target = repo / ".autoloop/runs" / f"{run_id}.json"
+    assert_safe_local_path(repo, target)
+    return target
+
+
+def _trusted_contract_dir(repo: Path) -> Path:
+    return repo / ".autoloop/trusted-contracts"
+
+
+def _state_mutex_path(run_id: str, lock_dir: Path | None = None) -> Path:
+    base = lock_dir or default_lock_dir()
+    digest = resource_key_hash(f"state:{run_id}")
+    return base / f"{digest}.state.lock"
+
+
+def load_run(repo: Path, run_id: str) -> dict[str, Any]:
+    path = _run_file(repo, run_id)
+    if not path.is_file():
+        raise IllegalTransitionError(f"run {run_id!r} does not exist at {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _save_run_unlocked(repo: Path, run_id: str, state: dict[str, Any]) -> None:
+    state["updated_at"] = utc_now()
+    atomic_write_json(_run_file(repo, run_id), state)
+
+
+def _limits_from_repo(repo: Path) -> dict[str, int]:
+    defaults = {
+        "max_worker_strikes": DEFAULT_MAX_WORKER_STRIKES,
+        "max_replan_count": DEFAULT_MAX_REPLAN_COUNT,
+        "max_total_attempts": DEFAULT_MAX_TOTAL_ATTEMPTS,
+        "max_safeguard_prose_lines": DEFAULT_MAX_PROSE_LINES,
+    }
+    try:
+        cfg = load_config(repo)
+        limits = cfg.get("limits") or {}
+        for key in defaults:
+            if key in limits:
+                defaults[key] = int(limits[key])
+    except Exception:
+        pass
+    return defaults
+
+
+def _write_trusted_contract(repo: Path, contract: dict[str, Any]) -> Path:
+    cdir = _trusted_contract_dir(repo)
+    assert_safe_local_path(repo, cdir, allow_missing_leaf=True)
+    run_id = str(contract["run_id"])
+    rev = int(contract["contract_revision"])
+    rev_path = cdir / f"{run_id}.rev{rev}.json"
+    latest_path = cdir / f"{run_id}.json"
+    assert_safe_local_path(repo, rev_path, allow_missing_leaf=True)
+    assert_safe_local_path(repo, latest_path, allow_missing_leaf=True)
+    cdir.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(rev_path, contract)
+    atomic_write_json(latest_path, contract)
+    return rev_path
+
+
+def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
+    shards_spec = {
+        sid: {
+            "allowed_paths": list(sdata.get("allowed_paths") or []),
+            "checks": list(sdata.get("checks") or []),
+            "goal": sdata.get("goal") or "",
+        }
+        for sid, sdata in sorted((state.get("shards") or {}).items())
+    }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": state["run_id"],
+        "issue_number": state.get("issue_number"),
+        "pr_number": state.get("pr_number"),
+        "contract_revision": int(state["contract_revision"]),
+        "goal": state["goal"],
+        "base_branch": state.get("base_branch") or "main",
+        "merge_mode": state.get("merge_mode") or "human",
+        "allowed_paths": list(state.get("allowed_paths") or []),
+        "allow_policy_paths": list(state.get("allow_policy_paths") or []),
+        "shards": shards_spec,
+        "reviewers": dict(state.get("reviewers") or {"cloud": True, "deep": True}),
+        "models": dict(state.get("models") or {}),
+    }
+
+
+def _unsafeguarded_findings(state: dict[str, Any]) -> list[str]:
+    findings = state.get("findings") or {}
+    return sorted(
+        fid for fid, fdata in findings.items() if (fdata or {}).get("status") != "safeguarded"
+    )
+
+
+def _open_or_pending_review_findings(state: dict[str, Any]) -> list[str]:
+    findings = state.get("findings") or {}
+    return sorted(
+        fid
+        for fid, fdata in findings.items()
+        if (fdata or {}).get("status") in ("open", "fixed_pending_review")
+    )
+
+
+def derive_run_status(state: dict[str, Any]) -> str:
+    """Derive execution-phase run status cleanly from per-shard statuses."""
+    current = state["status"]
+    if current in (
+        "draft",
+        "grilled",
+        "awaiting_cloud_review",
+        "awaiting_deep_review",
+        "safeguard_pending",
+        "ready_to_merge",
+        "terminated",
+    ):
+        return current
+
+    shards = state.get("shards") or {}
+    if not shards:
+        return current
+
+    statuses = [s["status"] for s in shards.values()]
+    if any(s == "blocked_human" for s in statuses):
+        return "blocked_human"
+    if any(s == "needs_contract_amendment" for s in statuses) or state.get("pending_contract_amendments"):
+        return "needs_contract_amendment"
+    if any(s == "needs_replan" for s in statuses):
+        return "needs_replan"
+    if any(s == "retrying" for s in statuses):
+        return "retrying"
+    if all(s == "passed" for s in statuses):
+        hashes = {s.get("passed_code_tree_sha256") for s in shards.values()}
+        if len(hashes) == 1 and None not in hashes and not state.get("pending_contract_amendments"):
+            return "gate_passed"
+        return "in_progress"
+    if all(s == "locked" for s in statuses):
+        return "locked"
+    return "in_progress"
+
+
+def _require_status(state: dict[str, Any], allowed: tuple[str, ...], action: str) -> None:
+    if state["status"] not in allowed:
+        raise IllegalTransitionError(
+            f"cannot {action} when run status is {state['status']!r} (allowed: {', '.join(allowed)})"
+        )
+
+
+def _require_shard(state: dict[str, Any], shard_id: str) -> dict[str, Any]:
+    shards = state.get("shards") or {}
+    if shard_id not in shards:
+        raise IllegalTransitionError(f"unknown shard {shard_id!r} in run {state['run_id']!r}")
+    return shards[shard_id]
+
+
+def init_run(
+    repo: Path,
+    run_id: str,
+    goal: str,
+    *,
+    issue_number: int | None = None,
+    pr_number: int | None = None,
+    base_branch: str = "main",
+    base_sha: str | None = None,
+    merge_mode: str = "human",
+    cloud_review: bool = True,
+    deep_review: bool = True,
+    models: dict[str, Any] | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if merge_mode not in ("human", "auto"):
+        raise IllegalTransitionError(f"invalid merge_mode {merge_mode!r}")
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        path = _run_file(repo, run_id)
+        if path.exists():
+            raise IllegalTransitionError(f"run {run_id!r} already exists")
+        limits = _limits_from_repo(repo)
+        resolved_base_sha = base_sha
+        if resolved_base_sha is None:
+            try:
+                resolved_base_sha = git_rev_parse(repo, base_branch)
+            except Exception:
+                try:
+                    resolved_base_sha = git_rev_parse(repo, "HEAD")
+                except Exception:
+                    resolved_base_sha = None
+        now = utc_now()
+        state: dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": run_id,
+            "goal": goal,
+            "status": "draft",
+            "issue_number": issue_number,
+            "pr_number": pr_number,
+            "base_branch": base_branch,
+            "base_sha": resolved_base_sha,
+            "last_integrated_sha": None,
+            "last_integrated_worktree": None,
+            "last_integrated_branch": None,
+            "last_integrated_detached": None,
+            "merge_mode": merge_mode,
+            "contract_revision": 0,
+            "contract_sha256": None,
+            "allowed_paths": [],
+            "allow_policy_paths": [],
+            "reviewers": {"cloud": bool(cloud_review), "deep": bool(deep_review)},
+            "models": dict(models or {}),
+            "limits": limits,
+            "grill_summary": None,
+            "replan_count": 0,
+            "total_attempts": 0,
+            "shards": {},
+            "dead_ends": [],
+            "pending_contract_amendments": [],
+            "findings": {},
+            "reviews": [],
+            "safeguards": [],
+            "history": [{"at": now, "event": "init", "status": "draft"}],
+            "created_at": now,
+            "updated_at": now,
+        }
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def complete_grill(
+    repo: Path,
+    run_id: str,
+    *,
+    summary: str,
+    shards: dict[str, list[str]],
+    allowed_paths: list[str] | None = None,
+    allow_policy_paths: list[str] | None = None,
+    shard_checks: dict[str, list[str]] | None = None,
+    models: dict[str, Any] | None = None,
+    cloud_review: bool | None = None,
+    deep_review: bool | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if not shards:
+        raise IllegalTransitionError("complete-grill requires at least one shard with allowed_paths")
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("draft",), "complete-grill")
+        state["grill_summary"] = summary
+        if models is not None:
+            state["models"] = dict(models)
+        if cloud_review is not None:
+            state["reviewers"]["cloud"] = bool(cloud_review)
+        if deep_review is not None:
+            state["reviewers"]["deep"] = bool(deep_review)
+        state["allowed_paths"] = list(allowed_paths or [])
+        state["allow_policy_paths"] = list(allow_policy_paths or [])
+        unknown_check_shards = sorted(set((shard_checks or {}).keys()) - set(shards.keys()))
+        if unknown_check_shards:
+            raise IllegalTransitionError(
+                f"shard_checks references unknown shard(s): {', '.join(unknown_check_shards)}"
+            )
+        shard_map: dict[str, Any] = {}
+        for sid, paths in shards.items():
+            if not paths:
+                raise IllegalTransitionError(f"shard {sid!r} must have non-empty allowed_paths")
+            shard_map[sid] = {
+                "status": "locked",
+                "allowed_paths": list(paths),
+                "checks": list((shard_checks or {}).get(sid) or []),
+                "goal": "",
+                "attempts": 0,
+                "worker_strikes": 0,
+                "last_green_sha": state.get("base_sha"),
+                "passed_code_tree_sha256": None,
+                "has_passed_individually": False,
+                "worktree_path": None,
+                "pending_dead_end_sig": None,
+            }
+        state["shards"] = shard_map
+        state["status"] = "grilled"
+        state["history"].append({"at": utc_now(), "event": "complete-grill", "status": "grilled"})
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def lock_run(
+    repo: Path,
+    run_id: str,
+    *,
+    base_sha: str | None = None,
+    pr_number: int | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("grilled",), "lock")
+        if base_sha is not None:
+            state["base_sha"] = base_sha
+        if pr_number is not None:
+            state["pr_number"] = int(pr_number)
+        state["contract_revision"] = max(1, int(state.get("contract_revision") or 0) + 1)
+        contract = _build_frozen_contract(state)
+        state["contract_sha256"] = contract_sha256(contract)
+        _write_trusted_contract(repo, contract)
+        for sdata in state["shards"].values():
+            sdata["status"] = "locked"
+            sdata["has_passed_individually"] = False
+            sdata["last_green_sha"] = state.get("base_sha")
+        state["status"] = "locked"
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "lock",
+                "contract_revision": state["contract_revision"],
+                "contract_sha256": state["contract_sha256"],
+                "status": "locked",
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def publish_contract(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        if int(state.get("contract_revision") or 0) < 1:
+            raise IllegalTransitionError("cannot publish-contract before lock")
+        contract = _build_frozen_contract(state)
+        digest = contract_sha256(contract)
+        if state.get("contract_sha256") != digest:
+            raise IllegalTransitionError("run contract_sha256 does not match current FrozenContractV1")
+        path = _write_trusted_contract(repo, contract)
+        return {
+            "run_id": run_id,
+            "contract_revision": contract["contract_revision"],
+            "contract_sha256": digest,
+            "trusted_contract_path": str(path),
+            "comment_markdown": format_contract_comment(contract),
+        }
+
+
+def start_shard(
+    repo: Path,
+    run_id: str,
+    shard_id: str,
+    *,
+    worktree_path: str | None = None,
+    last_green_sha: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Multi-shard start: allowed whenever run.status in ('locked', 'in_progress') and shard.status == 'locked'."""
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("locked", "in_progress"), "start-shard")
+        shard = _require_shard(state, shard_id)
+        if shard["status"] != "locked":
+            raise IllegalTransitionError(
+                f"cannot start shard {shard_id!r} in status {shard['status']!r} (expected 'locked')"
+            )
+        shard["status"] = "in_progress"
+        if worktree_path is not None:
+            shard["worktree_path"] = worktree_path
+        if last_green_sha is not None:
+            shard["last_green_sha"] = last_green_sha
+        state["status"] = derive_run_status(state)
+        state["history"].append(
+            {"at": utc_now(), "event": "start-shard", "shard": shard_id, "status": state["status"]}
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def _has_passing_reviews_for_hash(state: dict[str, Any], code_hash: str) -> bool:
+    reviewers = state.get("reviewers") or {}
+    cloud_enabled = bool(reviewers.get("cloud", True))
+    deep_enabled = bool(reviewers.get("deep", True))
+    if not cloud_enabled and not deep_enabled:
+        return True
+    passed_stages = {
+        r.get("stage")
+        for r in (state.get("reviews") or [])
+        if r.get("verdict") == "pass" and r.get("code_tree_sha256") == code_hash
+    }
+    if cloud_enabled and "cloud" not in passed_stages:
+        return False
+    if deep_enabled and "deep" not in passed_stages:
+        return False
+    return True
+
+
+def _apply_post_pass_status(state: dict[str, Any], prev_status: str, eff_code_hash: str) -> None:
+    hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
+    all_passed_same = (
+        all(s["status"] == "passed" for s in state["shards"].values())
+        and len(hashes) == 1
+        and None not in hashes
+        and not state.get("pending_contract_amendments")
+    )
+    if not all_passed_same:
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        return
+    if prev_status in ("safeguard_pending", "ready_to_merge"):
+        if _has_passing_reviews_for_hash(state, eff_code_hash):
+            state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
+        else:
+            state["status"] = "gate_passed"
+        return
+    state["status"] = "in_progress"
+    state["status"] = derive_run_status(state)
+
+
+def bind_pr(
+    repo: Path,
+    run_id: str,
+    *,
+    pr_number: int,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if int(pr_number) <= 0:
+        raise IllegalTransitionError(f"pr_number must be positive, got {pr_number!r}")
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(
+            state,
+            (
+                "grilled",
+                "locked",
+                "in_progress",
+                "retrying",
+                "gate_passed",
+                "awaiting_cloud_review",
+                "awaiting_deep_review",
+                "safeguard_pending",
+                "ready_to_merge",
+            ),
+            "bind-pr",
+        )
+        state["pr_number"] = int(pr_number)
+        if int(state.get("contract_revision") or 0) >= 1:
+            state["contract_revision"] = int(state["contract_revision"]) + 1
+            contract = _build_frozen_contract(state)
+            state["contract_sha256"] = contract_sha256(contract)
+            _write_trusted_contract(repo, contract)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "bind-pr",
+                "pr_number": int(pr_number),
+                "contract_revision": state.get("contract_revision"),
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def refresh_base(
+    repo: Path,
+    run_id: str,
+    *,
+    new_base_sha: str,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    resolved_base = git_rev_parse(repo, new_base_sha)
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(
+            state,
+            (
+                "locked",
+                "in_progress",
+                "retrying",
+                "gate_passed",
+                "awaiting_cloud_review",
+                "awaiting_deep_review",
+                "safeguard_pending",
+                "ready_to_merge",
+            ),
+            "refresh-base",
+        )
+        if state.get("pending_contract_amendments"):
+            raise IllegalTransitionError("cannot refresh-base while contract amendments are pending")
+        state["base_sha"] = resolved_base
+        state["last_integrated_sha"] = None
+        state["last_integrated_worktree"] = None
+        state["last_integrated_branch"] = None
+        state["last_integrated_detached"] = None
+        for sdata in state["shards"].values():
+            sdata["status"] = "locked"
+            sdata["worker_strikes"] = 0
+            sdata["passed_code_tree_sha256"] = None
+            sdata["has_passed_individually"] = False
+            sdata["retry_scope"] = None
+            sdata["last_green_sha"] = resolved_base
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "refresh-base",
+                "base_sha": resolved_base,
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def record_shard_pass(
+    repo: Path,
+    run_id: str,
+    shard_id: str,
+    *,
+    code_tree_sha256: str | None = None,
+    head_sha: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        prev_status = state["status"]
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "safeguard_pending", "ready_to_merge"),
+            "pass-shard",
+        )
+        shard = _require_shard(state, shard_id)
+        if shard["status"] not in ("in_progress", "retrying", "passed"):
+            raise IllegalTransitionError(
+                f"cannot pass shard {shard_id!r} from status {shard['status']!r}"
+            )
+        eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
+        shard["status"] = "passed"
+        shard["worker_strikes"] = 0
+        shard["pending_dead_end_sig"] = None
+        shard["passed_code_tree_sha256"] = eff_code_hash
+        shard["has_passed_individually"] = True
+        shard["retry_scope"] = None
+        if head_sha:
+            shard["last_green_sha"] = head_sha
+        _apply_post_pass_status(state, prev_status, eff_code_hash)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "shard-passed",
+                "shard": shard_id,
+                "code_tree_sha256": eff_code_hash,
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def record_all_shards_pass(
+    repo: Path,
+    run_id: str,
+    *,
+    code_tree_sha256: str | None = None,
+    head_sha: str | None = None,
+    worktree_path: str | None = None,
+    branch_name: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Atomically record the shared integration `code_tree_sha256` across all shards."""
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        prev_status = state["status"]
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "safeguard_pending", "ready_to_merge"),
+            "pass-all-shards",
+        )
+        for sid, sdata in state["shards"].items():
+            if sdata["status"] not in ("in_progress", "retrying", "passed"):
+                raise IllegalTransitionError(
+                    f"cannot integrate shard {sid!r} from status {sdata['status']!r}"
+                )
+        eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
+        if head_sha:
+            state["last_integrated_sha"] = head_sha
+            int_wt = Path(worktree_path).resolve() if worktree_path else repo.resolve()
+            state["last_integrated_worktree"] = str(int_wt)
+            resolved_branch = branch_name if branch_name is not None else git_current_branch(int_wt)
+            state["last_integrated_detached"] = resolved_branch is None
+            state["last_integrated_branch"] = resolved_branch
+        single_shard = len(state["shards"]) == 1
+        for sdata in state["shards"].values():
+            sdata["status"] = "passed"
+            sdata["worker_strikes"] = 0
+            sdata["pending_dead_end_sig"] = None
+            sdata["passed_code_tree_sha256"] = eff_code_hash
+            sdata["retry_scope"] = None
+            if single_shard:
+                sdata["has_passed_individually"] = True
+                if head_sha:
+                    sdata["last_green_sha"] = head_sha
+        _apply_post_pass_status(state, prev_status, eff_code_hash)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "all-shards-passed",
+                "code_tree_sha256": eff_code_hash,
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def retry_shard(
+    repo: Path,
+    run_id: str,
+    shard_id: str,
+    *,
+    check_name: str,
+    error_output: str,
+    worktree: Path | None = None,
+    integrated: bool = False,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Record a failed shard attempt; enforce strikes/replan/max-attempts & safe rollback restore (exit 4)."""
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        prev_run_status = state["status"]
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "safeguard_pending", "ready_to_merge"),
+            "retry-shard",
+        )
+        shard = _require_shard(state, shard_id)
+        if shard["status"] not in ("in_progress", "retrying", "passed"):
+            raise IllegalTransitionError(
+                f"cannot retry shard {shard_id!r} from status {shard['status']!r}"
+            )
+
+        # Determine whether this retry applies to the integrated checkout (e.g. post-review safeguard failure)
+        # versus the shard-local worker worktree.
+        shard_wt_resolved = Path(shard["worktree_path"]).resolve() if shard.get("worktree_path") else None
+        recorded_int_wt = (
+            Path(state["last_integrated_worktree"]).resolve()
+            if state.get("last_integrated_worktree")
+            else None
+        )
+        is_integrated_retry = bool(integrated) or shard.get("retry_scope") == "integrated"
+        if bool(integrated) and not state.get("last_integrated_sha"):
+            raise IllegalTransitionError(
+                "cannot run integrated retry-shard before an integrated check --all-shards pass exists"
+            )
+        if not is_integrated_retry and state.get("last_integrated_sha"):
+            if worktree is not None:
+                wt_res = worktree.resolve()
+                if recorded_int_wt is not None and wt_res == recorded_int_wt and (
+                    shard_wt_resolved is None or wt_res != shard_wt_resolved
+                ):
+                    is_integrated_retry = True
+                elif recorded_int_wt is None and wt_res == repo.resolve() and (
+                    shard_wt_resolved is None or wt_res != shard_wt_resolved
+                ):
+                    is_integrated_retry = True
+            elif prev_run_status in ("gate_passed", "safeguard_pending", "ready_to_merge"):
+                is_integrated_retry = True
+        if is_integrated_retry:
+            shard["retry_scope"] = "integrated"
+
+        limits = state.get("limits") or _limits_from_repo(repo)
+        max_strikes = int(limits.get("max_worker_strikes", DEFAULT_MAX_WORKER_STRIKES))
+        max_replan = int(limits.get("max_replan_count", DEFAULT_MAX_REPLAN_COUNT))
+        max_total = int(limits.get("max_total_attempts", DEFAULT_MAX_TOTAL_ATTEMPTS))
+
+        sig = normalize_failure(check_name, error_output)
+        shard["attempts"] = int(shard.get("attempts") or 0) + 1
+        shard["worker_strikes"] = int(shard.get("worker_strikes") or 0) + 1
+        shard["pending_dead_end_sig"] = sig
+        shard["passed_code_tree_sha256"] = None
+        state["total_attempts"] = int(state.get("total_attempts") or 0) + 1
+
+        needs_rollback = (
+            shard["worker_strikes"] >= max_strikes or state["total_attempts"] >= max_total
+        )
+        rolled_back_to: str | None = None
+        rollback_commit: str | None = None
+        if needs_rollback:
+            if is_integrated_retry:
+                target_sha = state.get("last_integrated_sha")
+                if not target_sha:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_sha is missing"
+                    )
+                if worktree is not None:
+                    rollback_wt = worktree.resolve()
+                elif recorded_int_wt is not None:
+                    rollback_wt = recorded_int_wt
+                else:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_worktree is not recorded; pass --worktree"
+                    )
+                if not rollback_wt.is_dir():
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} does not exist"
+                    )
+                expected_detached = state.get("last_integrated_detached")
+                expected_branch = state.get("last_integrated_branch")
+                if expected_detached is None:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_detached state is not recorded"
+                    )
+                actual_branch = git_current_branch(rollback_wt)
+                actual_detached = actual_branch is None
+                if bool(expected_detached) != actual_detached:
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} detached={actual_detached} "
+                        f"(branch={actual_branch!r}), expected detached={bool(expected_detached)} "
+                        f"(branch={expected_branch!r})"
+                    )
+                if not actual_detached and actual_branch != expected_branch:
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} is on branch {actual_branch!r}, "
+                        f"expected {expected_branch!r}"
+                    )
+                if not git_is_ancestor(rollback_wt, target_sha, "HEAD"):
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} HEAD does not descend from "
+                        f"last_integrated_sha {target_sha[:8]}"
+                    )
+                rb_allowed = list(state.get("allowed_paths") or [])
+                for sdata in (state.get("shards") or {}).values():
+                    rb_allowed.extend(sdata.get("allowed_paths") or [])
+            else:
+                rollback_wt = worktree or (Path(shard["worktree_path"]) if shard.get("worktree_path") else repo)
+                target_sha = shard.get("last_green_sha") or state.get("base_sha")
+                rb_allowed = list(shard.get("allowed_paths") or [])
+            # Safe rollback check: exit 4 on ANY dirty/untracked edit anywhere in worktree
+            # (excluding only this run's own checkpoint file if rolling back in the coordinator repo).
+            assert_clean_worktree_for_rollback(rollback_wt, allow_paths={f".autoloop/runs/{run_id}.json"})
+            if target_sha:
+                rollback_commit = git_restore_to_commit(
+                    rollback_wt,
+                    target_sha,
+                    run_id=run_id,
+                    allowed_paths=rb_allowed,
+                )
+                rolled_back_to = target_sha
+
+        if state["total_attempts"] >= max_total:
+            shard["status"] = "blocked_human"
+            reason = f"max_total_attempts ({max_total}) reached"
+        elif shard["worker_strikes"] >= max_strikes:
+            if int(state.get("replan_count") or 0) < max_replan:
+                shard["status"] = "needs_replan"
+                reason = f"max_worker_strikes ({max_strikes}) reached; replan required"
+            else:
+                shard["status"] = "blocked_human"
+                reason = f"max_worker_strikes ({max_strikes}) and max_replan_count ({max_replan}) exhausted"
+        else:
+            shard["status"] = "retrying"
+            reason = f"strike {shard['worker_strikes']}/{max_strikes}"
+
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        hist_entry: dict[str, Any] = {
+            "at": utc_now(),
+            "event": "retry-shard",
+            "shard": shard_id,
+            "signature": sig,
+            "reason": reason,
+            "status": state["status"],
+        }
+        if rolled_back_to:
+            hist_entry["rolled_back_to"] = rolled_back_to
+        if rollback_commit:
+            hist_entry["rollback_commit"] = rollback_commit
+        state["history"].append(hist_entry)
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def log_dead_end(
+    repo: Path,
+    run_id: str,
+    shard_id: str,
+    *,
+    signature: str | None = None,
+    hypothesis: str,
+    outcome: str,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        shard = _require_shard(state, shard_id)
+        eff_sig = signature or shard.get("pending_dead_end_sig")
+        if not eff_sig:
+            raise IllegalTransitionError("dead-end requires a failure signature")
+        entry = {
+            "at": utc_now(),
+            "shard": shard_id,
+            "signature": eff_sig,
+            "hypothesis": hypothesis,
+            "outcome": outcome,
+        }
+        state["dead_ends"].append(entry)
+        shard["pending_dead_end_sig"] = None
+        if shard["status"] == "retrying":
+            shard["status"] = "in_progress"
+            state["status"] = derive_run_status(state)
+        state["history"].append({"at": utc_now(), "event": "log-dead-end", "shard": shard_id, "signature": eff_sig})
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def request_contract_change(
+    repo: Path,
+    run_id: str,
+    shard_id: str,
+    *,
+    reason: str,
+    proposed_paths: list[str] | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(
+            state,
+            (
+                "locked",
+                "in_progress",
+                "retrying",
+                "needs_replan",
+                "gate_passed",
+                "safeguard_pending",
+                "ready_to_merge",
+            ),
+            "request-contract-change",
+        )
+        shard = _require_shard(state, shard_id)
+        req_id = f"amend-{len(state['pending_contract_amendments']) + 1}"
+        state["pending_contract_amendments"].append(
+            {
+                "id": req_id,
+                "shard": shard_id,
+                "reason": reason,
+                "proposed_paths": list(proposed_paths or []),
+                "requested_at": utc_now(),
+            }
+        )
+        shard["status"] = "needs_contract_amendment"
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        state["history"].append(
+            {"at": utc_now(), "event": "request-contract-change", "shard": shard_id, "id": req_id}
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def apply_replan(
+    repo: Path,
+    run_id: str,
+    *,
+    plan_summary: str,
+    shard_id: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("needs_replan",), "apply-replan")
+        limits = state.get("limits") or _limits_from_repo(repo)
+        max_replan = int(limits.get("max_replan_count", DEFAULT_MAX_REPLAN_COUNT))
+        if int(state.get("replan_count") or 0) >= max_replan:
+            raise IllegalTransitionError(f"max_replan_count ({max_replan}) already reached")
+        state["replan_count"] = int(state.get("replan_count") or 0) + 1
+        target_shards = [shard_id] if shard_id else [
+            sid for sid, s in state["shards"].items() if s["status"] == "needs_replan"
+        ]
+        if not target_shards:
+            raise IllegalTransitionError("no shards in needs_replan state")
+        for sid in target_shards:
+            shard = _require_shard(state, sid)
+            shard["status"] = "locked"
+            shard["worker_strikes"] = 0
+            shard["passed_code_tree_sha256"] = None
+            shard["has_passed_individually"] = False
+            shard["retry_scope"] = None
+        state["status"] = derive_run_status(state)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "apply-replan",
+                "plan_summary": plan_summary,
+                "replan_count": state["replan_count"],
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def resolve_contract_change(
+    repo: Path,
+    run_id: str,
+    *,
+    decision: str,
+    add_paths: dict[str, list[str]] | None = None,
+    allow_policy_paths: list[str] | None = None,
+    shard_checks: dict[str, list[str]] | None = None,
+    new_base_sha: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if decision not in ("approve", "reject"):
+        raise IllegalTransitionError(f"decision must be 'approve' or 'reject', got {decision!r}")
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("needs_contract_amendment",), "resolve-contract-change")
+        if decision == "approve":
+            if add_paths:
+                for sid, extra in add_paths.items():
+                    shard = _require_shard(state, sid)
+                    merged = list(dict.fromkeys(list(shard["allowed_paths"]) + list(extra)))
+                    shard["allowed_paths"] = merged
+            if allow_policy_paths:
+                existing_ap = list(state.get("allow_policy_paths") or [])
+                state["allow_policy_paths"] = list(dict.fromkeys(existing_ap + list(allow_policy_paths)))
+            if shard_checks:
+                for sid, cmds in shard_checks.items():
+                    shard = _require_shard(state, sid)
+                    shard["checks"] = list(cmds)
+                    shard["status"] = "locked"
+                    shard["worker_strikes"] = 0
+                    shard["has_passed_individually"] = False
+                    shard["passed_code_tree_sha256"] = None
+                    shard["retry_scope"] = None
+            if new_base_sha:
+                resolved_base = git_rev_parse(repo, new_base_sha)
+                state["base_sha"] = resolved_base
+                state["last_integrated_sha"] = None
+                state["last_integrated_worktree"] = None
+                state["last_integrated_branch"] = None
+                state["last_integrated_detached"] = None
+                for sdata in state["shards"].values():
+                    sdata["status"] = "locked"
+                    sdata["worker_strikes"] = 0
+                    sdata["passed_code_tree_sha256"] = None
+                    sdata["has_passed_individually"] = False
+                    sdata["last_green_sha"] = resolved_base
+            state["contract_revision"] = int(state.get("contract_revision") or 0) + 1
+            contract = _build_frozen_contract(state)
+            state["contract_sha256"] = contract_sha256(contract)
+            _write_trusted_contract(repo, contract)
+
+        state["pending_contract_amendments"] = []
+        for sdata in state["shards"].values():
+            if sdata["status"] == "needs_contract_amendment":
+                sdata["status"] = "locked"
+                sdata["worker_strikes"] = 0
+                sdata["passed_code_tree_sha256"] = None
+                sdata["has_passed_individually"] = False
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "resolve-contract-change",
+                "decision": decision,
+                "contract_revision": state["contract_revision"],
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def human_resolve(
+    repo: Path,
+    run_id: str,
+    *,
+    action: str,
+    note: str = "",
+    shard_id: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if action not in ("resume", "terminate"):
+        raise IllegalTransitionError(f"human-resolve action must be 'resume' or 'terminate', got {action!r}")
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("blocked_human",), "human-resolve")
+        if action == "terminate":
+            state["status"] = "terminated"
+        else:
+            targets = [shard_id] if shard_id else [
+                sid for sid, s in state["shards"].items() if s["status"] == "blocked_human"
+            ]
+            for sid in targets:
+                shard = _require_shard(state, sid)
+                shard["status"] = "locked"
+                shard["worker_strikes"] = 0
+                shard["passed_code_tree_sha256"] = None
+                shard["has_passed_individually"] = False
+            state["status"] = derive_run_status(state)
+        state["history"].append(
+            {"at": utc_now(), "event": "human-resolve", "action": action, "note": note, "status": state["status"]}
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("gate_passed",), "submit-for-review")
+        if state.get("pending_contract_amendments"):
+            raise IllegalTransitionError("cannot submit-for-review with pending contract amendments")
+        open_findings = [
+            fid for fid, f in (state.get("findings") or {}).items() if (f or {}).get("status") == "open"
+        ]
+        if open_findings:
+            raise IllegalTransitionError(
+                f"cannot submit-for-review with open findings: {', '.join(sorted(open_findings))}"
+            )
+        reviewers = state.get("reviewers") or {}
+        cloud_enabled = bool(reviewers.get("cloud", True))
+        deep_enabled = bool(reviewers.get("deep", True))
+
+        if cloud_enabled:
+            state["status"] = "awaiting_cloud_review"
+        elif deep_enabled:
+            state["status"] = "awaiting_deep_review"
+        else:
+            # Zero-reviewer direct route (V3 §3)
+            # Any fixed_pending_review findings advance to closed_needs_safeguard when reviewers are disabled.
+            for fdata in (state.get("findings") or {}).values():
+                if fdata.get("status") == "fixed_pending_review":
+                    fdata["status"] = "closed_needs_safeguard"
+            state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
+
+        state["history"].append({"at": utc_now(), "event": "submit-for-review", "status": state["status"]})
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def resolve_finding(
+    repo: Path,
+    run_id: str,
+    finding_id: str,
+    *,
+    fix_summary: str,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        findings = state.get("findings") or {}
+        if finding_id not in findings:
+            raise IllegalTransitionError(f"unknown finding_id {finding_id!r}")
+        finding = findings[finding_id]
+        if finding.get("status") != "open":
+            raise IllegalTransitionError(
+                f"cannot resolve finding {finding_id!r} from status {finding.get('status')!r} (expected 'open')"
+            )
+        finding["status"] = "fixed_pending_review"
+        finding["fix_summary"] = fix_summary
+        finding["resolved_at"] = utc_now()
+        state["history"].append(
+            {"at": utc_now(), "event": "resolve-finding", "finding_id": finding_id}
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def record_review(
+    repo: Path,
+    run_id: str,
+    *,
+    stage: str,
+    verdict: str,
+    reviewer: str,
+    code_tree_sha256: str,
+    findings: list[dict[str, Any]] | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if stage not in ("cloud", "deep"):
+        raise IllegalTransitionError(f"review stage must be 'cloud' or 'deep', got {stage!r}")
+    if verdict not in ("pass", "reject"):
+        raise IllegalTransitionError(f"review verdict must be 'pass' or 'reject', got {verdict!r}")
+    expected_status = "awaiting_cloud_review" if stage == "cloud" else "awaiting_deep_review"
+
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, (expected_status,), f"record-review({stage})")
+
+        shard_hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
+        if shard_hashes != {code_tree_sha256}:
+            raise IllegalTransitionError(
+                f"review code_tree_sha256 {code_tree_sha256!r} does not match passed shards {shard_hashes!r}"
+            )
+
+        state["reviews"].append(
+            {
+                "at": utc_now(),
+                "stage": stage,
+                "verdict": verdict,
+                "reviewer": reviewer,
+                "code_tree_sha256": code_tree_sha256,
+            }
+        )
+
+        if verdict == "reject":
+            if not findings:
+                raise IllegalTransitionError("rejected review must provide at least one finding")
+            for item in findings:
+                fid = str(item.get("finding_id") or "").strip()
+                desc = str(item.get("summary") or "").strip()
+                if not fid or not desc:
+                    raise IllegalTransitionError("each finding requires non-empty finding_id and summary")
+                state["findings"][fid] = {
+                    "finding_id": fid,
+                    "stage": stage,
+                    "reviewer": reviewer,
+                    "summary": desc,
+                    "severity": str(item.get("severity") or "P1"),
+                    "status": "open",
+                    "opened_at": utc_now(),
+                }
+            # Re-open execution so worker must fix and re-pass gates
+            for sdata in state["shards"].values():
+                sdata["status"] = "in_progress"
+                sdata["passed_code_tree_sha256"] = None
+                sdata["retry_scope"] = None
+            state["status"] = "in_progress"
+        else:
+            # Review passed: transition fixed_pending_review findings -> closed_needs_safeguard
+            for fdata in state["findings"].values():
+                if fdata.get("status") == "fixed_pending_review":
+                    fdata["status"] = "closed_needs_safeguard"
+                    fdata["verified_at"] = utc_now()
+
+            deep_enabled = bool((state.get("reviewers") or {}).get("deep", True))
+            if stage == "cloud" and deep_enabled:
+                state["status"] = "awaiting_deep_review"
+            else:
+                if _open_or_pending_review_findings(state):
+                    raise IllegalTransitionError("cannot complete review while open findings exist")
+                state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
+
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "record-review",
+                "stage": stage,
+                "verdict": verdict,
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def record_safeguard(
+    repo: Path,
+    run_id: str,
+    finding_id: str,
+    *,
+    layer: str,
+    artifact: str,
+    summary: str,
+    why_not_static: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    if layer not in SAFEGUARD_LAYERS:
+        raise IllegalTransitionError(
+            f"invalid safeguard layer {layer!r} (must be one of {', '.join(SAFEGUARD_LAYERS)})"
+        )
+    if layer == "layer_4_runtime_test" and not (why_not_static and why_not_static.strip()):
+        raise IllegalTransitionError(
+            "layer_4_runtime_test requires non-empty --why-not-static justification"
+        )
+    if not artifact.strip():
+        raise IllegalTransitionError("safeguard requires a non-empty artifact reference")
+
+    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(state, ("safeguard_pending",), "record-safeguard")
+        limits = state.get("limits") or _limits_from_repo(repo)
+        max_prose = int(limits.get("max_safeguard_prose_lines", DEFAULT_MAX_PROSE_LINES))
+
+        prose_lines = len((summary or "").splitlines()) + len((why_not_static or "").splitlines())
+        if prose_lines > max_prose:
+            raise IllegalTransitionError(
+                f"safeguard prose exceeds {max_prose}-line cap ({prose_lines} lines)"
+            )
+
+        findings = state.get("findings") or {}
+        if finding_id not in findings:
+            raise IllegalTransitionError(f"unknown finding_id {finding_id!r}")
+        finding = findings[finding_id]
+        if finding.get("status") != "closed_needs_safeguard":
+            raise IllegalTransitionError(
+                f"cannot record safeguard for finding {finding_id!r} in status {finding.get('status')!r} "
+                "(expected 'closed_needs_safeguard')"
+            )
+
+        shard_hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
+        current_code_hash = next(iter(shard_hashes)) if len(shard_hashes) == 1 else None
+        finding["status"] = "safeguarded"
+        finding["safeguard"] = {
+            "layer": layer,
+            "artifact": artifact,
+            "summary": summary,
+            "why_not_static": why_not_static,
+            "safeguard_code_tree_sha256": current_code_hash,
+            "recorded_at": utc_now(),
+        }
+        state["safeguards"].append({"finding_id": finding_id, **finding["safeguard"]})
+
+        if not _unsafeguarded_findings(state):
+            state["status"] = "ready_to_merge"
+
+        state["history"].append(
+            {
+                "at": utc_now(),
+                "event": "record-safeguard",
+                "finding_id": finding_id,
+                "layer": layer,
+                "status": state["status"],
+            }
+        )
+        _save_run_unlocked(repo, run_id, state)
+        return state
+
+
+def resume_run(repo: Path, run_id: str) -> dict[str, Any]:
+    state = load_run(repo, run_id)
+    next_actions: list[str] = []
+    status = state["status"]
+    if status == "draft":
+        next_actions.append("complete-grill")
+    elif status == "grilled":
+        next_actions.append("lock")
+    elif status in ("locked", "in_progress"):
+        for sid, sdata in sorted(state["shards"].items()):
+            if sdata["status"] == "locked":
+                next_actions.append(f"start-shard --shard {sid}")
+            elif sdata["status"] in ("in_progress", "retrying"):
+                next_actions.append(f"check --run-id {run_id} --shard {sid}")
+    elif status == "gate_passed":
+        next_actions.append("submit-for-review")
+    elif status == "needs_replan":
+        next_actions.append("apply-replan")
+    elif status == "needs_contract_amendment":
+        next_actions.append("resolve-contract-change")
+    elif status == "blocked_human":
+        next_actions.append("human-resolve")
+    elif status == "awaiting_cloud_review":
+        next_actions.append("record-review --stage cloud")
+    elif status == "awaiting_deep_review":
+        next_actions.append("record-review --stage deep")
+    elif status == "safeguard_pending":
+        for fid in _unsafeguarded_findings(state):
+            next_actions.append(f"record-safeguard --finding-id {fid}")
+    elif status == "ready_to_merge":
+        next_actions.append("verify-untampered")
+
+    return {
+        "run_id": run_id,
+        "status": status,
+        "contract_revision": state.get("contract_revision"),
+        "shards": {sid: s["status"] for sid, s in sorted(state["shards"].items())},
+        "unsafeguarded_findings": _unsafeguarded_findings(state),
+        "next_actions": next_actions,
+    }
