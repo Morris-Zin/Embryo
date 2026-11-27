@@ -172,6 +172,9 @@ function runProfitSummary1y(activeSession, groupBy) {
     !responseFailed(response) &&
     Boolean(message) &&
     Array.isArray(message.result) &&
+    // Fast Gross Profit returns an empty result when the request is pending or over
+    // budget; that is not a completed 1-year summary.
+    message.result.length > 0 &&
     !message.error &&
     !message.prepared_report &&
     !message.prepare_report;

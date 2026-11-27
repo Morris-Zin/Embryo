@@ -100,6 +100,35 @@ def _report_permission(user=None):
 	return _has_permission("Report", "read", user=user, doc="Fast Gross Profit")
 
 
+PROFIT_REPORT_NAME = "Fast Gross Profit"
+
+
+def _report_role_permitted(user=None) -> bool:
+	"""Mirror Report.is_permitted(): the user must hold one of the report's roles.
+
+	Report document read access is not enough; desk only runs a report for users
+	holding a role in its Has Role table (no rows means unrestricted).  Fail closed
+	when the role lookup is unavailable.
+	"""
+	frappe_obj = _require_frappe()
+	get_all = getattr(frappe_obj, "get_all", None)
+	get_roles = getattr(frappe_obj, "get_roles", None)
+	if not callable(get_all) or not callable(get_roles):
+		return False
+	allowed = {
+		row.get("role") if hasattr(row, "get") else row
+		for row in get_all(
+			"Has Role",
+			filters={"parent": PROFIT_REPORT_NAME, "parenttype": "Report"},
+			fields=["role"],
+		)
+		or []
+	}
+	if not allowed:
+		return True
+	return bool(allowed.intersection(get_roles(user) or []))
+
+
 def _iter_filter_values(value):
 	if isinstance(value, (list, tuple, set)):
 		for item in value:
@@ -134,6 +163,8 @@ def authorize_profit_request(filters: dict, user: str | None = None, *, require_
 
 	if not _report_permission(user=bound_user):
 		_permission_error("Not permitted to read Fast Gross Profit")
+	if not _report_role_permitted(user=bound_user):
+		_permission_error("Not permitted to run Fast Gross Profit")
 	if not _has_permission("Sales Invoice", "report", user=bound_user):
 		_permission_error("Not permitted to report Sales Invoice")
 	if not _has_permission("Sales Invoice", "read", user=bound_user):

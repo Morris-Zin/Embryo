@@ -1250,6 +1250,23 @@ def run_upstream_gross_profit_piecewise_by_month(frappe, filters):
 
     currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
     float_precision = cint(frappe.db.get_default("float_precision")) or 2
+    # Stock folds Warehouse qty as one running flt(sum, float_precision); summing
+    # per-month rounded totals only equals that when every line qty is already at
+    # float_precision.  Otherwise use the exact single full-range run.
+    fractional = frappe.db.sql(
+        """
+        SELECT COUNT(*)
+        FROM `tabSales Invoice Item` AS `sii`
+        INNER JOIN `tabSales Invoice` AS `si` ON `si`.`name` = `sii`.`parent`
+        WHERE `si`.`company` = %s
+          AND `si`.`docstatus` = 1
+          AND `si`.`posting_date` BETWEEN %s AND %s
+          AND `sii`.`stock_qty` <> ROUND(`sii`.`stock_qty`, %s)
+        """,
+        (company, from_date, to_date, float_precision),
+    )
+    if fractional and int(fractional[0][0] or 0) > 0:
+        return run_gross_profit(frappe, "upstream", filters)
     currency = filters.get("currency") or frappe.get_cached_value("Company", company, "default_currency")
     columns = None
     group_field = "warehouse" if group_by == "Warehouse" else "monthly"
@@ -1433,10 +1450,18 @@ def run_gp_parity(frappe, args):
         for mismatch in case_mismatches[:10]:
             emit("PARITY_GP_MISMATCH", {"case": label, **mismatch})
 
-    from khitmee_ops.profit_summary.reconcile import reconcile_summary_against_ledger
+    from khitmee_ops.profit_summary.reconcile import reconcile_with_coverage
 
     reconcile_start = time.monotonic()
-    drifts = reconcile_summary_against_ledger(first_company, DATE_1Y_FROM, DATE_TO)
+    reconcile = reconcile_with_coverage(first_company, DATE_1Y_FROM, DATE_TO)
+    drifts = list(reconcile["drifts"])
+    if reconcile["clean_days"] < reconcile["total_days"]:
+        # Zero drift over unbuilt days proves nothing: require full coverage.
+        drifts.append({
+            "field": "clean_day_coverage",
+            "stored": reconcile["clean_days"],
+            "ledger": reconcile["total_days"],
+        })
     executed_cases += 1
     if drifts:
         failed_cases += 1
@@ -1445,6 +1470,8 @@ def run_gp_parity(frappe, args):
         "case": "1y-summary-ledger-reconcile",
         "fast_seconds": round(time.monotonic() - reconcile_start, 3),
         "mismatches": len(drifts),
+        "clean_days": reconcile["clean_days"],
+        "total_days": reconcile["total_days"],
     })
     for drift in drifts[:10]:
         emit("PARITY_GP_MISMATCH", {"case": "1y-summary-ledger-reconcile", **drift})

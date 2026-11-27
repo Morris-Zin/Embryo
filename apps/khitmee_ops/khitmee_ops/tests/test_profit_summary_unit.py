@@ -17,6 +17,8 @@ def install_frappe_stub():
 	frappe.QueryDeadlockError = type("QueryDeadlockError", (Exception,), {})
 	frappe.session = SimpleNamespace(user="administrator@example.com")
 	frappe.has_permission = lambda *args, **kwargs: True
+	frappe.get_all = lambda *args, **kwargs: []
+	frappe.get_roles = lambda user=None: ["Accounts User"]
 	frappe.set_user = lambda user: setattr(frappe.session, "user", user)
 	frappe.permissions = SimpleNamespace(
 		has_permission=lambda *args, **kwargs: True,
@@ -1003,6 +1005,115 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 			result = query.query_profit(filters)
 		self.assertEqual(result["mode"], "pending")
 		self.assertIn("missing_repost_triggers", result["eligibility"]["reason"])
+
+
+class TestPr12ReviewFixes(unittest.TestCase):
+	FLAGS = {"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
+
+	def test_blocking_repost_covers_live_and_missing_days(self):
+		# Codex P1: a today-only / no-state request skipped the repost check entirely.
+		with patch.object(store, "get_day_states", return_value={}), patch.object(
+			store, "has_blocking_repost", return_value=(True, "2026-01-03")
+		) as blocking, patch.object(store, "get_active_dirty_ranges", return_value=[]):
+			partition = query.partition_request_days("C", "2026-01-03", "2026-01-03", today="2026-01-03", expected_flags=self.FLAGS)
+		blocking.assert_called_once_with("C", "2026-01-03")
+		self.assertTrue(partition["has_blocking_repost"])
+
+	def test_repost_after_requested_days_does_not_block(self):
+		with patch.object(store, "get_day_states", return_value={}), patch.object(
+			store, "has_blocking_repost", return_value=(False, None)
+		), patch.object(store, "get_active_dirty_ranges", return_value=[]):
+			partition = query.partition_request_days("C", "2026-01-01", "2026-01-02", today="2026-01-05", expected_flags=self.FLAGS)
+		self.assertFalse(partition["has_blocking_repost"])
+		self.assertEqual(partition["missing_days"], ["2026-01-01", "2026-01-02"])
+
+	def test_too_many_missing_days_returns_pending_before_live_extraction(self):
+		# Codex/Devin: oversized requests must not extract live contributions first.
+		filters = {"company": "C", "from_date": "2025-01-01", "to_date": "2025-12-31", "group_by": "Warehouse"}
+		days = [f"2025-01-{day:02d}" for day in range(1, 31)]
+		partition = {
+			"clean_past_days": [], "dirty_past_days": [], "missing_days": days, "live_days": days,
+			"future_days": [], "has_blocking_repost": False, "day_states": {},
+		}
+		with patch.object(query, "partition_request_days", return_value=partition), patch.object(
+			query, "_collect_live_batches", side_effect=AssertionError("must not extract live rows")
+		), patch.object(store, "get_shop_day_rows", side_effect=AssertionError("must not read stored rows")):
+			result = query._query_summary_in_snapshot(filters, {"eligible": True})
+		self.assertEqual(result["mode"], "pending")
+		self.assertEqual(result["message"], "too_many_dirty_or_missing_summary_days")
+
+	def test_clean_report_without_replay_uses_site_precision(self):
+		# Devin: the empty replay batch's placeholder precision must not win.
+		with patch.object(store, "current_day_flags", return_value={**self.FLAGS, "currency_precision": 2, "float_precision": 4}):
+			self.assertEqual(query._batch_metadata([])[:2], (2, 4))
+
+	def test_same_day_linked_return_becomes_replay_candidate(self):
+		replay_rows = [{"company": "C", "posting_date": "2026-01-02", "sales_invoice": "SI-ORIG", "reason": "linked_return_original"}]
+		with patch.object(rebuilder, "find_same_day_linked_returns", return_value=["SI-RET"]) as finder:
+			rows = rebuilder.add_same_day_linked_return_candidates(replay_rows, "C", "2026-01-02")
+		finder.assert_called_once_with("C", "2026-01-02", ["SI-ORIG"])
+		self.assertEqual(
+			[(row["sales_invoice"], row["reason"]) for row in rows],
+			[("SI-ORIG", "linked_return_original"), ("SI-RET", "linked_return")],
+		)
+
+	def test_register_missing_history_fills_gaps_and_restales_flag_days(self):
+		ensured, bumped = [], []
+		with patch.object(rebuilder, "_today", return_value="2026-01-05"), patch.object(
+			rebuilder, "_company_names", return_value=["C"]
+		), patch.object(store, "current_day_flags", return_value=self.FLAGS), patch.object(
+			store, "get_history_start", return_value="2026-01-01"
+		), patch.object(store, "get_day_states", return_value={"2026-01-02": {}}), patch.object(
+			store, "ensure_day_state", side_effect=lambda company, day: ensured.append(day)
+		), patch.object(store, "get_stale_flag_days", return_value=["2026-01-02"]), patch.object(
+			store, "bump_dirty_days_ordered", side_effect=lambda keys: bumped.extend(keys)
+		):
+			result = rebuilder.register_missing_history()
+		self.assertEqual(ensured, ["2026-01-01", "2026-01-03", "2026-01-04"])
+		self.assertEqual(bumped, [("C", "2026-01-02")])
+		self.assertEqual(result, {"registered_days": 3, "restaled_days": 1})
+
+	def test_scheduled_slices_stop_at_time_budget(self):
+		claims = iter([{"company": "C", "posting_date": f"2026-01-0{i}"} for i in range(1, 9)])
+		clock = iter([0.0, 0.0, 50.0, 130.0, 999.0])
+		with patch.object(rebuilder, "_get_lock", return_value=True), patch.object(rebuilder, "_release_lock"), patch.object(
+			rebuilder, "expand_dirty_ranges"
+		), patch.object(store, "claim_next_dirty_day", side_effect=lambda company=None: next(claims)), patch.object(
+			rebuilder, "rebuild_claimed_day"
+		), patch.object(rebuilder, "_trim_heap"), patch.object(rebuilder.time, "monotonic", side_effect=lambda: next(clock)):
+			processed = rebuilder.process_dirty_slices(max_slices=50, time_budget_seconds=120)
+		self.assertEqual(processed, 2)
+
+	def test_report_roles_gate_profit_access(self):
+		import khitmee_ops.profit_summary.eligibility as eligibility_module
+
+		fake = SimpleNamespace(
+			get_all=lambda doctype, filters=None, fields=None: [{"role": "Accounts Manager"}],
+			get_roles=lambda user=None: ["Sales User"],
+		)
+		with patch.object(eligibility_module, "_require_frappe", return_value=fake):
+			self.assertFalse(eligibility_module._report_role_permitted("u"))
+		fake.get_roles = lambda user=None: ["Accounts Manager"]
+		with patch.object(eligibility_module, "_require_frappe", return_value=fake):
+			self.assertTrue(eligibility_module._report_role_permitted("u"))
+		with patch.object(eligibility_module, "_require_frappe", return_value=SimpleNamespace()):
+			self.assertFalse(eligibility_module._report_role_permitted("u"))
+
+	def test_csv_cells_neutralize_formulas_but_keep_numbers(self):
+		from khitmee_ops.profit_summary import export_service
+
+		self.assertEqual(export_service._csv_value("=HYPERLINK(\"x\")"), "'=HYPERLINK(\"x\")")
+		self.assertEqual(export_service._csv_value("@SUM(A1)"), "'@SUM(A1)")
+		self.assertEqual(export_service._csv_value("-12.5"), "-12.5")
+		self.assertEqual(export_service._csv_value("Shop 1"), "Shop 1")
+		self.assertEqual(export_service._csv_value(-3), -3)
+
+	def test_reconcile_reports_coverage(self):
+		from khitmee_ops.profit_summary import reconcile
+
+		with patch.object(store, "get_reconcile_inputs", return_value=(["2026-01-01"], [], [])):
+			result = reconcile.reconcile_with_coverage("C", "2026-01-01", "2026-01-03")
+		self.assertEqual((result["clean_days"], result["total_days"], result["drifts"]), (1, 3, []))
 
 
 if __name__ == "__main__":

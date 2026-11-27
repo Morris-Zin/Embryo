@@ -38,23 +38,3 @@ jobs:
 
       - name: Run offline fast-check gate
         run: python tools/khitmee_dev.py fast-check
-
-  integration-oracle-gate:
-    name: Integration oracle gate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python 3.14
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      # This job is intentionally fail-closed. tools/perf_parity.py --require-db must
-      # exit non-zero when the bench database is unavailable, executed_cases == 0,
-      # skipped_cases > 0, or failed_cases > 0.
-      - name: Run required ERPNext oracle parity suite
-        run: python tools/perf_parity.py --require-db

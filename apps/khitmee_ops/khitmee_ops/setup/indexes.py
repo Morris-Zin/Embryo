@@ -471,6 +471,11 @@ def execute():
 	ensure_profit_summary_tables()
 	create_profit_summary_indexes()
 	install_repost_item_valuation_triggers()
+	# Existing sites have history but no day states; register it so the scheduler
+	# builds it instead of leaving long-range reports pending indefinitely.
+	from khitmee_ops.profit_summary.rebuilder import register_missing_history
+
+	register_missing_history()
 
 
 def _column_exists(table_name, column_name):

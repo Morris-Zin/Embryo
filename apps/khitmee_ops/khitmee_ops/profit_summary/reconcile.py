@@ -82,13 +82,24 @@ def compare_rows(stored_rows, ledger_rows, clean_days, *, qty_tolerance="0.01", 
 	return drifts
 
 
-def reconcile_summary_against_ledger(company: str, from_date: str, to_date: str) -> list[Drift]:
+def reconcile_with_coverage(company: str, from_date: str, to_date: str) -> dict:
+	"""Reconcile and report how many requested days were actually comparable.
+
+	Zero drift over zero clean days proves nothing, so callers that gate on this
+	must also require ``clean_days == total_days``.
+	"""
+	from datetime import date
+
 	from khitmee_ops.profit_summary import store
 
 	clean_days, stored_rows, ledger_rows = store.get_reconcile_inputs(company, from_date, to_date)
-	if not clean_days:
-		return []
-	return compare_rows(stored_rows, ledger_rows, clean_days)
+	total_days = (date.fromisoformat(str(to_date)[:10]) - date.fromisoformat(str(from_date)[:10])).days + 1
+	drifts = compare_rows(stored_rows, ledger_rows, clean_days) if clean_days else []
+	return {"drifts": drifts, "clean_days": len(set(map(str, clean_days))), "total_days": max(total_days, 0)}
+
+
+def reconcile_summary_against_ledger(company: str, from_date: str, to_date: str) -> list[Drift]:
+	return reconcile_with_coverage(company, from_date, to_date)["drifts"]
 
 
 def nightly_reconcile() -> int:

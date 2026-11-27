@@ -89,6 +89,9 @@ class FakeDB:
 		if query.lstrip().upper().startswith("UPDATE"):
 			self.update_sql.append((query, params))
 			return []
+		if "FOR UPDATE" in query and "Khitmee Profit Export Log" in query:
+			doc = self.docs_by_name.get(params[0]) if hasattr(self, "docs_by_name") else None
+			return [(doc.get("status"),)] if doc else [("Queued",)]
 		if "FROM `tabDocShare`" in query:
 			return list(self.state.docshares)
 		if "FROM `tabSales Invoice`" in query:
@@ -97,6 +100,9 @@ class FakeDB:
 
 	def commit(self):
 		self.commit_count += 1
+
+	def rollback(self):
+		self.rollback_count = getattr(self, "rollback_count", 0) + 1
 
 
 class FakeState:

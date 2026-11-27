@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import re
+import time
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -234,6 +235,55 @@ def find_globally_linked_originals(company: str, invoice_ids) -> set[str]:
 	return found
 
 
+def find_same_day_linked_returns(company: str, posting_date: str, original_ids) -> list[str]:
+	"""Linked returns posted on ``posting_date`` against originals in the day batch.
+
+	Stock Gross Profit folds such a return into its original when both are in the
+	result, so the day build never sees it as its own row.  Under a warehouse filter
+	that excludes the original, stock lists the return separately; replaying only the
+	original would drop it, so the return must be a replay candidate too.
+	"""
+	original_ids = sorted(set(original_ids or []))
+	if not original_ids or frappe is None:
+		return []
+	found: set[str] = set()
+	for chunk in batched(original_ids, 1000):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		rows = frappe.db.sql(
+			f"""
+			SELECT `name`
+			FROM `tabSales Invoice`
+			WHERE `company` = %s
+				AND `docstatus` = 1
+				AND `is_return` = 1
+				AND `posting_date` = %s
+				AND `return_against` IN ({placeholders})
+			""",
+			[company, posting_date, *chunk],
+		)
+		found.update(row.get("name") if hasattr(row, "get") else row[0] for row in rows or [])
+	return sorted(found)
+
+
+def add_same_day_linked_return_candidates(replay_rows, company: str, posting_date: str):
+	"""Append same-day linked returns of replayed originals as Set B candidates."""
+	replay_rows = list(replay_rows or [])
+	present = {row.get("sales_invoice") for row in replay_rows}
+	originals = [row.get("sales_invoice") for row in replay_rows if row.get("reason") == "linked_return_original"]
+	for return_id in find_same_day_linked_returns(company, posting_date, originals):
+		if return_id in present:
+			continue
+		replay_rows.append(
+			{
+				"company": company,
+				"posting_date": _as_date_string(posting_date),
+				"sales_invoice": return_id,
+				"reason": "linked_return",
+			}
+		)
+	return replay_rows
+
+
 def augment_linked_original_reasons(batch, company: str):
 	contributions = list((batch or {}).get("contributions") or [])
 	invoice_ids = {row.get("sales_invoice") for row in contributions if row.get("sales_invoice")}
@@ -298,6 +348,7 @@ def rebuild_claimed_day(claim: store.ClaimRecord):
 		batch = _fast_gross_profit_module().collect_profit_contributions(build_day_filters(company, posting_date))
 		batch = augment_linked_original_reasons(batch, company)
 		shop_rows, replay_rows, day_flags = partition_day_contributions(batch, company, posting_date)
+		replay_rows = add_same_day_linked_return_candidates(replay_rows, company, posting_date)
 	finally:
 		rollback = getattr(frappe.db, "rollback", None)
 		if callable(rollback):
@@ -362,16 +413,25 @@ def _trim_heap() -> None:
 		pass
 
 
-def process_dirty_slices(company: str | None = None, max_slices: int = 1) -> int:
+SCHEDULED_MAX_SLICES = 50
+SCHEDULED_TIME_BUDGET_SECONDS = 120
+
+
+def process_dirty_slices(
+	company: str | None = None, max_slices: int = 1, time_budget_seconds: float | None = None
+) -> int:
 	"""Single-flight dirty range expansion plus bounded claim/rebuild work."""
 	if frappe is None:
 		raise RuntimeError("profit dirty slice processor requires Frappe")
 	if not _get_lock():
 		return 0
 	processed = 0
+	deadline = time.monotonic() + float(time_budget_seconds) if time_budget_seconds else None
 	try:
 		expand_dirty_ranges(company=company)
 		while processed < int(max_slices or 1):
+			if deadline is not None and time.monotonic() >= deadline:
+				break
 			claim = store.claim_next_dirty_day(company=company)
 			if not claim:
 				break
@@ -385,6 +445,56 @@ def process_dirty_slices(company: str | None = None, max_slices: int = 1) -> int
 		return processed
 	finally:
 		_release_lock()
+
+
+def process_dirty_slices_scheduled() -> int:
+	"""Scheduler entry: drain up to 50 days per tick within a 2 minute budget.
+
+	One day rebuild costs ~1 s and ~110 MiB, so a backlog (initial history, a
+	precision change) converges in hours instead of one day per 10 minute tick.
+	"""
+	return process_dirty_slices(
+		max_slices=SCHEDULED_MAX_SLICES, time_budget_seconds=SCHEDULED_TIME_BUDGET_SECONDS
+	)
+
+
+def _company_names():
+	rows = frappe.db.sql("SELECT `name` FROM `tabCompany` ORDER BY `name` ASC")
+	return [row.get("name") if hasattr(row, "get") else row[0] for row in rows or []]
+
+
+def register_missing_history(company: str | None = None) -> dict:
+	"""Idempotently register rebuild work for history the summary has never built.
+
+	Creates dirty day states for every past day from the first submitted invoice
+	that has none (initial deployment, restored backups), and re-dirties clean
+	days built under different calc/precision/rounding flags, which queries no
+	longer trust and the claimer would otherwise never pick up.
+	"""
+	if frappe is None:
+		raise RuntimeError("profit history registration requires Frappe")
+	yesterday = _add_days(_today(), -1)
+	expected_flags = store.current_day_flags()
+	registered = 0
+	restaled = 0
+	for name in [company] if company else _company_names():
+		start = store.get_history_start(name, yesterday)
+		if start:
+			states = store.get_day_states(name, start, yesterday)
+			current = start
+			while current <= yesterday:
+				if current not in states:
+					store.ensure_day_state(name, current)
+					registered += 1
+				current = _add_days(current, 1)
+		stale_days = store.get_stale_flag_days(name, expected_flags)
+		if stale_days:
+			store.bump_dirty_days_ordered((name, day) for day in stale_days)
+			restaled += len(stale_days)
+		commit = getattr(frappe.db, "commit", None)
+		if callable(commit):
+			commit()
+	return {"registered_days": registered, "restaled_days": restaled}
 
 
 def enqueue_yesterday_rollover() -> int:
@@ -401,4 +511,6 @@ def enqueue_yesterday_rollover() -> int:
 	commit = getattr(frappe.db, "commit", None)
 	if callable(commit):
 		commit()
+	# Self-heal any history gaps or stale-flag days (idempotent, a few queries).
+	register_missing_history()
 	return count

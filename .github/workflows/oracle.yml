@@ -1,0 +1,41 @@
+name: Oracle parity
+
+# The live ERPNext oracle gate needs the khitmee-perf stack and a year of seeded
+# data (~90 min), so it does not run per pull request.  It runs nightly and on
+# demand on a self-hosted runner labelled `khitmee-perf`.  Scheduled and manual
+# runs only execute default-branch code by maintainers, so fork pull requests
+# never reach that machine.  Set the repository variable KHITMEE_PERF_RUNNER=true
+# once the runner is registered; until then the job is skipped, not failed.
+
+on:
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+    inputs:
+      gp_1y:
+        description: "1-year stock oracle cases (warehouse, all, none)"
+        required: false
+        default: "warehouse"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khitmee-perf-oracle
+  cancel-in-progress: false
+
+jobs:
+  integration-oracle-gate:
+    name: Integration oracle gate
+    if: vars.KHITMEE_PERF_RUNNER == 'true'
+    runs-on: [self-hosted, khitmee-perf]
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Fail-closed: tools/perf_parity.py --require-db exits non-zero when the bench
+      # database is unavailable, executed_cases == 0, skipped_cases > 0, or
+      # failed_cases > 0.
+      - name: Run required ERPNext oracle parity suite
+        run: python3 tools/perf_parity.py --require-db --profile 2gb --gp-1y "${{ inputs.gp_1y || 'warehouse' }}"

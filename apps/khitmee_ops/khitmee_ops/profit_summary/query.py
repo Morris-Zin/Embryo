@@ -263,11 +263,15 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 	all_dates = _date_range(from_date, to_date)
 	states = store.get_day_states(company, _as_date_string(from_date), _as_date_string(to_date))
 	present_past_dates = [posting_date for posting_date in all_dates if posting_date < today and posting_date in states]
+	# A queued/in-progress/failed repost invalidates valuations on and after its date,
+	# whether that day is served from storage or computed live, so check the whole request.
+	min_blocking_date = None
+	if all_dates:
+		_has_blocking, min_blocking_date = store.has_blocking_repost(company, all_dates[-1])
+		min_blocking_date = _as_date_string(min_blocking_date) if min_blocking_date else None
 	if present_past_dates:
 		max_present_past = present_past_dates[-1]
 		repost_sigs = store.get_completed_repost_signatures_for_dates(company, present_past_dates)
-		_has_blocking, min_blocking_date = store.has_blocking_repost(company, max_present_past)
-		min_blocking_date = _as_date_string(min_blocking_date) if min_blocking_date else None
 		active_ranges = store.get_active_dirty_ranges(company, max_present_past)
 		min_dirty_effective = min(
 			(_as_date_string(r.get("effective_date")) for r in active_ranges or [] if r.get("effective_date")),
@@ -275,7 +279,6 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 		)
 	else:
 		repost_sigs = {}
-		min_blocking_date = None
 		min_dirty_effective = None
 
 	clean_past_days = []
@@ -286,6 +289,8 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 	blocking_repost = False
 
 	for posting_date in all_dates:
+		if min_blocking_date and min_blocking_date <= posting_date:
+			blocking_repost = True
 		if posting_date >= today:
 			live_days.append(posting_date)
 			if posting_date > today:
@@ -654,6 +659,25 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 	eligibility["has_blocking_repost"] = bool(day_partition["has_blocking_repost"])
 	eligibility["dirty_days"] = list(day_partition["dirty_past_days"])
 
+	# Day-count and repost outcomes are known from day states alone; decide them
+	# before extracting live contributions so oversized requests stay cheap.
+	precheck_counts = _empty_budget_counts("summary")
+	precheck_counts.update(
+		{
+			"dirty_days_count": len(day_partition["dirty_past_days"]),
+			"missing_days_count": len(day_partition["missing_days"]),
+			"has_blocking_repost": bool(day_partition["has_blocking_repost"]),
+		}
+	)
+	precheck = evaluate_work_budget(filters, precheck_counts)
+	if precheck["outcome"] != "ok":
+		return _result(
+			precheck["outcome"],
+			message=precheck["reason"],
+			eligibility=eligibility,
+			meta=_meta_from_decision(precheck, precheck_counts),
+		)
+
 	clean_days = list(day_partition["clean_past_days"])
 	live_days = list(day_partition["live_days"])
 	stored_rows = store.get_shop_day_rows(company, clean_days)
@@ -696,7 +720,11 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 	for row in all_contributions:
 		if row.get("query_phase") not in (0, 1):
 			row["query_phase"] = 0 if int(row.get("is_return") or 0) == 1 and row.get("return_against") else 1
-	currency_precision, float_precision, _rounding_method = _batch_metadata(all_batches)
+	# An empty replay batch carries placeholder precisions; only trust batches that
+	# came from a real extraction, else fall back to the site's current flags.
+	currency_precision, float_precision, _rounding_method = _batch_metadata(
+		all_batches if replay_ids else live_batches
+	)
 
 	today = _site_today()
 	today_or_future = set(_date_range(today, filters.get("to_date"))) if filters.get("to_date") >= today else set()

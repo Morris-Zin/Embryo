@@ -318,6 +318,47 @@ def _day_state_params(company, posting_date, flags):
 	)
 
 
+def get_history_start(company: str, to_date: str) -> str | None:
+	"""First submitted Sales Invoice posting date on or before ``to_date``."""
+	rows = _require_frappe().db.sql(
+		"""
+		SELECT MIN(`posting_date`)
+		FROM `tabSales Invoice`
+		WHERE `company` = %s AND `docstatus` = 1 AND `posting_date` <= %s
+		""",
+		(company, to_date),
+	)
+	value = _first(rows[0] if rows else None) if rows else None
+	return _as_date_string(value) if value else None
+
+
+def get_stale_flag_days(company: str, expected_flags) -> list[str]:
+	"""Clean days built under different calc/precision/rounding flags than today's."""
+	rows = _require_frappe().db.sql(
+		"""
+		SELECT `posting_date`
+		FROM `tabKhitmee Profit Day State`
+		WHERE `company` = %s
+			AND `status` = 'clean'
+			AND (
+				`calc_version` <> %s
+				OR `currency_precision` <> %s
+				OR `float_precision` <> %s
+				OR IFNULL(`rounding_method`, '') <> %s
+			)
+		ORDER BY `posting_date` ASC
+		""",
+		(
+			company,
+			int(expected_flags["calc_version"]),
+			int(expected_flags["currency_precision"]),
+			int(expected_flags["float_precision"]),
+			expected_flags["rounding_method"] or "",
+		),
+	)
+	return [_as_date_string(_first(row)) for row in rows or []]
+
+
 def ensure_day_state(company: str, posting_date: str) -> None:
 	flags = current_day_flags()
 	_require_frappe().db.sql(

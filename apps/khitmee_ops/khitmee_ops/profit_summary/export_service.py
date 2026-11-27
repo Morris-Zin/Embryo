@@ -429,9 +429,24 @@ def _mark_export_failed(export_log_name, error):
 	frappe.db.commit()
 
 
-def _mark_export_running(export_log_name):
+def _claim_export(export_log_name) -> bool:
+	"""Atomically move one Queued export to Running; False if another worker has it.
+
+	`--run-sync` runs the worker inline while the after-commit enqueue also starts
+	a queued copy; both used to accept the log and write the same temporary path.
+	"""
+	rows = frappe.db.sql(
+		f"SELECT `status` FROM `tab{EXPORT_DOCTYPE}` WHERE `name` = %s FOR UPDATE",
+		(export_log_name,),
+	)
+	row = rows[0] if rows else None
+	status = (row.get("status") if hasattr(row, "get") else row[0]) if row else None
+	if status != "Queued":
+		frappe.db.rollback()
+		return False
 	_update_export_log(export_log_name, status="Running", error=NULL)
 	frappe.db.commit()
+	return True
 
 
 def _family_key(row):
@@ -465,11 +480,31 @@ def _column_headers(columns):
 	return [str(column.get("label") or column.get("fieldname") or "") for column in columns or []]
 
 
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", chr(9), chr(13))
+
+
+def _neutralize_formula(text: str) -> str:
+	"""Stop spreadsheet apps from evaluating editable text (customer names, items).
+
+	OWASP CSV injection guidance: prefix a quote to cells that start with a formula
+	trigger.  Plain numbers such as "-12.5" are left alone.
+	"""
+	if not text or not text.startswith(CSV_FORMULA_PREFIXES):
+		return text
+	try:
+		float(text)
+		return text
+	except ValueError:
+		return "'" + text
+
+
 def _csv_value(value):
 	if value is None:
 		return ""
 	if hasattr(value, "isoformat"):
 		return value.isoformat()
+	if isinstance(value, str):
+		return _neutralize_formula(value)
 	return value
 
 
@@ -521,11 +556,13 @@ def run_profit_csv_export(export_log_name):
 	if _doc_get(doc, "status") in {"Completed", "Failed", "Expired"}:
 		return
 
+	if not _claim_export(export_log_name):
+		return
+
 	previous_user = frappe.session.user
 	frappe.set_user(_doc_get(doc, "requested_by"))
 	temporary_path = None
 	try:
-		_mark_export_running(export_log_name)
 		_begin_repeatable_read_snapshot()
 		filters = json.loads(_doc_get(doc, "filters_json") or "{}")
 		requested_by = _doc_get(doc, "requested_by")
