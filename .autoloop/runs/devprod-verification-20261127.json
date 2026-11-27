@@ -179,6 +179,11 @@
       "event": "shard-passed",
       "shard": "verification",
       "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-27T17:30:23Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
     }
   ],
   "issue_number": null,
@@ -263,7 +268,7 @@
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "gate_passed",
+  "status": "awaiting_cloud_review",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:30:13Z"
+  "updated_at": "2026-11-27T17:30:23Z"
 }
