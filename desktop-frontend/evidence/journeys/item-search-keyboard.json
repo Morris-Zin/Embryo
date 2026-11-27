@@ -25,6 +25,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 0,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -51,6 +52,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 0,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -85,6 +87,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 1,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -111,6 +114,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 1,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -145,6 +149,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 2,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -171,6 +176,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 2,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -205,6 +211,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 1,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -231,6 +238,7 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": 1,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
@@ -267,6 +275,7 @@
         "searchExpanded": "false",
         "resultCount": 0,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": -1,
         "results": [],
         "firstResult": "",
@@ -284,6 +293,7 @@
         "searchExpanded": "false",
         "resultCount": 0,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
         "selectedResultIndex": -1,
         "results": [],
         "firstResult": "",

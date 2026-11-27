@@ -122,12 +122,16 @@
         "evidence/journeys/item-search-click.json",
         "evidence/journeys/item-search-repeat-scan.json",
         "evidence/journeys/item-search-no-match.json",
-        "experiments/0005-item-search-qualification.md"
+        "experiments/0005-item-search-qualification.md",
+        "evidence/journeys/item-search-warehouse.json",
+        "evidence/journeys/item-search-customer-price.json",
+        "evidence/journeys/item-search-zero-stock.json",
+        "evidence/journeys/item-search-burmese.json"
       ],
       "failures": [
-        "full-screen visual qualification pending",
-        "customer-specific pricing/warehouse-switch/stock-exhaustion/Burmese search evidence pending",
-        "dedicated cold-cache performance evidence pending"
+        "full-screen visual/video qualification pending",
+        "dedicated cold-cache performance evidence pending",
+        "warehouse/customer refresh is synchronous and needs asynchronous performance hardening"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,

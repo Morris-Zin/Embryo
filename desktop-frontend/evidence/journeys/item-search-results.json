@@ -25,6 +25,8 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": 0,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
           "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
@@ -50,6 +52,8 @@
         "searchExpanded": "true",
         "resultCount": 10,
         "customer": "Choose customer",
+        "warehouse": "Dist Hub 1",
+        "selectedResultIndex": 0,
         "results": [
           "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
           "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",

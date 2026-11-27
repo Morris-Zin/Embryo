@@ -33,6 +33,7 @@ struct PilotState {
     price_list: String,
     print_endpoint: String,
     print_token: String,
+    runtime_config: Option<ErpRuntimeConfig>,
 }
 
 #[derive(Clone)]
@@ -56,6 +57,7 @@ fn new_client_voucher_id() -> String {
     )
 }
 
+#[derive(Clone)]
 struct ErpRuntimeConfig {
     base_url: String,
     username: String,
@@ -567,8 +569,10 @@ fn load_fixture_catalog(
 }
 
 #[cfg(feature = "encrypted-catalog")]
-fn load_live_catalog(
+fn load_live_catalog_scoped(
     config: &ErpRuntimeConfig,
+    warehouse: &str,
+    customer: Option<&str>,
 ) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
     let data_dir = env::var("KHITMEE_NATIVE_DATA_DIR")
         .map(std::path::PathBuf::from)
@@ -577,21 +581,19 @@ fn load_live_catalog(
     let db_path = data_dir.join("catalog-live.sqlite");
     let key = load_or_create_key(&key_path)?;
     let store = EncryptedStore::open(&db_path, &hex_key(&key))?;
-    let scope = format!(
-        "erp:{}:{}:{}",
-        config.warehouse, config.price_list, config.customer
-    );
+    let customer_key = customer.unwrap_or("");
+    let scope = format!("erp:{}:{}:{}", warehouse, config.price_list, customer_key);
     let prior_token = store.sync_token(&scope)?;
     let client = ErpClient::login(&config.base_url, &config.username, &config.password)?;
     let payload = client.sync_catalog(
-        &config.warehouse,
+        warehouse,
         &config.price_list,
         if prior_token.is_empty() {
             None
         } else {
             Some(prior_token.as_str())
         },
-        Some(config.customer.as_str()),
+        customer,
     )?;
     if payload.get("complete").and_then(|value| value.as_bool()) == Some(false) {
         return Err("ERP catalog response is incomplete for the server catalog cap".into());
@@ -612,6 +614,35 @@ fn load_live_catalog(
         .unwrap_or_default();
     store.apply_sync(&scope, reset, sync_token, &items)?;
     store.rows(&scope)
+}
+
+#[cfg(feature = "encrypted-catalog")]
+fn load_live_catalog(
+    config: &ErpRuntimeConfig,
+) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+    load_live_catalog_scoped(config, &config.warehouse, None)
+}
+
+#[cfg(feature = "encrypted-catalog")]
+fn refresh_context_catalog(
+    state: &mut PilotState,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let Some(config) = state.runtime_config.clone() else {
+        return Ok(());
+    };
+    let customer = if state.customer.is_empty() {
+        None
+    } else {
+        Some(state.customer.as_str())
+    };
+    let rows = load_live_catalog_scoped(&config, &state.warehouse, customer)?;
+    state.by_code = rows
+        .iter()
+        .map(|row| (row.item_code.clone(), row.clone()))
+        .collect();
+    state.catalog_size = rows.len();
+    state.catalog = CatalogIndex::rebuild(rows);
+    Ok(())
 }
 
 #[cfg(feature = "encrypted-catalog")]
@@ -809,6 +840,7 @@ fn main() -> Result<(), slint::PlatformError> {
         price_list,
         print_endpoint,
         print_token,
+        runtime_config: runtime_config.clone(),
     }));
 
     let app = AppWindow::new()?;
@@ -834,8 +866,10 @@ fn main() -> Result<(), slint::PlatformError> {
     refresh_voucher(&app, &state.borrow());
 
     app.on_warehouse_selected({
+        let app = app.as_weak();
         let state = state.clone();
         move |label| {
+            let app = app.unwrap();
             let mut state = state.borrow_mut();
             if let Some((_, value)) = state
                 .warehouses
@@ -844,13 +878,19 @@ fn main() -> Result<(), slint::PlatformError> {
                 .cloned()
             {
                 state.warehouse = value;
+                #[cfg(feature = "encrypted-catalog")]
+                if let Err(error) = refresh_context_catalog(&mut state) {
+                    app.set_status_text(format!("Catalog refresh failed: {error}").into());
+                }
             }
         }
     });
 
     app.on_customer_selected({
+        let app = app.as_weak();
         let state = state.clone();
         move |label| {
+            let app = app.unwrap();
             let mut state = state.borrow_mut();
             if let Some((_, value)) = state
                 .customers
@@ -859,6 +899,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 .cloned()
             {
                 state.customer = value;
+                #[cfg(feature = "encrypted-catalog")]
+                if let Err(error) = refresh_context_catalog(&mut state) {
+                    app.set_status_text(format!("Catalog refresh failed: {error}").into());
+                }
             }
         }
     });

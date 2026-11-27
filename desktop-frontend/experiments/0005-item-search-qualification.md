@@ -14,6 +14,10 @@ Item-search behavior inside the Khitmee sales counter was qualified against the 
 - `evidence/journeys/item-search-click.json` — clicking result index 2 selects the same item and clears the search input in both implementations.
 - `evidence/journeys/item-search-repeat-scan.json` — repeated exact barcode scans increment the same draft line identically.
 - `evidence/journeys/item-search-no-match.json` — unmatched Enter leaves status/draft state unchanged in both implementations.
+- `evidence/journeys/item-search-warehouse.json` — switching to Shop 1 refreshes the encrypted catalog scope and matches browser stock exactly.
+- `evidence/journeys/item-search-customer-price.json` — selecting Khit Customer 0002 refreshes customer-sensitive pricing and matches the customer-specific 11.11 rate exactly.
+- `evidence/journeys/item-search-zero-stock.json` — Dist Hub 2 zero-stock rows match exactly.
+- `evidence/journeys/item-search-burmese.json` — Burmese search text/result rendering matches exactly.
 
 ## Defects caught by the harness and fixed
 
@@ -23,12 +27,21 @@ Item-search behavior inside the Khitmee sales counter was qualified against the 
 4. Native mouse selection did not clear the query; fixed.
 5. Native unmatched Enter cleared the ready status; fixed to preserve browser behavior.
 6. Native result rows did not expose selected state accessibly; added `accessible-item-selected` and added it to the oracle.
+7. Native warehouse changes retained stale stock from the startup scope; fixed by refreshing the encrypted catalog scope on warehouse/customer changes.
 
 ## Regression evidence
 
 The sales-voucher default and validation differential journeys were rerun after these changes and passed. See `evidence/journeys/sales-voucher-differential.json` and `evidence/journeys/sales-voucher-validation.json` where present.
 
 ## Reproduction
+
+Prepare the isolated edge fixtures first:
+
+```bash
+ERPNEXT_PASSWORD="$PW" python desktop-frontend/tools/setup_item_search_edge_fixtures.py
+```
+
+Then run any differential journey, for example:
 
 ```bash
 PW=$(grep '^ADMIN_PASSWORD=' perf-suite/docker/.env | cut -d= -f2-)
@@ -42,4 +55,4 @@ node desktop-frontend/tools/differential_journey.mjs \
 
 - Item-search visual styling has not been separately video-qualified after these behavior changes.
 - Search latency is covered only in the sales-voucher benchmark, not as a dedicated cold-cache item-search matrix.
-- Customer-specific pricing, warehouse switching, stock exhaustion, and Burmese search-result rendering need dedicated differential cases before item search can be called fully production-qualified.
+- Warehouse/customer catalog refresh is synchronous in the pilot UI thread; correctness is proven, but responsiveness under a slow network still needs asynchronous hardening and measurement.
