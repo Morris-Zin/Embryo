@@ -69,6 +69,40 @@
     {
       "index": 2,
       "action": {
+        "op": "scroll",
+        "deltaY": 500
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
         "op": "increase"
       },
       "web": {
@@ -100,7 +134,7 @@
       "differences": []
     },
     {
-      "index": 3,
+      "index": 4,
       "action": {
         "op": "decrease"
       },
@@ -133,7 +167,7 @@
       "differences": []
     },
     {
-      "index": 4,
+      "index": 5,
       "action": {
         "op": "quantity",
         "value": "2.5"
@@ -167,7 +201,7 @@
       "differences": []
     },
     {
-      "index": 5,
+      "index": 6,
       "action": {
         "op": "clear"
       },
@@ -196,7 +230,7 @@
       "differences": []
     },
     {
-      "index": 6,
+      "index": 7,
       "action": {
         "op": "search",
         "value": "Mekong"

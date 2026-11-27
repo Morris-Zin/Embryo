@@ -13,7 +13,7 @@ const username=arg('username','Administrator'),password=arg('password',process.e
 const out=path.resolve(arg('out','desktop-frontend/evidence/journeys/sales-voucher-differential.json'));
 const exe=arg('exe','desktop-frontend/target/debug/khitmee-desktop.exe');
 const port=Number(arg('port','49390'));
-const sequence=JSON.parse(arg('sequence','[{"op":"f9"},{"op":"scan","value":"8850000000010"},{"op":"increase"},{"op":"decrease"},{"op":"quantity","value":"2.5"},{"op":"clear"},{"op":"search","value":"Mekong"}]'));
+const sequence=JSON.parse(arg('sequence','[{"op":"f9"},{"op":"scan","value":"8850000000010"},{"op":"scroll","deltaY":500},{"op":"increase"},{"op":"decrease"},{"op":"quantity","value":"2.5"},{"op":"clear"},{"op":"search","value":"Mekong"}]'));
 let nextId=1;
 async function rpc(method,params={}){const r=await fetch(`http://127.0.0.1:${port}/mcp`,{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:nextId++,method,params})});const text=await r.text();const data=text.startsWith('data:')||text.startsWith('event:')?text.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n'):text;const parsed=JSON.parse(data);if(parsed.error)throw Error(JSON.stringify(parsed.error));return parsed.result}
 function structured(result){if(result.structuredContent)return result.structuredContent;const text=result.content?.find(x=>x.type==='text')?.text;try{return JSON.parse(text)}catch{return result}}
@@ -29,6 +29,7 @@ async function nativeAct(ctx,a){
  if(a.op==='wait')return sleep(a.ms||250);
  if(a.op==='key'||a.op==='f2'||a.op==='f9'){await call('dispatch_key_event',{windowHandle:ctx.wh,text:a.op==='f2'?special.F2:a.op==='f9'?special.F9:(special[a.key]||a.key),eventType:'PressAndRelease'});return sleep(250)}
  if(a.op==='search'||a.op==='scan'){const target=await find(ctx,{elementId:'item-search'});await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});await sleep(500);if(a.op==='scan'){await call('dispatch_key_event',{windowHandle:ctx.wh,text:special.Enter,eventType:'PressAndRelease'});await sleep(400)}return}
+ if(a.op==='scroll'){await call('dispatch_pointer_scroll',{windowHandle:ctx.wh,position:{x:590,y:344},deltaY:-Math.abs(Number(a.deltaY||500)),deltaX:0});return sleep(350)}
  if(a.op==='increase'||a.op==='decrease'||a.op==='remove'||a.op==='clear'){const label={increase:'Increase quantity',decrease:'Decrease quantity',remove:'Remove line',clear:'Clear'}[a.op];const target=await find(ctx,{label});await call('click_element',{elementHandle:target.handle});return sleep(250)}
  if(a.op==='quantity'){const target=(await tree(ctx)).elements?.find(e=>e.accessibleLabel==='Quantity');if(!target)throw Error('quantity target missing');await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});await sleep(250);return}
  if(a.op==='choose'){const rows=(await tree(ctx)).elements?.filter(e=>e.accessibleRole==='ListItem');const target=rows[a.index||0];if(!target)throw Error('choice missing');await call('click_element',{elementHandle:target.handle});return sleep(300)}
@@ -41,6 +42,7 @@ async function webAct(page,a){
  if(a.op==='wait')return page.waitForTimeout(a.ms||250);
  if(a.op==='key'||a.op==='f2'||a.op==='f9'){await page.keyboard.press(a.op==='f2'?'F2':a.op==='f9'?'F9':a.key);return page.waitForTimeout(250)}
  if(a.op==='search'||a.op==='scan'){await page.locator('#item-search').fill(String(a.value));await page.waitForTimeout(650);if(a.op==='scan'){await page.locator('#item-search').press('Enter');await page.waitForTimeout(400)}return}
+ if(a.op==='scroll'){await page.mouse.move(590,344);await page.mouse.wheel(0,Math.abs(Number(a.deltaY||500)));return page.waitForTimeout(350)}
  if(a.op==='increase'||a.op==='decrease'||a.op==='remove'||a.op==='clear'){const label={increase:'Increase quantity',decrease:'Decrease quantity',remove:'Remove line',clear:'Clear'}[a.op];if(a.op==='clear')await page.getByRole('button',{name:'Clear'}).first().click();else await page.getByLabel(label).first().click();return page.waitForTimeout(250)}
  if(a.op==='quantity'){await page.locator('input[aria-label="Quantity"]').first().fill(String(a.value));await page.waitForTimeout(250);return}
  if(a.op==='choose'){await page.locator('#search-results .search-option-button').nth(a.index||0).click();return page.waitForTimeout(300)}

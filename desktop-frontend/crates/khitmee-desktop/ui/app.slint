@@ -286,7 +286,8 @@ component VoucherLineRow inherits Rectangle {
 
 component CounterScreen inherits FocusScope {
     in property <bool> sales-mode;
-    in property <length> scroll-offset: 0px;
+    in property <length> initial-scroll-offset: 0px;
+    in-out property <length> content-y: 0px;
     in property <[CatalogChoice]> search-results;
     in property <[VoucherLine]> voucher-lines;
     in property <bool> search-open;
@@ -305,7 +306,10 @@ component CounterScreen inherits FocusScope {
     callback clear-lines();
     callback submit-print();
 
-    init => { item-search.focus(); }
+    init => {
+        root.content-y = -root.initial-scroll-offset;
+        item-search.focus();
+    }
     key-pressed(event) => {
         if event.text == Key.F2 {
             item-search.focus();
@@ -318,8 +322,14 @@ component CounterScreen inherits FocusScope {
         }
     }
 
+    page-scroll := Flickable {
+        x: 0px; y: 0px; width: 1180px; height: 760px;
+        content-width: 1180px;
+        content-height: (root.sales-mode ? 592px : 570px) + 96px + root.voucher-lines.length * 48px + 92px;
+        content-y <=> root.content-y;
+
     Rectangle {
-        x: 0px; y: 0px - root.scroll-offset; width: 1180px; height: 80px;
+        x: 0px; y: 0px; width: 1180px; height: 80px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
@@ -335,7 +345,7 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 28px; y: 95px - root.scroll-offset; width: 432px; height: root.sales-mode ? 481px : 457px;
+        x: 28px; y: 95px; width: 432px; height: root.sales-mode ? 481px : 457px;
         Text { x: 21px; y: 30px; text: root.sales-mode ? "Sale details" : "Transfer details"; color: Design.text; font-size: 16px; font-weight: 700; }
 
         Text { x: 21px; y: 67px; text: root.sales-mode ? "Shop warehouse" : "Source warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
@@ -377,7 +387,7 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 476px; y: 95px - root.scroll-offset; width: 676px; height: root.sales-mode ? 481px : 457px;
+        x: 476px; y: 95px; width: 676px; height: root.sales-mode ? 481px : 457px;
         Text { x: 19px; y: 30px; text: "Scan or search"; color: Design.text; font-size: 16px; font-weight: 700; }
         Text { x: 19px; y: 64px; text: "Barcode / item search"; color: Design.muted; font-size: 13px; font-weight: 700; }
         Rectangle {
@@ -410,7 +420,7 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 28px; y: (root.sales-mode ? 592px : 570px) - root.scroll-offset; width: 1124px; height: 96px + root.voucher-lines.length * 48px;
+        x: 28px; y: root.sales-mode ? 592px : 570px; width: 1124px; height: 96px + root.voucher-lines.length * 48px;
         border-radius: 14px;
         Rectangle { x: 0px; y: 0px; width: 1124px; height: 72px; border-color: Design.line; border-width: 1px; }
         Text { x: 21px; y: 22px; text: "Lines"; color: Design.text; font-size: 16px; font-weight: 700; }
@@ -439,13 +449,18 @@ component CounterScreen inherits FocusScope {
         }
     }
 
+    if root.voucher-lines.length > 0: Rectangle {
+        x: 28px; y: 687px; width: 1124px; height: 0px;
+    }
+
+    }
+
     if root.search-open: Rectangle {
-        x: 492px; y: (root.sales-mode ? 566px : 544px) - root.scroll-offset; width: 644px; height: 384px;
+        x: 492px; y: (root.sales-mode ? 566px : 544px) + root.content-y; width: 644px; height: 384px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
         border-radius: 14px;
-        clip: false;
         Rectangle {
             x: 3.421875px; y: -2.0625px; width: 635.5625px; height: 384px;
             accessible-role: list;
@@ -466,9 +481,6 @@ component CounterScreen inherits FocusScope {
     }
 
 
-    if root.voucher-lines.length > 0: Rectangle {
-        x: 28px; y: 687px; width: 1124px; height: 0px;
-    }
 
     Rectangle {
         x: 0px; y: 688px; width: 1180px; height: 72px;
@@ -1033,7 +1045,7 @@ export component AppWindow inherits Window {
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: 1180px; height: 760px;
         sales-mode: true;
-        scroll-offset: current-screen == 4 ? 43px : 0px;
+        initial-scroll-offset: current-screen == 4 ? 43px : 0px;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
         search-open: root.search-open;
