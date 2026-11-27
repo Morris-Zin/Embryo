@@ -1,7 +1,6 @@
 import re
 import sys
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -378,9 +377,10 @@ class TestParallelUnittestSelection(unittest.TestCase):
 class TestVerificationEvidenceSafeguards(unittest.TestCase):
 	def test_uv_bootstrap_pin_stays_in_dependency_manifest_for_cache_key_rotation(self):
 		root = TOOLS_DIR.parent
-		data = tomllib.loads((root / "apps/khitmee_ops/pyproject.toml").read_text(encoding="utf-8"))
-		dev_deps = data["dependency-groups"]["dev"]
-		uv_deps = [dep for dep in dev_deps if dep.startswith("uv==")]
+		manifest = (root / "apps/khitmee_ops/pyproject.toml").read_text(encoding="utf-8")
+		dev_match = re.search(r"(?ms)^dev = \[(.*?)^\]", manifest)
+		self.assertIsNotNone(dev_match)
+		uv_deps = re.findall(r'["\'](uv==[^"\']+)["\']', dev_match.group(1))
 		self.assertEqual(len(uv_deps), 1)
 
 		for workflow in ("ci.yml", "autoloop-gate.yml"):
