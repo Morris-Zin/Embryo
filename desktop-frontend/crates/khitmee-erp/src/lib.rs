@@ -218,7 +218,6 @@ impl ErpClient {
                 "items": items,
                 "payment_mode": payment_mode,
                 "printer_type": printer_type,
-                "override_rate": false,
             }),
         )
     }

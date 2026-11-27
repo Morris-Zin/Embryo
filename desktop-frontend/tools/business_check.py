@@ -94,7 +94,6 @@ def main() -> int:
             "items": fixture["items"],
             "payment_mode": fixture.get("payment_mode"),
             "printer_type": fixture.get("printer_type", "voucher"),
-            "override_rate": False,
         }
         endpoint = "khitmee_ops.api.vouchers.submit_sale"
     if args.native_probe:

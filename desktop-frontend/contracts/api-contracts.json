@@ -61,8 +61,7 @@
         "price_list": "required enabled selling Price List",
         "items": "array of {item_code, qty, uom?, rate?}",
         "payment_mode": "optional Mode of Payment",
-        "printer_type": "voucher or a4",
-        "override_rate": "requires explicit Sales Invoice write permission"
+        "printer_type": "voucher or a4"
       },
       "response": {
         "voucher_no": "authoritative submitted Sales Invoice name",
@@ -70,7 +69,7 @@
       },
       "securityInvariants": [
         "ERPNext creates and submits the Sales Invoice",
-        "Client-supplied rates are ignored unless override_rate is authorized",
+        "Client-supplied rates are ignored unless an authorized server-side rate override applies",
         "Idempotency keys bind to canonical request fingerprints",
         "Concurrent replays never create duplicate financial documents",
         "The native client must not construct authoritative totals or bypass this endpoint"
