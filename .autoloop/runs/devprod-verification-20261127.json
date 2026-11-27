@@ -10,8 +10,8 @@
   "allowed_paths": [],
   "base_branch": "main",
   "base_sha": "78666698e2ec4b9b6835414dcb79f6d46c8557fe",
-  "contract_revision": 1,
-  "contract_sha256": "1bf58f294295691262f63e589df1158402fc1e61cdd7ed18c77fc747e14495fc",
+  "contract_revision": 2,
+  "contract_sha256": "ea3a75ad410c626b9433a85afcb7032bc81061d5040b4a9b6d3ab77520803838",
   "created_at": "2026-11-27T16:43:44Z",
   "dead_ends": [
     {
@@ -69,6 +69,13 @@
       "event": "shard-passed",
       "shard": "verification",
       "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-27T17:03:56Z",
+      "contract_revision": 2,
+      "event": "bind-pr",
+      "pr_number": 15,
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -93,7 +100,7 @@
     }
   },
   "pending_contract_amendments": [],
-  "pr_number": null,
+  "pr_number": 15,
   "replan_count": 0,
   "reviewers": {
     "cloud": true,
@@ -133,5 +140,5 @@
   },
   "status": "gate_passed",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:02:18Z"
+  "updated_at": "2026-11-27T17:03:56Z"
 }
