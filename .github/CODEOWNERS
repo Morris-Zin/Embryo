@@ -1,0 +1,14 @@
+# Mandatory code owner for autonomous loop governance, workflows, and verification gates.
+.github/** @Morris-Zin
+tools/autoloop/** @Morris-Zin
+tools/fast_check.py @Morris-Zin
+tools/khitmee_dev.py @Morris-Zin
+tools/perf_parity.py @Morris-Zin
+tools/perf_eval_ledger.py @Morris-Zin
+.autoloop/** @Morris-Zin
+.devin/skills/autoloop/** @Morris-Zin
+.gitattributes @Morris-Zin
+tools/.gitattributes @Morris-Zin
+.gitignore @Morris-Zin
+.gitmodules @Morris-Zin
+AGENTS.md @Morris-Zin
