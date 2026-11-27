@@ -8,7 +8,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --skip-character-set-client-handshake
       - --innodb-snapshot-isolation=OFF
-      - --innodb-buffer-pool-size=448M
+      - --innodb-buffer-pool-size=320M
       - --innodb-log-file-size=128M
       - --innodb-buffer-pool-dump-pct=100
       - --innodb-buffer-pool-load-at-startup=ON
@@ -44,8 +44,8 @@ services:
       - /home/frappe/frappe-bench/env/bin/gunicorn
       - --chdir=/home/frappe/frappe-bench/sites
       - --bind=0.0.0.0:8000
-      - --threads=2
-      - --workers=2
+      - --threads=4
+      - --workers=1
       - --worker-class=gthread
       - --worker-tmp-dir=/dev/shm
       - --timeout=120

@@ -1846,13 +1846,22 @@ def write_manifest(manifest: dict[str, Any], output_path: str | None) -> str:
 		path = Path(output_path)
 	else:
 		path = Path(__file__).with_name("seed_manifest.json")
+	text = json.dumps(manifest, indent=2, sort_keys=True)
 	try:
-		path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+		path.write_text(text, encoding="utf-8")
 	except OSError:
 		require_frappe()
 		path = Path(frappe.get_site_path("private", "files")) / "seed_manifest.json"
 		path.parent.mkdir(parents=True, exist_ok=True)
-		path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+		path.write_text(text, encoding="utf-8")
+
+	# `/tmp` disappears with the benchmark container. Keep the authoritative copy in the
+	# site's volume as well so k6 and stock replenishment survive container recreation.
+	require_frappe()
+	mirror_path = Path(frappe.get_site_path("private", "files")) / "seed_manifest.json"
+	mirror_path.parent.mkdir(parents=True, exist_ok=True)
+	if mirror_path.resolve() != path.resolve():
+		mirror_path.write_text(text, encoding="utf-8")
 	return str(path)
 
 
