@@ -19,18 +19,22 @@
 		};
 	}
 
+	const moneyFormatter = new Intl.NumberFormat(undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+	const qtyFormatter = new Intl.NumberFormat(undefined, {
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 3,
+	});
+	const SEARCH_RESULT_TTL_MS = 30000;
+
 	function formatMoney(value) {
-		return new Intl.NumberFormat(undefined, {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		}).format(Number(value || 0));
+		return moneyFormatter.format(Number(value || 0));
 	}
 
 	function formatQty(value) {
-		return new Intl.NumberFormat(undefined, {
-			minimumFractionDigits: 0,
-			maximumFractionDigits: 3,
-		}).format(Number(value || 0));
+		return qtyFormatter.format(Number(value || 0));
 	}
 
 	function uuid() {
@@ -114,6 +118,11 @@
 			lines: [],
 			searchItems: [],
 			activeIndex: -1,
+			searchKey: "",
+			searchAt: 0,
+			searchRequestId: 0,
+			searchCache: new Map(),
+			inflightSearches: new Map(),
 			clientVoucherId: uuid(),
 			submitting: false,
 			customerQuery: "",
@@ -235,22 +244,38 @@
 		function hideResults() {
 			state.searchItems = [];
 			state.activeIndex = -1;
-			els.results.innerHTML = "";
-			els.results.hidden = true;
-			els.search.setAttribute("aria-expanded", "false");
-			els.search.removeAttribute("aria-activedescendant");
+			if (els.results.childNodes.length) els.results.replaceChildren();
+			if (!els.results.hidden) els.results.hidden = true;
+			if (els.search.getAttribute("aria-expanded") !== "false") {
+				els.search.setAttribute("aria-expanded", "false");
+			}
+			if (els.search.hasAttribute("aria-activedescendant")) {
+				els.search.removeAttribute("aria-activedescendant");
+			}
+		}
+
+		function updateResultSelection() {
+			Array.prototype.forEach.call(els.results.children, function (li, index) {
+				const selected = index === state.activeIndex;
+				const selectedText = selected ? "true" : "false";
+				if (li.getAttribute("aria-selected") !== selectedText) {
+					li.setAttribute("aria-selected", selectedText);
+				}
+				li.classList.toggle("is-active", selected);
+			});
 		}
 
 		function renderResults() {
-			els.results.innerHTML = "";
 			if (!state.searchItems.length) {
 				hideResults();
 				return;
 			}
 
+			const fragment = document.createDocumentFragment();
 			state.searchItems.forEach(function (item, index) {
 				const li = document.createElement("li");
 				li.id = "search-option-" + index;
+				li.dataset.index = index;
 				li.setAttribute("role", "option");
 				li.setAttribute("aria-selected", index === state.activeIndex ? "true" : "false");
 				li.className = "search-option" + (index === state.activeIndex ? " is-active" : "");
@@ -264,67 +289,139 @@
 				button.querySelector("strong").textContent = item.item_code;
 				button.querySelector(".search-item-main span").textContent = item.item_name || "";
 				button.querySelector(".qty").textContent = "Stock " + formatQty(item.actual_qty);
-				button.querySelector(".rate").textContent = formatMoney(item.rate);
-				button.addEventListener("click", function () {
-					addItem(item);
-				});
+				button.querySelector(".rate").textContent = config.showRates ? formatMoney(item.rate) : "—";
 				li.appendChild(button);
-				els.results.appendChild(li);
+				fragment.appendChild(li);
 			});
-			els.results.hidden = false;
-			els.search.setAttribute("aria-expanded", "true");
+			els.results.replaceChildren(fragment);
+			if (els.results.hidden) els.results.hidden = false;
+			if (els.search.getAttribute("aria-expanded") !== "true") {
+				els.search.setAttribute("aria-expanded", "true");
+			}
 		}
 
-		async function searchItems() {
+		async function searchItems(options) {
 			const term = els.search.value.trim();
 			if (!term || !searchWarehouse()) {
 				hideResults();
 				return;
 			}
-			try {
-				const result = await apiGet("khitmee_ops.api.search.search_items", {
+			const customer = els.customer && els.customer.value ? els.customer.value : "";
+			const priceList = els.priceList && els.priceList.value ? els.priceList.value : state.context.default_price_list;
+			const searchKey = [term, searchWarehouse(), priceList, customer, config.showRates ? "rates" : "no-rates"].join("\u001f");
+			const selectedItemCode =
+				state.searchKey === searchKey && state.searchItems[state.activeIndex]
+					? state.searchItems[state.activeIndex].item_code
+					: "";
+			if (state.searchKey === searchKey && state.searchItems.length && Date.now() - state.searchAt < SEARCH_RESULT_TTL_MS) return;
+			const useCache = !!(options && options.cache);
+			const shouldRender = !options || options.render !== false;
+			if (useCache) {
+				const cached = state.searchCache.get(searchKey);
+				if (cached && Date.now() - cached.at < SEARCH_RESULT_TTL_MS) {
+					state.searchCache.delete(searchKey);
+					state.searchCache.set(searchKey, cached);
+					state.searchKey = searchKey;
+					state.searchAt = cached.at;
+					state.searchItems = cached.items;
+					state.activeIndex = state.searchItems.length ? 0 : -1;
+					if (shouldRender) renderResults();
+					return;
+				}
+			}
+			let requestId;
+			let requestPromise;
+			let flight = state.inflightSearches.get(searchKey);
+			if (flight && flight.requestId !== state.searchRequestId) flight = null;
+			if (flight) {
+				if (!shouldRender) flight.render = false;
+				requestId = flight.requestId;
+				requestPromise = flight.promise;
+			} else {
+				requestId = ++state.searchRequestId;
+				requestPromise = apiGet("khitmee_ops.api.search.search_items", {
 					q: term,
 					warehouse: searchWarehouse(),
-					price_list: state.context.default_price_list,
-					customer: els.customer && els.customer.value ? els.customer.value : null,
+					price_list: priceList,
+					customer: customer || null,
 					limit: 10,
+					include_rates: config.showRates ? 1 : 0,
 				});
-				if (els.search.value.trim() !== term) return;
+				flight = { requestId: requestId, promise: requestPromise, render: shouldRender };
+				state.inflightSearches.set(searchKey, flight);
+			}
+			try {
+				const result = await requestPromise;
+				if (requestId !== state.searchRequestId || els.search.value.trim() !== term) return;
+				const now = Date.now();
+				state.searchKey = searchKey;
+				state.searchAt = now;
 				state.searchItems = result.items || [];
-				state.activeIndex = state.searchItems.length ? 0 : -1;
-				renderResults();
+				let selectedIndex = -1;
+				if (selectedItemCode) {
+					selectedIndex = state.searchItems.findIndex(function (item) {
+						return item.item_code === selectedItemCode;
+					});
+				}
+				if (selectedIndex >= 0) {
+					state.activeIndex = selectedIndex;
+				} else if (selectedItemCode) {
+					state.activeIndex = -1;
+					setStatus(selectedItemCode + " is no longer available in the current search results.", "error");
+				} else {
+					state.activeIndex = state.searchItems.length ? 0 : -1;
+				}
+				if (useCache && state.searchItems.length) {
+					state.searchCache.delete(searchKey);
+					state.searchCache.set(searchKey, { at: now, items: state.searchItems });
+					if (state.searchCache.size > 100) {
+						state.searchCache.delete(state.searchCache.keys().next().value);
+					}
+				}
+				if (shouldRender && flight.render) renderResults();
 			} catch (error) {
 				setStatus(error.message, "error");
+			} finally {
+				const current = state.inflightSearches.get(searchKey);
+				if (current && current.promise === requestPromise) state.inflightSearches.delete(searchKey);
 			}
 		}
 
-		const searchDebouncer = createDebouncer(searchItems, 180);
+		const searchDebouncer = createDebouncer(searchItems, 100);
 
 		function addItem(item) {
-			const existing = state.lines.find(function (line) {
+			const existingIndex = state.lines.findIndex(function (line) {
 				return line.item_code === item.item_code;
 			});
-			if (existing) {
-				existing.qty += 1;
+			if (existingIndex >= 0) {
+				state.lines[existingIndex].qty += 1;
+				updateLineRow(els.linesBody.children[existingIndex], state.lines[existingIndex], existingIndex);
 			} else {
-				state.lines.push({
+				const line = {
 					item_code: item.item_code,
 					item_name: item.item_name,
 					uom: item.stock_uom,
 					qty: 1,
 					rate: Number(item.rate || 0),
 					actual_qty: Number(item.actual_qty || 0),
-				});
+				};
+				state.lines.push(line);
+				els.linesBody.appendChild(createLineRow(line, state.lines.length - 1));
 			}
 			els.search.value = "";
 			hideResults();
-			renderLines();
+			renderTotals();
 			els.search.focus();
 		}
 
 		function removeLine(index) {
 			state.lines.splice(index, 1);
-			renderLines();
+			const row = els.linesBody.children[index];
+			if (row) row.remove();
+			for (let position = index; position < state.lines.length; position += 1) {
+				updateLineRow(els.linesBody.children[position], state.lines[position], position);
+			}
+			renderTotals();
 			els.search.focus();
 		}
 
@@ -336,7 +433,8 @@
 				removeLine(index);
 				return;
 			}
-			renderLines();
+			updateLineRow(els.linesBody.children[index], line, index);
+			renderTotals();
 		}
 
 		function setQty(index, qty) {
@@ -347,6 +445,7 @@
 				removeLine(index);
 				return;
 			}
+			updateLineRow(els.linesBody.children[index], line, index);
 			renderTotals();
 		}
 
@@ -354,41 +453,71 @@
 			return line.qty * line.rate;
 		}
 
-		function renderLines() {
-			els.linesBody.innerHTML = "";
-			state.lines.forEach(function (line, index) {
-				const tr = document.createElement("tr");
-				tr.innerHTML =
-					"<td class='line-item'><strong></strong><span></span></td>" +
-					"<td class='line-qty'><div class='qty-stepper'>" +
-					"<button type='button' data-action='dec' aria-label='Decrease quantity'>−</button>" +
-					"<input inputmode='decimal' data-action='qty' aria-label='Quantity' />" +
-					"<button type='button' data-action='inc' aria-label='Increase quantity'>+</button>" +
-					"</div></td>" +
-					"<td class='line-uom'></td>" +
-					"<td class='line-rate numeric'></td>" +
-					"<td class='line-amount numeric'></td>" +
-					"<td class='line-actions'><button type='button' class='icon-button' data-action='remove' aria-label='Remove line'>×</button></td>";
+		function createLineRow(line, index) {
+			const tr = document.createElement("tr");
+			tr.innerHTML =
+				"<td class='line-item'><strong></strong><span></span></td>" +
+				"<td class='line-qty'><div class='qty-stepper'>" +
+				"<button type='button' data-action='dec' aria-label='Decrease quantity'>−</button>" +
+				"<input inputmode='decimal' data-action='qty' aria-label='Quantity' />" +
+				"<button type='button' data-action='inc' aria-label='Increase quantity'>+</button>" +
+				"</div></td>" +
+				"<td class='line-uom'></td>" +
+				"<td class='line-rate numeric'></td>" +
+				"<td class='line-amount numeric'></td>" +
+				"<td class='line-actions'><button type='button' class='icon-button' data-action='remove' aria-label='Remove line'>×</button></td>";
+			updateLineRow(tr, line, index);
+			return tr;
+		}
 
-				tr.querySelector("strong").textContent = line.item_code;
-				tr.querySelector(".line-item span").textContent = line.item_name || "";
-				tr.querySelector("input").value = line.qty;
-				tr.querySelector(".line-uom").textContent = line.uom || "";
-				tr.querySelector(".line-rate").textContent = config.showRates ? formatMoney(line.rate) : "—";
-				tr.querySelector(".line-amount").textContent = config.showRates ? formatMoney(lineTotal(line)) : "—";
-				tr.dataset.index = index;
-				els.linesBody.appendChild(tr);
+		function updateLineRow(tr, line, index) {
+			if (!tr) return;
+			tr.dataset.index = index;
+			const itemCode = tr.querySelector("strong");
+			const itemName = tr.querySelector(".line-item span");
+			const qtyInput = tr.querySelector("input");
+			const uom = tr.querySelector(".line-uom");
+			const rate = tr.querySelector(".line-rate");
+			const amount = tr.querySelector(".line-amount");
+			const qtyText = String(line.qty);
+			const uomText = line.uom || "";
+			const rateText = config.showRates ? formatMoney(line.rate) : "—";
+			const amountText = config.showRates ? formatMoney(lineTotal(line)) : "—";
+			if (itemCode.textContent !== line.item_code) itemCode.textContent = line.item_code;
+			if (itemName.textContent !== (line.item_name || "")) itemName.textContent = line.item_name || "";
+			if (qtyInput.value !== qtyText) qtyInput.value = qtyText;
+			if (uom.textContent !== uomText) uom.textContent = uomText;
+			if (rate.textContent !== rateText) rate.textContent = rateText;
+			if (amount.textContent !== amountText) amount.textContent = amountText;
+		}
+
+		function renderLines() {
+			if (!state.lines.length) {
+				els.linesBody.replaceChildren();
+				renderTotals();
+				return;
+			}
+			while (els.linesBody.children.length > state.lines.length) {
+				els.linesBody.lastElementChild.remove();
+			}
+			state.lines.forEach(function (line, index) {
+				const existing = els.linesBody.children[index];
+				if (existing) {
+					updateLineRow(existing, line, index);
+				} else {
+					els.linesBody.appendChild(createLineRow(line, index));
+				}
 			});
 			renderTotals();
 		}
 
 		function renderTotals() {
-			const totalQty = state.lines.reduce(function (sum, line) {
-				return sum + line.qty;
-			}, 0);
-			const subtotal = state.lines.reduce(function (sum, line) {
-				return sum + lineTotal(line);
-			}, 0);
+			let totalQty = 0;
+			let subtotal = 0;
+			state.lines.forEach(function (line) {
+				totalQty += line.qty;
+				subtotal += lineTotal(line);
+			});
 			els.totalQty.textContent = formatQty(totalQty);
 			els.subtotal.textContent = config.showRates ? formatMoney(subtotal) : formatQty(totalQty);
 			els.submit.disabled = !state.lines.length || state.submitting;
@@ -460,9 +589,20 @@
 			}
 		}
 
+		els.results.addEventListener("click", function (event) {
+			const button = event.target.closest(".search-option-button");
+			if (!button || !els.results.contains(button)) return;
+			const li = button.closest(".search-option");
+			const item = state.searchItems[Number(li.dataset.index)];
+			if (item) addItem(item);
+		});
 		els.search.addEventListener("input", function () {
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
+			state.searchKey = "";
+			state.searchAt = 0;
+			state.searchItems = [];
+			state.activeIndex = -1;
 			hideResults();
 			searchDebouncer.schedule();
 		});
@@ -473,14 +613,14 @@
 				const delta = event.key === "ArrowDown" ? 1 : -1;
 				state.activeIndex = (state.activeIndex + delta + state.searchItems.length) % state.searchItems.length;
 				els.search.setAttribute("aria-activedescendant", "search-option-" + state.activeIndex);
-				renderResults();
+				updateResultSelection();
 			} else if (event.key === "Enter") {
 				event.preventDefault();
 				// Hardware scanners type and hit Enter faster than the debounce; cancel
-				// any pending search and always run a fresh one for the current input.
+				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
 				searchDebouncer.cancel();
-				searchItems().then(function () {
-					const item = state.searchItems[state.activeIndex] || state.searchItems[0];
+				searchItems({ cache: true, render: false }).then(function () {
+					const item = state.activeIndex >= 0 ? state.searchItems[state.activeIndex] : null;
 					if (item) addItem(item);
 				});
 			} else if (event.key === "Escape") {

@@ -52,7 +52,7 @@ def check(root):
     def javascript():
         files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files", "-co",
                                          "--exclude-standard", "--", "apps/khitmee_ops/**/*.js",
-                                         "perf-suite/k6/**/*.js"], cwd=root, text=True).splitlines()
+                                         "perf-suite/k6/**/*.js", "perf-suite/browser/*.mjs"], cwd=root, text=True).splitlines()
         if not files:
             raise RuntimeError("no JavaScript inputs discovered")
         if bun:
@@ -75,8 +75,12 @@ def check(root):
             cli = Path(node).parent / "node_modules/npm/bin/npx-cli.js"
             run([node, subprocess.check_output(["wslpath", "-w", str(cli)], text=True).strip(),
                  "--offline", "--yes", "knip@" + version], app)
-        else:
+        elif shutil.which("npx"):
             run(["npx", "--offline", "--yes", "knip@" + version], app)
+        elif shutil.which("pnpm"):
+            run(["pnpm", "dlx", "--offline", "knip@" + version], app)
+        else:
+            raise RuntimeError("install npx or pnpm")
 
     def compose():
         for size in ("2gb", "4gb"):
