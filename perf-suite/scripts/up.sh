@@ -8,7 +8,7 @@ DEFAULT_PROFILE="2gb"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus]
+Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
 Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086.
 The script never targets the live khitmee-erpnext project.
@@ -17,6 +17,7 @@ Options:
   --profile 2gb|4gb   Memory profile to use (default: 2gb)
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
+  --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
   -h, --help          Show this help
 EOF_USAGE
 }
@@ -24,6 +25,7 @@ EOF_USAGE
 PROFILE="$DEFAULT_PROFILE"
 WITH_KHITMEE_OPS=0
 WITH_OPTIMUS=0
+WITH_BINLOG=0
 
 while (($#)); do
   case "$1" in
@@ -42,6 +44,10 @@ while (($#)); do
       ;;
     --with-optimus)
       WITH_OPTIMUS=1
+      shift
+      ;;
+    --with-binlog)
+      WITH_BINLOG=1
       shift
       ;;
     -h|--help)
@@ -63,6 +69,11 @@ case "$PROFILE" in
     exit 2
     ;;
 esac
+
+if [[ "$WITH_BINLOG" == "1" && "$PROFILE" != "2gb" ]]; then
+  echo "--with-binlog currently mirrors only the 2gb MariaDB command; use --profile 2gb" >&2
+  exit 2
+fi
 
 if [[ "$PROJECT_NAME" == "$FORBIDDEN_PROJECT" ]]; then
   echo "Refusing to target the live $FORBIDDEN_PROJECT project" >&2
@@ -141,6 +152,10 @@ if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$PROFILE.yaml" )
 fi
 
+if [[ "$WITH_BINLOG" == "1" ]]; then
+  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/compose.binlog.yaml" )
+fi
+
 OPTIMUS_REPO="${OPTIMUS_REPO:-https://github.com/Aerele-RnD/optimus.git}"
 OPTIMUS_REF="${OPTIMUS_REF:-main}"
 
@@ -171,14 +186,24 @@ sync_khitmee_ops() {
   fi
 
   mkdir -p "$(dirname "$target_dir")"
-  rsync -a --delete \
-    --chmod=D755,F644 \
-    --exclude='.git/' \
-    --exclude='__pycache__/' \
-    --exclude='*.pyc' \
-    --exclude='node_modules/' \
-    --exclude='.venv/' \
-    "$source_dir/" "$target_dir/"
+  local rsync_args=(
+    -a --delete --checksum
+    --no-owner --no-group
+    --chmod=D755,F644
+    --exclude='.git/'
+    --exclude='__pycache__/'
+    --exclude='*.pyc'
+    --exclude='node_modules/'
+    --exclude='.venv/'
+  )
+  local changes
+  changes="$(rsync "${rsync_args[@]}" --dry-run --itemize-changes "$source_dir/" "$target_dir/" 2>/dev/null || true)"
+  if [[ -n "$changes" ]]; then
+    KHITMEE_OPS_SYNC_CHANGED=1
+  else
+    KHITMEE_OPS_SYNC_CHANGED=0
+  fi
+  rsync "${rsync_args[@]}" "$source_dir/" "$target_dir/"
   if [[ "$(id -u)" == "0" ]]; then
     chown -R 1000:0 "$target_dir"
   fi
@@ -352,16 +377,16 @@ compose up -d --remove-orphans
 wait_for_service_running backend 180
 
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
+  if [[ "${KHITMEE_OPS_SYNC_CHANGED:-0}" == "1" ]]; then
+    echo "khitmee_ops source changed; restarting Python services to discard stale modules..."
+    for service in "${python_services[@]}"; do
+      compose restart "$service"
+      wait_for_service_running "$service" 120
+    done
+  fi
   for service in "${python_services[@]}"; do
-    echo "Installing editable khitmee_ops Python package in $service..."
-    compose exec -T "$service" bench pip install --no-deps -e /home/frappe/frappe-bench/apps/khitmee_ops < /dev/null
     compose exec -T "$service" /home/frappe/frappe-bench/env/bin/python -c "import khitmee_ops" < /dev/null
-    echo "Verified khitmee_ops imports in $service."
-  done
-
-  for service in "${python_services[@]}"; do
-    compose restart "$service"
-    wait_for_service_running "$service" 120
+    echo "Verified khitmee_ops imports in $service through the mounted PYTHONPATH."
   done
 fi
 
@@ -426,8 +451,8 @@ compose exec -T backend bench --site "$SITE_NAME" execute frappe.db.set_single_v
 compose exec -T backend bench --site "$SITE_NAME" scheduler enable < /dev/null
 compose exec -T backend bench --site "$SITE_NAME" scheduler resume < /dev/null
 
-echo "Precompressing static assets for gzip_static..."
-compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -exec gzip -9 -n -k -f {} +; fi' < /dev/null
+echo "Precompressing changed static assets for gzip_static..."
+compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
 
 health_url="http://127.0.0.1:18086/api/method/ping"
 echo "Waiting for $health_url ..."

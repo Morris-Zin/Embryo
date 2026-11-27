@@ -265,6 +265,34 @@ class TestItemCatalogCache(unittest.TestCase):
 		)
 		self.assertNotIn("valuation_rate", result["items"][0])
 		self.assertEqual(rate_calls[0][1:], ("W", "PL", None, None))
+		self.assertEqual(result["items"][0]["rate"], 12.5)
+
+	def test_missing_price_list_is_rejected_for_default_sales_search(self):
+		with (
+			patch.object(search, "_require_counter_user", return_value=None),
+			patch.object(search, "_validate_warehouse", return_value="W"),
+			patch.object(search, "_validate_price_list", side_effect=Exception("invalid price list")) as validate_price_list,
+		):
+			with self.assertRaisesRegex(Exception, "invalid price list"):
+				search.search_items("red", "W", None)
+		validate_price_list.assert_called_once_with(None)
+
+	def test_explicit_no_rate_transfer_search_skips_price_list_and_rate_query(self):
+		catalog = search._build_item_catalog(catalog_rows())
+		with (
+			patch.object(search, "_get_item_catalog", return_value=catalog),
+			patch.object(search, "_require_counter_user", return_value=None),
+			patch.object(search, "_validate_warehouse", return_value="W"),
+			patch.object(search, "_validate_price_list", side_effect=AssertionError("must not validate price list")),
+			patch.object(search, "_item_permission_restrictions_active", return_value=False),
+			patch.object(search, "_fetch_rates_and_quantities", side_effect=AssertionError("must not query item prices")),
+			patch.object(search, "_fetch_quantities", return_value={"C-EXACT": 7, "A-PREFIX": 2}),
+		):
+			result = search.search_items("red", "W", None, limit=2, include_rates="false")
+
+		self.assertEqual([row["item_code"] for row in result["items"]], ["C-EXACT", "A-PREFIX"])
+		self.assertEqual(result["items"][0]["rate"], 0)
+		self.assertEqual(result["items"][0]["actual_qty"], 7)
 
 
 def legacy_ranked_item_codes(rows, term, limit):

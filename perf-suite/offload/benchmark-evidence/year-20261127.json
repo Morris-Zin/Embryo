@@ -1,0 +1,208 @@
+{
+  "canonical_full_decimal21_9": {
+    "duckdb_file_bytes": 162017280,
+    "duckdb_queries": {
+      "daily_invoice_summary": {
+        "cold_ms": 183.41,
+        "rows": 2190,
+        "warm_ms": 177.58
+      },
+      "inventory_balance": {
+        "cold_ms": 236.765,
+        "rows": 64818,
+        "warm_ms": 242.944
+      },
+      "invoice_fact_scan": {
+        "cold_ms": 361.749,
+        "rows": 1,
+        "warm_ms": 143.811
+      },
+      "monthly_item_margin": {
+        "cold_ms": 688.882,
+        "rows": 89940,
+        "warm_ms": 674.278
+      }
+    },
+    "export": {
+      "bytes": 108327914,
+      "elapsed_ms": 144318.475,
+      "rows": 2601283
+    },
+    "mariadb_queries": {
+      "daily_invoice_summary": {
+        "cold_ms": 10236.593,
+        "innodb_pages_read_cold": 149201.0,
+        "rows": 2190,
+        "warm_ms": 9557.714
+      },
+      "inventory_balance": {
+        "cold_ms": 13016.178,
+        "innodb_pages_read_cold": 75249.0,
+        "rows": 64818,
+        "warm_ms": 12276.932
+      },
+      "invoice_fact_scan": {
+        "cold_ms": 25274.222,
+        "innodb_pages_read_cold": 422659.0,
+        "rows": 1,
+        "warm_ms": 9320.033
+      },
+      "monthly_item_margin": {
+        "cold_ms": 19530.571,
+        "innodb_pages_read_cold": 132497.0,
+        "rows": 89940,
+        "warm_ms": 17192.259
+      }
+    },
+    "parity_passed": true
+  },
+  "dataset": {
+    "company": "Khit Me Distribution",
+    "immutable_snapshot": "year-db-20261127.tar.gz",
+    "items": 14728,
+    "sales_invoice_items": 950000,
+    "sales_invoices": 360000,
+    "scale": "year",
+    "stock_ledger_entries": 1208300,
+    "warehouses": 6
+  },
+  "incremental_delta_decimal21_9": {
+    "duckdb_file_bytes": 163590144,
+    "duckdb_queries": {
+      "daily_invoice_summary": {
+        "cold_ms": 383.574,
+        "rows": 2196,
+        "warm_ms": 348.003
+      },
+      "inventory_balance": {
+        "cold_ms": 433.445,
+        "rows": 64818,
+        "warm_ms": 434.418
+      },
+      "invoice_fact_scan": {
+        "cold_ms": 271.824,
+        "rows": 1,
+        "warm_ms": 268.971
+      },
+      "monthly_item_margin": {
+        "cold_ms": 1158.714,
+        "rows": 89941,
+        "warm_ms": 1231.434
+      }
+    },
+    "export": {
+      "bytes": 298516,
+      "elapsed_ms": 8117.219,
+      "rows": 5659
+    },
+    "modified_after": "2026-11-27 09:15:36",
+    "parity_passed": true
+  },
+  "inventory_closing_balance_check": {
+    "closing_groups": 64789,
+    "exact_row_mismatches_including_stock_value": 21,
+    "note": "All quantities matched exactly; 21 stock-value rows differed only at sub-0.00000002 scale because Stock Closing Balance valuation is FIFO-rounded. Production valuation parity must use the ERP oracle.",
+    "posting_date": "2026-10-27",
+    "quantity_mismatches": 0,
+    "sle_groups": 64789
+  },
+  "schema_version": 1,
+  "summary_read_model_poc": {
+    "build_elapsed_ms": 10870.605,
+    "build_innodb_pages_read": 155763.0,
+    "maintenance_avg_ms_per_line": 0.086965,
+    "parity_passed": true,
+    "raw_elapsed_ms": 10842.983,
+    "raw_innodb_pages_read": 143665.0,
+    "summary_buffer_pool_read_requests": 39.0,
+    "summary_elapsed_ms": 29.425
+  },
+  "workloads": {
+    "report_stress_no_binlog": {
+      "backend_oom_kills": 6,
+      "backend_peak_mib": 535.0,
+      "cgroups": {
+        "backend-1": {
+          "cpu_seconds": 91.330973,
+          "io_read_bytes": 0,
+          "io_write_bytes": 0
+        },
+        "db-1": {
+          "cpu_seconds": 71.60752,
+          "io_read_bytes": 35636224000,
+          "io_write_bytes": 608533504
+        }
+      },
+      "fleet_avg_sum_mib": 875.6,
+      "fleet_peak_sum_mib": 1347.9,
+      "k6": {
+        "errors": 29,
+        "http_failure_rate": 0.05253623188405797,
+        "report_count": 8,
+        "report_p95_ms": 10463,
+        "sale_vouchers": 152,
+        "submit_count": 228,
+        "submit_p95_ms": 2651.699999999998,
+        "submit_server_p95_ms": 2600.699999999998,
+        "transfer_vouchers": 63
+      }
+    },
+    "voucher_only_no_binlog": {
+      "backend_oom_kills": 0,
+      "backend_peak_mib": 174.1,
+      "cgroups": {
+        "backend-1": {
+          "cpu_seconds": 60.978042,
+          "io_read_bytes": 954368,
+          "io_write_bytes": 0
+        },
+        "db-1": {
+          "cpu_seconds": 20.962353,
+          "io_read_bytes": 186212352,
+          "io_write_bytes": 126644736
+        }
+      },
+      "fleet_avg_sum_mib": 827.1,
+      "fleet_peak_sum_mib": 893.4,
+      "k6": {
+        "errors": 0,
+        "http_failure_rate": 0,
+        "report_count": null,
+        "report_p95_ms": null,
+        "sale_vouchers": 167,
+        "submit_count": 256,
+        "submit_p95_ms": 1032,
+        "submit_server_p95_ms": 981,
+        "transfer_vouchers": 89
+      }
+    },
+    "voucher_only_row_binlog": {
+      "backend_oom_kills": 0,
+      "backend_peak_mib": 166.4,
+      "binlog_bytes_growth": 34764637,
+      "cgroups": {
+        "backend-1": {
+          "cpu_seconds": 55.577349,
+          "io_read_bytes": 0,
+          "io_write_bytes": 0
+        },
+        "db-1": {
+          "cpu_seconds": 19.350021,
+          "io_read_bytes": 141279232,
+          "io_write_bytes": 157079552
+        }
+      },
+      "k6": {
+        "errors": 0,
+        "http_failure_rate": 0,
+        "report_count": null,
+        "report_p95_ms": null,
+        "sale_vouchers": 181,
+        "submit_count": 257,
+        "submit_p95_ms": 1005.3999999999999,
+        "submit_server_p95_ms": 954.3999999999999,
+        "transfer_vouchers": 76
+      }
+    }
+  }
+}

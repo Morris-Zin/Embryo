@@ -58,6 +58,7 @@ SEARCH_PATH = "apps/khitmee_ops/khitmee_ops/api/search.py"
 SQL_IN_BATCH_ALLOWLIST = {
 	SEARCH_PATH + ":_fetch_item_metadata": "search candidates are capped before metadata load",
 	SEARCH_PATH + ":_fetch_rates_and_quantities": "rate rows are capped by the public search limit",
+	SEARCH_PATH + ":_fetch_quantities": "no-rate search rows are capped by the public search limit (25)",
 	FAST_GROSS_PROFIT_PATH + ":build_warehouse_covering_drive": "warehouse selector is bounded by the warehouse master",
 	FAST_GROSS_PROFIT_PATH + ":build_sales_invoice_voucher_sle_query": "callers batch voucher numbers",
 	FAST_GROSS_PROFIT_PATH + ":build_sle_window_query": "callers batch item codes",
@@ -626,7 +627,7 @@ def check(root):
 
 	def python_tests():
 		import re
-		for folder in (app / "khitmee_ops/tests", perf / "seeder", perf / "k6", root / "tools"):
+		for folder in (app / "khitmee_ops/tests", perf / "seeder", perf / "k6", perf / "offload", root / "tools"):
 			output = run([sys.executable, "-B", "-m", "unittest", "discover", "-s", str(folder), "-p", "test_*.py"], root)
 			match = re.search(r"Ran (\d+) tests?", output)
 			if not match or int(match.group(1)) < 1:
@@ -652,7 +653,7 @@ def check(root):
 	def javascript():
 		files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files", "-co",
 										"--exclude-standard", "--", "apps/khitmee_ops/**/*.js",
-										"perf-suite/k6/**/*.js"], cwd=root, text=True).splitlines()
+										"perf-suite/k6/**/*.js", "perf-suite/browser/*.mjs"], cwd=root, text=True).splitlines()
 		if not files:
 			raise RuntimeError("no JavaScript inputs discovered")
 		if bun:
@@ -675,8 +676,12 @@ def check(root):
 			cli = Path(node).parent / "node_modules/npm/bin/npx-cli.js"
 			run([node, subprocess.check_output(["wslpath", "-w", str(cli)], text=True).strip(),
 				"--offline", "--yes", "knip@" + version], app)
-		else:
+		elif shutil.which("npx"):
 			run(["npx", "--offline", "--yes", "knip@" + version], app)
+		elif shutil.which("pnpm"):
+			run(["pnpm", "dlx", "--offline", "knip@" + version], app)
+		else:
+			raise RuntimeError("install npx or pnpm")
 
 	def compose():
 		for size in ("2gb", "4gb"):
