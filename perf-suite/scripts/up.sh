@@ -10,7 +10,8 @@ usage() {
   cat <<'EOF_USAGE'
 Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
-Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086.
+Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086
+(or PERF_HTTP_PORT from the env file).
 The script never targets the live khitmee-erpnext project.
 
 Options:
@@ -137,6 +138,11 @@ export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
 : "${DB_PASSWORD:?DB_PASSWORD is missing in $ENV_FILE}"
 : "${ADMIN_PASSWORD:?ADMIN_PASSWORD is missing in $ENV_FILE}"
 SITE_NAME="${SITE_NAME:-$DEFAULT_SITE_NAME}"
+PERF_HTTP_PORT="${PERF_HTTP_PORT:-18086}"
+if [[ ! "$PERF_HTTP_PORT" =~ ^[0-9]+$ ]]; then
+  echo "PERF_HTTP_PORT must be numeric" >&2
+  exit 2
+fi
 site_name_lower="${SITE_NAME,,}"
 if [[ "$site_name_lower" == "khitmee.localhost" || "$site_name_lower" == *.khitmee.localhost ]]; then
   echo "Refusing to use live-stack site name $SITE_NAME in the benchmark" >&2
@@ -323,7 +329,7 @@ cleanup_warmup_files() {
 }
 
 warmup_read_only_http() {
-  local base_url="http://127.0.0.1:18086"
+  local base_url="http://127.0.0.1:${PERF_HTTP_PORT}"
   local ping_url="$base_url/api/method/ping"
   local attempt
 
@@ -454,7 +460,7 @@ compose exec -T backend bench --site "$SITE_NAME" scheduler resume < /dev/null
 echo "Precompressing changed static assets for gzip_static..."
 compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
 
-health_url="http://127.0.0.1:18086/api/method/ping"
+health_url="http://127.0.0.1:${PERF_HTTP_PORT}/api/method/ping"
 echo "Waiting for $health_url ..."
 if ! wait_for_url "$health_url" "$SITE_NAME" 60; then
   echo "Health check failed for $health_url" >&2
@@ -469,4 +475,4 @@ fi
 
 warmup_read_only_http
 
-echo "$PROJECT_NAME is healthy at http://127.0.0.1:18086 (site: $SITE_NAME, profile: $PROFILE)."
+echo "$PROJECT_NAME is healthy at http://127.0.0.1:${PERF_HTTP_PORT} (site: $SITE_NAME, profile: $PROFILE)."
