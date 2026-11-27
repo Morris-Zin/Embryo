@@ -399,8 +399,8 @@ class TestVerificationEvidenceSafeguards(unittest.TestCase):
 		text = (TOOLS_DIR.parent / ".autoloop/experiments/devprod-verification-20261127-benchmarks.md").read_text(encoding="utf-8")
 
 		self.assertIn("472 total; tools suite 149", text)
-		self.assertIn("475 total; tools suite 152", text)
-		self.assertIn("no baseline tests removed; 3 regression tests added", text)
+		self.assertIn("477 total; tools suite 154", text)
+		self.assertIn("no baseline tests removed; 5 regression/guardrail tests added", text)
 
 
 if __name__ == "__main__":

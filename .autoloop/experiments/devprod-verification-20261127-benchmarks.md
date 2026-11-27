@@ -41,11 +41,11 @@ Same VM, same dependency/tool caches, `python -B tools/khitmee_dev.py fast-check
 | CPU utilization during gate | 122-123% | 264-275% | higher parallelism during a much shorter window |
 | Approximate CPU-seconds | mean ~9.73 CPU-s | mean ~7.51 CPU-s | **22.9% less CPU time** |
 | Peak RSS | 95-98 MB | 94-98 MB | no material increase |
-| Discovered tests | 472 total; tools suite 149 | 475 total; tools suite 152 | no baseline tests removed; 3 regression tests added |
+| Discovered tests | 472 total; tools suite 149 | 477 total; tools suite 154 | no baseline tests removed; 5 regression/guardrail tests added |
 
 The first uncontrolled pre-change run in the working checkout was 9.46s elapsed; the controlled clean-worktree numbers above are the comparison used for the improvement claim. After the review fixes, three additional full fast-check repetitions passed in 2.65s, 2.63s, and 2.59s, giving no evidence of introduced flakiness in this sample.
 
-First GitHub Actions samples after caching: ordinary CI job wall times were about 26s and 19s versus 30s for baseline run `46034217934`; fast-check steps were 4.20s and 4.67s versus the baseline 7s step. Later hosted runs were noisier (4.33s, 6.63s, and 6.86s), so CI wall time remains directional rather than a stable guarantee. The first corrected uv cache key saved a 67.9MB dependency cache; the next run restored it exactly. In that warm-cache run the whole Python dependency step took about 2.06s, with uv resolution in 4ms and package installation in 3ms; the remaining time was dominated by bootstrapping the pinned uv installer from the pip cache.
+First GitHub Actions samples after caching: ordinary CI job wall times were about 26s and 19s versus 30s for baseline run `46034217934`; fast-check steps were 4.20s and 4.67s versus the baseline 7s step. Later hosted runs were noisier (4.33s, 6.63s, and 6.86s), so CI wall time remains directional rather than a stable guarantee. The first corrected uv cache key saved a 67.9MB dependency cache; the next run restored it exactly. In the first warm-cache run the whole Python dependency step took about 2.06s, with uv resolution in 4ms and package installation in 3ms; a second warm-cache run took about 1.30s, with uv resolution in 6ms and installation in 4ms. The remaining time was dominated by bootstrapping the pinned uv installer from the pip cache.
 
 ## Implemented improvements
 
