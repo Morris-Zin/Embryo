@@ -59,10 +59,11 @@
         "evidence/journeys/invoice-list-initial.json",
         "evidence/journeys/invoice-list-filter.json",
         "evidence/journeys/invoice-list-load-more.json",
+        "evidence/journeys/invoice-list-sort-asc.json",
         "experiments/0006-invoice-list-qualification.md"
       ],
       "failures": [
-        "sorting/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
+        "sort-field-selection/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
         "visual/video qualification pending",
         "large-list scrolling and query latency performance evidence pending",
         "synchronous pilot network reads need asynchronous hardening"

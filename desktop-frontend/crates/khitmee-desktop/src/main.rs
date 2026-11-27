@@ -24,6 +24,7 @@ struct PilotState {
     invoices: Vec<InvoiceSeed>,
     invoice_filter: String,
     invoice_limit: usize,
+    invoice_sort_ascending: bool,
     client_voucher_id: String,
     warehouses: Vec<(String, String)>,
     customers: Vec<(String, String)>,
@@ -575,7 +576,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         app.set_status_text("ERP login failed while loading Sales Invoices".into());
         return;
     };
-    match client.sales_invoice_list(&filter, 0, state.invoice_limit) {
+    match client.sales_invoice_list(&filter, 0, state.invoice_limit, state.invoice_sort_ascending) {
         Ok(payload) => {
             state.invoices = parse_invoice_rows(&payload);
             app.set_invoice_rows(invoice_model(&state.invoices, ""));
@@ -888,6 +889,7 @@ fn main() -> Result<(), slint::PlatformError> {
         invoices: fixture_invoices(invoice_rows),
         invoice_filter: String::new(),
         invoice_limit: 20,
+        invoice_sort_ascending: false,
         client_voucher_id: new_client_voucher_id(),
         warehouses,
         customers,
@@ -1222,6 +1224,20 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             state.invoice_limit += 20;
+            refresh_invoice_rows(&app, &mut state);
+        }
+    });
+
+    app.on_invoice_sort_toggle({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            state.invoice_sort_ascending = !state.invoice_sort_ascending;
+            app.set_invoice_sort_label(
+                if state.invoice_sort_ascending { "ascending" } else { "descending" }.into(),
+            );
             refresh_invoice_rows(&app, &mut state);
         }
     });

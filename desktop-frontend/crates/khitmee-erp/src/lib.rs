@@ -117,7 +117,13 @@ impl ErpClient {
         )
     }
 
-    pub fn sales_invoice_list(&self, filter: &str, start: usize, limit: usize) -> ErpResult<Value> {
+    pub fn sales_invoice_list(
+        &self,
+        filter: &str,
+        start: usize,
+        limit: usize,
+        ascending: bool,
+    ) -> ErpResult<Value> {
         let filters = if filter.trim().is_empty() {
             json!([])
         } else {
@@ -141,7 +147,7 @@ impl ErpClient {
                     "`tabSales Invoice`.`grand_total`"
                 ],
                 "filters": filters,
-                "order_by": "posting_date desc, creation desc",
+                "order_by": if ascending { "name asc" } else { "name desc" },
                 "start": start,
                 "page_length": limit,
                 "view": "List",

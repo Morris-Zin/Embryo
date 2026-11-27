@@ -57,284 +57,284 @@
             "id": "ACC-SINV-RET-2026-00110"
           },
           {
-            "customer": "Khit Customer 0030",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04921"
+            "customer": "Khit Customer 0021",
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00109"
+          },
+          {
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -1.06",
+            "id": "ACC-SINV-RET-2026-00108"
           },
           {
             "customer": "Khit Customer 0029",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04920"
-          },
-          {
-            "customer": "Khit Customer 0028",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04919"
-          },
-          {
-            "customer": "Khit Customer 0027",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04918"
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -103.10",
+            "id": "ACC-SINV-RET-2026-00107"
           },
           {
             "customer": "Khit Customer 0026",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04917"
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -4.76",
+            "id": "ACC-SINV-RET-2026-00106"
           },
           {
-            "customer": "Khit Customer 0025",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04916"
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -73.84",
+            "id": "ACC-SINV-RET-2026-00105"
+          },
+          {
+            "customer": "Khit Customer 0054",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -20.50",
+            "id": "ACC-SINV-RET-2026-00104"
           },
           {
             "customer": "Khit Customer 0024",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04915"
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -124.86",
+            "id": "ACC-SINV-RET-2026-00103"
           },
           {
-            "customer": "Khit Customer 0023",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04914"
+            "customer": "Khit Customer 0025",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -101.69",
+            "id": "ACC-SINV-RET-2026-00102"
           },
           {
-            "customer": "Khit Customer 0022",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04913"
+            "customer": "Khit Customer 0034",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -39.84",
+            "id": "ACC-SINV-RET-2026-00101"
           },
           {
-            "customer": "Khit Customer 0021",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04912"
-          },
-          {
-            "customer": "Khit Customer 0020",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04911"
-          },
-          {
-            "customer": "Khit Customer 0019",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04910"
-          },
-          {
-            "customer": "Khit Customer 0018",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04909"
-          },
-          {
-            "customer": "Khit Customer 0017",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04908"
-          },
-          {
-            "customer": "Khit Customer 0016",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04907"
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -3.59",
+            "id": "ACC-SINV-RET-2026-00100"
           },
           {
             "customer": "Khit Customer 0015",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04906"
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00099"
+          },
+          {
+            "customer": "Khit Customer 0040",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -33.92",
+            "id": "ACC-SINV-RET-2026-00098"
+          },
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -37.84",
+            "id": "ACC-SINV-RET-2026-00097"
           },
           {
             "customer": "Khit Customer 0014",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04905"
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -136.50",
+            "id": "ACC-SINV-RET-2026-00096"
           },
           {
-            "customer": "Khit Customer 0013",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04904"
+            "customer": "Khit Customer 0039",
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00095"
           },
           {
-            "customer": "Khit Customer 0012",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04903"
+            "customer": "Khit Customer 0047",
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -119.13",
+            "id": "ACC-SINV-RET-2026-00094"
           },
           {
-            "customer": "Khit Customer 0011",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04902"
+            "customer": "Khit Customer 0020",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -122.98",
+            "id": "ACC-SINV-RET-2026-00093"
           },
           {
-            "customer": "Khit Customer 0010",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04901"
+            "customer": "Khit Customer 0049",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -198.06",
+            "id": "ACC-SINV-RET-2026-00092"
           },
           {
-            "customer": "Khit Customer 0009",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04900"
+            "customer": "Khit Customer 0025",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -55.40",
+            "id": "ACC-SINV-RET-2026-00091"
           },
           {
-            "customer": "Khit Customer 0008",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04899"
+            "customer": "Khit Customer 0053",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00090"
+          },
+          {
+            "customer": "Khit Customer 0049",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -120.97",
+            "id": "ACC-SINV-RET-2026-00089"
+          },
+          {
+            "customer": "Khit Customer 0051",
+            "status": "Return",
+            "postingDate": "2026-11-21",
+            "dueDate": "2026-12-05",
+            "total": "$ -3.06",
+            "id": "ACC-SINV-RET-2026-00088"
+          },
+          {
+            "customer": "Khit Customer 0052",
+            "status": "Return",
+            "postingDate": "2026-11-21",
+            "dueDate": "2026-12-05",
+            "total": "$ -92.58",
+            "id": "ACC-SINV-RET-2026-00087"
+          },
+          {
+            "customer": "Khit Customer 0015",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -28.95",
+            "id": "ACC-SINV-RET-2026-00086"
+          },
+          {
+            "customer": "Khit Customer 0058",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -31.79",
+            "id": "ACC-SINV-RET-2026-00085"
           },
           {
             "customer": "Khit Customer 0007",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04898"
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -59.07",
+            "id": "ACC-SINV-RET-2026-00084"
           },
           {
-            "customer": "Khit Customer 0006",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04897"
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -161.10",
+            "id": "ACC-SINV-RET-2026-00083"
           },
           {
-            "customer": "Khit Customer 0005",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04896"
+            "customer": "Khit Customer 0055",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -15.00",
+            "id": "ACC-SINV-RET-2026-00082"
+          },
+          {
+            "customer": "Khit Customer 0023",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -435.63",
+            "id": "ACC-SINV-RET-2026-00081"
+          },
+          {
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -21.40",
+            "id": "ACC-SINV-RET-2026-00080"
+          },
+          {
+            "customer": "Khit Customer 0016",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -153.60",
+            "id": "ACC-SINV-RET-2026-00079"
+          },
+          {
+            "customer": "Khit Customer 0018",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -80.48",
+            "id": "ACC-SINV-RET-2026-00078"
+          },
+          {
+            "customer": "Khit Customer 0036",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -149.86",
+            "id": "ACC-SINV-RET-2026-00077"
+          },
+          {
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -102.85",
+            "id": "ACC-SINV-RET-2026-00076"
           },
           {
             "customer": "Khit Customer 0004",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04895"
-          },
-          {
-            "customer": "Khit Customer 0003",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04894"
-          },
-          {
-            "customer": "Khit Customer 0002",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04893"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04892"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04934"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04933"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04932"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04931"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04930"
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -2.65",
+            "id": "ACC-SINV-RET-2026-00075"
           }
         ],
         "rowCount": 40,
@@ -384,284 +384,284 @@
             "id": "ACC-SINV-RET-2026-00110"
           },
           {
-            "customer": "Khit Customer 0030",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04921"
+            "customer": "Khit Customer 0021",
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00109"
+          },
+          {
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -1.06",
+            "id": "ACC-SINV-RET-2026-00108"
           },
           {
             "customer": "Khit Customer 0029",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04920"
-          },
-          {
-            "customer": "Khit Customer 0028",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04919"
-          },
-          {
-            "customer": "Khit Customer 0027",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04918"
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -103.10",
+            "id": "ACC-SINV-RET-2026-00107"
           },
           {
             "customer": "Khit Customer 0026",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04917"
+            "status": "Return",
+            "postingDate": "2026-11-26",
+            "dueDate": "2026-12-10",
+            "total": "$ -4.76",
+            "id": "ACC-SINV-RET-2026-00106"
           },
           {
-            "customer": "Khit Customer 0025",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04916"
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -73.84",
+            "id": "ACC-SINV-RET-2026-00105"
+          },
+          {
+            "customer": "Khit Customer 0054",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -20.50",
+            "id": "ACC-SINV-RET-2026-00104"
           },
           {
             "customer": "Khit Customer 0024",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04915"
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -124.86",
+            "id": "ACC-SINV-RET-2026-00103"
           },
           {
-            "customer": "Khit Customer 0023",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04914"
+            "customer": "Khit Customer 0025",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -101.69",
+            "id": "ACC-SINV-RET-2026-00102"
           },
           {
-            "customer": "Khit Customer 0022",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04913"
+            "customer": "Khit Customer 0034",
+            "status": "Return",
+            "postingDate": "2026-11-25",
+            "dueDate": "2026-12-09",
+            "total": "$ -39.84",
+            "id": "ACC-SINV-RET-2026-00101"
           },
           {
-            "customer": "Khit Customer 0021",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04912"
-          },
-          {
-            "customer": "Khit Customer 0020",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04911"
-          },
-          {
-            "customer": "Khit Customer 0019",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04910"
-          },
-          {
-            "customer": "Khit Customer 0018",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04909"
-          },
-          {
-            "customer": "Khit Customer 0017",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04908"
-          },
-          {
-            "customer": "Khit Customer 0016",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04907"
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -3.59",
+            "id": "ACC-SINV-RET-2026-00100"
           },
           {
             "customer": "Khit Customer 0015",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04906"
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00099"
+          },
+          {
+            "customer": "Khit Customer 0040",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -33.92",
+            "id": "ACC-SINV-RET-2026-00098"
+          },
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Return",
+            "postingDate": "2026-11-24",
+            "dueDate": "2026-12-08",
+            "total": "$ -37.84",
+            "id": "ACC-SINV-RET-2026-00097"
           },
           {
             "customer": "Khit Customer 0014",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04905"
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -136.50",
+            "id": "ACC-SINV-RET-2026-00096"
           },
           {
-            "customer": "Khit Customer 0013",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04904"
+            "customer": "Khit Customer 0039",
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00095"
           },
           {
-            "customer": "Khit Customer 0012",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04903"
+            "customer": "Khit Customer 0047",
+            "status": "Return",
+            "postingDate": "2026-11-23",
+            "dueDate": "2026-12-07",
+            "total": "$ -119.13",
+            "id": "ACC-SINV-RET-2026-00094"
           },
           {
-            "customer": "Khit Customer 0011",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04902"
+            "customer": "Khit Customer 0020",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -122.98",
+            "id": "ACC-SINV-RET-2026-00093"
           },
           {
-            "customer": "Khit Customer 0010",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04901"
+            "customer": "Khit Customer 0049",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -198.06",
+            "id": "ACC-SINV-RET-2026-00092"
           },
           {
-            "customer": "Khit Customer 0009",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04900"
+            "customer": "Khit Customer 0025",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -55.40",
+            "id": "ACC-SINV-RET-2026-00091"
           },
           {
-            "customer": "Khit Customer 0008",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04899"
+            "customer": "Khit Customer 0053",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -18.46",
+            "id": "ACC-SINV-RET-2026-00090"
+          },
+          {
+            "customer": "Khit Customer 0049",
+            "status": "Return",
+            "postingDate": "2026-11-22",
+            "dueDate": "2026-12-06",
+            "total": "$ -120.97",
+            "id": "ACC-SINV-RET-2026-00089"
+          },
+          {
+            "customer": "Khit Customer 0051",
+            "status": "Return",
+            "postingDate": "2026-11-21",
+            "dueDate": "2026-12-05",
+            "total": "$ -3.06",
+            "id": "ACC-SINV-RET-2026-00088"
+          },
+          {
+            "customer": "Khit Customer 0052",
+            "status": "Return",
+            "postingDate": "2026-11-21",
+            "dueDate": "2026-12-05",
+            "total": "$ -92.58",
+            "id": "ACC-SINV-RET-2026-00087"
+          },
+          {
+            "customer": "Khit Customer 0015",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -28.95",
+            "id": "ACC-SINV-RET-2026-00086"
+          },
+          {
+            "customer": "Khit Customer 0058",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -31.79",
+            "id": "ACC-SINV-RET-2026-00085"
           },
           {
             "customer": "Khit Customer 0007",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04898"
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -59.07",
+            "id": "ACC-SINV-RET-2026-00084"
           },
           {
-            "customer": "Khit Customer 0006",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04897"
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -161.10",
+            "id": "ACC-SINV-RET-2026-00083"
           },
           {
-            "customer": "Khit Customer 0005",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04896"
+            "customer": "Khit Customer 0055",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -15.00",
+            "id": "ACC-SINV-RET-2026-00082"
+          },
+          {
+            "customer": "Khit Customer 0023",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -435.63",
+            "id": "ACC-SINV-RET-2026-00081"
+          },
+          {
+            "customer": "Khit Customer 0056",
+            "status": "Return",
+            "postingDate": "2026-11-20",
+            "dueDate": "2026-12-04",
+            "total": "$ -21.40",
+            "id": "ACC-SINV-RET-2026-00080"
+          },
+          {
+            "customer": "Khit Customer 0016",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -153.60",
+            "id": "ACC-SINV-RET-2026-00079"
+          },
+          {
+            "customer": "Khit Customer 0018",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -80.48",
+            "id": "ACC-SINV-RET-2026-00078"
+          },
+          {
+            "customer": "Khit Customer 0036",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -149.86",
+            "id": "ACC-SINV-RET-2026-00077"
+          },
+          {
+            "customer": "Khit Customer 0026",
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -102.85",
+            "id": "ACC-SINV-RET-2026-00076"
           },
           {
             "customer": "Khit Customer 0004",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04895"
-          },
-          {
-            "customer": "Khit Customer 0003",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04894"
-          },
-          {
-            "customer": "Khit Customer 0002",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 36.92",
-            "id": "ACC-SINV-2026-04893"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-12-11",
-            "total": "$ 79.50",
-            "id": "ACC-SINV-2026-04892"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04934"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04933"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04932"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04931"
-          },
-          {
-            "customer": "Khit Customer 0001",
-            "status": "Unpaid",
-            "postingDate": "2026-11-27",
-            "dueDate": "2026-11-27",
-            "total": "$ 18.46",
-            "id": "ACC-SINV-2026-04930"
+            "status": "Return",
+            "postingDate": "2026-11-19",
+            "dueDate": "2026-12-03",
+            "total": "$ -2.65",
+            "id": "ACC-SINV-RET-2026-00075"
           }
         ],
         "rowCount": 40,

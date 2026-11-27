@@ -641,8 +641,10 @@ component InvoiceScreen inherits Rectangle {
     in property <[InvoiceRow]> invoice-rows;
     in-out property <string> invoice-filter-text;
     in property <string> invoice-count-text;
+    in property <string> invoice-sort-label;
     callback invoice-filter-edited(string);
     callback invoice-load-more();
+    callback invoice-sort-toggle();
     background: #f4f5f7;
 
     Rectangle { x: 0px; y: 0px; width: 240px; height: 760px; background: #f8fafc; }
@@ -1014,16 +1016,17 @@ component InvoiceScreen inherits Rectangle {
 
     Rectangle {
         x: 1009.25px; y: 62px; width: 28px; height: 28px;
-        accessible-role: button; accessible-label: "descending"; accessible-enabled: true;
+        accessible-role: button; accessible-label: root.invoice-sort-label; accessible-enabled: true;
         background: transparent;
-        if "descending" != "": Text { width: 100%; height: 100%; text: "descending"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+        TouchArea { width: 100%; height: 100%; clicked => { root.invoice-sort-toggle(); } }
+        Text { width: 100%; height: 100%; text: root.invoice-sort-label; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
         x: 1037.25px; y: 62px; width: 117.75px; height: 28px;
-        accessible-role: button; accessible-label: "Created On"; accessible-enabled: true;
+        accessible-role: button; accessible-label: "ID"; accessible-enabled: true;
         background: transparent;
-        if "Created On" != "": Text { width: 100%; height: 100%; text: "Created On"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+        Text { width: 100%; height: 100%; text: "ID"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
@@ -1122,6 +1125,7 @@ export component AppWindow inherits Window {
     in-out property <string> fixture-note: "Fixture catalog: deterministic qualification data";
     in-out property <string> invoice-filter-text: "";
     in-out property <string> invoice-count-text: "";
+    in property <string> invoice-sort-label: "descending";
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
     in-out property <int> active-search-index: 0;
@@ -1140,6 +1144,7 @@ export component AppWindow inherits Window {
     callback submit-print();
     callback invoice-filter-edited(string);
     callback invoice-load-more();
+    callback invoice-sort-toggle();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1205,8 +1210,10 @@ export component AppWindow inherits Window {
         invoice-rows: root.invoice-rows;
         invoice-filter-text <=> root.invoice-filter-text;
         invoice-count-text: root.invoice-count-text;
+        invoice-sort-label: root.invoice-sort-label;
         invoice-filter-edited(text) => { root.invoice-filter-edited(text); }
         invoice-load-more => { root.invoice-load-more(); }
+        invoice-sort-toggle => { root.invoice-sort-toggle(); }
     }
 
     if current-screen == 3: Rectangle {
