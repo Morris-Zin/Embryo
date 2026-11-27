@@ -37,8 +37,6 @@ services:
   backend:
     mem_limit: 576m
     environment:
-      KHITMEE_PREWARM_CATALOG: "1"
-      KHITMEE_WORKER_RECYCLE_RSS_MB: "140"
       MALLOC_ARENA_MAX: "2"
       MALLOC_MMAP_THRESHOLD_: "1048576"
       MALLOC_TRIM_THRESHOLD_: "8388608"

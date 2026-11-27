@@ -45,7 +45,6 @@ class TestMaybeTrimHeap(unittest.TestCase):
 		memory.frappe.form_dict = {"cmd": "frappe.desk.query_report.run"}
 		memory.frappe.flags = SimpleNamespace()
 		memory.frappe.local = SimpleNamespace(response={})
-		memory._RECYCLE_REQUESTED = False
 
 	def test_large_report_response_trims_heap_once(self):
 		calls = []
@@ -97,79 +96,6 @@ class TestMaybeTrimHeap(unittest.TestCase):
 			self.assertFalse(memory.maybe_trim_heap(Response(memory.HEAVY_REPORT_THRESHOLD_BYTES)))
 		with patch.object(memory, "_malloc_trim", side_effect=OSError("no libc")):
 			self.assertFalse(memory.maybe_trim_heap(Response(memory.HEAVY_REPORT_THRESHOLD_BYTES)))
-
-
-class TestWorkerRecycle(unittest.TestCase):
-	def setUp(self):
-		memory.frappe.form_dict = {"cmd": "frappe.desk.query_report.run"}
-		memory.frappe.flags = SimpleNamespace()
-		memory.frappe.local = SimpleNamespace(response={})
-		memory._RECYCLE_REQUESTED = False
-
-	def test_current_rss_bytes_reads_proc_statm(self):
-		self.assertGreater(memory._current_rss_bytes(), 0)
-
-	def test_no_threshold_never_recycles(self):
-		with patch.dict("os.environ", {}, clear=False), patch.object(
-			memory.os, "kill", side_effect=AssertionError("must not signal")
-		):
-			memory.os.environ.pop(memory.WORKER_RECYCLE_RSS_ENV, None)
-			self.assertFalse(memory._recycle_worker_if_needed())
-
-	def test_below_threshold_does_not_recycle(self):
-		with patch.dict("os.environ", {memory.WORKER_RECYCLE_RSS_ENV: "100000"}), patch.object(
-			memory.os, "kill", side_effect=AssertionError("must not signal")
-		):
-			self.assertFalse(memory._recycle_worker_if_needed())
-
-	def test_over_threshold_recycles_exactly_once(self):
-		kills = []
-		with patch.dict("os.environ", {memory.WORKER_RECYCLE_RSS_ENV: "0.0001"}), patch.object(
-			memory.os, "kill", lambda pid, sig: kills.append((pid, sig))
-		):
-			self.assertTrue(memory._recycle_worker_if_needed())
-			self.assertFalse(memory._recycle_worker_if_needed())
-		import os as real_os
-		import signal as real_signal
-		self.assertEqual(kills, [(real_os.getpid(), real_signal.SIGTERM)])
-
-	def test_recycle_triggered_from_heavy_report_release(self):
-		memory.frappe.flags.khitmee_large_report_response = True
-		kills = []
-		with patch.dict("os.environ", {memory.WORKER_RECYCLE_RSS_ENV: "0.0001"}), patch.object(
-			memory, "_malloc_trim", return_value=lambda amount: None
-		), patch.object(memory.os, "kill", lambda pid, sig: kills.append(sig)):
-			self.assertTrue(memory.maybe_trim_heap(Response(128, use_content_length=False)))
-		self.assertEqual(len(kills), 1)
-
-
-class TestPrewarmModule(unittest.TestCase):
-	def test_prewarm_disabled_by_default(self):
-		import importlib
-
-		prewarm = importlib.import_module("khitmee_ops.preload_wsgi")
-		with patch.dict("os.environ", {}, clear=True):
-			self.assertEqual(prewarm.prewarm_item_catalogs(sites_path="/nonexistent"), 0)
-
-	def test_prewarm_enabled_skips_missing_sites(self):
-		import importlib
-
-		prewarm = importlib.import_module("khitmee_ops.preload_wsgi")
-		with patch.dict("os.environ", {"KHITMEE_PREWARM_CATALOG": "1"}, clear=True):
-			self.assertEqual(prewarm.prewarm_item_catalogs(sites_path="/nonexistent"), 0)
-
-	def test_site_dirs_requires_site_config(self):
-		import importlib
-		import tempfile
-
-		prewarm = importlib.import_module("khitmee_ops.preload_wsgi")
-		with tempfile.TemporaryDirectory() as tmp:
-			import os as real_os
-			real_os.makedirs(real_os.path.join(tmp, "site1.localhost"))
-			real_os.makedirs(real_os.path.join(tmp, "assets"))
-			self.assertEqual(prewarm._site_dirs(tmp), [])
-			open(real_os.path.join(tmp, "site1.localhost", "site_config.json"), "w").write("{}")
-			self.assertEqual(prewarm._site_dirs(tmp), ["site1.localhost"])
 
 
 class TestHookWiring(unittest.TestCase):
