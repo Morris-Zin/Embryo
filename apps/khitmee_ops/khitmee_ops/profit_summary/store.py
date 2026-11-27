@@ -213,6 +213,54 @@ def get_completed_repost_signature(company: str, up_to_date: str) -> tuple[int, 
 	return int(count or 0), _as_datetime_string(watermark), int(digest or 0)
 
 
+def get_completed_repost_signatures_for_dates(
+	company: str, posting_dates: Iterable[str]
+) -> dict[str, tuple[int, str | None, int]]:
+	"""Compute cumulative completed-repost signatures for every requested date in 1 query."""
+	dates = sorted({_as_date_string(value) for value in posting_dates if value})
+	if not dates:
+		return {}
+	rows = _require_frappe().db.sql(
+		"""
+		SELECT
+			`posting_date`,
+			`modified`,
+			CRC32(CONCAT(`name`, '|', UNIX_TIMESTAMP(`modified`))) AS `entry_crc`
+		FROM `tabRepost Item Valuation`
+		WHERE `company` = %s
+			AND `docstatus` = 1
+			AND `status` = 'Completed'
+			AND `posting_date` <= %s
+		ORDER BY `posting_date` ASC
+		""",
+		(company, dates[-1]),
+		as_dict=True,
+	)
+	rows_list = list(rows or [])
+	result = {}
+	count = 0
+	max_modified_str = None
+	xor_digest = 0
+	idx = 0
+	total = len(rows_list)
+	for posting_date in dates:
+		while idx < total:
+			row = rows_list[idx]
+			row_date = _as_date_string(row.get("posting_date") if hasattr(row, "get") else row[0])
+			if row_date > posting_date:
+				break
+			modified = row.get("modified") if hasattr(row, "get") else row[1]
+			mod_str = _as_datetime_string(modified)
+			entry_crc = int((row.get("entry_crc") if hasattr(row, "get") else row[2]) or 0)
+			count += 1
+			if mod_str and (max_modified_str is None or mod_str > max_modified_str):
+				max_modified_str = mod_str
+			xor_digest ^= entry_crc
+			idx += 1
+		result[posting_date] = (count, max_modified_str, int(xor_digest))
+	return result
+
+
 def get_day_state(company: str, posting_date: str, *, for_update=False):
 	fields = ", ".join(f"`{field}`" for field in DAY_STATE_FIELDS)
 	rows = _require_frappe().db.sql(

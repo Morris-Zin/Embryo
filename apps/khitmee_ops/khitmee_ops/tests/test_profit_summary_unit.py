@@ -207,7 +207,8 @@ class TestBudget(unittest.TestCase):
 			evaluate_work_budget({}, budget_counts("summary", clean_work_rows=35_001))["outcome"], "budget_exceeded"
 		)
 		self.assertEqual(
-			evaluate_work_budget({}, budget_counts("summary", clean_replay_invoices=251))["outcome"], "budget_exceeded"
+			evaluate_work_budget({}, budget_counts("summary", clean_replay_invoices=1_001))["outcome"],
+			"budget_exceeded",
 		)
 		self.assertEqual(
 			evaluate_work_budget({}, budget_counts("summary", has_blocking_repost=True))["outcome"], "pending"
@@ -829,9 +830,9 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		}
 		flags = {"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
 		with patch.object(store, "get_day_states", return_value=states), patch.object(
-			store, "get_completed_repost_signature", return_value=(0, None, 0)
+			store, "get_completed_repost_signatures_for_dates", return_value={"2026-01-01": (0, None, 0), "2026-01-02": (0, None, 0)}
 		), patch.object(store, "has_blocking_repost", return_value=(False, None)), patch.object(
-			store, "has_active_dirty_range_covering", return_value=False
+			store, "get_active_dirty_ranges", return_value=[]
 		):
 			partition = query.partition_request_days("C", "2026-01-01", "2026-01-04", today="2026-01-03", expected_flags=flags)
 		self.assertEqual(partition["clean_past_days"], ["2026-01-01"])
@@ -839,6 +840,51 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		self.assertEqual(partition["missing_days"], [])
 		self.assertEqual(partition["live_days"], ["2026-01-02", "2026-01-03", "2026-01-04"])
 		self.assertEqual(partition["future_days"], ["2026-01-04"])
+
+	def test_repost_signatures_for_dates_accumulates_prefix_and_replay_cap_fails_fast(self):
+		rows = [
+			{"posting_date": "2026-01-01", "modified": "2026-01-01 10:00:00", "entry_crc": 11},
+			{"posting_date": "2026-01-03", "modified": "2026-01-03 12:00:00", "entry_crc": 22},
+		]
+
+		class SigDB:
+			def sql(self, sql, params=None, as_dict=False):
+				return rows
+
+		with patch.object(store.frappe, "db", SigDB()):
+			sigs = store.get_completed_repost_signatures_for_dates(
+				"C", ["2026-01-01", "2026-01-02", "2026-01-03"]
+			)
+		self.assertEqual(sigs["2026-01-01"], (1, "2026-01-01 10:00:00", 11))
+		self.assertEqual(sigs["2026-01-02"], (1, "2026-01-01 10:00:00", 11))
+		self.assertEqual(sigs["2026-01-03"], (2, "2026-01-03 12:00:00", 11 ^ 22))
+
+		filters = {"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-02", "group_by": "Warehouse"}
+		partition = {
+			"clean_past_days": ["2026-01-01"],
+			"dirty_past_days": [],
+			"missing_days": [],
+			"live_days": [],
+			"future_days": [],
+			"has_blocking_repost": False,
+			"day_states": {},
+		}
+		replay_rows = [{"sales_invoice": f"SI-{i}"} for i in range(1001)]
+		with patch.object(query, "authorize_profit_request"), patch.object(
+			store, "verify_repost_triggers_installed", return_value=(True, [])
+		), patch.object(
+			query,
+			"evaluate_summary_eligibility",
+			return_value={"eligible": True, "reason": "eligible", "match_conditions_safe": True, "has_blocking_repost": False, "dirty_days": [], "replay_invoices": 0},
+		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
+			store, "get_shop_day_rows", return_value=[]
+		), patch.object(store, "get_replay_candidates", return_value=replay_rows), patch.object(
+			replay, "collect_replay_contributions", side_effect=AssertionError("must fail fast before replay collect")
+		):
+			result = query.query_profit(filters)
+		self.assertEqual(result["mode"], "budget_exceeded")
+		self.assertEqual(result["message"], "clean_replay_invoices_exceeds_cap")
+		self.assertEqual(result["eligibility"]["replay_invoices"], 1001)
 
 	def test_query_reads_stored_tables_only_for_clean_days_and_collects_live_range(self):
 		filters = {"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-04", "group_by": "Warehouse", "include_returned_invoices": 1, "currency": "USD"}

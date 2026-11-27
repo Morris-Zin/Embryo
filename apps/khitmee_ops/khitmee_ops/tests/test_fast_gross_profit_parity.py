@@ -18,9 +18,11 @@ from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	assemble_sle_window,
 	assemble_sle_window_tuples,
 	append_tiebreaker_orderby,
+	build_last_valuation_rate_batch_query,
 	build_matched_sle_query,
 	build_pair_exists_query,
 	build_predecessor_query,
+	build_previous_sle_batch_query,
 	build_sales_invoice_voucher_sle_query,
 	build_sle_boundary_max_query,
 	build_sle_window_query,
@@ -1371,6 +1373,145 @@ class TestPass3ChunkedVoucherSleProcessing(unittest.TestCase):
 
 		self.assertEqual(result["matched"][key], {"stock_value": 80, "qty": -2})
 		self.assertEqual(result["predecessors"][key], {"stock_value": 100})
+
+
+class TestReplayIndexAndAverageRatePreload(unittest.TestCase):
+	def test_prepare_invoice_query_omits_si_force_index_when_invoice_ids_scoped(self):
+		class FakeQuery:
+			def __init__(self):
+				self.indexes = []
+
+			def select(self, *args):
+				return self
+
+			def force_index(self, name):
+				self.indexes.append(name)
+				return self
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(company="Company", warehouse="W1")
+		generator._hints_enabled = lambda: True
+		generator._upstream_prepare_invoice_query = lambda: FakeQuery()
+
+		generator._scoped_invoice_ids = ("SI-1",)
+		scoped_query = generator.prepare_invoice_query()
+		self.assertFalse(generator._warehouse_semijoin_enabled())
+		self.assertEqual(scoped_query.indexes, [])
+
+		generator._scoped_invoice_ids = None
+		generator.filters["warehouse"] = None
+		full_query = generator.prepare_invoice_query()
+		self.assertEqual(full_query.indexes, [SI_IDX])
+
+	def test_previous_sle_and_last_valuation_rate_batch_queries_use_bounded_union_shape(self):
+		candidates = [
+			{
+				"item_code": "ITEM-1",
+				"warehouse": "W1",
+				"posting_datetime": "2026-01-05 10:00:00",
+				"voucher_no": "SI-1",
+				"voucher_type": "Sales Invoice",
+			},
+			{
+				"item_code": "ITEM-2",
+				"warehouse": "W2",
+				"posting_datetime": "2026-01-06 11:00:00",
+				"voucher_no": "SI-2",
+				"voucher_type": "Sales Invoice",
+			},
+		]
+		prev_sql, prev_params = build_previous_sle_batch_query(candidates)
+		self.assertEqual(prev_sql.count("UNION ALL"), 1)
+		self.assertIn("ORDER BY `posting_datetime` DESC, `creation` DESC", prev_sql)
+		self.assertEqual(
+			prev_params,
+			["ITEM-1", "W1", "2026-01-05 10:00:00", "ITEM-2", "W2", "2026-01-06 11:00:00"],
+		)
+
+		vr_sql, vr_params = build_last_valuation_rate_batch_query(candidates)
+		self.assertEqual(vr_sql.count("UNION ALL"), 1)
+		self.assertIn("NOT (`voucher_no` = %s AND `voucher_type` = %s)", vr_sql)
+		self.assertEqual(
+			vr_params,
+			[
+				"ITEM-1", "W1", "SI-1", "Sales Invoice", "2026-01-05 10:00:00",
+				"ITEM-2", "W2", "SI-2", "Sales Invoice", "2026-01-06 11:00:00",
+			],
+		)
+
+	def test_preload_average_buying_rates_handles_fifo_moving_avg_item_fallback_and_skips_serial_batch(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(company="Company")
+		generator.average_buying_rate = {}
+		generator.non_stock_items = set()
+		generator.delivery_notes = {}
+		generator.product_bundles = {}
+		generator.bundle_deliveries = {}
+		generator._tie_pairs = set()
+		generator._matched_sles = {
+			normalize_sle_key("ITEM-FIFO", "W1", "Sales Invoice", "SI-1", "R1"): {"stock_value": 10},
+			normalize_sle_key("ITEM-MA", "W1", "Sales Invoice", "SI-2", "R2"): {"stock_value": 10},
+			normalize_sle_key("ITEM-FALLBACK", "W1", "Sales Invoice", "SI-3", "R3"): {"stock_value": 10},
+			normalize_sle_key("ITEM-SERIAL", "W1", "Sales Invoice", "SI-4", "R4"): {"stock_value": 10},
+		}
+		generator._sle_predecessors = {}
+		generator._sle_pair_exists = {
+			("ITEM-FIFO", "W1"): True,
+			("ITEM-MA", "W1"): True,
+			("ITEM-FALLBACK", "W1"): True,
+			("ITEM-SERIAL", "W1"): True,
+		}
+		generator.si_list = [
+			AttrDict(parenttype="Sales Invoice", parent="SI-4", item_row="R4", item_code="ITEM-SERIAL", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-04", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-3", item_row="R3", item_code="ITEM-FALLBACK", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-03", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-2", item_row="R2", item_code="ITEM-MA", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-02", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-1", item_row="R1", item_code="ITEM-FIFO", warehouse="W1", update_stock=1, qty=-2, posting_date="2026-01-01", posting_time="10:00:00"),
+		]
+
+		class FakeDB:
+			def get_single_value(self, doctype, field):
+				return "FIFO"
+
+			def sql(self, sql, params=None, as_dict=False):
+				if "FROM `tabItem`" in sql:
+					return [
+						AttrDict(name="ITEM-FIFO", has_serial_no=0, has_batch_no=0, valuation_method="FIFO", valuation_rate=5.0, standard_rate=0),
+						AttrDict(name="ITEM-MA", has_serial_no=0, has_batch_no=0, valuation_method="Moving Average", valuation_rate=7.0, standard_rate=0),
+						AttrDict(name="ITEM-FALLBACK", has_serial_no=0, has_batch_no=0, valuation_method="FIFO", valuation_rate=19.5, standard_rate=0),
+						AttrDict(name="ITEM-SERIAL", has_serial_no=1, has_batch_no=0, valuation_method="FIFO", valuation_rate=30.0, standard_rate=0),
+					]
+				if "`stock_queue`" in sql:
+					return [
+						AttrDict(khitmee_idx=0, stock_queue="[[4, 12.5]]", valuation_rate=12.5),
+						AttrDict(khitmee_idx=1, stock_queue="[]", valuation_rate=14.25),
+						AttrDict(khitmee_idx=2, stock_queue="[]", valuation_rate=99.0),
+					]
+				if "`valuation_rate` >=" in sql:
+					return []
+				return []
+
+		stock_utils = types.ModuleType("erpnext.stock.utils")
+		stock_utils._get_fifo_lifo_rate = lambda q, qty, method: float(q[0][1])
+		stock_utils.get_combine_datetime = lambda d, t: f"{d} {t}"
+		stock_pkg = types.ModuleType("erpnext.stock")
+		stock_pkg.utils = stock_utils
+		erpnext_pkg = types.ModuleType("erpnext")
+		erpnext_pkg.stock = stock_pkg
+
+		with patch.object(fast_gross_profit, "standard_gross_profit", object()), patch.object(
+			fast_gross_profit,
+			"frappe",
+			types.SimpleNamespace(db=FakeDB(), _dict=AttrDict, get_cached_value=lambda *a, **k: None),
+		), patch.dict(
+			sys.modules,
+			{"erpnext": erpnext_pkg, "erpnext.stock": stock_pkg, "erpnext.stock.utils": stock_utils},
+		):
+			generator._preload_average_buying_rates()
+
+		self.assertEqual(generator.average_buying_rate[("ITEM-FIFO", "W1", "2026-01-01", "10:00:00", None)], 12.5)
+		self.assertEqual(generator.average_buying_rate[("ITEM-MA", "W1", "2026-01-02", "10:00:00", None)], 14.25)
+		self.assertEqual(generator.average_buying_rate[("ITEM-FALLBACK", "W1", "2026-01-03", "10:00:00", None)], 19.5)
+		self.assertNotIn(("ITEM-SERIAL", "W1", "2026-01-04", "10:00:00", None), generator.average_buying_rate)
 
 
 try:

@@ -3,6 +3,7 @@
 
 import importlib
 import inspect
+import json
 import re
 import sys
 from collections import OrderedDict
@@ -560,6 +561,65 @@ def build_predecessor_query(matched, key_order, company):
 				row.get("posting_datetime"),
 				row.get("posting_datetime"),
 				row.get("creation"),
+			]
+		)
+
+	return " UNION ALL ".join(branches), params
+
+
+def build_previous_sle_batch_query(candidates):
+	"""Build a bounded MariaDB UNION query for plain-item get_previous_sle lookups."""
+	branches = []
+	params = []
+	for index, candidate in enumerate(candidates or ()):
+		branches.append(
+			f"""
+			(SELECT
+				{index} AS `khitmee_idx`,
+				`stock_queue`,
+				`valuation_rate`
+			FROM `tabStock Ledger Entry`
+			WHERE `is_cancelled` = 0
+				AND `item_code` = %s
+				AND `warehouse` = %s
+				AND `posting_datetime` <= %s
+			ORDER BY `posting_datetime` DESC, `creation` DESC
+			LIMIT 1)
+			"""
+		)
+		params.extend([candidate["item_code"], candidate["warehouse"], candidate["posting_datetime"]])
+
+	return " UNION ALL ".join(branches), params
+
+
+def build_last_valuation_rate_batch_query(candidates):
+	"""Build a bounded MariaDB UNION query for get_valuation_rate last-SLE fallbacks."""
+	branches = []
+	params = []
+	for index, candidate in enumerate(candidates or ()):
+		branches.append(
+			f"""
+			(SELECT
+				{index} AS `khitmee_idx`,
+				`valuation_rate`
+			FROM `tabStock Ledger Entry`
+			WHERE `item_code` = %s
+				AND `warehouse` = %s
+				AND `valuation_rate` >= 0
+				AND `is_cancelled` = 0
+				AND NOT (`voucher_no` = %s AND `voucher_type` = %s)
+				AND `posting_datetime` <= %s
+			ORDER BY `posting_datetime` DESC, `creation` DESC
+			LIMIT 1)
+			"""
+		)
+		params.extend(
+			[
+				candidate["item_code"],
+				candidate["warehouse"],
+				candidate["voucher_no"],
+				candidate["voucher_type"],
+				candidate["posting_datetime"],
 			]
 		)
 
@@ -1566,7 +1626,11 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		return query
 
 	def _warehouse_semijoin_enabled(self):
-		return bool(self.filters.get("warehouse")) and self._hints_enabled()
+		return (
+			bool(self.filters.get("warehouse"))
+			and self._hints_enabled()
+			and getattr(self, "_scoped_invoice_ids", None) is None
+		)
 
 	def _upstream_prepare_invoice_query(self):
 		return super().prepare_invoice_query()
@@ -1575,7 +1639,12 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		query = self._upstream_prepare_invoice_query()
 		if frappe is not None and hasattr(frappe, "qb") and hasattr(query, "select"):
 			query = query.select(frappe.qb.DocType("Sales Invoice").return_against)
-		return query.force_index(SI_IDX) if self._hints_enabled() and not self._warehouse_semijoin_enabled() else query
+		use_si_hint = (
+			self._hints_enabled()
+			and not self._warehouse_semijoin_enabled()
+			and getattr(self, "_scoped_invoice_ids", None) is None
+		)
+		return query.force_index(SI_IDX) if use_si_hint else query
 
 	def _run_invoice_query(self, query, semijoin_kind=None):
 		from frappe.query_builder.utils import prepare_query
@@ -2083,6 +2152,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		if not (self.filters.get("from_date") and self.filters.get("to_date")):
 			for chunk in batched(keys, 100):
 				self._fetch_sle_chunk(chunk)
+			self._preload_average_buying_rates()
 			return
 
 		si_keys = [key for key in keys if key[2] == "Sales Invoice"]
@@ -2095,6 +2165,208 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				self._preload_sales_invoice_sle_windows(si_keys)
 			else:
 				self._preload_sales_invoice_sle_by_voucher(si_keys)
+
+		self._preload_average_buying_rates()
+
+	def _fetch_item_valuation_metadata(self, item_codes):
+		meta_by_item = {}
+		items = sorted({str(code) for code in item_codes if code})
+		for chunk in batched(items, 1000):
+			placeholders = ", ".join(["%s"] * len(chunk))
+			rows = frappe.db.sql(
+				f"""
+				SELECT `name`, `has_serial_no`, `has_batch_no`, `valuation_method`, `valuation_rate`, `standard_rate`
+				FROM `tabItem`
+				WHERE `name` IN ({placeholders})
+				""",
+				list(chunk),
+				as_dict=True,
+			)
+			for row in rows or []:
+				meta_by_item[str(row.get("name"))] = row
+		return meta_by_item
+
+	def _row_needs_average_buying_rate(self, row, item_code):
+		if not item_code or row.get("delivered_by_supplier") or row.get("is_debit_note"):
+			return False
+		non_stock_items = getattr(self, "non_stock_items", ()) or ()
+		if item_code in non_stock_items and (row.get("project") or row.get("cost_center")):
+			return False
+
+		warehouse = row.get("delivered_warehouse") or row.get("warehouse")
+		if not warehouse:
+			return False
+		pair = (str(item_code), str(warehouse))
+		if pair in (getattr(self, "_tie_pairs", None) or ()):
+			return False
+
+		dn_detail = effective_dn_detail(row)
+		if row.get("update_stock") or dn_detail:
+			if (getattr(self, "_sle_pair_exists", None) or {}).get(pair):
+				key = extract_stock_ledger_key(row, item_code=item_code, warehouse=warehouse)
+				matched = (getattr(self, "_matched_sles", None) or {}).get(key)
+				if matched is None:
+					return False
+				predecessor = (getattr(self, "_sle_predecessors", None) or {}).get(key)
+				return not (predecessor and flt(predecessor.get("stock_value")))
+
+		delivery_notes = getattr(self, "delivery_notes", None) or {}
+		dn = delivery_notes.get(row.get("item_row")) if row.get("item_row") else None
+		if dn:
+			return not flt(dn.get("total_qty"))
+		if row.get("sales_order") and row.get("so_detail"):
+			return False
+		return True
+
+	def _collect_average_rate_pairs(self):
+		pairs = []
+		bundle_deliveries = getattr(self, "bundle_deliveries", None) or {}
+		for row in reversed(getattr(self, "si_list", None) or ()):
+			if row.get("is_debit_note"):
+				continue
+			dn_detail = effective_dn_detail(row)
+			product_bundles = self._product_bundles_for_row(row, dn_detail) if getattr(self, "product_bundles", None) else {}
+			if row.item_code in product_bundles:
+				for packed_item in product_bundles[row.item_code]:
+					if packed_item.get("parent_detail_docname") != (dn_detail or row.get("item_row")):
+						continue
+					packed_row = dict(row)
+					packed_row["warehouse"] = packed_item.get("warehouse")
+					packed_row["delivered_warehouse"] = None
+					packed_row["serial_and_batch_bundle"] = packed_item.get("serial_and_batch_bundle")
+					if self._row_needs_average_buying_rate(packed_row, packed_item.get("item_code")):
+						pairs.append((packed_row, packed_item.get("item_code")))
+			elif row.get("item_row") in bundle_deliveries:
+				for delivered_row, packed_items in bundle_deliveries[row.get("item_row")]:
+					for packed_item in packed_items:
+						if packed_item.get("parent_detail_docname") != delivered_row.get("name"):
+							continue
+						packed_row = dict(row)
+						packed_row["update_stock"] = 0
+						packed_row["dn_detail"] = delivered_row.get("name")
+						packed_row["delivery_note"] = delivered_row.get("parent")
+						packed_row["item_row"] = delivered_row.get("name")
+						packed_row["warehouse"] = packed_item.get("warehouse")
+						packed_row["delivered_warehouse"] = None
+						packed_row["serial_and_batch_bundle"] = packed_item.get("serial_and_batch_bundle")
+						if self._row_needs_average_buying_rate(packed_row, packed_item.get("item_code")):
+							pairs.append((packed_row, packed_item.get("item_code")))
+			elif self._row_needs_average_buying_rate(row, row.get("item_code")):
+				pairs.append((row, row.get("item_code")))
+		return pairs
+
+	def _preload_average_buying_rates(self):
+		"""Batch plain-item get_average_buying_rate lookups in exact stock order."""
+		if frappe is None or not getattr(frappe, "db", None) or standard_gross_profit is None:
+			return
+		pairs = self._collect_average_rate_pairs()
+		if not pairs:
+			return
+
+		try:
+			from erpnext.stock.utils import _get_fifo_lifo_rate, get_combine_datetime
+		except ImportError:
+			return
+
+		if not hasattr(self, "average_buying_rate"):
+			self.average_buying_rate = {}
+
+		company = getattr(self.filters, "company", None)
+		company_method = (
+			frappe.get_cached_value("Company", company, "valuation_method") if company else None
+		) or frappe.db.get_single_value("Stock Settings", "valuation_method") or "FIFO"
+		item_meta = self._fetch_item_valuation_metadata(item_code for _row, item_code in pairs)
+
+		candidates_by_key = {}
+		for row, item_code in pairs:
+			if (
+				row.get("serial_and_batch_bundle")
+				or row.get("serial_no")
+				or row.get("batch_no")
+				or row.get("name")
+				or row.get("creation")
+				or row.get("sle")
+			):
+				continue
+			warehouse = row.get("warehouse")
+			posting_date = row.get("posting_date")
+			voucher_no = row.get("parent")
+			voucher_type = row.get("parenttype") or "Sales Invoice"
+			if not (warehouse and posting_date and voucher_no):
+				continue
+			meta = item_meta.get(str(item_code))
+			if not meta or cint(meta.get("has_serial_no")) or cint(meta.get("has_batch_no")):
+				continue
+			valuation_method = meta.get("valuation_method") or company_method
+			if valuation_method not in {"FIFO", "LIFO", "Moving Average"}:
+				continue
+
+			key = (
+				item_code,
+				warehouse,
+				posting_date,
+				row.get("posting_time"),
+				row.get("serial_and_batch_bundle"),
+			)
+			if key in self.average_buying_rate or key in candidates_by_key:
+				continue
+			candidates_by_key[key] = {
+				"key": key,
+				"item_code": item_code,
+				"warehouse": warehouse,
+				"posting_datetime": get_combine_datetime(posting_date, row.get("posting_time")),
+				"qty": row.get("qty") or 0,
+				"voucher_no": voucher_no,
+				"voucher_type": voucher_type,
+				"valuation_method": valuation_method,
+				"meta": meta,
+			}
+
+		candidates = list(candidates_by_key.values())
+		if not candidates:
+			return
+
+		unresolved = []
+		for chunk in batched(candidates, 100):
+			chunk_list = list(chunk)
+			sql, params = build_previous_sle_batch_query(chunk_list)
+			prev_by_idx = {
+				cint(row.get("khitmee_idx")): row
+				for row in frappe.db.sql(sql, params, as_dict=True) or []
+			}
+			for idx, candidate in enumerate(chunk_list):
+				prev_sle = prev_by_idx.get(idx)
+				in_rate = None
+				if candidate["valuation_method"] in {"FIFO", "LIFO"}:
+					if prev_sle:
+						stock_queue = json.loads(prev_sle.get("stock_queue", "[]") or "[]")
+						if stock_queue:
+							in_rate = _get_fifo_lifo_rate(
+								stock_queue, candidate["qty"], candidate["valuation_method"]
+							)
+				elif prev_sle:
+					in_rate = prev_sle.get("valuation_rate")
+
+				if in_rate is not None:
+					self.average_buying_rate[candidate["key"]] = flt(in_rate)
+				else:
+					unresolved.append(candidate)
+
+		for chunk in batched(unresolved, 100):
+			chunk_list = list(chunk)
+			sql, params = build_last_valuation_rate_batch_query(chunk_list)
+			last_vr_by_idx = {
+				cint(row.get("khitmee_idx")): row.get("valuation_rate")
+				for row in frappe.db.sql(sql, params, as_dict=True) or []
+			}
+			for idx, candidate in enumerate(chunk_list):
+				if idx in last_vr_by_idx and last_vr_by_idx[idx] is not None:
+					self.average_buying_rate[candidate["key"]] = flt(last_vr_by_idx[idx])
+					continue
+				meta = candidate["meta"]
+				fallback_rate = meta.get("valuation_rate") or meta.get("standard_rate")
+				if fallback_rate:
+					self.average_buying_rate[candidate["key"]] = flt(fallback_rate)
 
 	def _has_active_repost_item_valuations(self):
 		if self._active_repost_item_valuations is None:

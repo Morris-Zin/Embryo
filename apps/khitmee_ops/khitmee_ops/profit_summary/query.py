@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
 
 from khitmee_ops.profit_summary import replay, store
 from khitmee_ops.profit_summary.budget import (
+	DEFAULT_MAX_REPLAY_INVOICES,
 	MAX_SAFE_ABS_SUM,
 	evaluate_work_budget,
 	preflight_detail_input_rows,
@@ -259,7 +260,24 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 	"""Split the request into verified clean past days and replacement live days."""
 	today = _as_date_string(today or _site_today())
 	expected_flags = expected_flags or store.current_day_flags()
+	all_dates = _date_range(from_date, to_date)
 	states = store.get_day_states(company, _as_date_string(from_date), _as_date_string(to_date))
+	present_past_dates = [posting_date for posting_date in all_dates if posting_date < today and posting_date in states]
+	if present_past_dates:
+		max_present_past = present_past_dates[-1]
+		repost_sigs = store.get_completed_repost_signatures_for_dates(company, present_past_dates)
+		_has_blocking, min_blocking_date = store.has_blocking_repost(company, max_present_past)
+		min_blocking_date = _as_date_string(min_blocking_date) if min_blocking_date else None
+		active_ranges = store.get_active_dirty_ranges(company, max_present_past)
+		min_dirty_effective = min(
+			(_as_date_string(r.get("effective_date")) for r in active_ranges or [] if r.get("effective_date")),
+			default=None,
+		)
+	else:
+		repost_sigs = {}
+		min_blocking_date = None
+		min_dirty_effective = None
+
 	clean_past_days = []
 	dirty_past_days = []
 	missing_days = []
@@ -267,7 +285,7 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 	future_days = []
 	blocking_repost = False
 
-	for posting_date in _date_range(from_date, to_date):
+	for posting_date in all_dates:
 		if posting_date >= today:
 			live_days.append(posting_date)
 			if posting_date > today:
@@ -279,9 +297,10 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 			live_days.append(posting_date)
 			continue
 
-		repost_sig = store.get_completed_repost_signature(company, posting_date)
-		blocked, _blocking_date = store.has_blocking_repost(company, posting_date)
+		repost_sig = repost_sigs.get(posting_date, (0, None, 0))
+		blocked = bool(min_blocking_date and min_blocking_date <= posting_date)
 		blocking_repost = blocking_repost or blocked
+		covered = bool(min_dirty_effective and posting_date >= min_dirty_effective)
 		stored_sig = (
 			int(day_state.get("repost_completed_count") or 0),
 			_normalize_datetime_value(day_state.get("repost_watermark")),
@@ -298,7 +317,7 @@ def partition_request_days(company, from_date, to_date, *, today=None, expected_
 			and bool(day_state.get("is_additive_safe"))
 			and stored_sig == current_sig
 			and not blocked
-			and not store.has_active_dirty_range_covering(company, posting_date)
+			and not covered
 		)
 		if clean:
 			clean_past_days.append(posting_date)
@@ -640,6 +659,28 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 	stored_rows = store.get_shop_day_rows(company, clean_days)
 	clean_replay_rows = store.get_replay_candidates(company, clean_days)
 	clean_replay_ids = replay.extract_replay_invoice_ids(clean_replay_rows)
+	try:
+		max_replay_invoices = int((filters or {}).get("max_replay_invoices") or DEFAULT_MAX_REPLAY_INVOICES)
+	except (TypeError, ValueError):
+		max_replay_invoices = DEFAULT_MAX_REPLAY_INVOICES
+	if len(clean_replay_ids) > max_replay_invoices:
+		counts = _empty_budget_counts("summary")
+		counts.update(
+			{
+				"clean_replay_invoices": len(clean_replay_ids),
+				"dirty_days_count": len(day_partition["dirty_past_days"]),
+				"missing_days_count": len(day_partition["missing_days"]),
+				"has_blocking_repost": bool(day_partition["has_blocking_repost"]),
+			}
+		)
+		eligibility["replay_invoices"] = len(clean_replay_ids)
+		decision = evaluate_work_budget(filters, counts)
+		return _result(
+			decision["outcome"],
+			message=decision["reason"],
+			eligibility=eligibility,
+			meta=_meta_from_decision(decision, counts),
+		)
 
 	live_batches = _collect_live_batches(filters, live_days)
 	live_set_b_ids = _live_set_b_invoice_ids(live_batches)
