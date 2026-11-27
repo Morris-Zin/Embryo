@@ -23,6 +23,13 @@ def install_frappe_stub():
 	frappe._ = lambda message, *args: message
 	frappe.session = SimpleNamespace(user="counter@example.com")
 	frappe.has_permission = lambda *args, **kwargs: True
+	def get_cached_value(_doctype, name, fieldname=None, **_kwargs):
+		if fieldname == "name":
+			return name
+		return AttrDict({"selling": 1, "enabled": 1, "name": name})
+
+	frappe.get_cached_value = get_cached_value
+	frappe.get_value = lambda *args, **kwargs: True
 	frappe.throw = lambda message, exc=None: (_ for _ in ()).throw((exc or Exception)(message))
 	frappe._dict = AttrDict
 	frappe.db = SimpleNamespace(sql=lambda *args, **kwargs: [])
