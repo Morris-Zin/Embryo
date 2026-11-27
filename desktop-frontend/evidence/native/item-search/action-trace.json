@@ -1,0 +1,16 @@
+[
+  {
+    "index": 0,
+    "action": {
+      "type": "click",
+      "label": "Item Search"
+    }
+  },
+  {
+    "index": 1,
+    "action": {
+      "type": "wait",
+      "ms": 300
+    }
+  }
+]

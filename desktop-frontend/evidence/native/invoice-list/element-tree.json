@@ -1,0 +1,7201 @@
+{
+  "elements": [
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "1"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "AppWindow::root",
+          "typeName": "Window"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "2"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceScreen"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "3"
+      },
+      "size": {
+        "height": 760,
+        "width": 236
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 10,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "4"
+      },
+      "size": {
+        "height": 28,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 19,
+        "y": 11.5
+      },
+      "accessibleLabel": "F",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "5"
+      },
+      "size": {
+        "height": 25,
+        "width": 10
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 62,
+        "y": 16
+      },
+      "accessibleLabel": "Accounts",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "6"
+      },
+      "size": {
+        "height": 18,
+        "width": 145
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 212,
+        "y": 15
+      },
+      "accessibleLabel": "⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "7"
+      },
+      "size": {
+        "height": 20,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 66
+      },
+      "accessibleLabel": "⌂",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "8"
+      },
+      "size": {
+        "height": 20,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 68
+      },
+      "accessibleLabel": "Home",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "9"
+      },
+      "size": {
+        "height": 18,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 96
+      },
+      "accessibleLabel": "▥",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "10"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 98
+      },
+      "accessibleLabel": "Dashboard",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "11"
+      },
+      "size": {
+        "height": 18,
+        "width": 63
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 126
+      },
+      "accessibleLabel": "▦",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "12"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 128
+      },
+      "accessibleLabel": "Chart of Accounts",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "13"
+      },
+      "size": {
+        "height": 18,
+        "width": 103
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 8,
+        "y": 153
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "14"
+      },
+      "size": {
+        "height": 32,
+        "width": 220
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 160
+      },
+      "accessibleLabel": "▤",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "15"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 161
+      },
+      "accessibleLabel": "Sales Invoice",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "16"
+      },
+      "size": {
+        "height": 18,
+        "width": 79
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 192
+      },
+      "accessibleLabel": "▤",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "17"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 194
+      },
+      "accessibleLabel": "Purchase Invoice",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "18"
+      },
+      "size": {
+        "height": 18,
+        "width": 96
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 225
+      },
+      "accessibleLabel": "▤",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "19"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 227
+      },
+      "accessibleLabel": "Payment Entry",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "20"
+      },
+      "size": {
+        "height": 18,
+        "width": 83
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 257
+      },
+      "accessibleLabel": "▤",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "21"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 259
+      },
+      "accessibleLabel": "Journal Entry",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "22"
+      },
+      "size": {
+        "height": 18,
+        "width": 74
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 292
+      },
+      "accessibleLabel": "▦",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "23"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 294
+      },
+      "accessibleLabel": "Reports",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "24"
+      },
+      "size": {
+        "height": 18,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 325
+      },
+      "accessibleLabel": "▦",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "25"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 327
+      },
+      "accessibleLabel": "Banking",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "26"
+      },
+      "size": {
+        "height": 18,
+        "width": 47
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 357
+      },
+      "accessibleLabel": "◉",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "27"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 359
+      },
+      "accessibleLabel": "Taxes",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "28"
+      },
+      "size": {
+        "height": 18,
+        "width": 31
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 390
+      },
+      "accessibleLabel": "◎",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "29"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 392
+      },
+      "accessibleLabel": "Budgeting",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "30"
+      },
+      "size": {
+        "height": 18,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 423
+      },
+      "accessibleLabel": "⚙",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "31"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 68,
+        "y": 425
+      },
+      "accessibleLabel": "Setup",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "32"
+      },
+      "size": {
+        "height": 18,
+        "width": 34
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 10,
+        "y": 724
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "33"
+      },
+      "size": {
+        "height": 28,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 18.5,
+        "y": 728.5
+      },
+      "accessibleLabel": "A",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "34"
+      },
+      "size": {
+        "height": 19,
+        "width": 11
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 236
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "35"
+      },
+      "size": {
+        "height": 52,
+        "width": 944
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 258,
+        "y": 15
+      },
+      "accessibleLabel": "Sales Invoice",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "36"
+      },
+      "size": {
+        "height": 20,
+        "width": 180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 758,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "37"
+      },
+      "size": {
+        "height": 30,
+        "width": 112
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 758,
+        "y": 10
+      },
+      "accessibleLabel": "☰  List View  ⌄",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "38"
+      },
+      "size": {
+        "height": 30,
+        "width": 112
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 758,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "39"
+      },
+      "size": {
+        "height": 30,
+        "width": 112
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 767.5,
+        "y": 15.5
+      },
+      "accessibleLabel": "☰  List View  ⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "40"
+      },
+      "size": {
+        "height": 19,
+        "width": 93
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 884,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "41"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 884,
+        "y": 10
+      },
+      "accessibleLabel": "⟳",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "42"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 884,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "43"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 895,
+        "y": 15.5
+      },
+      "accessibleLabel": "⟳",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "44"
+      },
+      "size": {
+        "height": 19,
+        "width": 10
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 924,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "45"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 924,
+        "y": 10
+      },
+      "accessibleLabel": "⋯",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "46"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 924,
+        "y": 10
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "47"
+      },
+      "size": {
+        "height": 30,
+        "width": 32
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 935,
+        "y": 15.5
+      },
+      "accessibleLabel": "⋯",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "48"
+      },
+      "size": {
+        "height": 19,
+        "width": 10
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 960,
+        "y": 7
+      },
+      "accessibleLabel": "Add Sales Invoice",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "49"
+      },
+      "size": {
+        "height": 36,
+        "width": 198
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 987.5,
+        "y": 16
+      },
+      "accessibleLabel": "+  Add Sales Invoice   ⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "50"
+      },
+      "size": {
+        "height": 18,
+        "width": 143
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 236,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "51"
+      },
+      "size": {
+        "height": 77,
+        "width": 944
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 60
+      },
+      "accessibleEnabled": true,
+      "accessiblePlaceholderText": "ID",
+      "accessibleRole": "TextInput",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "52"
+      },
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "InvoiceScreen::invoice-filter",
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "53"
+      },
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "54"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "55"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "56"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "57"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "58"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 60
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "59"
+      },
+      "size": {
+        "height": 31,
+        "width": 125
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 302,
+        "y": 89
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "60"
+      },
+      "size": {
+        "height": 2,
+        "width": 142
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 456,
+        "y": 66
+      },
+      "accessibleLabel": "≈",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "61"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 484,
+        "y": 60
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Company",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "62"
+      },
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 60
+      },
+      "accessibleLabel": "Company",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "63"
+      },
+      "size": {
+        "height": 31,
+        "width": 82
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 576,
+        "y": 60
+      },
+      "accessibleLabel": "⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "64"
+      },
+      "size": {
+        "height": 31,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 616,
+        "y": 60
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Customer",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "65"
+      },
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 628,
+        "y": 60
+      },
+      "accessibleLabel": "Customer",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "66"
+      },
+      "size": {
+        "height": 31,
+        "width": 82
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 708,
+        "y": 60
+      },
+      "accessibleLabel": "⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "67"
+      },
+      "size": {
+        "height": 31,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 931,
+        "y": 66
+      },
+      "accessibleLabel": "☰  Filter",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "68"
+      },
+      "size": {
+        "height": 18,
+        "width": 80
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1039,
+        "y": 66
+      },
+      "accessibleLabel": "⧨   Created On  ⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "69"
+      },
+      "size": {
+        "height": 18,
+        "width": 105
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 97
+      },
+      "accessiblePlaceholderText": "Customer Name",
+      "accessibleRole": "TextInput",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "70"
+      },
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "71"
+      },
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 298,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "72"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 31,
+        "width": 150
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "73"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "74"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "75"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "76"
+      },
+      "size": {
+        "height": 31,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 310,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "77"
+      },
+      "size": {
+        "height": 31,
+        "width": 125
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 302,
+        "y": 126
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "78"
+      },
+      "size": {
+        "height": 2,
+        "width": 142
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 456,
+        "y": 103
+      },
+      "accessibleLabel": "≈",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "79"
+      },
+      "size": {
+        "height": 19,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 484,
+        "y": 97
+      },
+      "accessiblePlaceholderText": "Posting Date",
+      "accessibleRole": "TextInput",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "80"
+      },
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 484,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "81"
+      },
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 484,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "82"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "83"
+      },
+      "size": {
+        "height": 31,
+        "width": 92
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "84"
+      },
+      "size": {
+        "height": 31,
+        "width": 92
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "85"
+      },
+      "size": {
+        "height": 31,
+        "width": 92
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "86"
+      },
+      "size": {
+        "height": 31,
+        "width": 92
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 97
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "87"
+      },
+      "size": {
+        "height": 31,
+        "width": 91
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 488,
+        "y": 126
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "88"
+      },
+      "size": {
+        "height": 2,
+        "width": 108
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 616,
+        "y": 97
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Status",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "89"
+      },
+      "size": {
+        "height": 31,
+        "width": 116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 628,
+        "y": 97
+      },
+      "accessibleLabel": "Status",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "90"
+      },
+      "size": {
+        "height": 31,
+        "width": 82
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 708,
+        "y": 97
+      },
+      "accessibleLabel": "⌄",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "91"
+      },
+      "size": {
+        "height": 31,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 136
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "92"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 146
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "93"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 145
+      },
+      "accessibleLabel": "Customer N…",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "94"
+      },
+      "size": {
+        "height": 16,
+        "width": 75
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 360,
+        "y": 145
+      },
+      "accessibleLabel": "Status",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "95"
+      },
+      "size": {
+        "height": 16,
+        "width": 55
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 145
+      },
+      "accessibleLabel": "Posting Date",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "96"
+      },
+      "size": {
+        "height": 16,
+        "width": 95
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 145
+      },
+      "accessibleLabel": "Payment Due …",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "97"
+      },
+      "size": {
+        "height": 16,
+        "width": 105
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 145
+      },
+      "accessibleLabel": "Grand Total",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "98"
+      },
+      "size": {
+        "height": 16,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 145
+      },
+      "accessibleLabel": "ID",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "99"
+      },
+      "size": {
+        "height": 16,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1020,
+        "y": 145
+      },
+      "accessibleLabel": "20 of 1,000+   ♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "100"
+      },
+      "size": {
+        "height": 16,
+        "width": 100
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "101"
+      },
+      "size": {
+        "height": 552,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "102"
+      },
+      "size": {
+        "height": 552,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "accessibleOrientation": "Vertical",
+      "accessibleRole": "List",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "103"
+      },
+      "size": {
+        "height": 552,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ListView"
+        },
+        {
+          "id": "root",
+          "typeName": "ScrollView"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "104"
+      },
+      "size": {
+        "height": 552,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::flickable",
+          "typeName": "Flickable"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "105"
+      },
+      "size": {
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "accessibleLabel": "Khit Customer 0006 ACC-SINV-RET-2026-00114",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "106"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 207
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "107"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 182
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "108"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 180
+      },
+      "accessibleLabel": "Khit Customer 0006",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "109"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 179
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "110"
+      },
+      "size": {
+        "height": 21,
+        "width": 50
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 362.5,
+        "y": 182
+      },
+      "accessibleLabel": "Return",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "111"
+      },
+      "size": {
+        "height": 15,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 180
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "112"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 180
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "113"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 180
+      },
+      "accessibleLabel": "$ -18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "114"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 180
+      },
+      "accessibleLabel": "ACC-SINV-RET-2026-00114",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "115"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 180
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "116"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 180
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "117"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 180
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "118"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 208
+      },
+      "accessibleLabel": "Khit Customer 0005 ACC-SINV-RET-2026-00113",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "119"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 243
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "120"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 218
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "121"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 216
+      },
+      "accessibleLabel": "Khit Customer 0005",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "122"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 215
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "123"
+      },
+      "size": {
+        "height": 21,
+        "width": 50
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 362.5,
+        "y": 218
+      },
+      "accessibleLabel": "Return",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "124"
+      },
+      "size": {
+        "height": 15,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 216
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "125"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 216
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "126"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 216
+      },
+      "accessibleLabel": "$ -18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "127"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 216
+      },
+      "accessibleLabel": "ACC-SINV-RET-2026-00113",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "128"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 216
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "129"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 216
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "130"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 216
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "131"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 244
+      },
+      "accessibleLabel": "Khit Customer 0004 ACC-SINV-RET-2026-00112",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "132"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 279
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "133"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 254
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "134"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 252
+      },
+      "accessibleLabel": "Khit Customer 0004",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "135"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 251
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "136"
+      },
+      "size": {
+        "height": 21,
+        "width": 50
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 362.5,
+        "y": 254
+      },
+      "accessibleLabel": "Return",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "137"
+      },
+      "size": {
+        "height": 15,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 252
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "138"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 252
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "139"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 252
+      },
+      "accessibleLabel": "$ -18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "140"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 252
+      },
+      "accessibleLabel": "ACC-SINV-RET-2026-00112",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "141"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 252
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "142"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 252
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "143"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 252
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "144"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 280
+      },
+      "accessibleLabel": "Khit Customer 0003 ACC-SINV-RET-2026-00111",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "145"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 315
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "146"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 290
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "147"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 288
+      },
+      "accessibleLabel": "Khit Customer 0003",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "148"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 287
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "149"
+      },
+      "size": {
+        "height": 21,
+        "width": 50
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 362.5,
+        "y": 290
+      },
+      "accessibleLabel": "Return",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "150"
+      },
+      "size": {
+        "height": 15,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 288
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "151"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 288
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "152"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 288
+      },
+      "accessibleLabel": "$ -18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "153"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 288
+      },
+      "accessibleLabel": "ACC-SINV-RET-2026-00111",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "154"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 288
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "155"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 288
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "156"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 288
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "157"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 316
+      },
+      "accessibleLabel": "Khit Customer 0002 ACC-SINV-RET-2026-00110",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "158"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 351
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "159"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 326
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "160"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 324
+      },
+      "accessibleLabel": "Khit Customer 0002",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "161"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 323
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "162"
+      },
+      "size": {
+        "height": 21,
+        "width": 50
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 362.5,
+        "y": 326
+      },
+      "accessibleLabel": "Return",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "163"
+      },
+      "size": {
+        "height": 15,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 324
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "164"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 324
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "165"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 324
+      },
+      "accessibleLabel": "$ -18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "166"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 324
+      },
+      "accessibleLabel": "ACC-SINV-RET-2026-00110",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "167"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 324
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "168"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 324
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "169"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 324
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "170"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 352
+      },
+      "accessibleLabel": "Khit Customer 0030 ACC-SINV-2026-04921",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "171"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 387
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "172"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 362
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "173"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 360
+      },
+      "accessibleLabel": "Khit Customer 0030",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "174"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 359
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "175"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 362
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "176"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 360
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "177"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 360
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "178"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 360
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "179"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 360
+      },
+      "accessibleLabel": "ACC-SINV-2026-04921",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "180"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 360
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "181"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 360
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "182"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 360
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "183"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 388
+      },
+      "accessibleLabel": "Khit Customer 0029 ACC-SINV-2026-04920",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "184"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 423
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "185"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 398
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "186"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 396
+      },
+      "accessibleLabel": "Khit Customer 0029",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "187"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 395
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "188"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 398
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "189"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 396
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "190"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 396
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "191"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 396
+      },
+      "accessibleLabel": "$ 18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "192"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 396
+      },
+      "accessibleLabel": "ACC-SINV-2026-04920",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "193"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 396
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "194"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 396
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "195"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 396
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "196"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 424
+      },
+      "accessibleLabel": "Khit Customer 0028 ACC-SINV-2026-04919",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "197"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 459
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "198"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 434
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "199"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 432
+      },
+      "accessibleLabel": "Khit Customer 0028",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "200"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 431
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "201"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 434
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "202"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 432
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "203"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 432
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "204"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 432
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "205"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 432
+      },
+      "accessibleLabel": "ACC-SINV-2026-04919",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "206"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 432
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "207"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 432
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "208"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 432
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "209"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 460
+      },
+      "accessibleLabel": "Khit Customer 0027 ACC-SINV-2026-04918",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "210"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 495
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "211"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 470
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "212"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 468
+      },
+      "accessibleLabel": "Khit Customer 0027",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "213"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 467
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "214"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 470
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "215"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 468
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "216"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 468
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "217"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 468
+      },
+      "accessibleLabel": "$ 18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "218"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 468
+      },
+      "accessibleLabel": "ACC-SINV-2026-04918",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "219"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 468
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "220"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 468
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "221"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 468
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "222"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 496
+      },
+      "accessibleLabel": "Khit Customer 0026 ACC-SINV-2026-04917",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "223"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 531
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "224"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 506
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "225"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 504
+      },
+      "accessibleLabel": "Khit Customer 0026",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "226"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 503
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "227"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 506
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "228"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 504
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "229"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 504
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "230"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 504
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "231"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 504
+      },
+      "accessibleLabel": "ACC-SINV-2026-04917",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "232"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 504
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "233"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 504
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "234"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 504
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "235"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 532
+      },
+      "accessibleLabel": "Khit Customer 0025 ACC-SINV-2026-04916",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "236"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 567
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "237"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 542
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "238"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 540
+      },
+      "accessibleLabel": "Khit Customer 0025",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "239"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 539
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "240"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 542
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "241"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 540
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "242"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 540
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "243"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 540
+      },
+      "accessibleLabel": "$ 79.50",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "244"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 540
+      },
+      "accessibleLabel": "ACC-SINV-2026-04916",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "245"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 540
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "246"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 540
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "247"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 540
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "248"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 568
+      },
+      "accessibleLabel": "Khit Customer 0024 ACC-SINV-2026-04915",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "249"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 603
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "250"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 578
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "251"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 576
+      },
+      "accessibleLabel": "Khit Customer 0024",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "252"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 575
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "253"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 578
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "254"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 576
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "255"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 576
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "256"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 576
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "257"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 576
+      },
+      "accessibleLabel": "ACC-SINV-2026-04915",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "258"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 576
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "259"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 576
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "260"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 576
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "261"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 604
+      },
+      "accessibleLabel": "Khit Customer 0023 ACC-SINV-2026-04914",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "262"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 639
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "263"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 614
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "264"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 612
+      },
+      "accessibleLabel": "Khit Customer 0023",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "265"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 611
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "266"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 614
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "267"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 612
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "268"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 612
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "269"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 612
+      },
+      "accessibleLabel": "$ 18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "270"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 612
+      },
+      "accessibleLabel": "ACC-SINV-2026-04914",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "271"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 612
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "272"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 612
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "273"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 612
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "274"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 640
+      },
+      "accessibleLabel": "Khit Customer 0022 ACC-SINV-2026-04913",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "275"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 675
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "276"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 650
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "277"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 648
+      },
+      "accessibleLabel": "Khit Customer 0022",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "278"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 647
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "279"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 650
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "280"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 648
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "281"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 648
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "282"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 648
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "283"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 648
+      },
+      "accessibleLabel": "ACC-SINV-2026-04913",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "284"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 648
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "285"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 648
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "286"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 648
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "287"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 676
+      },
+      "accessibleLabel": "Khit Customer 0021 ACC-SINV-2026-04912",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "288"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 711
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "289"
+      },
+      "size": {
+        "height": 1,
+        "width": 915
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 686
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "290"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 684
+      },
+      "accessibleLabel": "Khit Customer 0021",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "291"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 683
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "292"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 686
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "293"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 684
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "294"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 684
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "295"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 684
+      },
+      "accessibleLabel": "$ 18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "296"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 684
+      },
+      "accessibleLabel": "ACC-SINV-2026-04912",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "297"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 684
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "298"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 684
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "299"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 684
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "300"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 712
+      },
+      "accessibleLabel": "Khit Customer 0020 ACC-SINV-2026-04911",
+      "accessibleRole": "ListItem",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "301"
+      },
+      "size": {
+        "height": 36,
+        "width": 916
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "InvoiceListRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 722
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "302"
+      },
+      "size": {
+        "height": 15,
+        "width": 15
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 286,
+        "y": 720
+      },
+      "accessibleLabel": "Khit Customer 0020",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "303"
+      },
+      "size": {
+        "height": 18,
+        "width": 78
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 354,
+        "y": 719
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "304"
+      },
+      "size": {
+        "height": 21,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 363.5,
+        "y": 722
+      },
+      "accessibleLabel": "Unpaid",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "305"
+      },
+      "size": {
+        "height": 15,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 455,
+        "y": 720
+      },
+      "accessibleLabel": "2026-11-27",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "306"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 565,
+        "y": 720
+      },
+      "accessibleLabel": "2026-12-11",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "307"
+      },
+      "size": {
+        "height": 18,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 680,
+        "y": 720
+      },
+      "accessibleLabel": "$ 36.92",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "308"
+      },
+      "size": {
+        "height": 18,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 775,
+        "y": 720
+      },
+      "accessibleLabel": "ACC-SINV-2026-04911",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "309"
+      },
+      "size": {
+        "height": 18,
+        "width": 110
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 940,
+        "y": 720
+      },
+      "accessibleLabel": "💬 0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "310"
+      },
+      "size": {
+        "height": 16,
+        "width": 28
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 980,
+        "y": 720
+      },
+      "accessibleLabel": "·",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "311"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1004,
+        "y": 720
+      },
+      "accessibleLabel": "♡",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "312"
+      },
+      "size": {
+        "height": 18,
+        "width": 20
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "313"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1152,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "314"
+      },
+      "size": {
+        "height": 552,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::vertical-bar",
+          "typeName": "ScrollBar"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1152,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "315"
+      },
+      "size": {
+        "height": 552,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1160,
+        "y": 188
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "316"
+      },
+      "size": {
+        "height": 16,
+        "width": 2
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::thumb",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1152,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "317"
+      },
+      "size": {
+        "height": 552,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 176
+      },
+      "handle": {
+        "generation": "1",
+        "index": "318"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 176
+      },
+      "handle": {
+        "generation": "1",
+        "index": "319"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::up-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 176
+      },
+      "handle": {
+        "generation": "1",
+        "index": "320"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 176
+      },
+      "handle": {
+        "generation": "1",
+        "index": "321"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 714
+      },
+      "handle": {
+        "generation": "1",
+        "index": "322"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 714
+      },
+      "handle": {
+        "generation": "1",
+        "index": "323"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::down-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 714
+      },
+      "handle": {
+        "generation": "1",
+        "index": "324"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1155,
+        "y": 714
+      },
+      "handle": {
+        "generation": "1",
+        "index": "325"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 250,
+        "y": 172
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "326"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 236,
+        "y": 724
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "327"
+      },
+      "size": {
+        "height": 36,
+        "width": 944
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 260,
+        "y": 733
+      },
+      "accessibleLabel": "20",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "328"
+      },
+      "size": {
+        "height": 16,
+        "width": 30
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 306,
+        "y": 733
+      },
+      "accessibleLabel": "100",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "329"
+      },
+      "size": {
+        "height": 16,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 356,
+        "y": 733
+      },
+      "accessibleLabel": "500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "330"
+      },
+      "size": {
+        "height": 16,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 406,
+        "y": 733
+      },
+      "accessibleLabel": "2500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "331"
+      },
+      "size": {
+        "height": 16,
+        "width": 40
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1068,
+        "y": 733
+      },
+      "accessibleLabel": "Load More",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "332"
+      },
+      "size": {
+        "height": 16,
+        "width": 90
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    }
+  ],
+  "totalCount": 332,
+  "truncated": false
+}

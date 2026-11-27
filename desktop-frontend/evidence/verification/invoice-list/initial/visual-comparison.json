@@ -1,0 +1,31 @@
+{
+  "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\app-sales-invoice\\reference.png",
+  "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\native.png",
+  "referenceSha256": "f3f0d28d6de196aa6420aba0ccdaf55576db359bd8fe4290177d2f816849c53d",
+  "nativeSha256": "a83973f8792fc970b3cea9a9a72118b52e838de14109945eb786befdd0199aea",
+  "passed": false,
+  "referenceSize": [
+    1180,
+    760
+  ],
+  "nativeSize": [
+    1180,
+    760
+  ],
+  "byteIdentical": false,
+  "dimensionsMatch": true,
+  "pixelsExactlyEqual": false,
+  "totalPixels": 896800,
+  "failedPixels": 449449,
+  "failedPixelRatio": 0.5011697145405888,
+  "maxFailedPixelRatio": 0.0,
+  "meanMaxChannelDelta": 14.537167707404103,
+  "maxChannelDelta": 255,
+  "diffBounds": {
+    "left": 0,
+    "top": 0,
+    "right": 1180,
+    "bottom": 760
+  },
+  "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\invoice-list\\initial\\visual-comparison.diff.png"
+}

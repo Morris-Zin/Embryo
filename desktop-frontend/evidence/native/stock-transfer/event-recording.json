@@ -1,0 +1,71 @@
+{
+  "events": [
+    {
+      "event": {
+        "pointerMoved": {
+          "position": {
+            "x": 1097.5,
+            "y": 46
+          }
+        }
+      },
+      "result": "Accepted",
+      "timestampMs": "1795786321533",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "pointerPressed": {
+          "position": {
+            "x": 1097.5,
+            "y": 46
+          }
+        }
+      },
+      "result": "Accepted",
+      "sequence": "1",
+      "timestampMs": "1795786321533",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "pointerMoved": {
+          "position": {
+            "x": 1097.5,
+            "y": 46
+          }
+        }
+      },
+      "result": "Accepted",
+      "sequence": "2",
+      "timestampMs": "1795786321584",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "pointerReleased": {
+          "position": {
+            "x": 1097.5,
+            "y": 46
+          }
+        }
+      },
+      "result": "Accepted",
+      "sequence": "3",
+      "timestampMs": "1795786321589",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    }
+  ]
+}

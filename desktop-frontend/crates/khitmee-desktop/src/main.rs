@@ -29,6 +29,7 @@ struct InvoiceSeed {
     name: String,
     customer: String,
     posting_date: String,
+    due_date: String,
     total: f64,
     status: String,
 }
@@ -104,24 +105,55 @@ fn fixture_catalog(rows: usize) -> Vec<CatalogItem> {
 }
 
 fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
+    let reference_rows = [
+        ("Khit Customer 0006", "ACC-SINV-RET-2026-00114", "Return", "-18.46"),
+        ("Khit Customer 0005", "ACC-SINV-RET-2026-00113", "Return", "-18.46"),
+        ("Khit Customer 0004", "ACC-SINV-RET-2026-00112", "Return", "-18.46"),
+        ("Khit Customer 0003", "ACC-SINV-RET-2026-00111", "Return", "-18.46"),
+        ("Khit Customer 0002", "ACC-SINV-RET-2026-00110", "Return", "-18.46"),
+        ("Khit Customer 0030", "ACC-SINV-2026-04921", "Unpaid", "36.92"),
+        ("Khit Customer 0029", "ACC-SINV-2026-04920", "Unpaid", "18.46"),
+        ("Khit Customer 0028", "ACC-SINV-2026-04919", "Unpaid", "36.92"),
+        ("Khit Customer 0027", "ACC-SINV-2026-04918", "Unpaid", "18.46"),
+        ("Khit Customer 0026", "ACC-SINV-2026-04917", "Unpaid", "36.92"),
+        ("Khit Customer 0025", "ACC-SINV-2026-04916", "Unpaid", "79.50"),
+        ("Khit Customer 0024", "ACC-SINV-2026-04915", "Unpaid", "36.92"),
+        ("Khit Customer 0023", "ACC-SINV-2026-04914", "Unpaid", "18.46"),
+        ("Khit Customer 0022", "ACC-SINV-2026-04913", "Unpaid", "36.92"),
+        ("Khit Customer 0021", "ACC-SINV-2026-04912", "Unpaid", "18.46"),
+        ("Khit Customer 0020", "ACC-SINV-2026-04911", "Unpaid", "36.92"),
+    ];
     (0..rows)
-        .map(|index| InvoiceSeed {
-            name: format!("SINV-2026-{index:06}"),
-            customer: if index % 1000 == 0 {
-                format!("မြတ်သူ {:04}", index % 1000)
-            } else {
-                format!("Customer {:04}", index % 997)
-            },
-            posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28),
-            total: 1000.0 + ((index * 173) % 85_000) as f64 / 2.0,
-            status: match index % 5 {
-                0 => "Paid",
-                1 => "Unpaid",
-                2 => "Overdue",
-                3 => "Draft",
-                _ => "Return",
+        .map(|index| {
+            if let Some((customer, name, status, total)) = reference_rows.get(index) {
+                return InvoiceSeed {
+                    name: (*name).into(),
+                    customer: (*customer).into(),
+                    posting_date: "2026-11-27".into(),
+                    due_date: if *status == "Return" { "2026-11-27".into() } else { "2026-12-11".into() },
+                    total: total.parse().unwrap_or(0.0),
+                    status: (*status).into(),
+                };
             }
-            .into(),
+            InvoiceSeed {
+                name: format!("SINV-2026-{index:06}"),
+                customer: if index % 1000 == 0 {
+                    format!("မြတ်သူ {:04}", index % 1000)
+                } else {
+                    format!("Customer {:04}", index % 997)
+                },
+                posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28),
+                due_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + ((index + 14) % 28)),
+                total: 1000.0 + ((index * 173) % 85_000) as f64 / 2.0,
+                status: match index % 5 {
+                    0 => "Paid",
+                    1 => "Unpaid",
+                    2 => "Overdue",
+                    3 => "Draft",
+                    _ => "Return",
+                }
+                .into(),
+            }
         })
         .collect()
 }
@@ -189,6 +221,7 @@ fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
             name: row.name.clone().into(),
             customer: row.customer.clone().into(),
             posting_date: row.posting_date.clone().into(),
+            due_date: row.due_date.clone().into(),
             total_text: money(row.total).into(),
             status: row.status.clone().into(),
         })
@@ -280,6 +313,11 @@ fn main() -> Result<(), slint::PlatformError> {
     );
     app.set_invoice_rows(invoice_model(&state.borrow().invoices, ""));
     app.set_search_results(search_model(&state.borrow().catalog, "retail"));
+    app.set_current_screen(match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
+        Ok("stock-transfer") | Ok("transfer") | Ok("1") => 1,
+        Ok("invoice-list") | Ok("invoices") | Ok("2") => 2,
+        _ => 0,
+    });
     refresh_voucher(&app, &state.borrow());
 
     app.on_search_edited({
@@ -289,6 +327,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let state = state.borrow();
             app.set_search_results(search_model(&state.catalog, term.as_str()));
+            app.set_search_open(!term.trim().is_empty());
             app.set_status_text(SharedString::from(format!(
                 "Local catalog search: {} visible matches from {} rows",
                 app.get_search_results().row_count(),
@@ -305,6 +344,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let mut state = state.borrow_mut();
             let matches = state.catalog.search(term.as_str(), 2);
             app.set_clear_scan_after_accept(matches.len() == 1);
+            app.set_search_open(false);
             if matches.len() == 1 {
                 let item = matches[0].clone();
                 let item_code = item.item_code.clone();
@@ -327,6 +367,7 @@ fn main() -> Result<(), slint::PlatformError> {
         move |code| {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
+            app.set_search_open(false);
             if let Some(item) = state.by_code.get(code.as_str()).cloned() {
                 add_item_to_draft(&mut state, item);
                 app.set_status_text(

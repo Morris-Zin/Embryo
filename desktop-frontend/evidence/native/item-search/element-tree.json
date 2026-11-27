@@ -1,0 +1,3348 @@
+{
+  "elements": [
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "1"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "AppWindow::root",
+          "typeName": "Window"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "2"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "AppWindow::key-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "3"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "4"
+      },
+      "size": {
+        "height": 74,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "5"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 74,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 24,
+        "y": 8
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "6"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 58,
+        "width": 816
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 16
+      },
+      "accessibleLabel": "KHITMEE OPS",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "7"
+      },
+      "size": {
+        "height": 17,
+        "width": 800
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 35
+      },
+      "accessibleLabel": "Item Search",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "8"
+      },
+      "size": {
+        "height": 33,
+        "width": 800
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 860,
+        "y": 8
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "9"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 58,
+        "width": 296
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Sales",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "10"
+      },
+      "size": {
+        "height": 42,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ScreenTab"
+        },
+        {
+          "id": "root",
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "11"
+      },
+      "size": {
+        "height": 42,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "12"
+      },
+      "size": {
+        "height": 42,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "13"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 42,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 880,
+        "y": 21
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "14"
+      },
+      "size": {
+        "height": 32,
+        "width": 27
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "15"
+      },
+      "size": {
+        "height": 42,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 868,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "16"
+      },
+      "size": {
+        "height": 42
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Item Search",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "17"
+      },
+      "size": {
+        "height": 42,
+        "width": 87
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ScreenTab"
+        },
+        {
+          "id": "root",
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "18"
+      },
+      "size": {
+        "height": 42,
+        "width": 87
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "19"
+      },
+      "size": {
+        "height": 42,
+        "width": 87
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "20"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 42,
+        "width": 87
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 937,
+        "y": 21
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "21"
+      },
+      "size": {
+        "height": 32,
+        "width": 63
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "22"
+      },
+      "size": {
+        "height": 42,
+        "width": 87
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 925,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "23"
+      },
+      "size": {
+        "height": 42
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Invoices",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "24"
+      },
+      "size": {
+        "height": 42,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ScreenTab"
+        },
+        {
+          "id": "root",
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "25"
+      },
+      "size": {
+        "height": 42,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "26"
+      },
+      "size": {
+        "height": 42,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "27"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 42,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1030,
+        "y": 21
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "28"
+      },
+      "size": {
+        "height": 32,
+        "width": 43
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "29"
+      },
+      "size": {
+        "height": 42,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1018,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "30"
+      },
+      "size": {
+        "height": 42
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "About",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "31"
+      },
+      "size": {
+        "height": 42,
+        "width": 57
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ScreenTab"
+        },
+        {
+          "id": "root",
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "32"
+      },
+      "size": {
+        "height": 42,
+        "width": 57
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "33"
+      },
+      "size": {
+        "height": 42,
+        "width": 57
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "34"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 42,
+        "width": 57
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1103,
+        "y": 21
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "35"
+      },
+      "size": {
+        "height": 32,
+        "width": 33
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "36"
+      },
+      "size": {
+        "height": 42,
+        "width": 57
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1091,
+        "y": 16
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "37"
+      },
+      "size": {
+        "height": 42
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": 74
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "38"
+      },
+      "size": {
+        "height": 614,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": 74
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "122"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 614,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 16,
+        "y": 90
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "123"
+      },
+      "size": {
+        "height": 582,
+        "width": 1148
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Panel"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 16,
+        "y": 90
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "124"
+      },
+      "size": {
+        "height": 582,
+        "width": 1148
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 16,
+        "y": 90
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "125"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 582,
+        "width": 1148
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 106
+      },
+      "accessibleLabel": "Item search qualification",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "126"
+      },
+      "size": {
+        "height": 22,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 138
+      },
+      "accessibleEnabled": true,
+      "accessiblePlaceholderText": "Search 10,000 fixture items, Burmese text, or scan barcode…",
+      "accessibleRole": "TextInput",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "127"
+      },
+      "size": {
+        "height": 48,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "AppWindow::item-search-qualification",
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "128"
+      },
+      "size": {
+        "height": 48,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "129"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 48,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 44,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "130"
+      },
+      "size": {
+        "height": 48,
+        "width": 1092
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 44,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "131"
+      },
+      "size": {
+        "height": 48,
+        "width": 1092
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 44,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "132"
+      },
+      "size": {
+        "height": 48,
+        "width": 1092
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 44,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "133"
+      },
+      "size": {
+        "height": 48,
+        "width": 1092
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 44,
+        "y": 138
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "134"
+      },
+      "size": {
+        "height": 48,
+        "width": 1091
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 36,
+        "y": 184
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "135"
+      },
+      "size": {
+        "height": 2,
+        "width": 1108
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 196
+      },
+      "accessibleLabel": "Fixture-only qualification data: 10000 catalog rows and 10000 invoice rows. ERPNext parity is pending live reference capture.",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "136"
+      },
+      "size": {
+        "height": 16,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "accessibleOrientation": "Vertical",
+      "accessibleRole": "List",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "137"
+      },
+      "size": {
+        "height": 434,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ListView"
+        },
+        {
+          "id": "root",
+          "typeName": "ScrollView"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "138"
+      },
+      "size": {
+        "height": 434,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::flickable",
+          "typeName": "Flickable"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "139"
+      },
+      "size": {
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "140"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "141"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "142"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 230
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "143"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1028
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 238
+      },
+      "accessibleLabel": "Beverage retail pack 2",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "144"
+      },
+      "size": {
+        "height": 16,
+        "width": 1012
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 256
+      },
+      "accessibleLabel": "ITEM-000002",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "145"
+      },
+      "size": {
+        "height": 16,
+        "width": 1012
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1084,
+        "y": 230
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "146"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1092,
+        "y": 238
+      },
+      "accessibleLabel": "268.50",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "147"
+      },
+      "size": {
+        "height": 16,
+        "width": 38
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1092,
+        "y": 256
+      },
+      "accessibleLabel": "38 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "148"
+      },
+      "size": {
+        "height": 16,
+        "width": 38
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 286
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "149"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 286
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "150"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 286
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "151"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 294
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "152"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1028
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 302
+      },
+      "accessibleLabel": "Stationery retail pack 4",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "153"
+      },
+      "size": {
+        "height": 16,
+        "width": 1012
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 320
+      },
+      "accessibleLabel": "ITEM-000004",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "154"
+      },
+      "size": {
+        "height": 16,
+        "width": 1012
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1084,
+        "y": 294
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "155"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1092,
+        "y": 302
+      },
+      "accessibleLabel": "287.00",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "156"
+      },
+      "size": {
+        "height": 16,
+        "width": 38
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1092,
+        "y": 320
+      },
+      "accessibleLabel": "76 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "157"
+      },
+      "size": {
+        "height": 16,
+        "width": 38
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 350
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "158"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 350
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "159"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 350
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "160"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 358
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "161"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1022
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 366
+      },
+      "accessibleLabel": "Tools retail pack 6",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "162"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 384
+      },
+      "accessibleLabel": "ITEM-000006",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "163"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1078,
+        "y": 358
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "164"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 366
+      },
+      "accessibleLabel": "305.50",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "165"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 384
+      },
+      "accessibleLabel": "114 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "166"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 414
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "167"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 414
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "168"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 414
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "169"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 422
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "170"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1022
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 430
+      },
+      "accessibleLabel": "Household retail pack 8",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "171"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 448
+      },
+      "accessibleLabel": "ITEM-000008",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "172"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1078,
+        "y": 422
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "173"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 430
+      },
+      "accessibleLabel": "324.00",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "174"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 448
+      },
+      "accessibleLabel": "152 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "175"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 478
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "176"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 478
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "177"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 478
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "178"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 486
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "179"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1022
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 494
+      },
+      "accessibleLabel": "Grocery retail pack 10",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "180"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 512
+      },
+      "accessibleLabel": "ITEM-000010  ·  8850000000010",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "181"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1078,
+        "y": 486
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "182"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 494
+      },
+      "accessibleLabel": "342.50",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "183"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 512
+      },
+      "accessibleLabel": "190 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "184"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 542
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "185"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 542
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "186"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 542
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "187"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 550
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "188"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1022
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 558
+      },
+      "accessibleLabel": "Beverage retail pack 12",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "189"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 576
+      },
+      "accessibleLabel": "ITEM-000012",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "190"
+      },
+      "size": {
+        "height": 16,
+        "width": 1006
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1078,
+        "y": 550
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "191"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 60
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 558
+      },
+      "accessibleLabel": "361.00",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "192"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1086,
+        "y": 576
+      },
+      "accessibleLabel": "228 Nos",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "193"
+      },
+      "size": {
+        "height": 16,
+        "width": 44
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 606
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "194"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 606
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "195"
+      },
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 606
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "196"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 64,
+        "width": 1116
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 42,
+        "y": 614
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "197"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 1023
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 622
+      },
+      "accessibleLabel": "Stationery retail pack 14",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "198"
+      },
+      "size": {
+        "height": 16,
+        "width": 1007
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 50,
+        "y": 640
+      },
+      "accessibleLabel": "ITEM-000014",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "199"
+      },
+      "size": {
+        "height": 16,
+        "width": 1007
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1079,
+        "y": 614
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "200"
+      },
+      "layoutKind": "VerticalLayout",
+      "size": {
+        "height": 48,
+        "width": 59
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "VerticalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "VerticalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1087,
+        "y": 622
+      },
+      "accessibleLabel": "379.50",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "201"
+      },
+      "size": {
+        "height": 16,
+        "width": 43
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1087,
+        "y": 640
+      },
+      "accessibleLabel": "266 Box",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "202"
+      },
+      "size": {
+        "height": 16,
+        "width": 43
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "203"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1134,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "204"
+      },
+      "size": {
+        "height": 434,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::vertical-bar",
+          "typeName": "ScrollBar"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1134,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "205"
+      },
+      "size": {
+        "height": 434,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1142,
+        "y": 238
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "206"
+      },
+      "size": {
+        "height": 109.0425033569336,
+        "width": 2
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::thumb",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1134,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "207"
+      },
+      "size": {
+        "height": 434,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 226
+      },
+      "handle": {
+        "generation": "1",
+        "index": "208"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 226
+      },
+      "handle": {
+        "generation": "1",
+        "index": "209"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::up-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 226
+      },
+      "handle": {
+        "generation": "1",
+        "index": "210"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 226
+      },
+      "handle": {
+        "generation": "1",
+        "index": "211"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 646
+      },
+      "handle": {
+        "generation": "1",
+        "index": "212"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 646
+      },
+      "handle": {
+        "generation": "1",
+        "index": "213"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::down-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 646
+      },
+      "handle": {
+        "generation": "1",
+        "index": "214"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1137,
+        "y": 646
+      },
+      "handle": {
+        "generation": "1",
+        "index": "215"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": 222
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "216"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": 688
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "103"
+      },
+      "size": {
+        "height": 72,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": 688
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "104"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 72,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "HorizontalBox"
+        },
+        {
+          "id": "root",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 22,
+        "y": 696
+      },
+      "accessibleLabel": "Total qty  0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "105"
+      },
+      "size": {
+        "height": 56,
+        "width": 64
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 104,
+        "y": 696
+      },
+      "accessibleLabel": "Subtotal  0.00",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "106"
+      },
+      "size": {
+        "height": 56,
+        "width": 79
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 201,
+        "y": 696
+      },
+      "accessibleLabel": "Ready",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "107"
+      },
+      "size": {
+        "height": 56,
+        "width": 748
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Clear",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "108"
+      },
+      "size": {
+        "height": 56,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "109"
+      },
+      "size": {
+        "height": 56,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "110"
+      },
+      "size": {
+        "height": 56,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "111"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 56,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 979,
+        "y": 701
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "112"
+      },
+      "size": {
+        "height": 46,
+        "width": 27
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "113"
+      },
+      "size": {
+        "height": 56,
+        "width": 51
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 967,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "114"
+      },
+      "size": {
+        "height": 56
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Submit & Print  F9",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "115"
+      },
+      "size": {
+        "height": 56,
+        "width": 122
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Button"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "116"
+      },
+      "size": {
+        "height": 56,
+        "width": 122
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "117"
+      },
+      "size": {
+        "height": 56,
+        "width": 122
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "118"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 56,
+        "width": 122
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1048,
+        "y": 701
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "119"
+      },
+      "size": {
+        "height": 46,
+        "width": 98
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "120"
+      },
+      "size": {
+        "height": 56,
+        "width": 122
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1036,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "121"
+      },
+      "size": {
+        "height": 56
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "Button::i-focus-scope",
+          "typeName": "FocusScope"
+        }
+      ]
+    }
+  ],
+  "totalCount": 152,
+  "truncated": false
+}

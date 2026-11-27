@@ -129,11 +129,12 @@ async function main() {
   }
   const eventRecording = actions.length ? structured(await callTool('stop_event_recording', { windowHandle })) : null;
   const tree = await getTree(rootHandle);
-  const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Invoice List' };
+  const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Sales Invoice', 'stock-transfer': 'Stock Transfer' };
   const expectedTitle = expectedTitles[screenId];
   const titleVisibleInHeader = expectedTitle && (tree.elements || []).some((element) => {
     const position = element.absolutePosition || {};
-    return element.accessibleLabel === expectedTitle && (position.x || 0) < 160 && (position.y || 0) < 120;
+    const maxX = screenId === 'invoice-list' ? 330 : 160;
+    return element.accessibleLabel === expectedTitle && (position.x || 0) < maxX && (position.y || 0) < 120;
   });
   if (expectedTitle && !titleVisibleInHeader) {
     throw new Error(`native window does not show ${expectedTitle} in the left header; refusing to file evidence as ${screenId}`);
