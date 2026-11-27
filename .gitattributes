@@ -1,5 +1,3 @@
-*.sh text eol=lf
-*.slint text eol=lf
 # Enforce LF line endings on autonomous loop tooling, rules, skills, workflows, and agent instructions.
 tools/autoloop/** text eol=lf
 .autoloop/** text eol=lf
