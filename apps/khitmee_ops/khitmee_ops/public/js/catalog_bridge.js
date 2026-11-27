@@ -21,8 +21,9 @@
 	window.__khitmeeCatalogStatus = status;
 
 	function serviceUrl() {
-		const params = new URLSearchParams(window.location.search);
-		const raw = params.get("khitmee_catalog_port") || window.localStorage.getItem("khitmee-catalog-port") || String(DEFAULT_SERVICE_PORT);
+		// The port must never come from a navigable URL: a malicious counter link
+		// could otherwise redirect catalog synchronization to an attacker listener.
+		const raw = window.localStorage.getItem("khitmee-catalog-port") || String(DEFAULT_SERVICE_PORT);
 		const port = Number(raw);
 		if (!Number.isInteger(port) || port < 1 || port > 65535) return "http://127.0.0.1:" + DEFAULT_SERVICE_PORT;
 		return "http://127.0.0.1:" + port;

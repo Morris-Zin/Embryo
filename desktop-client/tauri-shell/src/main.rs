@@ -65,12 +65,7 @@ fn target_url() -> Result<url::Url, url::ParseError> {
         .unwrap_or_else(|_| "http://127.0.0.1:18086/khitmee_sales".to_string());
     let mut url = url::Url::parse(&raw)?;
     if std::env::var("KHITMEE_DESKTOP_MODE").unwrap_or_else(|_| "rust".to_string()) == "rust" {
-        let mut pairs = url.query_pairs_mut();
-        pairs.append_pair("khitmee_catalog", "rust");
-        let port = catalog_port();
-        if port != 18422 {
-            pairs.append_pair("khitmee_catalog_port", &port.to_string());
-        }
+        url.query_pairs_mut().append_pair("khitmee_catalog", "rust");
     }
     Ok(url)
 }
