@@ -47,7 +47,8 @@ docker run --rm \
   -v "$VOLUME:/from:ro" \
   -v "$(dirname "$ARCHIVE"):/snapshot" \
   "$IMAGE" \
-  sh -c 'cd /from && tar czf "/snapshot/$SNAPSHOT_NAME" .'
+  sh -c 'umask 077; cd /from && tar czf "/snapshot/$SNAPSHOT_NAME" .'
+chmod 600 "$TMP_ARCHIVE"
 mv "$TMP_ARCHIVE" "$ARCHIVE"
 docker start "$CONTAINER" >/dev/null
 DB_STOPPED=0
