@@ -66,7 +66,7 @@ class PublishResult(TypedDict):
 	built_generation: int
 
 
-CALC_VERSION = 1
+CALC_VERSION = 2  # 2: same-day linked returns are replay candidates
 DEFAULT_ROUNDING_METHOD = "Banker's Rounding (legacy)"
 
 SHOP_DAY_FIELDS = (

@@ -659,28 +659,8 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 	eligibility["has_blocking_repost"] = bool(day_partition["has_blocking_repost"])
 	eligibility["dirty_days"] = list(day_partition["dirty_past_days"])
 
-	# Day-count and repost outcomes are known from day states alone; decide them
-	# before extracting live contributions so oversized requests stay cheap.
-	precheck_counts = _empty_budget_counts("summary")
-	precheck_counts.update(
-		{
-			"dirty_days_count": len(day_partition["dirty_past_days"]),
-			"missing_days_count": len(day_partition["missing_days"]),
-			"has_blocking_repost": bool(day_partition["has_blocking_repost"]),
-		}
-	)
-	precheck = evaluate_work_budget(filters, precheck_counts)
-	if precheck["outcome"] != "ok":
-		return _result(
-			precheck["outcome"],
-			message=precheck["reason"],
-			eligibility=eligibility,
-			meta=_meta_from_decision(precheck, precheck_counts),
-		)
-
 	clean_days = list(day_partition["clean_past_days"])
 	live_days = list(day_partition["live_days"])
-	stored_rows = store.get_shop_day_rows(company, clean_days)
 	clean_replay_rows = store.get_replay_candidates(company, clean_days)
 	clean_replay_ids = replay.extract_replay_invoice_ids(clean_replay_rows)
 	try:
@@ -706,6 +686,27 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 			meta=_meta_from_decision(decision, counts),
 		)
 
+	# Day-count and repost outcomes are known from day states alone; decide them
+	# before extracting live contributions so oversized requests stay cheap.  This
+	# runs after the stored replay cap, which rebuilding cannot fix.
+	precheck_counts = _empty_budget_counts("summary")
+	precheck_counts.update(
+		{
+			"dirty_days_count": len(day_partition["dirty_past_days"]),
+			"missing_days_count": len(day_partition["missing_days"]),
+			"has_blocking_repost": bool(day_partition["has_blocking_repost"]),
+		}
+	)
+	precheck = evaluate_work_budget(filters, precheck_counts)
+	if precheck["outcome"] != "ok":
+		return _result(
+			precheck["outcome"],
+			message=precheck["reason"],
+			eligibility=eligibility,
+			meta=_meta_from_decision(precheck, precheck_counts),
+		)
+
+	stored_rows = store.get_shop_day_rows(company, clean_days)
 	live_batches = _collect_live_batches(filters, live_days)
 	live_set_b_ids = _live_set_b_invoice_ids(live_batches)
 	replay_ids = sorted(set(clean_replay_ids) | set(live_set_b_ids))

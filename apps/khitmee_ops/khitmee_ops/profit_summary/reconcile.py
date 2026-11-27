@@ -93,6 +93,16 @@ def reconcile_with_coverage(company: str, from_date: str, to_date: str) -> dict:
 	from khitmee_ops.profit_summary import store
 
 	clean_days, stored_rows, ledger_rows = store.get_reconcile_inputs(company, from_date, to_date)
+	# A clean day covered by an active dirty range (backdated voucher not yet
+	# expanded) is not trusted by queries either, so it is not coverage.
+	effective = [
+		str(row.get("effective_date"))[:10]
+		for row in store.get_active_dirty_ranges(company, str(to_date)[:10]) or []
+		if row.get("effective_date")
+	]
+	if effective:
+		first_dirty = min(effective)
+		clean_days = [day for day in clean_days if str(day)[:10] < first_dirty]
 	total_days = (date.fromisoformat(str(to_date)[:10]) - date.fromisoformat(str(from_date)[:10])).days + 1
 	drifts = compare_rows(stored_rows, ledger_rows, clean_days) if clean_days else []
 	return {"drifts": drifts, "clean_days": len(set(map(str, clean_days))), "total_days": max(total_days, 0)}

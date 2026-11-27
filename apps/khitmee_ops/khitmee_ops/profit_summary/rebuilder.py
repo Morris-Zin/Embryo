@@ -357,7 +357,7 @@ def rebuild_claimed_day(claim: store.ClaimRecord):
 	return store.publish_day_snapshot(claim, target_gen, repost_sig, shop_rows, replay_rows, day_flags)
 
 
-def expand_dirty_ranges(company: str | None = None, batch_days: int = 30) -> int:
+def expand_dirty_ranges(company: str | None = None, batch_days: int = 30, deadline: float | None = None) -> int:
 	"""Expand active dirty ranges in ascending cursor batches of at most 30 days."""
 	if frappe is None:
 		raise RuntimeError("dirty range expansion requires Frappe")
@@ -365,6 +365,8 @@ def expand_dirty_ranges(company: str | None = None, batch_days: int = 30) -> int
 	today = _today()
 	yesterday = _add_days(today, -1)
 	for dirty_range in store.get_unprocessed_dirty_ranges(company=company):
+		if deadline is not None and time.monotonic() >= deadline:
+			break
 		if company and dirty_range.get("company") != company:
 			continue
 		start = _add_days(dirty_range["cursor_date"], 1) if dirty_range.get("cursor_date") else dirty_range["from_date"]
@@ -428,7 +430,7 @@ def process_dirty_slices(
 	processed = 0
 	deadline = time.monotonic() + float(time_budget_seconds) if time_budget_seconds else None
 	try:
-		expand_dirty_ranges(company=company)
+		expand_dirty_ranges(company=company, deadline=deadline)
 		while processed < int(max_slices or 1):
 			if deadline is not None and time.monotonic() >= deadline:
 				break
@@ -463,6 +465,15 @@ def _company_names():
 	return [row.get("name") if hasattr(row, "get") else row[0] for row in rows or []]
 
 
+def _fiscal_year_start(company: str, posting_date: str) -> str:
+	try:
+		from erpnext.accounts.utils import get_fiscal_year
+
+		return _as_date_string(get_fiscal_year(posting_date, company=company)[1])
+	except Exception:
+		return f"{posting_date[:4]}-01-01"
+
+
 def register_missing_history(company: str | None = None) -> dict:
 	"""Idempotently register rebuild work for history the summary has never built.
 
@@ -480,6 +491,9 @@ def register_missing_history(company: str | None = None) -> dict:
 	for name in [company] if company else _company_names():
 		start = store.get_history_start(name, yesterday)
 		if start:
+			# Reports default to the fiscal year, so also cover the empty days
+			# between the fiscal-year start and the first sale.
+			start = min(start, _fiscal_year_start(name, start))
 			states = store.get_day_states(name, start, yesterday)
 			current = start
 			while current <= yesterday:

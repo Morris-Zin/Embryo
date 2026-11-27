@@ -1037,10 +1037,52 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		}
 		with patch.object(query, "partition_request_days", return_value=partition), patch.object(
 			query, "_collect_live_batches", side_effect=AssertionError("must not extract live rows")
-		), patch.object(store, "get_shop_day_rows", side_effect=AssertionError("must not read stored rows")):
+		), patch.object(store, "get_replay_candidates", return_value=[]), patch.object(
+			store, "get_shop_day_rows", side_effect=AssertionError("must not read stored rows")
+		):
 			result = query._query_summary_in_snapshot(filters, {"eligible": True})
 		self.assertEqual(result["mode"], "pending")
 		self.assertEqual(result["message"], "too_many_dirty_or_missing_summary_days")
+
+	def test_replay_cap_wins_over_dirty_day_pending(self):
+		# Devin: rebuilding dirty days cannot fix a replay-cap breach, so report it first.
+		filters = {"company": "C", "from_date": "2025-01-01", "to_date": "2025-01-31", "group_by": "Warehouse"}
+		days = [f"2025-01-{day:02d}" for day in range(1, 31)]
+		partition = {
+			"clean_past_days": ["2025-01-31"], "dirty_past_days": days, "missing_days": [], "live_days": days,
+			"future_days": [], "has_blocking_repost": False, "day_states": {},
+		}
+		replay_rows = [{"sales_invoice": f"SI-{i}"} for i in range(1001)]
+		with patch.object(query, "partition_request_days", return_value=partition), patch.object(
+			store, "get_replay_candidates", return_value=replay_rows
+		), patch.object(query, "_collect_live_batches", side_effect=AssertionError("must not extract")):
+			result = query._query_summary_in_snapshot(filters, {"eligible": True})
+		self.assertEqual(result["mode"], "budget_exceeded")
+		self.assertEqual(result["message"], "clean_replay_invoices_exceeds_cap")
+
+	def test_expansion_honours_deadline(self):
+		ranges = [{"name": "R1", "company": "C", "from_date": "2026-01-01", "cursor_date": None}]
+		with patch.object(store, "get_unprocessed_dirty_ranges", return_value=ranges), patch.object(
+			rebuilder, "_today", return_value="2026-02-01"
+		), patch.object(store, "bump_dirty_days_ordered", side_effect=AssertionError("expanded past deadline")), patch.object(
+			rebuilder.time, "monotonic", return_value=500.0
+		):
+			self.assertEqual(rebuilder.expand_dirty_ranges(deadline=100.0), 0)
+
+	def test_backfill_starts_at_fiscal_year_start(self):
+		ensured = []
+		with patch.object(rebuilder, "_today", return_value="2026-01-08"), patch.object(
+			rebuilder, "_company_names", return_value=["C"]
+		), patch.object(store, "current_day_flags", return_value=self.FLAGS), patch.object(
+			store, "get_history_start", return_value="2026-01-05"
+		), patch.object(rebuilder, "_fiscal_year_start", return_value="2026-01-03"), patch.object(
+			store, "get_day_states", return_value={}
+		), patch.object(store, "ensure_day_state", side_effect=lambda company, day: ensured.append(day)), patch.object(
+			store, "get_stale_flag_days", return_value=[]
+		):
+			rebuilder.register_missing_history()
+		self.assertEqual(ensured[0], "2026-01-03")
+		self.assertEqual(ensured[-1], "2026-01-07")
 
 	def test_clean_report_without_replay_uses_site_precision(self):
 		# Devin: the empty replay batch's placeholder precision must not win.
@@ -1111,9 +1153,17 @@ class TestPr12ReviewFixes(unittest.TestCase):
 	def test_reconcile_reports_coverage(self):
 		from khitmee_ops.profit_summary import reconcile
 
-		with patch.object(store, "get_reconcile_inputs", return_value=(["2026-01-01"], [], [])):
+		with patch.object(store, "get_reconcile_inputs", return_value=(["2026-01-01"], [], [])), patch.object(
+			store, "get_active_dirty_ranges", return_value=[]
+		):
 			result = reconcile.reconcile_with_coverage("C", "2026-01-01", "2026-01-03")
 		self.assertEqual((result["clean_days"], result["total_days"], result["drifts"]), (1, 3, []))
+		# Devin: clean days under an active dirty range are not coverage.
+		with patch.object(store, "get_reconcile_inputs", return_value=(["2026-01-01", "2026-01-02"], [], [])), patch.object(
+			store, "get_active_dirty_ranges", return_value=[{"effective_date": "2026-01-02"}]
+		):
+			result = reconcile.reconcile_with_coverage("C", "2026-01-01", "2026-01-03")
+		self.assertEqual(result["clean_days"], 1)
 
 
 if __name__ == "__main__":
