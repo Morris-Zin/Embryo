@@ -235,6 +235,13 @@
       "stage": "deep",
       "status": "safeguard_pending",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:40:03Z",
+      "code_tree_sha256": "53cbc7dd68b154db98e317c1d32fa3fc492aca04a3570c1e22e1f0750af3aeda",
+      "event": "shard-passed",
+      "shard": "verification",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -331,8 +338,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "f0175e1760d7d4bffd241cb6f27ed1addc6946a6",
-      "passed_code_tree_sha256": "371272281f804ea2aba029691b8ca4b67e0d297da2d0356db235ee37d7d5338e",
+      "last_green_sha": "2658e515583801b21fc48fab2525969994c906b0",
+      "passed_code_tree_sha256": "53cbc7dd68b154db98e317c1d32fa3fc492aca04a3570c1e22e1f0750af3aeda",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -340,7 +347,7 @@
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "safeguard_pending",
+  "status": "gate_passed",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:38:39Z"
+  "updated_at": "2026-11-27T17:40:03Z"
 }
