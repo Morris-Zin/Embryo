@@ -81,6 +81,10 @@ fn main() {
             let url = target_url()?;
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Khitmee Counter")
+                .initialization_script(format!(
+                    "window.localStorage.setItem('khitmee-catalog-port', '{}');",
+                    catalog_port()
+                ))
                 .inner_size(1360.0, 850.0)
                 .build()?;
             Ok(())
