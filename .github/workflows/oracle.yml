@@ -116,6 +116,12 @@ jobs:
         run: |
           # The oracle sidecar is a standalone `docker run`, outside Compose;
           # remove any left behind by a cancelled or failed run first.
-          sidecars="$(docker ps -aq --filter label=khitmee.perf.parity-sidecar=1)"
-          if [ -n "$sidecars" ]; then docker rm -f $sidecars; fi
+          # A --rm sidecar may vanish between listing and removal; never let that
+          # skip the Compose teardown below.
+          sidecars="$(docker ps -aq --filter label=khitmee.perf.parity-sidecar=1 || true)"
+          if [ -n "$sidecars" ]; then docker rm -f $sidecars || true; fi
           bash perf-suite/scripts/down.sh
+          if [ -n "$(docker ps -q --filter label=khitmee.perf.parity-sidecar=1)" ]; then
+            echo "oracle sidecar still running after teardown" >&2
+            exit 1
+          fi
