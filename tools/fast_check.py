@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +54,17 @@ FAST_GROSS_PROFIT_PATH = (
 	"apps/khitmee_ops/khitmee_ops/khitmee_ops/report/fast_gross_profit/fast_gross_profit.py"
 )
 SEARCH_PATH = "apps/khitmee_ops/khitmee_ops/api/search.py"
+
+# Financial/seeder suites keep their original sequential discovery: several
+# legacy modules share import-time Frappe test doubles. Only the independent
+# tools suite uses class-level parallelism because it dominates verification time.
+PYTHON_TEST_SERIAL_SUITES = (
+	"apps/khitmee_ops/khitmee_ops/tests",
+	"perf-suite/seeder",
+	"perf-suite/k6",
+	"perf-suite/offload",
+)
+TOOLS_TEST_PARALLEL_WORKERS = 4
 
 # Function-level entries document caller-enforced batching or transitional pre-existing queries.
 SQL_IN_BATCH_ALLOWLIST = {
@@ -576,7 +588,24 @@ def run_guardrails(root):
 		raise RuntimeError("\n".join(bounded))
 
 
-def missing_dev_tools(which=shutil.which, find_spec=importlib.util.find_spec, runner=subprocess.run):
+def installed_script(name, which=shutil.which):
+	bases = {sysconfig.get_path("scripts"), str(Path(sys.executable).parent)}
+	for base in bases:
+		if not base:
+			continue
+		for suffix in ("", ".exe"):
+			candidate = Path(base) / (name + suffix)
+			if candidate.is_file():
+				return str(candidate)
+	return which(name)
+
+
+def missing_dev_tools(
+	which=shutil.which,
+	find_spec=importlib.util.find_spec,
+	runner=subprocess.run,
+	script_finder=installed_script,
+):
 	missing = []
 	if not which("ruff"):
 		try:
@@ -590,12 +619,15 @@ def missing_dev_tools(which=shutil.which, find_spec=importlib.util.find_spec, ru
 			)
 		except (OSError, subprocess.SubprocessError):
 			missing.append("ruff")
-	try:
-		hypothesis_available = find_spec("hypothesis") is not None
-	except (ImportError, ValueError):
-		hypothesis_available = False
-	if not hypothesis_available:
-		missing.append("hypothesis")
+	for module in ("hypothesis", "unittest_parallel"):
+		try:
+			available = find_spec(module) is not None
+		except (ImportError, ValueError):
+			available = False
+		if not available:
+			missing.append(module.replace("_", "-"))
+	if not script_finder("zizmor", which=which):
+		missing.append("zizmor")
 	return missing
 
 
@@ -619,6 +651,32 @@ def ruff_and_dev_deps(root):
 	run([*_ruff_command(), "check", "--config", "apps/khitmee_ops/pyproject.toml", "tools", "apps/khitmee_ops"], root)
 
 
+def unittest_parallel_command(root, suite="tools"):
+	return [
+		sys.executable,
+		"-B",
+		"-m",
+		"unittest_parallel",
+		"-s",
+		str(root / suite),
+		"-p",
+		"test_*.py",
+		"--level",
+		"class",
+		"-j",
+		str(TOOLS_TEST_PARALLEL_WORKERS),
+		"-q",
+	]
+
+
+def zizmor_workflows(root):
+	assert_dev_tools_available()
+	cli = installed_script("zizmor")
+	if not cli:
+		raise RuntimeError("missing pinned dev tools: zizmor")
+	run([cli, "--collect=workflows", "."], root)
+
+
 def check(root):
 	start = time.monotonic()
 	app = root / "apps/khitmee_ops"
@@ -627,11 +685,27 @@ def check(root):
 
 	def python_tests():
 		import re
-		for folder in (app / "khitmee_ops/tests", perf / "seeder", perf / "k6", perf / "offload", root / "tools"):
-			output = run([sys.executable, "-B", "-m", "unittest", "discover", "-s", str(folder), "-p", "test_*.py"], root)
+
+		def assert_tests_ran(suite, output):
 			match = re.search(r"Ran (\d+) tests?", output)
 			if not match or int(match.group(1)) < 1:
-				raise RuntimeError(f"unittest discovered zero tests in {folder}")
+				raise RuntimeError(f"unittest discovered zero tests in {suite}")
+
+		def serial_suites():
+			for suite in PYTHON_TEST_SERIAL_SUITES:
+				output = run(
+					[sys.executable, "-B", "-m", "unittest", "discover", "-s", str(root / suite), "-p", "test_*.py"],
+					root,
+				)
+				assert_tests_ran(suite, output)
+
+		def tools_suite():
+			assert_tests_ran("tools", run(unittest_parallel_command(root), root))
+
+		with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+			futures = [pool.submit(serial_suites), pool.submit(tools_suite)]
+			for future in concurrent.futures.as_completed(futures):
+				future.result()
 
 	def bash_syntax():
 		files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files",
@@ -712,6 +786,9 @@ def check(root):
 	def ruff_gate():
 		ruff_and_dev_deps(root)
 
+	def zizmor_gate():
+		zizmor_workflows(root)
+
 	jobs.update(
 		python=python_tests,
 		javascript=javascript,
@@ -721,6 +798,7 @@ def check(root):
 		guardrails=guardrails,
 		ruff_and_dev_deps=ruff_gate,
 		autoloop_lint=autoloop_lint,
+		zizmor_workflows=zizmor_gate,
 	)
 	failed = False
 	with concurrent.futures.ThreadPoolExecutor(max_workers=len(jobs)) as pool:

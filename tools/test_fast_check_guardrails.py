@@ -309,17 +309,20 @@ class TestDevToolGate(unittest.TestCase):
 			which=lambda name: None,
 			find_spec=lambda name: None,
 			runner=failing_runner,
+			script_finder=lambda name, which=None: None,
 		)
 
-		self.assertEqual(missing, ["ruff", "hypothesis"])
+		self.assertEqual(missing, ["ruff", "hypothesis", "unittest-parallel", "zizmor"])
 
 	def test_missing_dev_tool_diagnostic_contains_exact_bootstrap_command(self):
-		with mock.patch.object(fc, "missing_dev_tools", return_value=["ruff", "hypothesis"]):
+		with mock.patch.object(fc, "missing_dev_tools", return_value=["ruff", "hypothesis", "unittest-parallel", "zizmor"]):
 			with self.assertRaises(RuntimeError) as raised:
 				fc.assert_dev_tools_available()
 
 		self.assertIn("ruff", str(raised.exception))
 		self.assertIn("hypothesis", str(raised.exception))
+		self.assertIn("unittest-parallel", str(raised.exception))
+		self.assertIn("zizmor", str(raised.exception))
 		self.assertIn(fc.DEV_BOOTSTRAP_COMMAND, str(raised.exception))
 		self.assertIn("bootstrap with exactly:", str(raised.exception))
 
@@ -331,9 +334,28 @@ class TestDevToolGate(unittest.TestCase):
 			which=lambda name: None,
 			find_spec=lambda name: object(),
 			runner=lambda *args, **kwargs: Result(),
+			script_finder=lambda name, which=None: "/venv/bin/zizmor",
 		)
 
 		self.assertEqual(missing, [])
+
+
+class TestParallelUnittestSelection(unittest.TestCase):
+	def test_tools_suite_uses_measured_class_parallelism(self):
+		command = fc.unittest_parallel_command(Path("/repo"))
+
+		self.assertIn("--level", command)
+		self.assertEqual(command[command.index("--level") + 1], "class")
+		self.assertEqual(command[command.index("-j") + 1], "4")
+		self.assertEqual(command[command.index("-s") + 1], "/repo/tools")
+
+	def test_financial_and_seeder_suites_keep_sequential_discovery(self):
+		self.assertEqual(fc.PYTHON_TEST_SERIAL_SUITES, (
+			"apps/khitmee_ops/khitmee_ops/tests",
+			"perf-suite/seeder",
+			"perf-suite/k6",
+			"perf-suite/offload",
+		))
 
 
 if __name__ == "__main__":
