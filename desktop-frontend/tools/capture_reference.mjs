@@ -6,9 +6,10 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { existsSync } from 'node:fs';
 
 const require = createRequire(new URL('../../perf-suite/browser/package.json', import.meta.url));
-const { chromium } = require('playwright');
+const { chromium } = require('@playwright/test');
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -32,7 +33,9 @@ async function sha256File(file) {
 async function main() {
   await fs.mkdir(outDir, { recursive: true });
   const launchOptions = { headless };
-  if (process.platform === 'win32') launchOptions.channel = 'chrome';
+  const devinChrome = 'C:/devin/chrome/chrome-win64/chrome.exe';
+  if (process.platform === 'win32' && existsSync(devinChrome)) launchOptions.executablePath = devinChrome;
+  else if (process.platform === 'win32') launchOptions.channel = 'chrome';
   const browser = await chromium.launch(launchOptions);
   const context = await browser.newContext({
     viewport: { width: 1180, height: 760 },
