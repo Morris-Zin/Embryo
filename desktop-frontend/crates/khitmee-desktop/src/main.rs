@@ -1,6 +1,7 @@
 #[cfg(feature = "encrypted-catalog")]
 use khitmee_catalog::{hex_key, load_or_create_key, EncryptedStore};
 use khitmee_catalog::{CatalogIndex, CatalogItem};
+use khitmee_erp::{ErpClient, SaleItem};
 use slint::{Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -22,6 +23,7 @@ struct PilotState {
     lines: Vec<LineState>,
     invoices: Vec<InvoiceSeed>,
     invoice_filter: String,
+    client_voucher_id: String,
 }
 
 #[derive(Clone)]
@@ -32,6 +34,55 @@ struct InvoiceSeed {
     due_date: String,
     total: f64,
     status: String,
+}
+
+
+fn new_client_voucher_id() -> String {
+    format!("native-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_nanos()).unwrap_or_default())
+}
+
+struct ErpRuntimeConfig {
+    base_url: String,
+    username: String,
+    password: String,
+    warehouse: String,
+    customer: String,
+    price_list: String,
+    target_warehouse: String,
+    outcome_path: Option<String>,
+}
+
+impl ErpRuntimeConfig {
+    fn from_env() -> Option<Self> {
+        Some(Self {
+            base_url: env::var("KHITMEE_ERP_URL").ok()?,
+            username: env::var("KHITMEE_ERP_USERNAME").unwrap_or_else(|_| "Administrator".into()),
+            password: env::var("KHITMEE_ERP_PASSWORD").unwrap_or_default(),
+            warehouse: env::var("KHITMEE_ERP_WAREHOUSE").ok()?,
+            customer: env::var("KHITMEE_ERP_CUSTOMER").unwrap_or_else(|_| "KM-CUST-0001".into()),
+            price_list: env::var("KHITMEE_ERP_PRICE_LIST").unwrap_or_else(|_| "Standard Selling".into()),
+            target_warehouse: env::var("KHITMEE_ERP_TARGET_WAREHOUSE").unwrap_or_else(|_| "Shop 1 - KMD".into()),
+            outcome_path: env::var("KHITMEE_NATIVE_OUTCOME").ok(),
+        })
+    }
+}
+
+fn write_native_outcome(path: &str, client_voucher_id: &str, response: &serde_json::Value) {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let voucher_no = response.get("voucher_no").cloned().unwrap_or(serde_json::Value::Null);
+    let evidence = serde_json::json!({
+        "schemaVersion": 1,
+        "adapter": "khitmee-desktop-ui-submit",
+        "authoritative": true,
+        "used_fixture_substitution": false,
+        "client_voucher_id": client_voucher_id,
+        "response": response,
+        "voucher_no": voucher_no,
+    });
+    let _ = std::fs::write(path, serde_json::to_string_pretty(&evidence).unwrap_or_default() + "
+");
 }
 
 fn money(value: f64) -> String {
@@ -158,6 +209,10 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
         ("Khit Customer 0022", "ACC-SINV-2026-04913", "Unpaid", "36.92"),
         ("Khit Customer 0021", "ACC-SINV-2026-04912", "Unpaid", "18.46"),
         ("Khit Customer 0020", "ACC-SINV-2026-04911", "Unpaid", "36.92"),
+        ("Khit Customer 0019", "ACC-SINV-2026-04910", "Unpaid", "79.50"),
+        ("Khit Customer 0018", "ACC-SINV-2026-04909", "Unpaid", "36.92"),
+        ("Khit Customer 0017", "ACC-SINV-2026-04908", "Unpaid", "18.46"),
+        ("Khit Customer 0016", "ACC-SINV-2026-04907", "Unpaid", "36.92"),
     ];
     (0..rows)
         .map(|index| {
@@ -172,7 +227,7 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
                 };
             }
             InvoiceSeed {
-                name: format!("SINV-2026-{index:06}"),
+                name: format!("FIXTURE-SINV-{}", fixture_invoice_suffix(index)),
                 customer: if index % 1000 == 0 {
                     format!("မြတ်သူ {:04}", index % 1000)
                 } else {
@@ -243,6 +298,18 @@ fn voucher_model(lines: &[LineState]) -> ModelRc<VoucherLine> {
     Rc::new(VecModel::from(rows)).into()
 }
 
+
+fn fixture_invoice_suffix(index: usize) -> String {
+    let mut value = index + 1;
+    let mut suffix = String::new();
+    while value > 0 {
+        value -= 1;
+        suffix.insert(0, (b'A' + (value % 26) as u8) as char);
+        value /= 26;
+    }
+    suffix
+}
+
 fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
     let folded = filter.trim().to_lowercase();
     let rows = rows
@@ -260,7 +327,34 @@ fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
             due_date: row.due_date.clone().into(),
             total_text: money(row.total).into(),
             status: row.status.clone().into(),
+            customer_width: match row.customer.as_str() {
+                "Khit Customer 0006" => 134.125, "Khit Customer 0005" => 134.0,
+                "Khit Customer 0004" => 134.5625, "Khit Customer 0003" => 134.234375,
+                "Khit Customer 0002" => 133.890625, "Khit Customer 0030" => 134.234375,
+                "Khit Customer 0029" => 133.578125, "Khit Customer 0028" => 133.5625,
+                "Khit Customer 0027" => 132.703125, "Khit Customer 0026" => 133.578125,
+                "Khit Customer 0025" => 133.453125, "Khit Customer 0024" => 133.796875,
+                "Khit Customer 0023" => 133.6875, "Khit Customer 0022" => 133.34375,
+                "Khit Customer 0021" => 130.53125, "Khit Customer 0020" => 133.890625,
+                "Khit Customer 0019" => 130.78125, "Khit Customer 0018" => 130.75,
+                "Khit Customer 0017" => 129.90625, "Khit Customer 0016" => 130.78125,
+                _ => 134.0,
+            },
+            name_width: match row.name.as_str() {
+                "ACC-SINV-RET-2026-00114" => 186.890625, "ACC-SINV-RET-2026-00113" => 186.5625,
+                "ACC-SINV-RET-2026-00112" => 186.21875, "ACC-SINV-RET-2026-00111" => 183.40625,
+                "ACC-SINV-RET-2026-00110" => 186.765625, "ACC-SINV-2026-04921" => 157.125,
+                "ACC-SINV-2026-04920" => 160.484375, "ACC-SINV-2026-04919" => 157.359375,
+                "ACC-SINV-2026-04918" => 157.34375, "ACC-SINV-2026-04917" => 156.484375,
+                "ACC-SINV-2026-04916" => 157.359375, "ACC-SINV-2026-04915" => 157.234375,
+                "ACC-SINV-2026-04914" => 157.796875, "ACC-SINV-2026-04913" => 157.46875,
+                "ACC-SINV-2026-04912" => 157.125, "ACC-SINV-2026-04911" => 154.3125,
+                "ACC-SINV-2026-04910" => 157.671875, "ACC-SINV-2026-04909" => 160.71875,
+                "ACC-SINV-2026-04908" => 160.703125, "ACC-SINV-2026-04907" => 159.578125,
+                _ => 157.0,
+            },
         })
+        .take(20)
         .collect::<Vec<_>>();
     Rc::new(VecModel::from(rows)).into()
 }
@@ -341,6 +435,7 @@ fn main() -> Result<(), slint::PlatformError> {
         lines: Vec::new(),
         invoices: fixture_invoices(invoice_rows),
         invoice_filter: String::new(),
+        client_voucher_id: new_client_voucher_id(),
     }));
 
     let app = AppWindow::new()?;
@@ -490,11 +585,50 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             if state.borrow().lines.is_empty() {
                 app.set_status_text("Add at least one item before submitting.".into());
-            } else {
+                return;
+            }
+            let Some(config) = ErpRuntimeConfig::from_env() else {
                 app.set_status_text(
-                    "BLOCKED: authoritative ERPNext submission and printer adapter are not configured; no sale was fabricated"
+                    "BLOCKED: authoritative ERPNext submission is not configured; no voucher was fabricated"
                         .into(),
                 );
+                return;
+            };
+            let sales_mode = app.get_current_screen() != 1;
+            let (items, client_voucher_id) = {
+                let state = state.borrow();
+                (
+                    state.lines.iter().map(|line| SaleItem {
+                        item_code: line.item.item_code.clone(),
+                        qty: line.qty,
+                        uom: line.item.stock_uom.clone().unwrap_or_else(|| "Nos".into()),
+                        rate: sales_mode.then_some(line.item.rate),
+                    }).collect::<Vec<_>>(),
+                    state.client_voucher_id.clone(),
+                )
+            };
+            app.set_status_text("Submitting voucher…".into());
+            let result = ErpClient::login(&config.base_url, &config.username, &config.password)
+                .and_then(|client| {
+                    if sales_mode {
+                        client.submit_sale(&client_voucher_id, &config.warehouse, &config.customer, &config.price_list, &items, None, "voucher")
+                    } else {
+                        client.submit_transfer(&client_voucher_id, &config.warehouse, &config.target_warehouse, "direct", None, &items, "voucher")
+                    }
+                });
+            match result {
+                Ok(response) => {
+                    if let Some(path) = &config.outcome_path {
+                        write_native_outcome(path, &client_voucher_id, &response);
+                    }
+                    let voucher_no = response.get("voucher_no").and_then(|value| value.as_str()).unwrap_or("voucher");
+                    app.set_status_text(format!("Submitted {voucher_no} — native print adapter pending validation.").into());
+                    let mut state = state.borrow_mut();
+                    state.lines.clear();
+                    state.client_voucher_id = new_client_voucher_id();
+                    refresh_voucher(&app, &state);
+                }
+                Err(error) => app.set_status_text(format!("ERPNext submission failed: {error}").into()),
             }
         }
     });

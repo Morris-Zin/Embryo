@@ -13,17 +13,17 @@
       "ms": 500
     }
   ],
-  "capturedAt": "2026-11-27T14:09:53.553Z",
+  "capturedAt": "2026-11-27T14:31:54.024Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "d2e28daf9d661cfec3fd7ac3be12609ff53c8f2e751205fb21a071dd476acdd0",
+  "screenshotSha256": "280292bd2b16538931b09daab39344230fc8460f98621c2cfe239ee2020ddcfc",
   "window": {
     "position": {
-      "x": 52,
-      "y": 52
+      "x": 234,
+      "y": 234
     },
     "rootElementHandle": {
       "generation": "1",
@@ -35,7 +35,7 @@
       "width": 1180
     }
   },
-  "elementCount": 139,
+  "elementCount": 134,
   "toolNames": [
     "list_windows",
     "get_window_properties",

@@ -148,6 +148,7 @@ async function main() {
           keyboard: [...element.querySelectorAll('kbd')].map((kbd) => kbd.textContent.trim()).filter(Boolean),
           inputType: element.getAttribute('type') || '',
           placeholder: element.getAttribute('placeholder') || '',
+          value: element.value || '',
           geometry: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
           visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none',
           disabled: Boolean(element.disabled),

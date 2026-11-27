@@ -48,11 +48,8 @@
       "evidence": [],
       "failures": [
         "initial: visual comparison failed or inputs were incomparable",
-        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "initial: behavioral keyboard evidence missing or failing",
         "filtered: visual comparison failed or inputs were incomparable",
         "filtered: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "filtered: behavioral keyboard evidence missing or failing",
         "business outcome evidence missing",
         "performance evidence missing"
       ],
@@ -279,9 +276,7 @@
       "failures": [
         "initial: visual comparison failed or inputs were incomparable",
         "draft-line: visual comparison failed or inputs were incomparable",
-        "draft-line: control identity, text/accessibility semantics, geometry, or state comparison failed",
         "search-results: visual comparison failed or inputs were incomparable",
-        "search-results: control identity, text/accessibility semantics, geometry, or state comparison failed",
         "business outcome evidence missing",
         "performance evidence missing"
       ],
@@ -433,7 +428,6 @@
         "initial: visual comparison failed or inputs were incomparable",
         "draft-line: visual comparison failed or inputs were incomparable",
         "search-results: visual comparison failed or inputs were incomparable",
-        "search-results: control identity, text/accessibility semantics, geometry, or state comparison failed",
         "business outcome evidence missing",
         "performance evidence missing"
       ],

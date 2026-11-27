@@ -24,7 +24,7 @@
       "expectText": "Add at least one item before submitting."
     }
   ],
-  "capturedAt": "2026-11-27T14:09:36.165Z",
+  "capturedAt": "2026-11-27T14:25:09.895Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
@@ -33,8 +33,8 @@
   "screenshotSha256": "52ac75da8c892fa57e6a54ac5fd84c18f7612211cbb20de0d9d2b77095f0e14e",
   "window": {
     "position": {
-      "x": 130,
-      "y": 130
+      "x": 260,
+      "y": 260
     },
     "rootElementHandle": {
       "generation": "1",
@@ -46,7 +46,7 @@
       "width": 1180
     }
   },
-  "elementCount": 321,
+  "elementCount": 201,
   "toolNames": [
     "list_windows",
     "get_window_properties",

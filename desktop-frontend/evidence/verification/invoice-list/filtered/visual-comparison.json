@@ -2,7 +2,7 @@
   "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\app-sales-invoice\\filtered\\reference.png",
   "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\filtered\\native.png",
   "referenceSha256": "2ed2c0c816559070a917f7f7016da365e25f29fd4e071702585f7da275fb56e3",
-  "nativeSha256": "d2e28daf9d661cfec3fd7ac3be12609ff53c8f2e751205fb21a071dd476acdd0",
+  "nativeSha256": "280292bd2b16538931b09daab39344230fc8460f98621c2cfe239ee2020ddcfc",
   "passed": false,
   "referenceSize": [
     1180,
@@ -16,15 +16,15 @@
   "dimensionsMatch": true,
   "pixelsExactlyEqual": false,
   "totalPixels": 896800,
-  "failedPixels": 779290,
-  "failedPixelRatio": 0.8689674397859054,
+  "failedPixels": 292405,
+  "failedPixelRatio": 0.32605374665477255,
   "maxFailedPixelRatio": 0.0,
-  "meanMaxChannelDelta": 12.181616859946477,
-  "maxChannelDelta": 255,
+  "meanMaxChannelDelta": 6.202708519179304,
+  "maxChannelDelta": 248,
   "diffBounds": {
     "left": 0,
     "top": 0,
-    "right": 1180,
+    "right": 1170,
     "bottom": 760
   },
   "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\invoice-list\\filtered\\visual-comparison.diff.png"

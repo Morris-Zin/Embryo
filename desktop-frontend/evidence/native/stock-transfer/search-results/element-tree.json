@@ -1164,6 +1164,7 @@
       "accessibleEnabled": true,
       "accessibleLabel": "Voucher 80mm",
       "accessibleRole": "RadioButton",
+      "accessibleValue": "voucher",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
@@ -1288,6 +1289,7 @@
       "accessibleEnabled": true,
       "accessibleLabel": "Canon A4",
       "accessibleRole": "RadioButton",
+      "accessibleValue": "a4",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
@@ -2151,7 +2153,7 @@
     {
       "absolutePosition": {
         "x": 492,
-        "y": 566
+        "y": 544
       },
       "computedOpacity": 1,
       "handle": {
@@ -2171,7 +2173,7 @@
     {
       "absolutePosition": {
         "x": 492,
-        "y": 566
+        "y": 544
       },
       "computedOpacity": 1,
       "handle": {
@@ -2189,7 +2191,7 @@
     {
       "absolutePosition": {
         "x": 495.421875,
-        "y": 563.9375
+        "y": 541.9375
       },
       "accessibleEnabled": true,
       "accessibleLabel": "Item search results",
@@ -2212,7 +2214,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 570.53125
+        "y": 548.53125
       },
       "computedOpacity": 1,
       "handle": {
@@ -2232,7 +2234,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 570.53125
+        "y": 548.53125
       },
       "computedOpacity": 1,
       "handle": {
@@ -2256,10 +2258,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 570.53125
+        "y": 548.53125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46",
+      "accessibleLabel": "KM-00001 Mekong Fresh Beverage 00001 Stock 485 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -2280,10 +2282,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 570.53125
+        "y": 548.53125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46",
+      "accessibleLabel": "KM-00001 Mekong Fresh Beverage 00001 Stock 485 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -2303,7 +2305,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 572.125
+        "y": 550.125
       },
       "computedOpacity": 1,
       "handle": {
@@ -2324,7 +2326,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 577.53125
+        "y": 555.53125
       },
       "accessibleLabel": "KM-00001",
       "accessibleRole": "Text",
@@ -2346,7 +2348,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 600.53125
+        "y": 578.53125
       },
       "accessibleLabel": "Mekong Fresh Beverage 00001",
       "accessibleRole": "Text",
@@ -2368,7 +2370,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 577.53125
+        "y": 555.53125
       },
       "accessibleLabel": "Stock 485",
       "accessibleRole": "Text",
@@ -2390,9 +2392,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 600.53125
+        "y": 578.53125
       },
-      "accessibleLabel": "18.46",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2412,7 +2414,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 636.5
+        "y": 614.5
       },
       "computedOpacity": 1,
       "handle": {
@@ -2436,10 +2438,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 636.5
+        "y": 614.5
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
+      "accessibleLabel": "KM-00005 Mekong Fresh Staple 00005 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -2460,10 +2462,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 636.5
+        "y": 614.5
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
+      "accessibleLabel": "KM-00005 Mekong Fresh Staple 00005 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -2483,7 +2485,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 638.09375
+        "y": 616.09375
       },
       "computedOpacity": 1,
       "handle": {
@@ -2504,7 +2506,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 643.5
+        "y": 621.5
       },
       "accessibleLabel": "KM-00005",
       "accessibleRole": "Text",
@@ -2526,7 +2528,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 666.5
+        "y": 644.5
       },
       "accessibleLabel": "Mekong Fresh Staple 00005",
       "accessibleRole": "Text",
@@ -2548,7 +2550,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 643.5
+        "y": 621.5
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -2570,9 +2572,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 666.5
+        "y": 644.5
       },
-      "accessibleLabel": "36.03",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2592,7 +2594,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 702.46875
+        "y": 680.46875
       },
       "computedOpacity": 1,
       "handle": {
@@ -2616,10 +2618,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 702.46875
+        "y": 680.46875
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
+      "accessibleLabel": "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -2640,10 +2642,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 702.46875
+        "y": 680.46875
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
+      "accessibleLabel": "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -2663,7 +2665,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 704.0625
+        "y": 682.0625
       },
       "computedOpacity": 1,
       "handle": {
@@ -2684,7 +2686,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 709.46875
+        "y": 687.46875
       },
       "accessibleLabel": "KM-00007",
       "accessibleRole": "Text",
@@ -2706,7 +2708,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 732.46875
+        "y": 710.46875
       },
       "accessibleLabel": "Mekong Fresh Baby Care 00007",
       "accessibleRole": "Text",
@@ -2728,7 +2730,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 709.46875
+        "y": 687.46875
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -2750,9 +2752,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 732.46875
+        "y": 710.46875
       },
-      "accessibleLabel": "24.34",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2772,7 +2774,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 768.4375
+        "y": 746.4375
       },
       "computedOpacity": 1,
       "handle": {
@@ -2796,10 +2798,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 768.4375
+        "y": 746.4375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
+      "accessibleLabel": "KM-00021 Mekong Fresh Staple 00021 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -2820,10 +2822,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 768.4375
+        "y": 746.4375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
+      "accessibleLabel": "KM-00021 Mekong Fresh Staple 00021 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -2843,7 +2845,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 770.03125
+        "y": 748.03125
       },
       "computedOpacity": 1,
       "handle": {
@@ -2864,7 +2866,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 775.4375
+        "y": 753.4375
       },
       "accessibleLabel": "KM-00021",
       "accessibleRole": "Text",
@@ -2886,7 +2888,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 798.4375
+        "y": 776.4375
       },
       "accessibleLabel": "Mekong Fresh Staple 00021",
       "accessibleRole": "Text",
@@ -2908,7 +2910,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 775.4375
+        "y": 753.4375
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -2930,9 +2932,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 798.4375
+        "y": 776.4375
       },
-      "accessibleLabel": "14.62",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2952,7 +2954,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 834.40625
+        "y": 812.40625
       },
       "computedOpacity": 1,
       "handle": {
@@ -2976,10 +2978,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 834.40625
+        "y": 812.40625
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40",
+      "accessibleLabel": "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3000,10 +3002,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 834.40625
+        "y": 812.40625
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40",
+      "accessibleLabel": "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3023,7 +3025,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 836
+        "y": 814
       },
       "computedOpacity": 1,
       "handle": {
@@ -3044,7 +3046,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 841.40625
+        "y": 819.40625
       },
       "accessibleLabel": "KM-00038",
       "accessibleRole": "Text",
@@ -3066,7 +3068,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 864.40625
+        "y": 842.40625
       },
       "accessibleLabel": "Mekong Fresh Cleaning 00038",
       "accessibleRole": "Text",
@@ -3088,7 +3090,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 841.40625
+        "y": 819.40625
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -3110,9 +3112,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 864.40625
+        "y": 842.40625
       },
-      "accessibleLabel": "10.40",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3132,7 +3134,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 900.375
+        "y": 878.375
       },
       "computedOpacity": 1,
       "handle": {
@@ -3156,10 +3158,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 900.375
+        "y": 878.375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26",
+      "accessibleLabel": "KM-00050 Mekong Fresh Snack 00050 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3180,10 +3182,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 900.375
+        "y": 878.375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26",
+      "accessibleLabel": "KM-00050 Mekong Fresh Snack 00050 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3203,7 +3205,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 901.96875
+        "y": 879.96875
       },
       "computedOpacity": 1,
       "handle": {
@@ -3224,7 +3226,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 907.375
+        "y": 885.375
       },
       "accessibleLabel": "KM-00050",
       "accessibleRole": "Text",
@@ -3246,7 +3248,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 930.375
+        "y": 908.375
       },
       "accessibleLabel": "Mekong Fresh Snack 00050",
       "accessibleRole": "Text",
@@ -3268,7 +3270,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 907.375
+        "y": 885.375
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -3290,9 +3292,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 930.375
+        "y": 908.375
       },
-      "accessibleLabel": "50.26",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3312,7 +3314,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 966.34375
+        "y": 944.34375
       },
       "computedOpacity": 1,
       "handle": {
@@ -3336,10 +3338,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 966.34375
+        "y": 944.34375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82",
+      "accessibleLabel": "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3360,10 +3362,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 966.34375
+        "y": 944.34375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82",
+      "accessibleLabel": "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3383,7 +3385,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 967.9375
+        "y": 945.9375
       },
       "computedOpacity": 1,
       "handle": {
@@ -3404,7 +3406,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 973.34375
+        "y": 951.34375
       },
       "accessibleLabel": "KM-00054",
       "accessibleRole": "Text",
@@ -3426,7 +3428,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 996.34375
+        "y": 974.34375
       },
       "accessibleLabel": "Mekong Fresh Cleaning 00054",
       "accessibleRole": "Text",
@@ -3448,7 +3450,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 973.34375
+        "y": 951.34375
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -3470,9 +3472,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 996.34375
+        "y": 974.34375
       },
-      "accessibleLabel": "4.82",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3492,7 +3494,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1032.3125
+        "y": 1010.3125
       },
       "computedOpacity": 1,
       "handle": {
@@ -3516,10 +3518,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1032.3125
+        "y": 1010.3125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20",
+      "accessibleLabel": "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3540,10 +3542,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1032.3125
+        "y": 1010.3125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20",
+      "accessibleLabel": "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3563,7 +3565,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1033.90625
+        "y": 1011.90625
       },
       "computedOpacity": 1,
       "handle": {
@@ -3584,7 +3586,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1039.3125
+        "y": 1017.3125
       },
       "accessibleLabel": "KM-00055",
       "accessibleRole": "Text",
@@ -3606,7 +3608,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1062.3125
+        "y": 1040.3125
       },
       "accessibleLabel": "Mekong Fresh Baby Care 00055",
       "accessibleRole": "Text",
@@ -3628,7 +3630,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1039.3125
+        "y": 1017.3125
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -3650,9 +3652,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1062.3125
+        "y": 1040.3125
       },
-      "accessibleLabel": "45.20",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3672,7 +3674,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1098.28125
+        "y": 1076.28125
       },
       "computedOpacity": 1,
       "handle": {
@@ -3696,10 +3698,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1098.28125
+        "y": 1076.28125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
+      "accessibleLabel": "KM-00056 Mekong Fresh Frozen 00056 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3720,10 +3722,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1098.28125
+        "y": 1076.28125
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
+      "accessibleLabel": "KM-00056 Mekong Fresh Frozen 00056 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3743,7 +3745,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1099.875
+        "y": 1077.875
       },
       "computedOpacity": 1,
       "handle": {
@@ -3764,7 +3766,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1105.28125
+        "y": 1083.28125
       },
       "accessibleLabel": "KM-00056",
       "accessibleRole": "Text",
@@ -3786,7 +3788,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1128.28125
+        "y": 1106.28125
       },
       "accessibleLabel": "Mekong Fresh Frozen 00056",
       "accessibleRole": "Text",
@@ -3808,7 +3810,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1105.28125
+        "y": 1083.28125
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -3830,9 +3832,9 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1128.28125
+        "y": 1106.28125
       },
-      "accessibleLabel": "5.88",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3852,7 +3854,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1164.25
+        "y": 1142.25
       },
       "computedOpacity": 1,
       "handle": {
@@ -3876,10 +3878,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1164.25
+        "y": 1142.25
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77",
+      "accessibleLabel": "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 —",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
@@ -3900,10 +3902,10 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1164.25
+        "y": 1142.25
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77",
+      "accessibleLabel": "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 —",
       "accessibleRole": "ListItem",
       "computedOpacity": 1,
       "handle": {
@@ -3923,7 +3925,7 @@
     {
       "absolutePosition": {
         "x": 502.015625,
-        "y": 1165.84375
+        "y": 1143.84375
       },
       "computedOpacity": 1,
       "handle": {
@@ -3944,7 +3946,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1171.25
+        "y": 1149.25
       },
       "accessibleLabel": "KM-00060",
       "accessibleRole": "Text",
@@ -3966,7 +3968,7 @@
     {
       "absolutePosition": {
         "x": 512.015625,
-        "y": 1194.25
+        "y": 1172.25
       },
       "accessibleLabel": "Mekong Fresh Personal Care 00060",
       "accessibleRole": "Text",
@@ -3988,7 +3990,7 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1171.25
+        "y": 1149.25
       },
       "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
@@ -4010,2714 +4012,14 @@
     {
       "absolutePosition": {
         "x": 977.390625,
-        "y": 1194.25
+        "y": 1172.25
       },
-      "accessibleLabel": "42.77",
+      "accessibleLabel": "—",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
         "index": "313"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1230.21875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "314"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1230.21875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "315"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1230.21875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "316"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1231.8125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "317"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1237.21875
-      },
-      "accessibleLabel": "KM-00069",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "318"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1260.21875
-      },
-      "accessibleLabel": "Mekong Fresh Staple 00069",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "319"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1237.21875
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "320"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1260.21875
-      },
-      "accessibleLabel": "27.83",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "321"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1296.1875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "322"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1296.1875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "323"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1296.1875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "324"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1297.78125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "325"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1303.1875
-      },
-      "accessibleLabel": "KM-00070",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "326"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1326.1875
-      },
-      "accessibleLabel": "Mekong Fresh Cleaning 00070",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "327"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1303.1875
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "328"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1326.1875
-      },
-      "accessibleLabel": "28.48",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "329"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1362.15625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "330"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1362.15625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "331"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1362.15625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "332"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1363.75
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "333"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1369.15625
-      },
-      "accessibleLabel": "KM-00077",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "334"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1392.15625
-      },
-      "accessibleLabel": "Mekong Fresh Staple 00077",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "335"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1369.15625
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "336"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1392.15625
-      },
-      "accessibleLabel": "17.56",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "337"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1428.125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "338"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1428.125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "339"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1428.125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "340"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1429.71875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "341"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1435.125
-      },
-      "accessibleLabel": "KM-00079",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "342"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1458.125
-      },
-      "accessibleLabel": "Mekong Fresh Baby Care 00079",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "343"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1435.125
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "344"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1458.125
-      },
-      "accessibleLabel": "13.64",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "345"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1494.09375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "346"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1494.09375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "347"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1494.09375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "348"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1495.6875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "349"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1501.09375
-      },
-      "accessibleLabel": "KM-00080",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "350"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1524.09375
-      },
-      "accessibleLabel": "Mekong Fresh Frozen 00080",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "351"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1501.09375
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "352"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1524.09375
-      },
-      "accessibleLabel": "17.95",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "353"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1560.0625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "354"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1560.0625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00083 Mekong Fresh Household 00083 Stock 500 1.88",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "355"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1560.0625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00083 Mekong Fresh Household 00083 Stock 500 1.88",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "356"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1561.65625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "357"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1567.0625
-      },
-      "accessibleLabel": "KM-00083",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "358"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1590.0625
-      },
-      "accessibleLabel": "Mekong Fresh Household 00083",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "359"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1567.0625
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "360"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1590.0625
-      },
-      "accessibleLabel": "1.88",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "361"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1626.03125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "362"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1626.03125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "363"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1626.03125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "364"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1627.625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "365"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1633.03125
-      },
-      "accessibleLabel": "KM-00085",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "366"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1656.03125
-      },
-      "accessibleLabel": "Mekong Fresh Staple 00085",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "367"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1633.03125
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "368"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1656.03125
-      },
-      "accessibleLabel": "27.30",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "369"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1692
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "370"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1692
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "371"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1692
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "372"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1693.59375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "373"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1699
-      },
-      "accessibleLabel": "KM-00105",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "374"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1722
-      },
-      "accessibleLabel": "Mekong Fresh Beverage 00105",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "375"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1699
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "376"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1722
-      },
-      "accessibleLabel": "6.73",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "377"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1757.96875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "378"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1757.96875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "379"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1757.96875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "380"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1759.5625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "381"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1764.96875
-      },
-      "accessibleLabel": "KM-00108",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "382"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1787.96875
-      },
-      "accessibleLabel": "Mekong Fresh Personal Care 00108",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "383"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1764.96875
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "384"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1787.96875
-      },
-      "accessibleLabel": "4.17",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "385"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1823.9375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "386"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1823.9375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "387"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1823.9375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "388"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1825.53125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "389"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1830.9375
-      },
-      "accessibleLabel": "KM-00132",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "390"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1853.9375
-      },
-      "accessibleLabel": "Mekong Fresh Personal Care 00132",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "391"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1830.9375
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "392"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1853.9375
-      },
-      "accessibleLabel": "2.69",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "393"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1889.90625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "394"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1889.90625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "395"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1889.90625
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "396"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1891.5
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "397"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1896.90625
-      },
-      "accessibleLabel": "KM-00135",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "398"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1919.90625
-      },
-      "accessibleLabel": "Mekong Fresh Baby Care 00135",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "399"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1896.90625
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "400"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1919.90625
-      },
-      "accessibleLabel": "50.68",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "401"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1955.875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "402"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1955.875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "403"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1955.875
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "404"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 1957.46875
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "405"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1962.875
-      },
-      "accessibleLabel": "KM-00143",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "406"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 1985.875
-      },
-      "accessibleLabel": "Mekong Fresh Baby Care 00143",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "407"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1962.875
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "408"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 1985.875
-      },
-      "accessibleLabel": "4.42",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "409"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2021.84375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "410"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2021.84375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00147 Mekong Fresh Household 00147 Stock 500 4.52",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "411"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2021.84375
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00147 Mekong Fresh Household 00147 Stock 500 4.52",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "412"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2023.4375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "413"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2028.84375
-      },
-      "accessibleLabel": "KM-00147",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "414"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2051.84375
-      },
-      "accessibleLabel": "Mekong Fresh Household 00147",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "415"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2028.84375
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "416"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2051.84375
-      },
-      "accessibleLabel": "4.52",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "417"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2087.8125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "418"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2087.8125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "419"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2087.8125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "420"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2089.40625
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "421"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2094.8125
-      },
-      "accessibleLabel": "KM-00148",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "422"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2117.8125
-      },
-      "accessibleLabel": "Mekong Fresh Personal Care 00148",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "423"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2094.8125
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "424"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2117.8125
-      },
-      "accessibleLabel": "41.76",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "425"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2153.78125
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "426"
-      },
-      "size": {
-        "height": 65.96875,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "SearchResultRow"
-        },
-        {
-          "id": "root",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2153.78125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55",
-      "accessibleRole": "Button",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "427"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::content",
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2153.78125
-      },
-      "accessibleEnabled": true,
-      "accessibleLabel": "KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55",
-      "accessibleRole": "ListItem",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "428"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Rectangle"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 502.015625,
-        "y": 2155.375
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "429"
-      },
-      "size": {
-        "height": 62.78125,
-        "width": 607.375
-      },
-      "typeNamesAndIds": [
-        {
-          "id": "SearchResultRow::touch",
-          "typeName": "TouchArea"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2160.78125
-      },
-      "accessibleLabel": "KM-00161",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "430"
-      },
-      "size": {
-        "height": 19,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 512.015625,
-        "y": 2183.78125
-      },
-      "accessibleLabel": "Mekong Fresh Beverage 00161",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "431"
-      },
-      "size": {
-        "height": 16,
-        "width": 457.375
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2160.78125
-      },
-      "accessibleLabel": "Stock 500",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "432"
-      },
-      "size": {
-        "height": 18,
-        "width": 120
-      },
-      "typeNamesAndIds": [
-        {
-          "typeName": "Text"
-        }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 977.390625,
-        "y": 2183.78125
-      },
-      "accessibleLabel": "19.55",
-      "accessibleRole": "Text",
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "433"
       },
       "size": {
         "height": 18,
@@ -6947,6 +4249,6 @@
       ]
     }
   ],
-  "totalCount": 319,
+  "totalCount": 199,
   "truncated": false
 }

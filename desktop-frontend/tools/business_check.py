@@ -10,6 +10,7 @@ import argparse
 import json
 import urllib.error
 import urllib.request
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,24 +67,58 @@ def main() -> int:
     parser.add_argument("--password", default="")
     parser.add_argument("--fixture", required=True, help="JSON sale fixture with warehouse/customer/price_list/items")
     parser.add_argument("--native-outcome", default=str(ROOT / "evidence" / "native-business-outcome.json"))
+    parser.add_argument("--native-probe", help="optional native business-probe executable invoked with the same client_voucher_id")
+    parser.add_argument("--operation", choices=["sale", "transfer"], default="sale")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
     client_voucher_id = "migration-verify-" + uuid.uuid4().hex[:20]
-    payload = {
-        "client_voucher_id": client_voucher_id,
-        "warehouse": fixture["warehouse"],
-        "customer": fixture["customer"],
-        "price_list": fixture["price_list"],
-        "items": fixture["items"],
-        "payment_mode": fixture.get("payment_mode"),
-        "printer_type": fixture.get("printer_type", "voucher"),
-        "override_rate": False,
-    }
+    if args.operation == "transfer":
+        payload = {
+            "client_voucher_id": client_voucher_id,
+            "source_warehouse": fixture["warehouse"],
+            "target_warehouse": fixture["target_warehouse"],
+            "transfer_mode": fixture.get("transfer_mode", "direct"),
+            "outgoing_stock_entry": fixture.get("outgoing_stock_entry"),
+            "items": fixture["items"],
+            "printer_type": fixture.get("printer_type", "voucher"),
+        }
+        endpoint = "khitmee_ops.api.vouchers.submit_transfer"
+    else:
+        payload = {
+            "client_voucher_id": client_voucher_id,
+            "warehouse": fixture["warehouse"],
+            "customer": fixture["customer"],
+            "price_list": fixture["price_list"],
+            "items": fixture["items"],
+            "payment_mode": fixture.get("payment_mode"),
+            "printer_type": fixture.get("printer_type", "voucher"),
+            "override_rate": False,
+        }
+        endpoint = "khitmee_ops.api.vouchers.submit_sale"
+    if args.native_probe:
+        probe_result = subprocess.run(
+            [
+                args.native_probe,
+                "--base-url", args.base_url,
+                "--username", args.username,
+                "--password", args.password,
+                "--operation", args.operation,
+                "--fixture", args.fixture,
+                "--client-voucher-id", client_voucher_id,
+                "--outcome", args.native_outcome,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if probe_result.returncode != 0:
+            # Keep the harness strict: absence or adapter failure is reported below as missing/invalid evidence.
+            pass
     opener = login_opener(args.base_url, args.username, args.password)
-    first_status, first = post_method(opener, args.base_url, "khitmee_ops.api.vouchers.submit_sale", payload)
-    second_status, second = post_method(opener, args.base_url, "khitmee_ops.api.vouchers.submit_sale", payload)
+    first_status, first = post_method(opener, args.base_url, endpoint, payload)
+    second_status, second = post_method(opener, args.base_url, endpoint, payload)
 
     failures = []
     first_message = first.get("message", first) if isinstance(first, dict) else first

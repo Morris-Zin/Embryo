@@ -32,17 +32,17 @@
       "expectText": "BLOCKED: authoritative ERPNext submission"
     }
   ],
-  "capturedAt": "2026-11-27T14:09:39.579Z",
+  "capturedAt": "2026-11-27T14:25:15.355Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "d316e184a897df74957033d00ae34e0ce7d161c82fad36a242f85c35cfbe3652",
+  "screenshotSha256": "72f608d7fea8e19f6594417d33b3a2a5d68d038aa2e665e7d4d556097fcd2b15",
   "window": {
     "position": {
-      "x": 156,
-      "y": 156
+      "x": 26,
+      "y": 26
     },
     "rootElementHandle": {
       "generation": "1",

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import socket
 import sys
 import time
 import urllib.request
@@ -42,11 +43,11 @@ def states():
     }
 
 def ready(port):
-    payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"capture-orchestrator","version":"0"}}}).encode()
-    req=urllib.request.Request(f"http://127.0.0.1:{port}/mcp",data=payload,headers={"content-type":"application/json"})
     try:
-        with urllib.request.urlopen(req,timeout=.3) as response: return 200 <= response.status < 300
-    except Exception: return False
+        with socket.create_connection(("127.0.0.1", port), timeout=.2):
+            return True
+    except OSError:
+        return False
 
 def main():
     if not EXE.exists():
@@ -58,20 +59,24 @@ def main():
         env=os.environ.copy()
         env.update({"SLINT_MCP_PORT":str(port),"SLINT_EMIT_DEBUG_INFO":"1","KHITMEE_CATALOG_ROWS":"10000","KHITMEE_INVOICE_ROWS":"10000"})
         if config.get("initial"): env["KHITMEE_INITIAL_SCREEN"]=config["initial"]
+        subprocess.run(["taskkill.exe","/F","/IM","khitmee-desktop.exe"],capture_output=True)
+        time.sleep(0.35)
         process=subprocess.Popen([str(EXE)],cwd=ROOT,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         try:
-            deadline=time.time()+10
+            deadline=time.time()+35
             while time.time()<deadline and not ready(port): time.sleep(.05)
             if not ready(port):
                 failures.append((screen,state,"native MCP did not start")); continue
+            time.sleep(1.25)
             cmd=["node",str(ROOT/"tools"/"capture_native_mcp.mjs"),"--port",str(port),"--screen",screen,"--state",state,"--actions",json.dumps(config["actions"],separators=(",",":"))]
             result=subprocess.run(cmd,cwd=REPO,capture_output=True,text=True,timeout=30)
             if result.returncode:
                 failures.append((screen,state,(result.stderr+result.stdout).strip()[-500:]))
         finally:
-            process.kill()
-            try: process.wait(timeout=5)
-            except subprocess.TimeoutExpired: pass
+            subprocess.run(["taskkill.exe","/F","/IM","khitmee-desktop.exe"],capture_output=True)
+            time.sleep(0.2)
+            try: process.kill(); process.wait(timeout=2)
+            except Exception: pass
     print(json.dumps({"passed":not failures,"failures":failures},indent=2))
     return 1 if failures else 0
 

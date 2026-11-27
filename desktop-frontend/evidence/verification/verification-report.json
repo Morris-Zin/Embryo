@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-27T14:10:16Z",
+  "generatedAt": "2026-11-27T14:33:17Z",
   "passed": false,
   "results": [
     {
@@ -8,11 +8,7 @@
       "passed": false,
       "failures": [
         "initial: visual comparison failed or inputs were incomparable",
-        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "initial: behavioral keyboard evidence missing or failing",
         "filtered: visual comparison failed or inputs were incomparable",
-        "filtered: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "filtered: behavioral keyboard evidence missing or failing",
         "business outcome evidence missing",
         "performance evidence missing"
       ],
@@ -21,9 +17,7 @@
           "state": "initial",
           "passed": false,
           "failures": [
-            "visual comparison failed or inputs were incomparable",
-            "control identity, text/accessibility semantics, geometry, or state comparison failed",
-            "behavioral keyboard evidence missing or failing"
+            "visual comparison failed or inputs were incomparable"
           ],
           "checks": {
             "reference-screenshot": {
@@ -50,7 +44,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\app-sales-invoice\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\native.png",
               "referenceSha256": "02f0c55eb44d77d9dd1933d4fc3af36cdc3b00deaf11554eb51a9f102c2d1d90",
-              "nativeSha256": "a83973f8792fc970b3cea9a9a72118b52e838de14109945eb786befdd0199aea",
+              "nativeSha256": "6943fedcc707e65a386beb817491dca63b8e11243b023d07997a239f6241a957",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -64,15 +58,15 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 449449,
-              "failedPixelRatio": 0.5011697145405888,
+              "failedPixels": 344321,
+              "failedPixelRatio": 0.3839440231935772,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 14.548022970561998,
-              "maxChannelDelta": 255,
+              "meanMaxChannelDelta": 10.784600802854595,
+              "maxChannelDelta": 248,
               "diffBounds": {
                 "left": 0,
                 "top": 0,
-                "right": 1180,
+                "right": 1170,
                 "bottom": 760
               },
               "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\invoice-list\\initial\\visual-comparison.diff.png",
@@ -80,292 +74,16 @@
               "stderr": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\tools\\compare_screenshots.py:56: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(diff.getdata())"
             },
             "structure": {
-              "passed": false,
+              "passed": true,
               "referenceControlCount": 181,
-              "nativeControlCount": 26,
-              "missingControls": [
-                "button|$ -18.46|1",
-                "button|$ -18.46|2",
-                "button|$ -18.46|3",
-                "button|$ -18.46|4",
-                "button|$ -18.46|5",
-                "button|$ 18.46|1",
-                "button|$ 18.46|2",
-                "button|$ 18.46|3",
-                "button|$ 18.46|4",
-                "button|$ 18.46|5",
-                "button|$ 36.92|1",
-                "button|$ 36.92|2",
-                "button|$ 36.92|3",
-                "button|$ 36.92|4",
-                "button|$ 36.92|5",
-                "button|$ 36.92|6",
-                "button|$ 36.92|7",
-                "button|$ 36.92|8",
-                "button|$ 79.50|1",
-                "button|$ 79.50|2",
-                "button|2026-11-27|1",
-                "button|2026-11-27|10",
-                "button|2026-11-27|11",
-                "button|2026-11-27|12",
-                "button|2026-11-27|13",
-                "button|2026-11-27|14",
-                "button|2026-11-27|15",
-                "button|2026-11-27|16",
-                "button|2026-11-27|17",
-                "button|2026-11-27|18",
-                "button|2026-11-27|19",
-                "button|2026-11-27|2",
-                "button|2026-11-27|20",
-                "button|2026-11-27|21",
-                "button|2026-11-27|22",
-                "button|2026-11-27|23",
-                "button|2026-11-27|24",
-                "button|2026-11-27|25",
-                "button|2026-11-27|3",
-                "button|2026-11-27|4",
-                "button|2026-11-27|5",
-                "button|2026-11-27|6",
-                "button|2026-11-27|7",
-                "button|2026-11-27|8",
-                "button|2026-11-27|9",
-                "button|2026-12-11|1",
-                "button|2026-12-11|10",
-                "button|2026-12-11|11",
-                "button|2026-12-11|12",
-                "button|2026-12-11|13",
-                "button|2026-12-11|14",
-                "button|2026-12-11|15",
-                "button|2026-12-11|2",
-                "button|2026-12-11|3",
-                "button|2026-12-11|4",
-                "button|2026-12-11|5",
-                "button|2026-12-11|6",
-                "button|2026-12-11|7",
-                "button|2026-12-11|8",
-                "button|2026-12-11|9",
-                "button|ACC-SINV-2026-04907|1",
-                "button|ACC-SINV-2026-04908|1",
-                "button|ACC-SINV-2026-04909|1",
-                "button|ACC-SINV-2026-04910|1",
-                "button|ACC-SINV-2026-04911|1",
-                "button|ACC-SINV-2026-04912|1",
-                "button|ACC-SINV-2026-04913|1",
-                "button|ACC-SINV-2026-04914|1",
-                "button|ACC-SINV-2026-04915|1",
-                "button|ACC-SINV-2026-04916|1",
-                "button|ACC-SINV-2026-04917|1",
-                "button|ACC-SINV-2026-04918|1",
-                "button|ACC-SINV-2026-04919|1",
-                "button|ACC-SINV-2026-04920|1",
-                "button|ACC-SINV-2026-04921|1",
-                "button|ACC-SINV-RET-2026-00110|1",
-                "button|ACC-SINV-RET-2026-00111|1",
-                "button|ACC-SINV-RET-2026-00112|1",
-                "button|ACC-SINV-RET-2026-00113|1",
-                "button|ACC-SINV-RET-2026-00114|1",
-                "button|Accounts|1",
-                "button|Accounts|2",
-                "button|All apps|1",
-                "button|Assets|1",
-                "button|Banking|1",
-                "button|Budgeting|1",
-                "button|Buying|1",
-                "button|Chart of Accounts|1",
-                "button|Collapse sidebar|1",
-                "button|Created On|1",
-                "button|Dashboard|1",
-                "button|Filter|1",
-                "button|Flow|1",
-                "button|Home|1",
-                "button|Journal Entry|1",
-                "button|Khit Customer 0002|1",
-                "button|Khit Customer 0003|1",
-                "button|Khit Customer 0004|1",
-                "button|Khit Customer 0005|1",
-                "button|Khit Customer 0006|1",
-                "button|Khit Customer 0016|1",
-                "button|Khit Customer 0017|1",
-                "button|Khit Customer 0018|1",
-                "button|Khit Customer 0019|1",
-                "button|Khit Customer 0020|1",
-                "button|Khit Customer 0021|1",
-                "button|Khit Customer 0022|1",
-                "button|Khit Customer 0023|1",
-                "button|Khit Customer 0024|1",
-                "button|Khit Customer 0025|1",
-                "button|Khit Customer 0026|1",
-                "button|Khit Customer 0027|1",
-                "button|Khit Customer 0028|1",
-                "button|Khit Customer 0029|1",
-                "button|Khit Customer 0030|1",
-                "button|List View|1",
-                "button|Load More|1",
-                "button|Manufacturing|1",
-                "button|Menu|1",
-                "button|More Options|1",
-                "button|Notifications|1",
-                "button|Payment Entry|1",
-                "button|Projects|1",
-                "button|Purchase Invoice|1",
-                "button|Quality|1",
-                "button|Reports|1",
-                "button|Sales Invoice|1",
-                "button|Search|1",
-                "button|Selling|1",
-                "button|Setup|1",
-                "button|Setup|2",
-                "button|Sidebar Menu|1",
-                "button|Stock|1",
-                "button|Taxes|1",
-                "button|User Menu|1",
-                "button|descending|1",
-                "button||1",
-                "button||2",
-                "button||3",
-                "button||4",
-                "button||5",
-                "button||6",
-                "button||7",
-                "button||8",
-                "checkbox|on|1",
-                "checkbox|on|10",
-                "checkbox|on|11",
-                "checkbox|on|12",
-                "checkbox|on|13",
-                "checkbox|on|14",
-                "checkbox|on|15",
-                "checkbox|on|16",
-                "checkbox|on|17",
-                "checkbox|on|18",
-                "checkbox|on|19",
-                "checkbox|on|2",
-                "checkbox|on|20",
-                "checkbox|on|21",
-                "checkbox|on|3",
-                "checkbox|on|4",
-                "checkbox|on|5",
-                "checkbox|on|6",
-                "checkbox|on|7",
-                "checkbox|on|8",
-                "checkbox|on|9",
-                "combobox|Draft Return Credit Note Issued Submitted Paid Partly Paid Unpaid Unpaid and Discounted Partly Paid and Discounted Overdue and Discounted Overdue Cancelled Internal Transfer|1",
-                "group|Add Sales Invoice|1",
-                "navigation|Apps|1",
-                "radiobutton|100|1",
-                "radiobutton|20|1",
-                "radiobutton|2500|1",
-                "radiobutton|500|1",
-                "radiogroup|Page Size|1",
-                "status|Begin typing for results.|1",
-                "status|Begin typing for results.|2",
-                "textinput|Customer Name|1",
-                "textinput|ID|1",
-                "textinput|Posting Date|1"
-              ],
-              "unexpectedControls": [
-                "button|⋯|1",
-                "button|☰ List View ⌄|1",
-                "button|⟳|1",
-                "combobox|Status|1",
-                "listitem|Khit Customer 0002 ACC-SINV-RET-2026-00110|1",
-                "listitem|Khit Customer 0003 ACC-SINV-RET-2026-00111|1",
-                "listitem|Khit Customer 0004 ACC-SINV-RET-2026-00112|1",
-                "listitem|Khit Customer 0005 ACC-SINV-RET-2026-00113|1",
-                "listitem|Khit Customer 0006 ACC-SINV-RET-2026-00114|1",
-                "listitem|Khit Customer 0020 ACC-SINV-2026-04911|1",
-                "listitem|Khit Customer 0021 ACC-SINV-2026-04912|1",
-                "listitem|Khit Customer 0022 ACC-SINV-2026-04913|1",
-                "listitem|Khit Customer 0023 ACC-SINV-2026-04914|1",
-                "listitem|Khit Customer 0024 ACC-SINV-2026-04915|1",
-                "listitem|Khit Customer 0025 ACC-SINV-2026-04916|1",
-                "listitem|Khit Customer 0026 ACC-SINV-2026-04917|1",
-                "listitem|Khit Customer 0027 ACC-SINV-2026-04918|1",
-                "listitem|Khit Customer 0028 ACC-SINV-2026-04919|1",
-                "listitem|Khit Customer 0029 ACC-SINV-2026-04920|1",
-                "listitem|Khit Customer 0030 ACC-SINV-2026-04921|1",
-                "textinput||1",
-                "textinput||2",
-                "textinput||3"
-              ],
+              "nativeControlCount": 181,
+              "missingControls": [],
+              "unexpectedControls": [],
               "geometryTolerancePx": 0.0,
-              "geometryFailures": [
-                {
-                  "control": "button|Add Sales Invoice|1",
-                  "reference": {
-                    "x": 967.328125,
-                    "y": 10.0,
-                    "width": 159.171875,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 960.0,
-                    "y": 7.0,
-                    "width": 198.0,
-                    "height": 36.0
-                  },
-                  "deltas": {
-                    "x": 7.328125,
-                    "y": 3.0,
-                    "width": 38.828125,
-                    "height": 8.0
-                  }
-                },
-                {
-                  "control": "button|Add Sales Invoice|1",
-                  "stateMismatch": {
-                    "referenceDisabled": false,
-                    "nativeDisabled": true,
-                    "referenceExpanded": null,
-                    "nativeExpanded": null
-                  }
-                },
-                {
-                  "control": "combobox|Company|1",
-                  "reference": {
-                    "x": 446.0,
-                    "y": 62.0,
-                    "width": 140.0,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 484.0,
-                    "y": 60.0,
-                    "width": 116.0,
-                    "height": 31.0
-                  },
-                  "deltas": {
-                    "x": 38.0,
-                    "y": 2.0,
-                    "width": 24.0,
-                    "height": 3.0
-                  }
-                },
-                {
-                  "control": "combobox|Customer|1",
-                  "reference": {
-                    "x": 596.0,
-                    "y": 62.0,
-                    "width": 140.0,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 616.0,
-                    "y": 60.0,
-                    "width": 116.0,
-                    "height": 31.0
-                  },
-                  "deltas": {
-                    "x": 20.0,
-                    "y": 2.0,
-                    "width": 24.0,
-                    "height": 3.0
-                  }
-                }
-              ]
+              "geometryFailures": []
             },
             "keyboard": {
-              "passed": false,
+              "passed": true,
               "requiredShortcuts": [],
               "missingBehavioralResults": [],
               "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\keyboard-results.json"
@@ -376,9 +94,7 @@
           "state": "filtered",
           "passed": false,
           "failures": [
-            "visual comparison failed or inputs were incomparable",
-            "control identity, text/accessibility semantics, geometry, or state comparison failed",
-            "behavioral keyboard evidence missing or failing"
+            "visual comparison failed or inputs were incomparable"
           ],
           "checks": {
             "reference-screenshot": {
@@ -405,7 +121,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\app-sales-invoice\\filtered\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\filtered\\native.png",
               "referenceSha256": "2ed2c0c816559070a917f7f7016da365e25f29fd4e071702585f7da275fb56e3",
-              "nativeSha256": "d2e28daf9d661cfec3fd7ac3be12609ff53c8f2e751205fb21a071dd476acdd0",
+              "nativeSha256": "280292bd2b16538931b09daab39344230fc8460f98621c2cfe239ee2020ddcfc",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -419,15 +135,15 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 779290,
-              "failedPixelRatio": 0.8689674397859054,
+              "failedPixels": 292405,
+              "failedPixelRatio": 0.32605374665477255,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 12.181616859946477,
-              "maxChannelDelta": 255,
+              "meanMaxChannelDelta": 6.202708519179304,
+              "maxChannelDelta": 248,
               "diffBounds": {
                 "left": 0,
                 "top": 0,
-                "right": 1180,
+                "right": 1170,
                 "bottom": 760
               },
               "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\invoice-list\\filtered\\visual-comparison.diff.png",
@@ -435,183 +151,16 @@
               "stderr": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\tools\\compare_screenshots.py:56: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(diff.getdata())"
             },
             "structure": {
-              "passed": false,
+              "passed": true,
               "referenceControlCount": 67,
-              "nativeControlCount": 12,
-              "missingControls": [
-                "button|$ 36.92|1",
-                "button|2026-11-27|1",
-                "button|2026-12-11|1",
-                "button|ACC-SINV-2026-04921|1",
-                "button|Accounts|1",
-                "button|Accounts|2",
-                "button|All apps|1",
-                "button|Assets|1",
-                "button|Banking|1",
-                "button|Budgeting|1",
-                "button|Buying|1",
-                "button|Chart of Accounts|1",
-                "button|Clear all filters|1",
-                "button|Collapse sidebar|1",
-                "button|Created On|1",
-                "button|Dashboard|1",
-                "button|Filter 1|1",
-                "button|Flow|1",
-                "button|Home|1",
-                "button|Journal Entry|1",
-                "button|Khit Customer 0030|1",
-                "button|List View|1",
-                "button|Manufacturing|1",
-                "button|Menu|1",
-                "button|More Options|1",
-                "button|Notifications|1",
-                "button|Payment Entry|1",
-                "button|Projects|1",
-                "button|Purchase Invoice|1",
-                "button|Quality|1",
-                "button|Reports|1",
-                "button|Sales Invoice|1",
-                "button|Search|1",
-                "button|Selling|1",
-                "button|Setup|1",
-                "button|Setup|2",
-                "button|Sidebar Menu|1",
-                "button|Stock|1",
-                "button|Taxes|1",
-                "button|User Menu|1",
-                "button|descending|1",
-                "button||1",
-                "button||2",
-                "button||3",
-                "button||4",
-                "button||5",
-                "button||6",
-                "button||7",
-                "button||8",
-                "checkbox|on|1",
-                "checkbox|on|2",
-                "combobox|Draft Return Credit Note Issued Submitted Paid Partly Paid Unpaid Unpaid and Discounted Partly Paid and Discounted Overdue and Discounted Overdue Cancelled Internal Transfer|1",
-                "group|Add Sales Invoice|1",
-                "navigation|Apps|1",
-                "radiobutton|100|1",
-                "radiobutton|20|1",
-                "radiobutton|2500|1",
-                "radiobutton|500|1",
-                "radiogroup|Page Size|1",
-                "status|Begin typing for results.|1",
-                "status|Begin typing for results.|2",
-                "textinput|Customer Name|1",
-                "textinput|Posting Date|1"
-              ],
-              "unexpectedControls": [
-                "button|⋯|1",
-                "button|☰ List View ⌄|1",
-                "button|⟳|1",
-                "combobox|Status|1",
-                "listitem|Customer 0933 SINV-2026-004921|1",
-                "listitem|Khit Customer 0030 ACC-SINV-2026-04921|1",
-                "textinput||1",
-                "textinput||2"
-              ],
+              "nativeControlCount": 67,
+              "missingControls": [],
+              "unexpectedControls": [],
               "geometryTolerancePx": 0.0,
-              "geometryFailures": [
-                {
-                  "control": "button|Add Sales Invoice|1",
-                  "reference": {
-                    "x": 967.328125,
-                    "y": 10.0,
-                    "width": 159.171875,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 960.0,
-                    "y": 7.0,
-                    "width": 198.0,
-                    "height": 36.0
-                  },
-                  "deltas": {
-                    "x": 7.328125,
-                    "y": 3.0,
-                    "width": 38.828125,
-                    "height": 8.0
-                  }
-                },
-                {
-                  "control": "button|Add Sales Invoice|1",
-                  "stateMismatch": {
-                    "referenceDisabled": false,
-                    "nativeDisabled": true,
-                    "referenceExpanded": null,
-                    "nativeExpanded": null
-                  }
-                },
-                {
-                  "control": "combobox|Company|1",
-                  "reference": {
-                    "x": 446.0,
-                    "y": 62.0,
-                    "width": 140.0,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 484.0,
-                    "y": 60.0,
-                    "width": 116.0,
-                    "height": 31.0
-                  },
-                  "deltas": {
-                    "x": 38.0,
-                    "y": 2.0,
-                    "width": 24.0,
-                    "height": 3.0
-                  }
-                },
-                {
-                  "control": "combobox|Customer|1",
-                  "reference": {
-                    "x": 596.0,
-                    "y": 62.0,
-                    "width": 140.0,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 616.0,
-                    "y": 60.0,
-                    "width": 116.0,
-                    "height": 31.0
-                  },
-                  "deltas": {
-                    "x": 20.0,
-                    "y": 2.0,
-                    "width": 24.0,
-                    "height": 3.0
-                  }
-                },
-                {
-                  "control": "textinput|04921|1",
-                  "reference": {
-                    "x": 296.0,
-                    "y": 62.0,
-                    "width": 107.0,
-                    "height": 28.0
-                  },
-                  "native": {
-                    "x": 298.0,
-                    "y": 60.0,
-                    "width": 150.0,
-                    "height": 31.0
-                  },
-                  "deltas": {
-                    "x": 2.0,
-                    "y": 2.0,
-                    "width": 43.0,
-                    "height": 3.0
-                  }
-                }
-              ]
+              "geometryFailures": []
             },
             "keyboard": {
-              "passed": false,
+              "passed": true,
               "requiredShortcuts": [],
               "missingBehavioralResults": [],
               "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\filtered\\keyboard-results.json"
@@ -670,7 +219,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-sales--item-search\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\item-search\\native.png",
               "referenceSha256": "27f9ca03f3452fa685893e50726596c57565351abd99ca922816bb2a64b44d16",
-              "nativeSha256": "0a63f29830344b6f3e1a2b6b5335cba598e59e2a22b845df2ba4f661455ee115",
+              "nativeSha256": "b217be0e9fdc7ed51c1156d081101f4944c48053455bef07427f18d666f8b8fb",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -684,10 +233,10 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 202247,
-              "failedPixelRatio": 0.2255207404103479,
+              "failedPixels": 202225,
+              "failedPixelRatio": 0.22549620874219448,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 6.368657448706512,
+              "meanMaxChannelDelta": 6.363015165031222,
               "maxChannelDelta": 255,
               "diffBounds": {
                 "left": 0,
@@ -737,10 +286,7 @@
       "failures": [
         "initial: visual comparison failed or inputs were incomparable",
         "draft-line: visual comparison failed or inputs were incomparable",
-        "draft-line: control identity, text/accessibility semantics, geometry, or state comparison failed",
         "search-results: visual comparison failed or inputs were incomparable",
-        "search-results: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "business outcome evidence missing",
         "performance evidence missing"
       ],
       "states": [
@@ -775,7 +321,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-sales\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\native.png",
               "referenceSha256": "acc8a47c1c4db43398c219cdcf31d0aa71ba280962dd0ecc9d0d7e8fb49226d8",
-              "nativeSha256": "1ac5d42889ca815e6e57d4ed9f614256153662f58c2f6e958b280868eefc12f9",
+              "nativeSha256": "dacd12093a5f0d289b239910fb0b9c5ac9c9e3a5e1864b53f0b58ccf23865f8a",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -789,10 +335,10 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 189990,
-              "failedPixelRatio": 0.21185325602140945,
+              "failedPixels": 189968,
+              "failedPixelRatio": 0.21182872435325603,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 6.231755129348795,
+              "meanMaxChannelDelta": 6.226112845673506,
               "maxChannelDelta": 255,
               "diffBounds": {
                 "left": 0,
@@ -828,8 +374,7 @@
           "state": "draft-line",
           "passed": false,
           "failures": [
-            "visual comparison failed or inputs were incomparable",
-            "control identity, text/accessibility semantics, geometry, or state comparison failed"
+            "visual comparison failed or inputs were incomparable"
           ],
           "checks": {
             "reference-screenshot": {
@@ -856,7 +401,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-sales\\draft-line\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\draft-line\\native.png",
               "referenceSha256": "a4eb9d65571560f84dc8bd2b7a04b0be201e71ebc6ab1f5b48018fd9ffa63513",
-              "nativeSha256": "d316e184a897df74957033d00ae34e0ce7d161c82fad36a242f85c35cfbe3652",
+              "nativeSha256": "72f608d7fea8e19f6594417d33b3a2a5d68d038aa2e665e7d4d556097fcd2b15",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -870,10 +415,10 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 184831,
-              "failedPixelRatio": 0.2061005798394291,
+              "failedPixels": 184881,
+              "failedPixelRatio": 0.2061563336306869,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 6.2508173505798394,
+              "meanMaxChannelDelta": 6.265156110615522,
               "maxChannelDelta": 255,
               "diffBounds": {
                 "left": 0,
@@ -886,35 +431,13 @@
               "stderr": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\tools\\compare_screenshots.py:56: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(diff.getdata())"
             },
             "structure": {
-              "passed": false,
+              "passed": true,
               "referenceControlCount": 18,
               "nativeControlCount": 18,
               "missingControls": [],
               "unexpectedControls": [],
               "geometryTolerancePx": 0.0,
-              "geometryFailures": [
-                {
-                  "control": "status|Ready. Scan a barcode or press F2 to search.|1",
-                  "reference": {
-                    "x": 253.0,
-                    "y": 714.0,
-                    "width": 692.1875,
-                    "height": 20.0
-                  },
-                  "native": {
-                    "x": 241.953125,
-                    "y": 714.0,
-                    "width": 703.234375,
-                    "height": 20.0
-                  },
-                  "deltas": {
-                    "x": 11.046875,
-                    "y": 0.0,
-                    "width": 11.046875,
-                    "height": 0.0
-                  }
-                }
-              ]
+              "geometryFailures": []
             },
             "keyboard": {
               "passed": true,
@@ -931,8 +454,7 @@
           "state": "search-results",
           "passed": false,
           "failures": [
-            "visual comparison failed or inputs were incomparable",
-            "control identity, text/accessibility semantics, geometry, or state comparison failed"
+            "visual comparison failed or inputs were incomparable"
           ],
           "checks": {
             "reference-screenshot": {
@@ -989,42 +511,11 @@
               "stderr": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\tools\\compare_screenshots.py:56: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(diff.getdata())"
             },
             "structure": {
-              "passed": false,
+              "passed": true,
               "referenceControlCount": 35,
-              "nativeControlCount": 65,
+              "nativeControlCount": 35,
               "missingControls": [],
-              "unexpectedControls": [
-                "button|KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83|1",
-                "button|KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48|1",
-                "button|KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56|1",
-                "button|KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64|1",
-                "button|KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95|1",
-                "button|KM-00083 Mekong Fresh Household 00083 Stock 500 1.88|1",
-                "button|KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30|1",
-                "button|KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73|1",
-                "button|KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17|1",
-                "button|KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69|1",
-                "button|KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68|1",
-                "button|KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42|1",
-                "button|KM-00147 Mekong Fresh Household 00147 Stock 500 4.52|1",
-                "button|KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76|1",
-                "button|KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55|1",
-                "listitem|KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83|1",
-                "listitem|KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48|1",
-                "listitem|KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56|1",
-                "listitem|KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64|1",
-                "listitem|KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95|1",
-                "listitem|KM-00083 Mekong Fresh Household 00083 Stock 500 1.88|1",
-                "listitem|KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30|1",
-                "listitem|KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73|1",
-                "listitem|KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17|1",
-                "listitem|KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69|1",
-                "listitem|KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68|1",
-                "listitem|KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42|1",
-                "listitem|KM-00147 Mekong Fresh Household 00147 Stock 500 4.52|1",
-                "listitem|KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76|1",
-                "listitem|KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55|1"
-              ],
+              "unexpectedControls": [],
               "geometryTolerancePx": 0.0,
               "geometryFailures": []
             },
@@ -1042,8 +533,17 @@
       ],
       "checks": {
         "business-outcome": {
-          "passed": false,
-          "error": "business outcome report missing"
+          "schemaVersion": 1,
+          "generatedAt": "2026-11-27T14:33:04Z",
+          "passed": true,
+          "failures": [],
+          "authoritative": {
+            "firstStatus": 200,
+            "secondStatus": 200,
+            "voucherNo": "ACC-SINV-2026-04923",
+            "replayVoucherNo": "ACC-SINV-2026-04923"
+          },
+          "nativeOutcomePath": "desktop-frontend\\evidence\\native-sale-business-outcome.json"
         },
         "performance": {
           "passed": false,
@@ -1058,8 +558,6 @@
         "initial: visual comparison failed or inputs were incomparable",
         "draft-line: visual comparison failed or inputs were incomparable",
         "search-results: visual comparison failed or inputs were incomparable",
-        "search-results: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "business outcome evidence missing",
         "performance evidence missing"
       ],
       "states": [
@@ -1227,8 +725,7 @@
           "state": "search-results",
           "passed": false,
           "failures": [
-            "visual comparison failed or inputs were incomparable",
-            "control identity, text/accessibility semantics, geometry, or state comparison failed"
+            "visual comparison failed or inputs were incomparable"
           ],
           "checks": {
             "reference-screenshot": {
@@ -1255,7 +752,7 @@
               "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-transfer\\search-results\\reference.png",
               "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\stock-transfer\\search-results\\native.png",
               "referenceSha256": "6f7dd175f424407483fc457bedeeeb408a9672994f44a90679e33cd1b40db3f9",
-              "nativeSha256": "448f6fb312672157bcf3c428e08f1baeb3d1651e1f12ff6cdf8f38a6f8fb5794",
+              "nativeSha256": "ae0fbe17ec65640bd9ab727484d4aa66ab9de5bf4a0d3ac8894c08791d471d70",
               "passed": false,
               "referenceSize": [
                 1180,
@@ -1269,10 +766,10 @@
               "dimensionsMatch": true,
               "pixelsExactlyEqual": false,
               "totalPixels": 896800,
-              "failedPixels": 239212,
-              "failedPixelRatio": 0.2667395182872435,
+              "failedPixels": 213497,
+              "failedPixelRatio": 0.23806534344335414,
               "maxFailedPixelRatio": 0.0,
-              "meanMaxChannelDelta": 7.629495985727029,
+              "meanMaxChannelDelta": 6.878557091882248,
               "maxChannelDelta": 255,
               "diffBounds": {
                 "left": 0,
@@ -1285,107 +782,13 @@
               "stderr": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\tools\\compare_screenshots.py:56: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(diff.getdata())"
             },
             "structure": {
-              "passed": false,
+              "passed": true,
               "referenceControlCount": 34,
-              "nativeControlCount": 64,
-              "missingControls": [
-                "button|KM-00001 Mekong Fresh Beverage 00001 Stock 485 —|1",
-                "button|KM-00005 Mekong Fresh Staple 00005 Stock 500 —|1",
-                "button|KM-00007 Mekong Fresh Baby Care 00007 Stock 500 —|1",
-                "button|KM-00021 Mekong Fresh Staple 00021 Stock 500 —|1",
-                "button|KM-00038 Mekong Fresh Cleaning 00038 Stock 500 —|1",
-                "button|KM-00050 Mekong Fresh Snack 00050 Stock 500 —|1",
-                "button|KM-00054 Mekong Fresh Cleaning 00054 Stock 500 —|1",
-                "button|KM-00055 Mekong Fresh Baby Care 00055 Stock 500 —|1",
-                "button|KM-00056 Mekong Fresh Frozen 00056 Stock 500 —|1",
-                "button|KM-00060 Mekong Fresh Personal Care 00060 Stock 500 —|1",
-                "listitem|KM-00001 Mekong Fresh Beverage 00001 Stock 485 —|1",
-                "listitem|KM-00005 Mekong Fresh Staple 00005 Stock 500 —|1",
-                "listitem|KM-00007 Mekong Fresh Baby Care 00007 Stock 500 —|1",
-                "listitem|KM-00021 Mekong Fresh Staple 00021 Stock 500 —|1",
-                "listitem|KM-00038 Mekong Fresh Cleaning 00038 Stock 500 —|1",
-                "listitem|KM-00050 Mekong Fresh Snack 00050 Stock 500 —|1",
-                "listitem|KM-00054 Mekong Fresh Cleaning 00054 Stock 500 —|1",
-                "listitem|KM-00055 Mekong Fresh Baby Care 00055 Stock 500 —|1",
-                "listitem|KM-00056 Mekong Fresh Frozen 00056 Stock 500 —|1",
-                "listitem|KM-00060 Mekong Fresh Personal Care 00060 Stock 500 —|1"
-              ],
-              "unexpectedControls": [
-                "button|KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46|1",
-                "button|KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03|1",
-                "button|KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34|1",
-                "button|KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62|1",
-                "button|KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40|1",
-                "button|KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26|1",
-                "button|KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82|1",
-                "button|KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20|1",
-                "button|KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88|1",
-                "button|KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77|1",
-                "button|KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83|1",
-                "button|KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48|1",
-                "button|KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56|1",
-                "button|KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64|1",
-                "button|KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95|1",
-                "button|KM-00083 Mekong Fresh Household 00083 Stock 500 1.88|1",
-                "button|KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30|1",
-                "button|KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73|1",
-                "button|KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17|1",
-                "button|KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69|1",
-                "button|KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68|1",
-                "button|KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42|1",
-                "button|KM-00147 Mekong Fresh Household 00147 Stock 500 4.52|1",
-                "button|KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76|1",
-                "button|KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55|1",
-                "listitem|KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46|1",
-                "listitem|KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03|1",
-                "listitem|KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34|1",
-                "listitem|KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62|1",
-                "listitem|KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40|1",
-                "listitem|KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26|1",
-                "listitem|KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82|1",
-                "listitem|KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20|1",
-                "listitem|KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88|1",
-                "listitem|KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77|1",
-                "listitem|KM-00069 Mekong Fresh Staple 00069 Stock 500 27.83|1",
-                "listitem|KM-00070 Mekong Fresh Cleaning 00070 Stock 500 28.48|1",
-                "listitem|KM-00077 Mekong Fresh Staple 00077 Stock 500 17.56|1",
-                "listitem|KM-00079 Mekong Fresh Baby Care 00079 Stock 500 13.64|1",
-                "listitem|KM-00080 Mekong Fresh Frozen 00080 Stock 500 17.95|1",
-                "listitem|KM-00083 Mekong Fresh Household 00083 Stock 500 1.88|1",
-                "listitem|KM-00085 Mekong Fresh Staple 00085 Stock 500 27.30|1",
-                "listitem|KM-00105 Mekong Fresh Beverage 00105 Stock 500 6.73|1",
-                "listitem|KM-00108 Mekong Fresh Personal Care 00108 Stock 500 4.17|1",
-                "listitem|KM-00132 Mekong Fresh Personal Care 00132 Stock 500 2.69|1",
-                "listitem|KM-00135 Mekong Fresh Baby Care 00135 Stock 500 50.68|1",
-                "listitem|KM-00143 Mekong Fresh Baby Care 00143 Stock 500 4.42|1",
-                "listitem|KM-00147 Mekong Fresh Household 00147 Stock 500 4.52|1",
-                "listitem|KM-00148 Mekong Fresh Personal Care 00148 Stock 500 41.76|1",
-                "listitem|KM-00161 Mekong Fresh Beverage 00161 Stock 500 19.55|1"
-              ],
+              "nativeControlCount": 34,
+              "missingControls": [],
+              "unexpectedControls": [],
               "geometryTolerancePx": 0.0,
-              "geometryFailures": [
-                {
-                  "control": "list|Item search results|1",
-                  "reference": {
-                    "x": 495.421875,
-                    "y": 541.9375,
-                    "width": 635.5625,
-                    "height": 384.0
-                  },
-                  "native": {
-                    "x": 495.421875,
-                    "y": 563.9375,
-                    "width": 635.5625,
-                    "height": 384.0
-                  },
-                  "deltas": {
-                    "x": 0.0,
-                    "y": 22.0,
-                    "width": 0.0,
-                    "height": 0.0
-                  }
-                }
-              ]
+              "geometryFailures": []
             },
             "keyboard": {
               "passed": true,
@@ -1401,8 +804,17 @@
       ],
       "checks": {
         "business-outcome": {
-          "passed": false,
-          "error": "business outcome report missing"
+          "schemaVersion": 1,
+          "generatedAt": "2026-11-27T14:33:05Z",
+          "passed": true,
+          "failures": [],
+          "authoritative": {
+            "firstStatus": 200,
+            "secondStatus": 200,
+            "voucherNo": "MAT-STE-2026-00232",
+            "replayVoucherNo": "MAT-STE-2026-00232"
+          },
+          "nativeOutcomePath": "desktop-frontend\\evidence\\native-transfer-business-outcome.json"
         },
         "performance": {
           "passed": false,

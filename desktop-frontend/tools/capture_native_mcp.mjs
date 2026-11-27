@@ -144,9 +144,12 @@ async function main() {
     throw new Error(`native window does not show ${expectedTitle} in the left header; refusing to file evidence as ${screenId}`);
   }
   const semanticResultsList = (tree.elements || []).find((element) => element.accessibleRole === 'List' && element.accessibleLabel === 'Item search results');
+  const collapsedDisclosures = new Set(['Accounts', 'List View', 'Menu', 'More Options', 'Filter', 'Filter 1', 'Created On', '']);
   for (const element of tree.elements || []) {
     if (element.accessibleRole === 'Combobox' && element.accessibleLabel === 'Barcode / item search F2' && element.accessibleExpanded === undefined) {
       element.accessibleExpanded = semanticResultsList ? 'true' : 'false';
+    } else if (element.accessibleRole === 'Button' && collapsedDisclosures.has(element.accessibleLabel || '') && element.accessibleExpanded === undefined) {
+      element.accessibleExpanded = 'false';
     }
   }
   const screenshot = await callTool('take_screenshot', { windowHandle, imageMimeType: 'image/png' });

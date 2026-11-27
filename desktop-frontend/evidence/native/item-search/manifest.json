@@ -15,17 +15,17 @@
       "expectText": "Add at least one item before submitting."
     }
   ],
-  "capturedAt": "2026-11-27T14:09:41.357Z",
+  "capturedAt": "2026-11-27T14:25:19.199Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "0a63f29830344b6f3e1a2b6b5335cba598e59e2a22b845df2ba4f661455ee115",
+  "screenshotSha256": "b217be0e9fdc7ed51c1156d081101f4944c48053455bef07427f18d666f8b8fb",
   "window": {
     "position": {
-      "x": 182,
-      "y": 182
+      "x": 52,
+      "y": 52
     },
     "rootElementHandle": {
       "generation": "1",

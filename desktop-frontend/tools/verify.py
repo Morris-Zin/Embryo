@@ -44,6 +44,7 @@ def canonical_role(role: str) -> str:
             "textbox": "textinput",
             "listbox": "list",
             "option": "listitem",
+            "group": "groupbox",
     }
     return equivalents.get(normalized, normalized)
 
@@ -88,7 +89,13 @@ def web_controls(dom: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for control in dom.get("controls", []) if isinstance(dom, dict) else []:
         if not control.get("visible", True):
             continue
-        label = norm_text(control.get("accessibilityName") if control.get("hasAccessibilityName") else (control.get("ariaLabel") or control.get("text") or control.get("placeholder") or control.get("id")))
+        fallback = control.get("ariaLabel") or ""
+        if not fallback:
+            if control.get("tag") in ("input", "textarea"):
+                fallback = control.get("placeholder") or control.get("id") or control.get("text")
+            else:
+                fallback = control.get("text") or control.get("placeholder") or control.get("id")
+        label = norm_text(control.get("accessibilityName") if control.get("hasAccessibilityName") else fallback)
         geometry = control.get("geometry") or {}
         rows.append({
             "role": canonical_role(web_role(control)),
@@ -99,6 +106,7 @@ def web_controls(dom: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "height": float(geometry.get("height", 0) or 0),
             "disabled": bool(control.get("disabled")),
             "expanded": control.get("ariaExpanded") or None,
+            "value": norm_text(control.get("value") or (control.get("text") if control.get("tag") in ("input", "textarea") else "")),
         })
     return occurrence_keyed(rows)
 
@@ -128,6 +136,7 @@ def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "height": float(size.get("height", 0) or 0),
             "disabled": element.get("accessibleEnabled") is not True,
             "expanded": element.get("accessibleExpanded") if element.get("accessibleExpanded") is not None else ("false" if canonical_role(element.get("accessibleRole") or "") == "combobox" else None),
+            "value": norm_text(element.get("accessibleValue") or ""),
         })
     return occurrence_keyed(rows)
 
@@ -159,8 +168,8 @@ def compare_structure(reference_dom: dict[str, Any], native_tree: dict[str, Any]
         if any(delta > tolerance for delta in deltas.values()):
             geometry_failures.append({"control": key, "reference": {axis: left[axis] for axis in deltas}, "native": {axis: right[axis] for axis in deltas}, "deltas": deltas})
         interactive = canonical_role(left["role"]) in {"button", "combobox", "textinput", "radiobutton", "checkbox", "slider", "spinbox", "switch", "tab"}
-        if (interactive and left["disabled"] != right["disabled"]) or (left.get("expanded") is not None and left.get("expanded") != right.get("expanded")):
-            geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"], "referenceExpanded": left.get("expanded"), "nativeExpanded": right.get("expanded")}})
+        if (interactive and left["disabled"] != right["disabled"]) or (left.get("expanded") is not None and left.get("expanded") != right.get("expanded")) or left.get("value") != right.get("value"):
+            geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"], "referenceExpanded": left.get("expanded"), "nativeExpanded": right.get("expanded"), "referenceValue": left.get("value"), "nativeValue": right.get("value")}})
     return {
         "passed": not missing and not unexpected and not geometry_failures,
         "referenceControlCount": len(reference),
@@ -264,11 +273,12 @@ def evaluate_screen(screen: dict[str, Any], web_reference: Path, native_evidence
         result["states"].append(state_result)
         result["failures"].extend(f"{state}: {failure}" for failure in state_result["failures"])
 
-    if business_report is None or not business_report.exists():
+    screen_business_report = business_report or (ROOT / "evidence" / "business" / f"{screen['id']}-business.json")
+    if not screen_business_report.exists():
         result["checks"]["business-outcome"] = {"passed": False, "error": "business outcome report missing"}
         result["failures"].append("business outcome evidence missing")
     else:
-        business = load_json(business_report, {})
+        business = load_json(screen_business_report, {})
         result["checks"]["business-outcome"] = business
         if not business.get("passed"):
             result["failures"].append("business outcome comparison failed")

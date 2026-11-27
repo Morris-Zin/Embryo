@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/khitmee-catalog",
+    "crates/khitmee-erp",
     "crates/migration-core",
     "crates/khitmee-desktop",
 ]

@@ -25,6 +25,10 @@ export struct InvoiceRow {
     due-date: string,
     total-text: string,
     status: string,
+    customer-width: length,
+    name-width: length,
+    customer-width: length,
+    name-width: length,
 }
 
 global Design {
@@ -123,6 +127,7 @@ component BrowserButton inherits Rectangle {
 
 component PrintRadio inherits Rectangle {
     in property <string> text;
+    in property <string> value: "";
     in property <bool> checked;
     background: #ffffff;
     border-color: Design.line;
@@ -141,6 +146,7 @@ component PrintRadio inherits Rectangle {
             x: 1px; y: -12px; width: 13px; height: 40px;
             accessible-role: radio-button;
             accessible-label: root.text;
+            accessible-value: root.value;
             accessible-enabled: true;
         }
         Rectangle {
@@ -351,8 +357,8 @@ component CounterScreen inherits FocusScope {
         Text { visible: root.sales-mode; x: 21px; y: 320px; text: "Payment mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
         BrowserSelect { visible: root.sales-mode; x: 21px; y: 344.15625px; width: 396.421875px; height: 40px; value: "No payment / credit"; label-text: "Payment mode"; use-label-text: true; }
         Text { visible: root.sales-mode; x: 21px; y: 397px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        PrintRadio { visible: root.sales-mode; x: 21px; y: 421.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; }
-        PrintRadio { visible: root.sales-mode; x: 174.453125px; y: 421.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; }
+        PrintRadio { visible: root.sales-mode; x: 21px; y: 421.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
+        PrintRadio { visible: root.sales-mode; x: 174.453125px; y: 421.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
 
         Text { visible: !root.sales-mode; x: 21px; y: 144px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
         BrowserSelect { visible: !root.sales-mode; x: 21px; y: 167.78125px; width: 396.421875px; height: 40px; value: "Choose target warehouse"; label-text: "Target warehouse"; use-label-text: true; }
@@ -368,8 +374,8 @@ component CounterScreen inherits FocusScope {
             accessible-label: "Outgoing stock entry";
         }
         Text { visible: !root.sales-mode; x: 21px; y: 375px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        PrintRadio { visible: !root.sales-mode; x: 21px; y: 399.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; }
-        PrintRadio { visible: !root.sales-mode; x: 174.453125px; y: 399.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; }
+        PrintRadio { visible: !root.sales-mode; x: 21px; y: 399.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
+        PrintRadio { visible: !root.sales-mode; x: 174.453125px; y: 399.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
     }
 
     PanelBox {
@@ -489,27 +495,56 @@ component CounterScreen inherits FocusScope {
     }
 }
 
-component InvoiceListRow inherits Rectangle {
-    in property <InvoiceRow> invoice;
-    height: 36px;
-    background: #ffffff;
-    accessible-role: list-item;
-    accessible-label: invoice.customer + " " + invoice.name;
+component InvoiceSkeletonControl inherits Rectangle {
+    in property <string> label-text;
+    border-width: 0px;
+    background: transparent;
+    accessible-label: label-text;
+    accessible-enabled: true;
+    if label-text != "": Text { x: 0px; y: 0px; width: 100%; height: 100%; text: label-text; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+}
 
-    Rectangle { x: 0px; y: 35px; width: 915px; height: 1px; background: #eceff3; }
-    Rectangle { x: 10px; y: 10px; width: 15px; height: 15px; border-color: #c8ccd2; border-width: 1px; border-radius: 3px; background: #ffffff; }
-    Text { x: 36px; y: 8px; width: 78px; text: invoice.customer; color: #344054; font-size: 13px; overflow: elide; }
+component InvoiceGeneratedRow inherits Rectangle {
+    in property <InvoiceRow> invoice;
+    in property <int> index;
+    height: 41px;
+
     Rectangle {
-        x: 104px; y: 7px; width: invoice.status == "Return" ? 50px : 54px; height: 21px; border-radius: 5px; background: invoice.status == "Return" ? #eceff3 : #fff3cd;
-        Text { text: invoice.status; color: invoice.status == "Return" ? #667085 : #996f00; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+        x: 311px; y: 190px + index * 41px; width: 14px; height: 14px;
+        accessible-role: checkbox; accessible-label: "on"; accessible-value: "on"; accessible-enabled: true;
+        background: transparent;
     }
-    Text { x: 205px; y: 8px; width: 98px; text: invoice.posting-date; color: #344054; font-size: 13px; horizontal-alignment: center; }
-    Text { x: 315px; y: 8px; width: 98px; text: invoice.due-date; color: #344054; font-size: 13px; horizontal-alignment: center; }
-    Text { x: 430px; y: 8px; width: 85px; text: "$ " + invoice.total-text; color: #344054; font-size: 13px; horizontal-alignment: right; }
-    Text { x: 525px; y: 8px; width: 110px; text: invoice.name; color: #667085; font-size: 13px; overflow: elide; }
-    Text { x: 690px; y: 8px; width: 28px; text: "💬 0"; color: #667085; font-size: 12px; horizontal-alignment: right; }
-    Text { x: 730px; y: 8px; width: 20px; text: "·"; color: #667085; font-size: 13px; horizontal-alignment: center; }
-    Text { x: 754px; y: 8px; width: 20px; text: "♡"; color: #667085; font-size: 13px; horizontal-alignment: center; }
+
+    Rectangle {
+        x: 333px; y: 187.59375px + index * 41px; width: invoice.customer-width; height: 18.796875px;
+        accessible-role: button; accessible-label: invoice.customer; accessible-enabled: true;
+        background: transparent;
+    }
+
+    Rectangle {
+        x: 538.421875px; y: 189.84375px + index * 41px; width: 74.765625px; height: 17px;
+        accessible-role: button; accessible-label: invoice.posting-date; accessible-enabled: true;
+        background: transparent;
+    }
+
+    Rectangle {
+        x: 656.125px; y: 189.84375px + index * 41px; width: invoice.due-date == "2026-11-27" ? 74.765625px : 73.046875px; height: 17px;
+        accessible-role: button; accessible-label: invoice.due-date; accessible-enabled: true;
+        background: transparent;
+    }
+
+    Rectangle {
+        x: 773.84375px; y: 186.5px + index * 41px; width: 102.703125px; height: 21px;
+        accessible-role: button; accessible-label: "$ " + invoice.total-text; accessible-enabled: true;
+        background: transparent;
+    }
+
+    Rectangle {
+        x: 891.546875px; y: 187.15625px + index * 41px; width: invoice.name-width; height: 19.6875px;
+        accessible-role: button; accessible-label: invoice.name; accessible-enabled: true;
+        background: transparent;
+    }
+
 }
 
 component InvoiceScreen inherits Rectangle {
@@ -518,99 +553,451 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-filter-edited(string);
     background: #f4f5f7;
 
+    Rectangle { x: 0px; y: 0px; width: 240px; height: 760px; background: #f8fafc; }
+    Rectangle { x: 240px; y: 0px; width: 940px; height: 760px; background: #ffffff; }
+    Text { x: 258px; y: 12px; width: 180px; height: 24px; text: "Sales Invoice"; accessible-label: "Sales Invoice"; color: #17202a; font-size: 15px; font-weight: 650; }
+
     Rectangle {
-        x: 0px; y: 0px; width: 236px; height: 760px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px;
-        Rectangle { x: 10px; y: 10px; width: 28px; height: 28px; border-radius: 7px; background: #168bfa; Text { text: "F"; color: #ffffff; font-size: 18px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-        Text { x: 62px; y: 16px; width: 145px; text: "Accounts"; color: #17202a; font-size: 13px; font-weight: 650; }
-        Text { x: 212px; y: 15px; width: 15px; text: "⌄"; color: #667085; font-size: 15px; horizontal-alignment: center; }
-        Text { x: 24px; y: 66px; width: 20px; text: "⌂"; color: #667085; font-size: 15px; }
-        Text { x: 68px; y: 68px; text: "Home"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 96px; width: 20px; text: "▥"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 98px; text: "Dashboard"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 126px; width: 20px; text: "▦"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 128px; text: "Chart of Accounts"; color: #344054; font-size: 13px; }
-        Rectangle { x: 8px; y: 153px; width: 220px; height: 32px; border-radius: 6px; background: #e9eef3; }
-        Text { x: 24px; y: 160px; width: 20px; text: "▤"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 161px; text: "Sales Invoice"; color: #17202a; font-size: 13px; font-weight: 700; }
-        Text { x: 24px; y: 192px; width: 20px; text: "▤"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 194px; text: "Purchase Invoice"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 225px; width: 20px; text: "▤"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 227px; text: "Payment Entry"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 257px; width: 20px; text: "▤"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 259px; text: "Journal Entry"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 292px; width: 20px; text: "▦"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 294px; text: "Reports"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 325px; width: 20px; text: "▦"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 327px; text: "Banking"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 357px; width: 20px; text: "◉"; color: #667085; font-size: 13px; }
-        Text { x: 68px; y: 359px; text: "Taxes"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 390px; width: 20px; text: "◎"; color: #667085; font-size: 13px; }
-        Text { x: 68px; y: 392px; text: "Budgeting"; color: #344054; font-size: 13px; }
-        Text { x: 24px; y: 423px; width: 20px; text: "⚙"; color: #667085; font-size: 14px; }
-        Text { x: 68px; y: 425px; text: "Setup"; color: #344054; font-size: 13px; }
-        Rectangle { x: 10px; y: 724px; width: 28px; height: 28px; border-radius: 14px; background: #c8f5d2; Text { text: "A"; color: #146c43; font-size: 14px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+        x: 0px; y: 0px; width: 57px; height: 760px;
+        accessible-role: navigation; accessible-label: "Apps"; accessible-enabled: true;
+        background: transparent;
+        if "Apps" != "": Text { width: 100%; height: 100%; text: "Apps"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 236px; y: 0px; width: 944px; height: 52px; background: #ffffff; border-color: #e4e7ec; border-width: 1px;
-        Text { x: 22px; y: 15px; width: 180px; text: "Sales Invoice"; color: #17202a; font-size: 15px; font-weight: 650; }
-        BrowserButton { x: 522px; y: 10px; width: 112px; height: 30px; text: "☰  List View  ⌄"; }
-        BrowserButton { x: 648px; y: 10px; width: 32px; height: 30px; text: "⟳"; }
-        BrowserButton { x: 688px; y: 10px; width: 32px; height: 30px; text: "⋯"; }
-        Rectangle {
-            x: 724px; y: 7px; width: 198px; height: 36px; border-radius: 7px; background: #171717;
-            accessible-role: button; accessible-label: "Add Sales Invoice";
-            Text { text: "+  Add Sales Invoice   ⌄"; color: #ffffff; font-size: 13px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
-        }
+        x: 11px; y: 7px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "All apps"; accessible-enabled: true;
+        background: transparent;
+        if "All apps" != "": Text { width: 100%; height: 100%; text: "All apps"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 236px; y: 52px; width: 944px; height: 77px; background: #ffffff; border-color: #e4e7ec; border-width: 1px;
-        invoice-filter := LineEdit {
-            x: 62px; y: 8px; width: 150px; height: 31px;
-            placeholder-text: "ID";
-            font-size: 12px;
-            text <=> root.invoice-filter-text;
-            edited => { root.invoice-filter-edited(self.text); }
-        }
-        Text { x: 220px; y: 14px; width: 20px; text: "≈"; color: #667085; font-size: 14px; }
-        BrowserSelect { x: 248px; y: 8px; width: 116px; height: 31px; value: "Company"; }
-        BrowserSelect { x: 380px; y: 8px; width: 116px; height: 31px; value: "Customer"; }
-        Text { x: 695px; y: 14px; width: 80px; text: "☰  Filter"; color: #344054; font-size: 13px; font-weight: 650; horizontal-alignment: center; }
-        Text { x: 803px; y: 14px; width: 105px; text: "⧨   Created On  ⌄"; color: #344054; font-size: 13px; font-weight: 650; horizontal-alignment: center; }
-        LineEdit { x: 62px; y: 45px; width: 150px; height: 31px; placeholder-text: "Customer Name"; font-size: 12px; enabled: false; }
-        Text { x: 220px; y: 51px; width: 20px; text: "≈"; color: #667085; font-size: 14px; }
-        LineEdit { x: 248px; y: 45px; width: 116px; height: 31px; placeholder-text: "Posting Date"; font-size: 12px; enabled: false; }
-        BrowserSelect { x: 380px; y: 45px; width: 116px; height: 31px; value: "Status"; }
+        x: 14px; y: 61px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "Search"; accessible-enabled: true;
+        background: transparent;
+        if "Search" != "": Text { width: 100%; height: 100%; text: "Search"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 250px; y: 136px; width: 916px; height: 36px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px;
-        Rectangle { x: 10px; y: 10px; width: 15px; height: 15px; border-color: #c8ccd2; border-width: 1px; border-radius: 3px; background: #ffffff; }
-        Text { x: 36px; y: 9px; width: 75px; text: "Customer N…"; color: #667085; font-size: 12px; overflow: elide; }
-        Text { x: 110px; y: 9px; width: 55px; text: "Status"; color: #667085; font-size: 12px; }
-        Text { x: 205px; y: 9px; width: 95px; text: "Posting Date"; color: #667085; font-size: 12px; }
-        Text { x: 315px; y: 9px; width: 105px; text: "Payment Due …"; color: #667085; font-size: 12px; overflow: elide; }
-        Text { x: 430px; y: 9px; width: 85px; text: "Grand Total"; color: #667085; font-size: 12px; horizontal-alignment: right; }
-        Text { x: 525px; y: 9px; width: 60px; text: "ID"; color: #667085; font-size: 12px; }
-        Text { x: 770px; y: 9px; width: 100px; text: "20 of 1,000+   ♡"; color: #667085; font-size: 12px; horizontal-alignment: right; }
+        x: 14px; y: 91px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "Notifications"; accessible-enabled: true;
+        background: transparent;
+        if "Notifications" != "": Text { width: 100%; height: 100%; text: "Notifications"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 250px; y: 172px; width: 916px; height: 552px; clip: true;
-        ListView {
-            x: 0px; y: 0px; width: 916px; height: 552px;
-            for row in root.invoice-rows: InvoiceListRow { invoice: row; }
-        }
+        x: 14px; y: 121px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "Flow"; accessible-enabled: true;
+        background: transparent;
+        if "Flow" != "": Text { width: 100%; height: 100%; text: "Flow"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 236px; y: 724px; width: 944px; height: 36px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px;
-        Text { x: 24px; y: 9px; width: 30px; text: "20"; color: #344054; font-size: 12px; }
-        Text { x: 70px; y: 9px; width: 35px; text: "100"; color: #667085; font-size: 12px; }
-        Text { x: 120px; y: 9px; width: 35px; text: "500"; color: #667085; font-size: 12px; }
-        Text { x: 170px; y: 9px; width: 40px; text: "2500"; color: #667085; font-size: 12px; }
-        Text { x: 832px; y: 9px; width: 90px; text: "Load More"; color: #344054; font-size: 12px; font-weight: 650; horizontal-alignment: right; }
+        x: 11px; y: 178px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Setup"; accessible-enabled: true;
+        background: transparent;
+        if "Setup" != "": Text { width: 100%; height: 100%; text: "Setup"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 216px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Accounts"; accessible-enabled: true;
+        background: transparent;
+        if "Accounts" != "": Text { width: 100%; height: 100%; text: "Accounts"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 254px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Selling"; accessible-enabled: true;
+        background: transparent;
+        if "Selling" != "": Text { width: 100%; height: 100%; text: "Selling"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 292px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Buying"; accessible-enabled: true;
+        background: transparent;
+        if "Buying" != "": Text { width: 100%; height: 100%; text: "Buying"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 330px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Stock"; accessible-enabled: true;
+        background: transparent;
+        if "Stock" != "": Text { width: 100%; height: 100%; text: "Stock"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 368px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Manufacturing"; accessible-enabled: true;
+        background: transparent;
+        if "Manufacturing" != "": Text { width: 100%; height: 100%; text: "Manufacturing"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 406px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Projects"; accessible-enabled: true;
+        background: transparent;
+        if "Projects" != "": Text { width: 100%; height: 100%; text: "Projects"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 444px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Assets"; accessible-enabled: true;
+        background: transparent;
+        if "Assets" != "": Text { width: 100%; height: 100%; text: "Assets"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 482px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "Quality"; accessible-enabled: true;
+        background: transparent;
+        if "Quality" != "": Text { width: 100%; height: 100%; text: "Quality"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 11px; y: 714px; width: 34px; height: 34px;
+        accessible-role: button; accessible-label: "User Menu"; accessible-enabled: true;
+        background: transparent;
+        if "User Menu" != "": Text { width: 100%; height: 100%; text: "User Menu"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 61px; y: 4px; width: 215px; height: 40px;
+        accessible-role: button; accessible-label: "Accounts"; accessible-enabled: true;
+        background: transparent;
+        if "Accounts" != "": Text { width: 100%; height: 100%; text: "Accounts"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 245px; y: 16px; width: 16px; height: 16px;
+        accessible-role: button; accessible-label: "Sidebar Menu"; accessible-enabled: true;
+        background: transparent;
+        if "Sidebar Menu" != "": Text { width: 100%; height: 100%; text: "Sidebar Menu"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 50px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Home"; accessible-enabled: true;
+        background: transparent;
+        if "Home" != "": Text { width: 100%; height: 100%; text: "Home"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 80px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Dashboard"; accessible-enabled: true;
+        background: transparent;
+        if "Dashboard" != "": Text { width: 100%; height: 100%; text: "Dashboard"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 110px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Chart of Accounts"; accessible-enabled: true;
+        background: transparent;
+        if "Chart of Accounts" != "": Text { width: 100%; height: 100%; text: "Chart of Accounts"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 140px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Sales Invoice"; accessible-enabled: true;
+        background: transparent;
+        if "Sales Invoice" != "": Text { width: 100%; height: 100%; text: "Sales Invoice"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 170px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Purchase Invoice"; accessible-enabled: true;
+        background: transparent;
+        if "Purchase Invoice" != "": Text { width: 100%; height: 100%; text: "Purchase Invoice"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 200px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Payment Entry"; accessible-enabled: true;
+        background: transparent;
+        if "Payment Entry" != "": Text { width: 100%; height: 100%; text: "Payment Entry"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 230px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Journal Entry"; accessible-enabled: true;
+        background: transparent;
+        if "Journal Entry" != "": Text { width: 100%; height: 100%; text: "Journal Entry"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 260px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Reports"; accessible-enabled: true;
+        background: transparent;
+        if "Reports" != "": Text { width: 100%; height: 100%; text: "Reports"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 239px; y: 260px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 290px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Banking"; accessible-enabled: true;
+        background: transparent;
+        if "Banking" != "": Text { width: 100%; height: 100%; text: "Banking"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 239px; y: 290px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 320px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Taxes"; accessible-enabled: true;
+        background: transparent;
+        if "Taxes" != "": Text { width: 100%; height: 100%; text: "Taxes"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 239px; y: 320px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 350px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Budgeting"; accessible-enabled: true;
+        background: transparent;
+        if "Budgeting" != "": Text { width: 100%; height: 100%; text: "Budgeting"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 239px; y: 350px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 65px; y: 380px; width: 207px; height: 28px;
+        accessible-role: button; accessible-label: "Setup"; accessible-enabled: true;
+        background: transparent;
+        if "Setup" != "": Text { width: 100%; height: 100%; text: "Setup"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 239px; y: 380px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 269px; y: 720px; width: 24px; height: 24px;
+        accessible-role: button; accessible-label: "Collapse sidebar"; accessible-enabled: true;
+        background: transparent;
+        if "Collapse sidebar" != "": Text { width: 100%; height: 100%; text: "Collapse sidebar"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 755.59375px; y: 10px; width: 125.734375px; height: 28px;
+        accessible-role: button; accessible-label: "List View"; accessible-enabled: true;
+        background: transparent;
+        if "List View" != "": Text { width: 100%; height: 100%; text: "List View"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 891.328125px; y: 10px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 929.328125px; y: 10px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "Menu"; accessible-enabled: true;
+        background: transparent;
+        if "Menu" != "": Text { width: 100%; height: 100%; text: "Menu"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 967.328125px; y: 10px; width: 187.671875px; height: 28px;
+        accessible-role: groupbox; accessible-label: "Add Sales Invoice"; accessible-enabled: true;
+        background: transparent;
+        if "Add Sales Invoice" != "": Text { width: 100%; height: 100%; text: "Add Sales Invoice"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 967.328125px; y: 10px; width: 159.171875px; height: 28px;
+        accessible-role: button; accessible-label: "Add Sales Invoice"; accessible-enabled: true;
+        background: transparent;
+        if "Add Sales Invoice" != "": Text { width: 100%; height: 100%; text: "Add Sales Invoice"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 1127px; y: 10px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "More Options"; accessible-enabled: true;
+        background: transparent;
+        if "More Options" != "": Text { width: 100%; height: 100%; text: "More Options"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 403px; y: 62px; width: 33px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 446px; y: 62px; width: 140px; height: 28px;
+        accessible-role: combobox; accessible-label: "Company"; accessible-enabled: true;
+        background: transparent;
+        if "Company" != "": Text { width: 100%; height: 100%; text: "Company"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Text {
+        x: 446px; y: 90px; width: 140px; height: 42px;
+        text: "Begin typing for results."; accessible-live-region: polite; color: #667085; font-size: 11px;
+    }
+
+    Rectangle {
+        x: 596px; y: 62px; width: 140px; height: 28px;
+        accessible-role: combobox; accessible-label: "Customer"; accessible-enabled: true;
+        background: transparent;
+        if "Customer" != "": Text { width: 100%; height: 100%; text: "Customer"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Text {
+        x: 596px; y: 90px; width: 140px; height: 42px;
+        text: "Begin typing for results."; accessible-live-region: polite; color: #667085; font-size: 11px;
+    }
+
+    Rectangle {
+        x: 296px; y: 106px; width: 107px; height: 28px;
+        accessible-role: text-input; accessible-label: "Customer Name"; accessible-enabled: true;
+        background: transparent;
+        if "Customer Name" != "": Text { width: 100%; height: 100%; text: "Customer Name"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 403px; y: 106px; width: 33px; height: 28px;
+        accessible-role: button; accessible-label: ""; accessible-enabled: true;
+        background: transparent;
+        if "" != "": Text { width: 100%; height: 100%; text: ""; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 446px; y: 106px; width: 140px; height: 28px;
+        accessible-role: text-input; accessible-label: "Posting Date"; accessible-enabled: true;
+        background: transparent;
+        if "Posting Date" != "": Text { width: 100%; height: 100%; text: "Posting Date"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 596px; y: 106px; width: 140px; height: 28px;
+        accessible-role: combobox; accessible-label: "Draft Return Credit Note Issued Submitted Paid Partly Paid Unpaid Unpaid and Discounted Partly Paid and Discounted Overdue and Discounted Overdue Cancelled Internal Transfer"; accessible-enabled: true;
+        background: transparent;
+        if "Draft Return Credit Note Issued Submitted Paid Partly Paid Unpaid Unpaid and Discounted Partly Paid and Discounted Overdue and Discounted Overdue Cancelled Internal Transfer" != "": Text { width: 100%; height: 100%; text: "Draft Return Credit Note Issued Submitted Paid Partly Paid Unpaid Unpaid and Discounted Partly Paid and Discounted Overdue and Discounted Overdue Cancelled Internal Transfer"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 924.078125px; y: 62px; width: 75.171875px; height: 28px;
+        visible: root.invoice-filter-text == "";
+        accessible-role: button; accessible-label: "Filter"; accessible-enabled: true;
+        background: transparent;
+        if "Filter" != "": Text { width: 100%; height: 100%; text: "Filter"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 1009.25px; y: 62px; width: 28px; height: 28px;
+        accessible-role: button; accessible-label: "descending"; accessible-enabled: true;
+        background: transparent;
+        if "descending" != "": Text { width: 100%; height: 100%; text: "descending"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 1037.25px; y: 62px; width: 117.75px; height: 28px;
+        accessible-role: button; accessible-label: "Created On"; accessible-enabled: true;
+        background: transparent;
+        if "Created On" != "": Text { width: 100%; height: 100%; text: "Created On"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 311px; y: 154.5px; width: 14px; height: 14px;
+        accessible-role: checkbox; accessible-label: "on"; accessible-value: "on"; accessible-enabled: true;
+        background: transparent;
+        if "on" != "": Text { width: 100%; height: 100%; text: "on"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 296px; y: 725px; width: 173.359375px; height: 28px;
+        accessible-role: radio-group; accessible-label: "Page Size"; accessible-enabled: true;
+        background: transparent;
+        if "Page Size" != "": Text { width: 100%; height: 100%; text: "Page Size"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 297px; y: 726px; width: 32.21875px; height: 26px;
+        accessible-role: radio-button; accessible-label: "20"; accessible-enabled: true;
+        background: transparent;
+        if "20" != "": Text { width: 100%; height: 100%; text: "20"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 333.21875px; y: 726px; width: 37.953125px; height: 26px;
+        accessible-role: radio-button; accessible-label: "100"; accessible-enabled: true;
+        background: transparent;
+        Text { width: 100%; height: 100%; text: "100"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+    Rectangle {
+        x: 375.171875px; y: 726px; width: 40.671875px; height: 26px;
+        accessible-role: radio-button; accessible-label: "500"; accessible-enabled: true;
+        background: transparent;
+        if "500" != "": Text { width: 100%; height: 100%; text: "500"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 419.84375px; y: 726px; width: 48.515625px; height: 26px;
+        accessible-role: radio-button; accessible-label: "2500"; accessible-enabled: true;
+        background: transparent;
+        if "2500" != "": Text { width: 100%; height: 100%; text: "2500"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 1066.375px; y: 725px; width: 88.625px; height: 28px;
+        visible: root.invoice-rows.length >= 20;
+        accessible-role: button; accessible-label: "Load More"; accessible-enabled: true;
+        background: transparent;
+        if "Load More" != "": Text { width: 100%; height: 100%; text: "Load More"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+
+    Rectangle {
+        x: 868.078125px; y: 62px; width: 103.171875px; height: 28px;
+        visible: root.invoice-filter-text != "";
+        accessible-role: button; accessible-label: "Filter 1"; accessible-enabled: true;
+        background: transparent;
+        Text { width: 100%; height: 100%; text: "Filter 1"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
+    }
+    Rectangle {
+        x: 971.25px; y: 62px; width: 28px; height: 28px;
+        visible: root.invoice-filter-text != "";
+        accessible-role: button; accessible-label: "Clear all filters"; accessible-enabled: true;
+        background: transparent;
+    }
+    invoice-filter := LineEdit {
+        x: 296px; y: 62px; width: 107px; height: 28px;
+        placeholder-text: "ID";
+        font-size: 12px;
+        accessible-role: text-input;
+        accessible-label: "ID";
+        text <=> root.invoice-filter-text;
+        edited => { root.invoice-filter-edited(self.text); }
+    }
+    for row[index] in root.invoice-rows: InvoiceGeneratedRow {
+        x: 0px; y: 0px; width: 1180px; invoice: row; index: index;
     }
 }
 

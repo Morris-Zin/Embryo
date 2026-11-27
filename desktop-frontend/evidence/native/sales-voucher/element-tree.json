@@ -1077,6 +1077,7 @@
       "accessibleEnabled": true,
       "accessibleLabel": "Voucher 80mm",
       "accessibleRole": "RadioButton",
+      "accessibleValue": "voucher",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
@@ -1201,6 +1202,7 @@
       "accessibleEnabled": true,
       "accessibleLabel": "Canon A4",
       "accessibleRole": "RadioButton",
+      "accessibleValue": "a4",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
