@@ -1,8 +1,10 @@
 # Copyright (c) 2026, Khitmee and contributors
 # License: GNU General Public License v3
 
+import inspect
 import re
 from collections import OrderedDict
+from typing import Literal, TypedDict
 
 try:
 	import frappe
@@ -33,6 +35,40 @@ except ImportError:  # pragma: no cover - lets pure-Python SQL/calculation tests
 
 	def formatdate(value, format_string=None):
 		return str(value)
+
+
+class RowContribution(TypedDict):
+	sales_invoice: str
+	item_row: str
+	posting_date: str
+	warehouse: str
+	is_return: int
+	return_against: str | None
+	update_stock: int
+	delivered_by_supplier: int
+	valuation_source: Literal[
+		"sle",
+		"bundle_sle",
+		"missing_detail_zero",
+		"average_rate",
+		"last_purchase_rate",
+		"dropship",
+		"dn_valuation",
+	]
+	qty: float
+	base_amount: float
+	buying_amount: float
+	query_phase: Literal[0, 1]
+	first_seen_key: str
+	is_precision_safe: bool
+
+
+class ContributionBatch(TypedDict):
+	contributions: list[RowContribution]
+	replay_reasons_by_invoice: dict[str, str]
+	currency_precision: int
+	float_precision: int
+	rounding_method: str
 
 
 SI_IDX = "khitmee_si_co_ds_ret_date"
@@ -82,6 +118,8 @@ def posting_time_sort_value(value):
 
 
 def posting_date_sort_value(value):
+	if hasattr(value, "date") and hasattr(value, "hour"):
+		value = value.date()
 	if hasattr(value, "isoformat"):
 		return value.isoformat()
 	return str(value or "")
@@ -96,6 +134,50 @@ def merge_posting_rows_descending(*row_groups):
 		),
 		reverse=True,
 	)
+	return rows
+
+
+def posting_time_microseconds(value):
+	"""Return microseconds since midnight for canonical first-seen ordering keys."""
+	if hasattr(value, "total_seconds"):
+		return int(round(value.total_seconds() * 1_000_000))
+	if hasattr(value, "hour"):
+		return (
+			(value.hour * 3600 + value.minute * 60 + value.second) * 1_000_000
+			+ getattr(value, "microsecond", 0)
+		)
+	parts = str(value or "0:0:0").split(":")
+	try:
+		seconds = float(parts[2])
+		return int(round((int(parts[0]) * 3600 + int(parts[1]) * 60 + seconds) * 1_000_000))
+	except (IndexError, TypeError, ValueError):
+		return 0
+
+
+def first_seen_key_for_row(row, query_phase):
+	"""Build the frozen sortable phase key: ``phase|YYYY-MM-DD|TTTTTTTTTTTT``."""
+	posting_date = posting_date_sort_value(row.get("posting_date"))
+	posting_time_us = posting_time_microseconds(row.get("posting_time"))
+	return f"{int(query_phase)}|{posting_date}|{posting_time_us:012d}"
+
+
+def invoice_descending_order_key(row):
+	return (
+		posting_date_sort_value(row.get("posting_date")),
+		posting_time_microseconds(row.get("posting_time")),
+		str(row.get("parent") or row.get("invoice") or ""),
+	)
+
+
+def sort_invoice_rows_descending(rows):
+	"""Apply the export-safe posting date/time/invoice tie-break to one query phase."""
+	return sorted(rows or [], key=invoice_descending_order_key, reverse=True)
+
+
+def mark_query_phase(rows, query_phase):
+	for row in rows or []:
+		row["_khitmee_query_phase"] = int(query_phase)
+		row["_khitmee_first_seen_key"] = first_seen_key_for_row(row, query_phase)
 	return rows
 
 
@@ -980,17 +1062,25 @@ def format_invoice_rows_inplace(columns, gross_profit_data, filters, group_wise_
 	)
 
 
-def execute(filters=None):
-	if standard_gross_profit is None:
-		raise ImportError("Fast Gross Profit must run inside a bench with ERPNext installed")
+class _ReportDict(dict):
+	__getattr__ = dict.get
+	__setattr__ = dict.__setitem__
 
-	validate_date_range(filters)
 
-	if not filters:
-		filters = frappe._dict()
-	filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
+def _copy_report_filters(filters):
+	copied = dict(filters or {})
+	if frappe is not None and hasattr(frappe, "_dict"):
+		return frappe._dict(copied)
+	return _ReportDict(copied)
 
-	gross_profit_data = FastGrossProfitGenerator(filters)
+
+def _normalise_invoice_ids(invoice_ids):
+	if invoice_ids is None:
+		return None
+	return tuple(dict.fromkeys(str(invoice) for invoice in invoice_ids if invoice))
+
+
+def _render_detail_result(gross_profit_data, filters):
 	data = []
 	group_wise_columns = _group_wise_columns()
 	columns = standard_gross_profit.get_columns(group_wise_columns, filters)
@@ -1003,6 +1093,247 @@ def execute(filters=None):
 		)
 
 	return columns, data
+
+
+def _enforce_detail_budget_if_requested(filters, invoice_ids, enforce_budget):
+	"""Invoke Worker 2's optional detail preflight without ever routing through query_profit."""
+	if not enforce_budget:
+		return
+	try:
+		from khitmee_ops.profit_summary import budget
+	except (ImportError, ModuleNotFoundError):
+		return
+
+	preflight = getattr(budget, "preflight_detail_budget", None) or getattr(
+		budget, "enforce_detail_budget", None
+	)
+	if preflight:
+		preflight(filters, invoice_ids=invoice_ids)
+
+
+def run_detail_gross_profit(
+	filters: dict, *, invoice_ids: list[str] | tuple[str, ...] | None = None, enforce_budget: bool = False
+) -> tuple[list[dict], list]:
+	"""Run the low-level detail report directly; this never delegates to ``query_profit``."""
+	if standard_gross_profit is None:
+		raise ImportError("Fast Gross Profit must run inside a bench with ERPNext installed")
+
+	report_filters = _copy_report_filters(filters)
+	validate_date_range(report_filters)
+	scoped_invoice_ids = _normalise_invoice_ids(invoice_ids)
+	_enforce_detail_budget_if_requested(report_filters, scoped_invoice_ids, enforce_budget)
+	if not report_filters.get("currency"):
+		report_filters.currency = frappe.get_cached_value(
+			"Company", report_filters.company, "default_currency"
+		)
+
+	gross_profit_data = FastGrossProfitGenerator(report_filters, invoice_ids=scoped_invoice_ids)
+	return _render_detail_result(gross_profit_data, report_filters)
+
+
+def _default_rounding_method():
+	return "Banker's Rounding (legacy)"
+
+
+def _empty_contribution_batch(filters):
+	filters = filters or {}
+	return {
+		"contributions": [],
+		"replay_reasons_by_invoice": {},
+		"currency_precision": cint(filters.get("currency_precision") or 3),
+		"float_precision": cint(filters.get("float_precision") or 2),
+		"rounding_method": filters.get("rounding_method") or _default_rounding_method(),
+	}
+
+
+def _precision_matches(value, precision):
+	numeric = float(value or 0)
+	return flt(numeric, precision) == numeric
+
+
+def _get_rounding_method():
+	try:
+		return frappe.db.get_default("rounding_method") or _default_rounding_method()
+	except Exception:
+		return _default_rounding_method()
+
+
+def _fetch_linked_return_originals(invoices, company):
+	"""Find visible invoices with any submitted linked return, globally and in bounded chunks."""
+	invoices = sorted({str(invoice) for invoice in invoices if invoice})
+	if not invoices:
+		return set()
+
+	linked_originals = set()
+	for invoice_chunk in batched(invoices, 1000):
+		placeholders = ", ".join(["%s"] * len(invoice_chunk))
+		rows = frappe.db.sql(
+			f"""
+			SELECT DISTINCT return_against
+			FROM `tabSales Invoice`
+			WHERE company = %s
+				AND docstatus = 1
+				AND is_return = 1
+				AND return_against IN ({placeholders})
+			""",
+			[company, *invoice_chunk],
+			as_dict=True,
+		)
+		for row in rows:
+			linked_originals.add(str(row.get("return_against") if hasattr(row, "get") else row[0]))
+	return linked_originals
+
+
+def _valuation_source_for_row(generator, row):
+	source = row.get("_khitmee_valuation_source")
+	if not source:
+		source = getattr(generator, "_valuation_source_by_row_id", {}).get(id(row))
+	return source or "missing_detail_zero"
+
+
+def _replay_reason_for_invoice(invoice, rows, linked_return_originals):
+	if invoice in linked_return_originals:
+		return "linked_return_original"
+	if any(cint(row.get("is_return")) and (row.get("return_against") or row.get("_khitmee_query_phase") == 0) for row in rows):
+		return "linked_return"
+	if any(not cint(row.get("update_stock")) for row in rows):
+		return "non_update_stock"
+	if any(cint(row.get("delivered_by_supplier")) for row in rows):
+		return "dropship"
+
+	sources = [row.get("_contribution_valuation_source") for row in rows]
+	if "missing_detail_zero" in sources:
+		return "missing_sle_zero"
+	if any(source in {"average_rate", "last_purchase_rate", "dn_valuation"} for source in sources):
+		return "request_dependent_valuation"
+	return None
+
+
+def _build_contribution_batch(generator, linked_return_originals):
+	currency_precision = cint(getattr(generator, "currency_precision", 0)) or 3
+	float_precision = cint(getattr(generator, "float_precision", 0)) or 2
+	contributions = []
+	rows_by_invoice = {}
+
+	for row in generator.si_list:
+		if not row.get("item_row") or not row.get("parent"):
+			continue
+
+		qty = float(row.get("qty") or 0)
+		base_amount = float(row.get("base_amount") or 0)
+		buying_amount = float(row.get("buying_amount") or 0)
+		query_phase = cint(row.get("_khitmee_query_phase")) if row.get("_khitmee_query_phase") is not None else 1
+		valuation_source = _valuation_source_for_row(generator, row)
+		row["_contribution_valuation_source"] = valuation_source
+		posting_date = posting_date_sort_value(row.get("posting_date"))
+		sales_invoice = str(row.get("parent"))
+		contribution = {
+			"sales_invoice": sales_invoice,
+			"item_row": str(row.get("item_row")),
+			"posting_date": posting_date,
+			"warehouse": str(row.get("warehouse") or ""),
+			"is_return": cint(row.get("is_return")),
+			"return_against": row.get("return_against") or None,
+			"update_stock": cint(row.get("update_stock")),
+			"delivered_by_supplier": cint(row.get("delivered_by_supplier")),
+			"valuation_source": valuation_source,
+			"qty": qty,
+			"base_amount": base_amount,
+			"buying_amount": buying_amount,
+			"query_phase": query_phase,
+			"first_seen_key": row.get("_khitmee_first_seen_key")
+			or first_seen_key_for_row(row, query_phase),
+			"is_precision_safe": _precision_matches(qty, float_precision)
+			and _precision_matches(base_amount, currency_precision)
+			and _precision_matches(buying_amount, currency_precision),
+		}
+		contributions.append(contribution)
+		rows_by_invoice.setdefault(sales_invoice, []).append(row)
+
+	replay_reasons_by_invoice = {}
+	for invoice, rows in rows_by_invoice.items():
+		reason = _replay_reason_for_invoice(invoice, rows, linked_return_originals)
+		if reason:
+			replay_reasons_by_invoice[invoice] = reason
+
+	return {
+		"contributions": contributions,
+		"replay_reasons_by_invoice": replay_reasons_by_invoice,
+		"currency_precision": currency_precision,
+		"float_precision": float_precision,
+		"rounding_method": _get_rounding_method(),
+	}
+
+
+def collect_profit_contributions(
+	filters: dict, *, invoice_ids: list[str] | tuple[str, ...] | None = None
+) -> ContributionBatch:
+	"""Extract line-level, post-return profit contributions with two-phase provenance."""
+	scoped_invoice_ids = _normalise_invoice_ids(invoice_ids)
+	if scoped_invoice_ids == ():
+		return _empty_contribution_batch(filters)
+
+	if standard_gross_profit is None:
+		raise ImportError("Fast Gross Profit must run inside a bench with ERPNext installed")
+
+	extraction_filters = _copy_report_filters(filters)
+	extraction_filters.group_by = "Monthly"
+	generator = FastGrossProfitGenerator(extraction_filters, invoice_ids=scoped_invoice_ids)
+	invoices = {row.get("parent") for row in generator.si_list if row.get("parent")}
+	linked_return_originals = _fetch_linked_return_originals(invoices, extraction_filters.get("company"))
+	return _build_contribution_batch(generator, linked_return_originals)
+
+
+def _truthy_export_flag(value):
+	if isinstance(value, str):
+		return value.strip().lower() not in {"", "0", "false", "no", "off"}
+	return bool(value)
+
+
+def _is_native_background_export_invocation():
+	frame = inspect.currentframe()
+	try:
+		frame = frame.f_back if frame else None
+		while frame:
+			if frame.f_code.co_name == "run_export_query_job":
+				return True
+			frame = frame.f_back
+	finally:
+		del frame
+
+	form_dict = getattr(frappe, "form_dict", None) or {}
+	return (
+		form_dict.get("cmd") == "frappe.desk.query_report.export_query"
+		and _truthy_export_flag(form_dict.get("export_in_background"))
+	)
+
+
+def execute(filters=None):
+	if standard_gross_profit is None:
+		raise ImportError("Fast Gross Profit must run inside a bench with ERPNext installed")
+
+	if _is_native_background_export_invocation():
+		raise frappe.PermissionError(
+			"Background email export is disabled for Fast Gross Profit; please use Export Profit CSV."
+		)
+
+	validate_date_range(filters)
+
+	if not filters:
+		filters = frappe._dict()
+	elif isinstance(filters, dict) and not hasattr(filters, "__getattr__"):
+		filters = frappe._dict(filters)
+	filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
+
+	from khitmee_ops.profit_summary import query_profit
+
+	result = query_profit(filters)
+	mode = result.get("mode")
+	if mode in {"summary", "detail"}:
+		return result["columns"], result["data"]
+	if mode in {"pending", "budget_exceeded"}:
+		return result["columns"], [], result.get("message") or result.get("message_html") or ""
+	raise RuntimeError(f"Fast Gross Profit query returned unknown mode: {mode!r}")
 
 
 _BaseGrossProfitGenerator = (
@@ -1018,7 +1349,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	accesses are replaced.
 	"""
 
-	def __init__(self, filters=None):
+	def __init__(self, filters=None, *, invoice_ids=None):
 		self._matched_sles = {}
 		self._sle_predecessors = {}
 		self._sle_pair_exists = {}
@@ -1031,6 +1362,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self._last_purchase_rate_cache = {}
 		self._warehouse_scope = None
 		self._active_repost_item_valuations = None
+		self._scoped_invoice_ids = _normalise_invoice_ids(invoice_ids)
+		self._valuation_source_by_row_id = {}
 		super().__init__(filters)
 
 	def process(self):
@@ -1089,6 +1422,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				if not grouped_by_invoice:
 					row.qty = 0
 				row.buying_amount = 0
+				self._remember_valuation_source(row, "missing_detail_zero")
 			elif row.item_code in product_bundles:
 				row.buying_amount = flt(
 					self.get_buying_amount_from_product_bundle(row, product_bundles[row.item_code]),
@@ -1150,27 +1484,48 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	def _hints_enabled(self):
 		return not (self.filters.get("sales_invoice") or self.filters.get("item_code"))
 
+	def _invoice_scope_criterion(self, SI):
+		scoped_invoice_ids = getattr(self, "_scoped_invoice_ids", None)
+		if scoped_invoice_ids is None:
+			return None
+
+		if scoped_invoice_ids:
+			chunks = list(batched(scoped_invoice_ids, 1000))
+		else:
+			chunks = [(None,)]
+
+		criterion = None
+		for invoice_chunk in chunks:
+			chunk_criterion = SI.name.isin(invoice_chunk)
+			criterion = chunk_criterion if criterion is None else criterion | chunk_criterion
+		return criterion
+
 	def apply_common_filters(self, query, SI, SII, ST, Item):
 		warehouse_filter = self.filters.get("warehouse")
-		if not warehouse_filter:
-			return super().apply_common_filters(query, SI, SII, ST, Item)
+		if warehouse_filter:
+			self.filters.warehouse = None
+			try:
+				query = super().apply_common_filters(query, SI, SII, ST, Item)
+			finally:
+				self.filters.warehouse = warehouse_filter
 
-		self.filters.warehouse = None
-		try:
-			query = super().apply_common_filters(query, SI, SII, ST, Item)
-		finally:
-			self.filters.warehouse = warehouse_filter
-
-		if self._warehouse_scope and self._warehouse_scope[0] == warehouse_filter:
-			scope = self._warehouse_scope[1]
+			if self._warehouse_scope and self._warehouse_scope[0] == warehouse_filter:
+				scope = self._warehouse_scope[1]
+			else:
+				lft, rgt = frappe.get_cached_value("Warehouse", warehouse_filter, ["lft", "rgt"])
+				scope = frappe.db.sql_list(
+					"SELECT name FROM `tabWarehouse` WHERE lft >= %s AND rgt <= %s",
+					(lft, rgt),
+				)
+				self._warehouse_scope = (warehouse_filter, scope)
+			query = query.where(SII.warehouse.isin(scope or [None]))
 		else:
-			lft, rgt = frappe.get_cached_value("Warehouse", warehouse_filter, ["lft", "rgt"])
-			scope = frappe.db.sql_list(
-				"SELECT name FROM `tabWarehouse` WHERE lft >= %s AND rgt <= %s",
-				(lft, rgt),
-			)
-			self._warehouse_scope = (warehouse_filter, scope)
-		return query.where(SII.warehouse.isin(scope or [None]))
+			query = super().apply_common_filters(query, SI, SII, ST, Item)
+
+		invoice_scope_criterion = self._invoice_scope_criterion(SI)
+		if invoice_scope_criterion is not None:
+			query = query.where(invoice_scope_criterion)
+		return query
 
 	def _warehouse_semijoin_enabled(self):
 		return bool(self.filters.get("warehouse")) and self._hints_enabled()
@@ -1180,6 +1535,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 	def prepare_invoice_query(self):
 		query = self._upstream_prepare_invoice_query()
+		if frappe is not None and hasattr(frappe, "qb") and hasattr(query, "select"):
+			query = query.select(frappe.qb.DocType("Sales Invoice").return_against)
 		return query.force_index(SI_IDX) if self._hints_enabled() and not self._warehouse_semijoin_enabled() else query
 
 	def _run_invoice_query(self, query, semijoin_kind=None):
@@ -1209,24 +1566,27 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 	def load_invoice_items(self):
 		SalesInvoice = frappe.qb.DocType("Sales Invoice")
-		base_query = self.prepare_invoice_query()
-
-		invoice_query = base_query.where(SalesInvoice.is_return == 0)
-		self.si_list = self._run_invoice_query(invoice_query, semijoin_kind="normal")
+		invoice_query = self.prepare_invoice_query().where(SalesInvoice.is_return == 0)
+		self.si_list = sort_invoice_rows_descending(
+			self._run_invoice_query(invoice_query, semijoin_kind="normal")
+		)
 
 		if self.filters.include_returned_invoices:
-			unlinked_return_query = base_query.where(
+			unlinked_return_query = self.prepare_invoice_query().where(
 				(SalesInvoice.is_return == 1) & SalesInvoice.return_against.isnull()
 			)
 			unlinked_return_rows = self._run_invoice_query(
 				unlinked_return_query, semijoin_kind="unlinked_return"
 			)
 			if unlinked_return_rows:
-				self.si_list = merge_posting_rows_descending(self.si_list, unlinked_return_rows)
+				self.si_list = sort_invoice_rows_descending(
+					merge_posting_rows_descending(self.si_list, unlinked_return_rows)
+				)
 
+		mark_query_phase(self.si_list, 1)
 		self.prepare_vouchers_to_ignore()
 
-		ret_invoice_query = base_query.where(
+		ret_invoice_query = self.prepare_invoice_query().where(
 			(SalesInvoice.is_return == 1) & SalesInvoice.return_against.isnotnull()
 		)
 		if self.vouchers_to_ignore:
@@ -1234,7 +1594,10 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				SalesInvoice.return_against.notin(self.vouchers_to_ignore)
 			)
 
-		ret_rows = self._run_invoice_query(ret_invoice_query, semijoin_kind="return")
+		ret_rows = mark_query_phase(
+			sort_invoice_rows_descending(self._run_invoice_query(ret_invoice_query, semijoin_kind="return")),
+			0,
+		)
 		if ret_rows:
 			self.si_list.extend(ret_rows)
 
@@ -1275,13 +1638,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			self._linked_dn_parent_invoices.update(invoice_chunk)
 		return sorted(parent for parent in self._linked_dn_parents if parent)
 
-	def get_returned_invoice_items(self):
-		parents = sorted({row.parent for row in self.si_list if row.get("parent")})
-		if not parents:
-			self.returned_invoices = frappe._dict()
-			self.legacy_returned_invoices = frappe._dict()
-			return
-
+	def _build_returned_invoice_query(self, parent_chunk):
 		si = frappe.qb.DocType("Sales Invoice")
 		si_item = frappe.qb.DocType("Sales Invoice Item")
 		invoice_query = frappe.qb.from_(si)
@@ -1304,19 +1661,25 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				& (si.is_return == 1)
 				& si.posting_date.between(self.filters.from_date, self.filters.to_date)
 			)
-			.where(si.return_against.isin(parents))
+			.where(si.return_against.isin(parent_chunk))
 		)
 
 		if self.filters.company:
 			query = query.where(si.company == self.filters.company)
+		return query
 
-		build_match_conditions = getattr(standard_gross_profit, "build_match_conditions", None)
-		if build_match_conditions and (match_conditions := build_match_conditions("Sales Invoice")):
-			query = query.where(
-				standard_gross_profit.Bracket(standard_gross_profit.LiteralValue(match_conditions))
+	def get_returned_invoice_items(self):
+		parents = sorted({row.parent for row in self.si_list if row.get("parent")})
+		if not parents:
+			self.returned_invoices = frappe._dict()
+			self.legacy_returned_invoices = frappe._dict()
+			return
+
+		returned_invoices = []
+		for parent_chunk in batched(parents, 1000):
+			returned_invoices.extend(
+				self._run_invoice_query(self._build_returned_invoice_query(parent_chunk)) or []
 			)
-
-		returned_invoices = self._run_invoice_query(query)
 
 		self.returned_invoices = frappe._dict()
 		self.legacy_returned_invoices = frappe._dict()
@@ -1499,6 +1862,142 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		if key not in self._last_purchase_rate_cache:
 			self._last_purchase_rate_cache[key] = self._fetch_last_purchase_rate(item_code, row)
 		return self._last_purchase_rate_cache[key]
+
+	def _remember_valuation_source(self, row, source):
+		if not hasattr(self, "_valuation_source_by_row_id"):
+			self._valuation_source_by_row_id = {}
+		self._valuation_source_by_row_id[id(row)] = source
+		row["_khitmee_valuation_source"] = source
+
+	def _aggregate_bundle_valuation_sources(self, sources):
+		sources = [source for source in sources if source]
+		if sources and all(source == "sle" for source in sources):
+			return "bundle_sle"
+		if not sources:
+			return "missing_detail_zero"
+		for fallback in ("missing_detail_zero", "average_rate", "last_purchase_rate", "dn_valuation", "dropship"):
+			if fallback in sources:
+				return fallback
+		return sources[0]
+
+	def _row_value(self, row, fieldname, default=None):
+		return row.get(fieldname, default) if hasattr(row, "get") else getattr(row, fieldname, default)
+
+	def _classify_tie_history_sle_source(self, row, item_code, warehouse, parenttype, parent, item_row):
+		history = self._pair_history(item_code, warehouse)
+		for index, sle in enumerate(history):
+			if not (
+				self._row_value(sle, "voucher_type") == parenttype
+				and self._row_value(sle, "voucher_no") == parent
+				and self._row_value(sle, "voucher_detail_no") == item_row
+			):
+				continue
+			predecessor = history[index + 1] if len(history) > index + 1 else None
+			previous_stock_value = flt(self._row_value(predecessor, "stock_value")) if predecessor else 0.0
+			return "sle" if previous_stock_value else "average_rate"
+		return "missing_detail_zero"
+
+	def _classify_sle_valuation_source(self, row, item_code):
+		warehouse = row.get("delivered_warehouse") or row.get("warehouse")
+		parenttype = row.get("parenttype")
+		parent = row.get("invoice") or row.get("parent")
+		item_row = row.get("item_row")
+		if row.get("dn_detail"):
+			parenttype, parent, item_row = "Delivery Note", row.get("delivery_note"), row.get("dn_detail")
+
+		if (str(item_code), str(warehouse)) in self._tie_pairs:
+			return self._classify_tie_history_sle_source(
+				row, item_code, warehouse, parenttype, parent, item_row
+			)
+
+		key = normalize_sle_key(item_code, warehouse, parenttype, parent, item_row)
+		matched = self._matched_sles.get(key)
+		if matched is None:
+			return "missing_detail_zero"
+		predecessor = self._sle_predecessors.get(key)
+		previous_stock_value = flt(predecessor.get("stock_value")) if predecessor else 0.0
+		return "sle" if previous_stock_value else "average_rate"
+
+	def _buying_amount_and_source(self, row, item_code):
+		if row.get("delivered_by_supplier"):
+			buying_amount = self.get_drop_ship_buying_amount(row)
+			if buying_amount is not None:
+				return buying_amount, "dropship"
+
+		if item_code in self.non_stock_items and (row.get("project") or row.get("cost_center")):
+			item_rate = self.get_last_purchase_rate(item_code, row)
+			return flt(row.get("qty")) * item_rate, "last_purchase_rate"
+
+		my_sle = self.get_stock_ledger_entries(item_code, row.get("delivered_warehouse") or row.get("warehouse"))
+		if (row.get("update_stock") or row.get("dn_detail")) and my_sle:
+			parenttype = row.get("parenttype")
+			parent = row.get("invoice") or row.get("parent")
+			if row.get("dn_detail"):
+				parenttype, parent = "Delivery Note", row.get("delivery_note")
+			buying_amount = self.calculate_buying_amount_from_sle(
+				row, my_sle, parenttype, parent, row.get("item_row"), item_code
+			)
+			return buying_amount, self._classify_sle_valuation_source(row, item_code)
+
+		if row.get("item_row") and self.delivery_notes.get(row.get("item_row")):
+			dn = self.delivery_notes[row.get("item_row")]
+			if flt(dn.get("total_qty")):
+				return (
+					flt(row.get("qty")) * flt(dn.get("total_incoming_value")) / flt(dn.get("total_qty")),
+					"dn_valuation",
+				)
+			return flt(row.get("qty")) * self.get_average_buying_rate(row, item_code), "average_rate"
+
+		if row.get("sales_order") and row.get("so_detail"):
+			incoming_amount = self.get_buying_amount_from_so_dn(
+				row.get("sales_order"), row.get("so_detail"), item_code
+			)
+			if incoming_amount:
+				return flt(row.get("qty")) * incoming_amount, "dn_valuation"
+
+		return flt(row.get("qty")) * self.get_average_buying_rate(row, item_code), "average_rate"
+
+	def get_buying_amount(self, row, item_code):
+		buying_amount, valuation_source = self._buying_amount_and_source(row, item_code)
+		self._remember_valuation_source(row, valuation_source)
+		return buying_amount
+
+	def get_buying_amount_from_product_bundle(self, row, product_bundle):
+		buying_amount = 0.0
+		billed_share = self.get_billed_share_of_bundle(row)
+		component_sources = []
+		for packed_item in product_bundle:
+			if packed_item.get("parent_detail_docname") != row.get("item_row"):
+				continue
+			packed_item_row = row.copy()
+			packed_item_row["warehouse"] = packed_item.get("warehouse")
+			packed_item_row["delivered_warehouse"] = None
+			packed_item_row["qty"] = packed_item.get("total_qty") * -1 * billed_share
+			packed_item_row["serial_and_batch_bundle"] = packed_item.get("serial_and_batch_bundle")
+			buying_amount += self.get_buying_amount(packed_item_row, packed_item.get("item_code"))
+			component_sources.append(self._valuation_source_by_row_id.get(id(packed_item_row)))
+
+		self._remember_valuation_source(row, self._aggregate_bundle_valuation_sources(component_sources))
+		return flt(buying_amount, self.currency_precision)
+
+	def get_buying_amount_from_delivered_bundles(self, row):
+		buying_amount = 0.0
+		delivery_sources = []
+		for delivered_row, packed_items in self.bundle_deliveries[row.get("item_row")]:
+			delivery = row.copy()
+			delivery.update(
+				{
+					"dn_detail": delivered_row.get("name"),
+					"delivery_note": delivered_row.get("parent"),
+					"item_row": delivered_row.get("name"),
+					"qty": delivered_row.get("stock_qty"),
+				}
+			)
+			buying_amount += self.get_buying_amount_from_product_bundle(delivery, packed_items)
+			delivery_sources.append(self._valuation_source_by_row_id.get(id(delivery)))
+
+		self._remember_valuation_source(row, self._aggregate_bundle_valuation_sources(delivery_sources))
+		return buying_amount
 
 	def load_non_stock_items(self):
 		self.non_stock_items = set(frappe.get_all("Item", filters={"is_stock_item": 0}, pluck="name"))
