@@ -1,5 +1,7 @@
 use std::error::Error;
 use std::fs;
+#[cfg(unix)]
+use std::io::Write;
 use std::path::Path;
 
 const KEY_BYTES: usize = 32;
@@ -54,12 +56,18 @@ pub fn load_or_create_key(path: &Path) -> Result<Vec<u8>, Box<dyn Error + Send +
     }
     let key = random_key()?;
     let blob = protect_key(&key)?;
-    fs::write(path, blob)?;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?;
+        file.write_all(&blob)?;
     }
+    #[cfg(not(unix))]
+    fs::write(path, blob)?;
     Ok(key)
 }
 

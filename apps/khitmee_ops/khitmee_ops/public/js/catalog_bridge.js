@@ -73,7 +73,8 @@
 	}
 
 	function scopeKey(scope) {
-		return [window.location.origin, scope.warehouse || "", scope.priceList || ""].join("\u001f");
+		const erpUser = window.frappe && ((frappe.session && frappe.session.user) || (frappe.boot && frappe.boot.user && frappe.boot.user.name)) || "unknown-user";
+		return [window.location.origin, erpUser, scope.warehouse || "", scope.priceList || ""].join("\u001f");
 	}
 
 	function openDatabase() {
