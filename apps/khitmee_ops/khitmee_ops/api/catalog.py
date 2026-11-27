@@ -168,14 +168,25 @@ def _changed_item_codes(since, warehouse):
 			SELECT bin.item_code AS item_code
 			FROM `tabBin` AS bin
 			WHERE bin.warehouse = %s AND bin.modified >= %s
-			UNION
-			SELECT tombstone.item_code AS item_code
-			FROM `tabKhitmee Catalog Tombstone` AS tombstone
-			WHERE tombstone.modified >= %s
 		) AS changed
 		ORDER BY changed.item_code
 		""",
-		(cutoff, cutoff, cutoff, warehouse, cutoff, cutoff),
+		(cutoff, cutoff, cutoff, warehouse, cutoff),
+		as_dict=False,
+	)
+	return [row[0] for row in rows]
+
+
+def _tombstoned_item_codes(since):
+	cutoff = _format_datetime(since - timedelta(seconds=SYNC_OVERLAP_SECONDS))
+	rows = frappe.db.sql(
+		"""
+		SELECT item_code
+		FROM `tabKhitmee Catalog Tombstone`
+		WHERE modified >= %s
+		ORDER BY item_code
+		""",
+		(cutoff,),
 		as_dict=False,
 	)
 	return [row[0] for row in rows]
@@ -273,12 +284,14 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 		or previous_since.date() != now.date()
 	)
 
+	tombstoned_codes = []
 	complete = True
 	if reset:
 		complete = _active_item_count() <= MAX_CATALOG_ITEMS
 		changed_codes = _all_active_item_codes()
 	else:
 		changed_codes = _changed_item_codes(previous_since, warehouse)
+		tombstoned_codes = _tombstoned_item_codes(previous_since)
 
 	metadata = _fetch_catalog_rows(changed_codes)
 	permitted = _permitted_codes(list(metadata))
@@ -299,6 +312,12 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 			items.append(active_by_code[item_code])
 		elif not reset:
 			items.append({"item_code": item_code, "deleted": True})
+	if not reset:
+		# Keep tombstones outside the case-insensitive MariaDB UNION. A case-only
+		# rename must be able to add the new exact key and delete the old exact key.
+		for item_code in tombstoned_codes:
+			if item_code not in active_by_code:
+				items.append({"item_code": item_code, "deleted": True})
 
 	new_state = {
 		"schema": SYNC_SCHEMA_VERSION,

@@ -79,7 +79,9 @@ class TestCatalogSyncState(unittest.TestCase):
 		self.assertIn("UNION", queries[0])
 		self.assertIn("`tabItem Price`", queries[0])
 		self.assertIn("`tabBin`", queries[0])
-		self.assertIn("`tabKhitmee Catalog Tombstone`", queries[0])
+		self.assertNotIn("`tabKhitmee Catalog Tombstone`", queries[0])
+		self.assertEqual(catalog._tombstoned_item_codes(since), ["ITEM-1"])
+		self.assertIn("`tabKhitmee Catalog Tombstone`", queries[1])
 		self.assertEqual(params[0][3], "Shop 1")
 		self.assertEqual(params[0][0], "2026-01-02 11:59:50.000000")
 
@@ -201,6 +203,27 @@ class TestCatalogEndpoint(unittest.TestCase):
 			result = catalog.sync_catalog("Shop 1", "Retail", state=json.dumps(previous))
 		self.assertTrue(result["reset"])
 		changed.assert_not_called()
+
+	def test_case_only_rename_adds_new_code_and_deletes_old_code(self):
+		now = datetime(2026, 1, 2, 12, 0, 0)
+		previous = {
+			"schema": 1,
+			"since": catalog._format_datetime(now - timedelta(minutes=2)),
+			"permission": "plain:v1",
+			"scope": {"warehouse": "Shop 1", "price_list": "Retail", "customer": ""},
+		}
+		new_row = {"item_code": "item", "item_name": "Tea", "stock_uom": "Nos", "item_group": "", "brand": "", "barcode": "", "barcode_text": "", "modified": now}
+		with (
+			patch.object(catalog, "_server_now", return_value=catalog._format_datetime(now)),
+			patch.object(catalog, "_permission_version", return_value="plain:v1"),
+			patch.object(catalog, "_changed_item_codes", return_value=["item"]),
+			patch.object(catalog, "_tombstoned_item_codes", return_value=["ITEM"]),
+			patch.object(catalog, "_fetch_catalog_rows", return_value={"item": new_row}),
+			patch.object(catalog, "_permitted_codes", return_value={"item"}),
+			patch.object(catalog, "_catalog_public_rows", return_value=[{"item_code": "item"}]),
+		):
+			result = catalog.sync_catalog("Shop 1", "Retail", state=json.dumps(previous))
+		self.assertEqual(result["items"], [{"item_code": "item"}, {"item_code": "ITEM", "deleted": True}])
 
 	def test_crossing_midnight_forces_price_validity_reset(self):
 		now = datetime(2026, 1, 2, 0, 0, 30)
