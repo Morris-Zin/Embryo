@@ -1,0 +1,124 @@
+name: Autoloop Gate
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
+      - labeled
+      - unlabeled
+
+jobs:
+  autoloop-integrity:
+    name: autoloop-integrity
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      enrolled: ${{ steps.gate.outputs.enrolled }}
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch PR base, main, and PR head ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.https://github.com/.extraheader=${AUTH_HEADER}" fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            "${BASE_SHA}" \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}-head"
+          ACTUAL_HEAD="$(git rev-parse "refs/remotes/origin/pr-${PR_NUMBER}-head")"
+          if [ "${ACTUAL_HEAD}" != "${HEAD_SHA}" ]; then
+            echo "ERROR: refs/pull/${PR_NUMBER}/head (${ACTUAL_HEAD}) != event head.sha (${HEAD_SHA})" >&2
+            exit 3
+          fi
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Run trusted integrity gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "tools/autoloop/cli.py" ]; then
+            echo "Bootstrap rollout detected: tools/autoloop/cli.py is absent on ${DEFAULT_BRANCH}."
+            if [ "${PR_AUTHOR}" != "Morris-Zin" ]; then
+              echo "ERROR: first-deployment bootstrap PR must be opened by a trusted owner (got ${PR_AUTHOR})." >&2
+              exit 3
+            fi
+            TMP_CANDIDATE="$(mktemp -d)"
+            trap 'rm -rf "${TMP_CANDIDATE}"' EXIT
+            git worktree add --detach "${TMP_CANDIDATE}" "${HEAD_SHA}"
+            trap 'git worktree remove --force "${TMP_CANDIDATE}" >/dev/null 2>&1 || rm -rf "${TMP_CANDIDATE}"' EXIT
+            (
+              cd "${TMP_CANDIDATE}"
+              python -B -m unittest discover -s tools -p "test_*.py"
+              python tools/autoloop/cli.py lint
+            )
+            echo "enrolled=false" >> "$GITHUB_OUTPUT"
+            echo "verdict=bootstrap-rollout"
+            exit 0
+          fi
+
+          python -B tools/autoloop/cli.py verify-pr-integrity \
+            --event-path "${GITHUB_EVENT_PATH}" \
+            --repo-slug "${{ github.repository }}" \
+            --main-ref "origin/${DEFAULT_BRANCH}" \
+            --github-output "${GITHUB_OUTPUT}"
+
+  autoloop-candidate-checks:
+    name: autoloop-candidate-checks
+    needs: autoloop-integrity
+    if: needs.autoloop-integrity.outputs.enrolled == 'true'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Warm pinned Knip cache
+        run: npx --yes knip@6.46.1 --version
+
+      - name: Run candidate fast-check
+        env:
+          AUTOLOOP_PINNED_KNIP: "6.46.1"
+        run: python -B tools/khitmee_dev.py fast-check

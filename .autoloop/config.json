@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "trusted_owners": [
+    "Morris-Zin"
+  ],
+  "default_branch": "main",
+  "pinned_knip": "6.46.1",
+  "critical_policy_globs": [
+    ".github/**",
+    "tools/autoloop/**",
+    "tools/fast_check.py",
+    "tools/khitmee_dev.py",
+    "tools/perf_parity.py",
+    "tools/perf_eval_ledger.py",
+    ".autoloop/config.json",
+    ".autoloop/rules/**",
+    ".devin/skills/autoloop/**",
+    ".gitattributes",
+    "tools/.gitattributes",
+    ".gitignore",
+    ".gitmodules",
+    "AGENTS.md"
+  ],
+  "default_presets": {
+    "free_implementation": {
+      "provider": "Devin",
+      "model": "SWE-2.1",
+      "options": {
+        "speed": "standard"
+      }
+    },
+    "codex_implementation_or_review": {
+      "provider": "codex",
+      "models": [
+        "GPT-6.2 Sol",
+        "GPT-6.2 Astra"
+      ]
+    },
+    "claude_implementation_or_review": {
+      "provider": "claudeAgent",
+      "models": [
+        "Opus",
+        "Sonnet"
+      ]
+    }
+  },
+  "limits": {
+    "max_worker_strikes": 3,
+    "max_replan_count": 1,
+    "max_total_attempts": 8,
+    "max_safeguard_prose_lines": 15
+  }
+}
