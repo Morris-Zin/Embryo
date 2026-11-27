@@ -56,7 +56,10 @@ async function getTree(rootHandle) {
   return structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
 }
 function matchesElement(element, action) {
-  if (action.elementId) return (element.typeNamesAndIds || []).some((entry) => (typeof entry === 'string' ? entry === action.elementId || entry.endsWith(`::${action.elementId}`) : entry.id === action.elementId));
+  if (action.elementId) return (element.typeNamesAndIds || []).some((entry) => {
+    if (typeof entry === 'string') return entry === action.elementId || entry.endsWith(`::${action.elementId}`);
+    return entry.id === action.elementId || (entry.id && entry.id.endsWith(`::${action.elementId}`));
+  });
   if (action.label) return element.accessibleLabel === action.label || element.accessibleValue === action.label;
   return false;
 }

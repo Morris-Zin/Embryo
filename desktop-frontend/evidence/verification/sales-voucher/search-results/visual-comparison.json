@@ -1,0 +1,31 @@
+{
+  "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-sales\\search-results\\reference.png",
+  "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\search-results\\native.png",
+  "referenceSha256": "8e4a168e0d7d50503013bd32903b6ec20803d291600e883bea0efe5f7355414a",
+  "nativeSha256": "66f31e6db042fe389afe0af2757d92c21b8762d4c0ec818d6d365922b54f257e",
+  "passed": false,
+  "referenceSize": [
+    1180,
+    760
+  ],
+  "nativeSize": [
+    1180,
+    760
+  ],
+  "byteIdentical": false,
+  "dimensionsMatch": true,
+  "pixelsExactlyEqual": false,
+  "totalPixels": 896800,
+  "failedPixels": 219622,
+  "failedPixelRatio": 0.24489518287243534,
+  "maxFailedPixelRatio": 0.0,
+  "meanMaxChannelDelta": 7.362552408563782,
+  "maxChannelDelta": 255,
+  "diffBounds": {
+    "left": 0,
+    "top": 0,
+    "right": 1180,
+    "bottom": 760
+  },
+  "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\sales-voucher\\search-results\\visual-comparison.diff.png"
+}

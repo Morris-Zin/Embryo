@@ -279,6 +279,12 @@
         "initial: visual comparison failed or inputs were incomparable",
         "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
         "initial: behavioral keyboard evidence missing or failing",
+        "draft-line: visual comparison failed or inputs were incomparable",
+        "draft-line: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "draft-line: behavioral keyboard evidence missing or failing",
+        "search-results: visual comparison failed or inputs were incomparable",
+        "search-results: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "search-results: behavioral keyboard evidence missing or failing",
         "business outcome evidence missing",
         "performance evidence missing"
       ],

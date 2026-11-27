@@ -1,0 +1,31 @@
+{
+  "events": [
+    {
+      "event": {
+        "keyPressed": {
+          "text": "\n"
+        }
+      },
+      "result": "Accepted",
+      "timestampMs": "1795786650405",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "\n"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "1",
+      "timestampMs": "1795786650405",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    }
+  ]
+}

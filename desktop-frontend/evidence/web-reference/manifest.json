@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-11-27T13:14:59.136Z",
+  "capturedAt": "2026-11-27T13:35:04.536Z",
   "baseUrl": "http://127.0.0.1:18086",
   "viewport": {
     "width": 1180,
@@ -9,16 +9,35 @@
   },
   "routes": [
     {
-      "route": "/app/sales-invoice",
-      "id": "app-sales-invoice",
+      "route": "/khitmee_sales",
+      "id": "khitmee-sales",
       "httpStatus": 200,
-      "screenshot": "app-sales-invoice/reference.png",
-      "screenshotSha256": "f3f0d28d6de196aa6420aba0ccdaf55576db359bd8fe4290177d2f816849c53d",
-      "controls": 259,
-      "title": "Sales Invoice",
-      "h1": "",
-      "state": "initial",
-      "actions": []
+      "screenshot": "khitmee-sales/draft-line/reference.png",
+      "screenshotSha256": "a4eb9d65571560f84dc8bd2b7a04b0be201e71ebc6ab1f5b48018fd9ffa63513",
+      "controls": 20,
+      "title": "Khitmee Sales Counter",
+      "h1": "Sales Counter",
+      "state": "draft-line",
+      "actions": [
+        {
+          "type": "fill",
+          "selector": "#item-search",
+          "value": "8850000000010"
+        },
+        {
+          "type": "wait",
+          "ms": 500
+        },
+        {
+          "type": "press",
+          "selector": "#item-search",
+          "key": "Enter"
+        },
+        {
+          "type": "wait",
+          "ms": 500
+        }
+      ]
     }
   ],
   "authentication": "credentials supplied"

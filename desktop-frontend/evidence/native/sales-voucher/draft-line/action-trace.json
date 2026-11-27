@@ -1,0 +1,31 @@
+[
+  {
+    "index": 0,
+    "action": {
+      "type": "fill",
+      "elementId": "item-search",
+      "value": "8850000000010"
+    }
+  },
+  {
+    "index": 1,
+    "action": {
+      "type": "wait",
+      "ms": 300
+    }
+  },
+  {
+    "index": 2,
+    "action": {
+      "type": "key",
+      "key": "Enter"
+    }
+  },
+  {
+    "index": 3,
+    "action": {
+      "type": "wait",
+      "ms": 400
+    }
+  }
+]

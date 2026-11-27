@@ -1,0 +1,17 @@
+[
+  {
+    "index": 0,
+    "action": {
+      "type": "fill",
+      "elementId": "item-search",
+      "value": "Mekong"
+    }
+  },
+  {
+    "index": 1,
+    "action": {
+      "type": "wait",
+      "ms": 500
+    }
+  }
+]
