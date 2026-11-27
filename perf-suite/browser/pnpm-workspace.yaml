@@ -1,0 +1,5 @@
+permissions:
+  chrome-devtools-mcp:
+    skills: true
+  modern-web-guidance:
+    skills: true
