@@ -93,6 +93,7 @@ jobs:
               head_repo_full = ((head.get("repo") or {}).get("full_name") or "").lower()
               head_owner = ((head.get("user") or {}).get("login") or "")
 
+              expected_title = f"Autoloop Gate PR #{pr_num}"
               unassociated_candidates = []
               page = 1
               while page <= 5:
@@ -103,10 +104,12 @@ jobs:
                   if not runs:
                       break
                   for run in runs:
+                      if run.get("display_title") == expected_title:
+                          return run
                       prs = run.get("pull_requests") or []
                       if any(int(p.get("number") or 0) == pr_num for p in prs if isinstance(p, dict)):
                           return run
-                      # GitHub may omit `pull_requests` on fork PR runs; collect matching head repo/branch candidates.
+                      # Legacy runs before run-name binding on fork PRs where GitHub omits `pull_requests`.
                       if not prs and run.get("event") in ("pull_request", "pull_request_review"):
                           run_repo = ((run.get("head_repository") or {}).get("full_name") or "").lower()
                           if run.get("head_branch") == head_ref and (not head_repo_full or run_repo == head_repo_full):
@@ -116,7 +119,7 @@ jobs:
                   page += 1
 
               if unassociated_candidates and head_owner and head_ref:
-                  # Only accept an unassociated fork run when THIS PR is the sole open PR for head_owner:head_ref.
+                  # Only accept an unassociated legacy fork run when THIS PR is the sole open PR for head_owner:head_ref.
                   open_same_head = api(
                       f"/repos/{repo}/pulls?state=open&head={head_owner}:{head_ref}&per_page=10"
                   )
@@ -138,8 +141,10 @@ jobs:
                   continue
               target = find_pr_gate_run(pr)
               if target is None:
-                  print(f"No unambiguous Autoloop Gate run matched PR #{pr_num} at head {head_sha[:8]}; refusing rerun.")
-                  continue
+                  raise SystemExit(
+                      f"ERROR: No unambiguous Autoloop Gate run matched PR #{pr_num} at head {head_sha[:8]}; "
+                      "cannot verify authoritative comment change."
+                  )
               run_id = target["id"]
               if target.get("status") != "completed":
                   print(f"Cancelling active Autoloop Gate run {run_id} for PR #{pr_num} so rerun observes updated comment.")

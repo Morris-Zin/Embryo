@@ -1963,6 +1963,23 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 lock_dir=self.lock_dir,
             )
         self.assertIn("unknown shard", str(ctx.exception))
+        # Run IDs invalid in CI (`RUN_FILE_RE`) MUST be rejected at init_run
+        for bad_id in ("quarter close", "-leading-dash", "bad/slash"):
+            with self.assertRaises(IllegalTransitionError):
+                init_run(self.repo, bad_id, "Bad ID", base_sha=self.main_sha, lock_dir=self.lock_dir)
+
+        # lock_run(base_sha=new_base) MUST update every shard's initial last_green_sha to the locked base
+        _git(self.repo, "checkout", "-b", "feat/new-base")
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 99\n")
+        _git(self.repo, "add", "src/b.py")
+        _git(self.repo, "commit", "-m", "upstream b change")
+        new_base = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+        run_lk = "run-lock-base"
+        init_run(self.repo, run_lk, "Lock base", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(self.repo, run_lk, summary="g", shards={"a": ["src/a.py"]}, lock_dir=self.lock_dir)
+        st_lk = lock_run(self.repo, run_lk, base_sha=new_base, lock_dir=self.lock_dir)
+        self.assertEqual(st_lk["shards"]["a"]["last_green_sha"], new_base)
 
     def test_post_review_safeguard_failure_supports_retry_and_recovery(self) -> None:
         run_id = "run-post-review-retry"
@@ -2501,7 +2518,8 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             self.assertEqual((int_repo / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 1\n")
             self.assertEqual(st_rb["history"][-1].get("rolled_back_to"), int_sha)
 
-            # Detached integration pass MUST record "__DETACHED__" and refuse rollback if later switched to a named branch
+            # Detached integration pass MUST record last_integrated_detached=True and refuse rollback
+            # even if later switched to a named branch literally called "__DETACHED__"
             apply_replan(int_repo, run_int, plan_summary="Detached check", shard_id="a", lock_dir=self.lock_dir)
             start_shard(int_repo, run_int, "a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
             record_shard_pass(int_repo, run_int, "a", code_tree_sha256=compute_code_tree_sha256(wt_a, "HEAD", run_id=run_int), head_sha=_git(wt_a, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
@@ -2514,9 +2532,10 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 worktree_path=str(wt_int),
                 lock_dir=self.lock_dir,
             )
-            self.assertEqual(st_det["last_integrated_branch"], "__DETACHED__")
-            # Switch wt_int onto a new named branch descending from int_sha and hit strike limit -> MUST refuse rollback!
-            _git(wt_int, "checkout", "-b", "irb/wrong-branch")
+            self.assertTrue(st_det["last_integrated_detached"])
+            self.assertIsNone(st_det["last_integrated_branch"])
+            # Switch wt_int onto a branch literally named "__DETACHED__" descending from int_sha -> MUST refuse rollback!
+            _git(wt_int, "checkout", "-b", "__DETACHED__")
             _write_lf(wt_int / "src/a.py", "def a():\n    return 777\n")
             _git(wt_int, "add", "src/a.py")
             _git(wt_int, "commit", "-m", "other branch work")

@@ -10,6 +10,7 @@ from typing import Any
 from . import EXIT_ILLEGAL_TRANSITION, SCHEMA_VERSION
 from .failures import normalize_failure
 from .guard import (
+    RUN_ID_RE,
     UnsafeRollbackError,
     assert_clean_worktree_for_rollback,
     assert_safe_local_path,
@@ -80,7 +81,7 @@ def utc_now() -> str:
 
 
 def _run_file(repo: Path, run_id: str) -> Path:
-    if not run_id or "/" in run_id or "\\" in run_id or ".." in run_id:
+    if not run_id or ".." in run_id or not RUN_ID_RE.fullmatch(run_id):
         raise IllegalTransitionError(f"invalid run_id: {run_id!r}")
     target = repo / ".autoloop/runs" / f"{run_id}.json"
     assert_safe_local_path(repo, target)
@@ -279,6 +280,7 @@ def init_run(
             "last_integrated_sha": None,
             "last_integrated_worktree": None,
             "last_integrated_branch": None,
+            "last_integrated_detached": None,
             "merge_mode": merge_mode,
             "contract_revision": 0,
             "contract_sha256": None,
@@ -383,8 +385,7 @@ def lock_run(
         for sdata in state["shards"].values():
             sdata["status"] = "locked"
             sdata["has_passed_individually"] = False
-            if not sdata.get("last_green_sha"):
-                sdata["last_green_sha"] = state.get("base_sha")
+            sdata["last_green_sha"] = state.get("base_sha")
         state["status"] = "locked"
         state["history"].append(
             {
@@ -564,6 +565,7 @@ def refresh_base(
         state["last_integrated_sha"] = None
         state["last_integrated_worktree"] = None
         state["last_integrated_branch"] = None
+        state["last_integrated_detached"] = None
         for sdata in state["shards"].values():
             sdata["status"] = "locked"
             sdata["worker_strikes"] = 0
@@ -630,9 +632,6 @@ def record_shard_pass(
         return state
 
 
-DETACHED_HEAD_SENTINEL = "__DETACHED__"
-
-
 def record_all_shards_pass(
     repo: Path,
     run_id: str,
@@ -663,7 +662,8 @@ def record_all_shards_pass(
             int_wt = Path(worktree_path).resolve() if worktree_path else repo.resolve()
             state["last_integrated_worktree"] = str(int_wt)
             resolved_branch = branch_name if branch_name is not None else git_current_branch(int_wt)
-            state["last_integrated_branch"] = resolved_branch or DETACHED_HEAD_SENTINEL
+            state["last_integrated_detached"] = resolved_branch is None
+            state["last_integrated_branch"] = resolved_branch
         single_shard = len(state["shards"]) == 1
         for sdata in state["shards"].values():
             sdata["status"] = "passed"
@@ -779,13 +779,21 @@ def retry_shard(
                     raise UnsafeRollbackError(
                         f"refusing integrated rollback: worktree {rollback_wt} does not exist"
                     )
+                expected_detached = state.get("last_integrated_detached")
                 expected_branch = state.get("last_integrated_branch")
-                if not expected_branch:
+                if expected_detached is None:
                     raise UnsafeRollbackError(
-                        "refusing integrated rollback: last_integrated_branch is not recorded"
+                        "refusing integrated rollback: last_integrated_detached state is not recorded"
                     )
-                actual_branch = git_current_branch(rollback_wt) or DETACHED_HEAD_SENTINEL
-                if actual_branch != expected_branch:
+                actual_branch = git_current_branch(rollback_wt)
+                actual_detached = actual_branch is None
+                if bool(expected_detached) != actual_detached:
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} detached={actual_detached} "
+                        f"(branch={actual_branch!r}), expected detached={bool(expected_detached)} "
+                        f"(branch={expected_branch!r})"
+                    )
+                if not actual_detached and actual_branch != expected_branch:
                     raise UnsafeRollbackError(
                         f"refusing integrated rollback: worktree {rollback_wt} is on branch {actual_branch!r}, "
                         f"expected {expected_branch!r}"
@@ -1007,6 +1015,7 @@ def resolve_contract_change(
                 state["last_integrated_sha"] = None
                 state["last_integrated_worktree"] = None
                 state["last_integrated_branch"] = None
+                state["last_integrated_detached"] = None
                 for sdata in state["shards"].values():
                     sdata["status"] = "locked"
                     sdata["worker_strikes"] = 0

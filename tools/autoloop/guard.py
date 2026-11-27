@@ -40,6 +40,7 @@ FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 
 EXPERIMENT_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 RUN_FILE_RE = re.compile(r"^\.autoloop/runs/([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.json$")
 
 CONTRACT_MARKER_RE = re.compile(
