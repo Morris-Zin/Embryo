@@ -64,8 +64,13 @@ async function main() {
   if (!rootHandle) throw new Error(`No root element handle in ${JSON.stringify(properties)}`);
   const tree = structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
   const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Invoice List' };
-  if (expectedTitles[screenId] && !JSON.stringify(tree).includes(expectedTitles[screenId])) {
-    throw new Error(`native window does not show ${expectedTitles[screenId]}; refusing to file evidence as ${screenId}`);
+  const expectedTitle = expectedTitles[screenId];
+  const titleVisibleInHeader = expectedTitle && (tree.elements || []).some((element) => {
+    const position = element.absolutePosition || {};
+    return element.accessibleLabel === expectedTitle && (position.x || 0) < 160 && (position.y || 0) < 120;
+  });
+  if (expectedTitle && !titleVisibleInHeader) {
+    throw new Error(`native window does not show ${expectedTitle} in the left header; refusing to file evidence as ${screenId}`);
   }
   const screenshot = await callTool('take_screenshot', { windowHandle, imageMimeType: 'image/png' });
   const image = screenshot.content?.find((item) => item.type === 'image');

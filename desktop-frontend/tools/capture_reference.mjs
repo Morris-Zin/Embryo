@@ -102,6 +102,8 @@ async function main() {
           ariaLabel: element.getAttribute('aria-label') || '',
           ariaExpanded: element.getAttribute('aria-expanded') || '',
           keyboard: [...element.querySelectorAll('kbd')].map((kbd) => kbd.textContent.trim()).filter(Boolean),
+          inputType: element.getAttribute('type') || '',
+          placeholder: element.getAttribute('placeholder') || '',
           geometry: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
           visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none',
           disabled: Boolean(element.disabled),
@@ -113,6 +115,7 @@ async function main() {
         h1: document.querySelector('h1')?.innerText?.trim() || '',
         bodyText: document.body.innerText,
         controls,
+        pageShortcuts: [...document.querySelectorAll('kbd')].map((kbd) => kbd.textContent.trim()).filter(Boolean),
       };
     });
 

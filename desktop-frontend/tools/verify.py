@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Screen migration verification orchestrator.
+"""Conservative one-to-one migration verification orchestrator.
 
-This script is deliberately conservative: missing or incomparable evidence is a failure,
-never a skipped pass. It can update registry statuses only after all acceptance dimensions
-pass with reproducible artifacts.
+Evidence is state-based: each screen has an `initial` state stored directly in its
+capture directory and may have named interaction states in child directories. Missing
+or incomparable evidence is always a failure.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,12 +31,79 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def flatten_text(value: Any) -> str:
-    if isinstance(value, dict):
-        return " ".join(flatten_text(item) for item in value.values())
-    if isinstance(value, list):
-        return " ".join(flatten_text(item) for item in value)
-    return str(value or "")
+def norm_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def web_role(control: dict[str, Any]) -> str:
+    explicit = norm_text(control.get("role")).lower()
+    if explicit:
+        return explicit
+    tag = norm_text(control.get("tag")).lower()
+    if tag == "button":
+        return "button"
+    if tag == "a":
+        return "link"
+    if tag == "select":
+        return "combobox"
+    if tag == "textarea":
+        return "textbox"
+    if tag == "input":
+        input_type = norm_text(control.get("inputType") or control.get("type")).lower()
+        return "searchbox" if input_type == "search" else "textbox"
+    return tag or "unknown"
+
+
+def occurrence_keyed(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    counts: Counter[tuple[str, str]] = Counter()
+    result = {}
+    for row in rows:
+        base = (row["role"], row["label"])
+        counts[base] += 1
+        result[f"{base[0]}|{base[1]}|{counts[base]}"] = row
+    return result
+
+
+def web_controls(dom: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows = []
+    for control in dom.get("controls", []) if isinstance(dom, dict) else []:
+        if not control.get("visible", True):
+            continue
+        label = norm_text(control.get("ariaLabel") or control.get("text") or control.get("placeholder") or control.get("id"))
+        geometry = control.get("geometry") or {}
+        rows.append({
+            "role": web_role(control),
+            "label": label,
+            "x": float(geometry.get("x", 0) or 0),
+            "y": float(geometry.get("y", 0) or 0),
+            "width": float(geometry.get("width", 0) or 0),
+            "height": float(geometry.get("height", 0) or 0),
+            "disabled": bool(control.get("disabled")),
+        })
+    return occurrence_keyed(rows)
+
+
+def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows = []
+    for element in tree.get("elements", []) if isinstance(tree, dict) else []:
+        size = element.get("size") or {}
+        if not size.get("width") or not size.get("height") or element.get("computedOpacity", 1) == 0:
+            continue
+        label = norm_text(element.get("accessibleLabel") or element.get("accessibleValue") or element.get("accessiblePlaceholder"))
+        role = norm_text(element.get("accessibleRole") or element.get("role")).lower()
+        if not label and role in ("text", "statictext", "unknown", ""):
+            continue
+        position = element.get("absolutePosition") or {}
+        rows.append({
+            "role": role or "unknown",
+            "label": label,
+            "x": float(position.get("x", 0) or 0),
+            "y": float(position.get("y", 0) or 0),
+            "width": float(size.get("width", 0) or 0),
+            "height": float(size.get("height", 0) or 0),
+            "disabled": element.get("accessibleEnabled") is False,
+        })
+    return occurrence_keyed(rows)
 
 
 def compare_visual(reference_png: Path, native_png: Path, report_path: Path, threshold: float) -> dict[str, Any]:
@@ -46,125 +115,144 @@ def compare_visual(reference_png: Path, native_png: Path, report_path: Path, thr
     )
     report = load_json(report_path, {"passed": False, "error": "comparison did not write a report"})
     report["exitCode"] = result.returncode
-    if result.stdout.strip():
-        report["stdout"] = result.stdout.strip()
     if result.stderr.strip():
         report["stderr"] = result.stderr.strip()
     return report
 
 
-def evaluate_screen(
-    screen: dict[str, Any],
-    web_reference: Path,
-    native_evidence: Path,
-    evidence_out: Path,
-    business_report: Path | None,
-    performance_report: Path | None,
-) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "screen": screen["id"],
-        "passed": False,
-        "failures": [],
-        "checks": {},
+def compare_structure(reference_dom: dict[str, Any], native_tree: dict[str, Any], tolerance: float) -> dict[str, Any]:
+    reference = web_controls(reference_dom)
+    native = native_controls(native_tree)
+    missing = sorted(set(reference) - set(native))
+    unexpected = sorted(set(native) - set(reference))
+    geometry_failures = []
+    for key in sorted(set(reference) & set(native)):
+        left = reference[key]
+        right = native[key]
+        deltas = {axis: abs(left[axis] - right[axis]) for axis in ("x", "y", "width", "height")}
+        if any(delta > tolerance for delta in deltas.values()):
+            geometry_failures.append({"control": key, "reference": {axis: left[axis] for axis in deltas}, "native": {axis: right[axis] for axis in deltas}, "deltas": deltas})
+        if left["disabled"] != right["disabled"]:
+            geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"]}})
+    return {
+        "passed": not missing and not unexpected and not geometry_failures,
+        "referenceControlCount": len(reference),
+        "nativeControlCount": len(native),
+        "missingControls": missing,
+        "unexpectedControls": unexpected,
+        "geometryTolerancePx": tolerance,
+        "geometryFailures": geometry_failures,
     }
 
-    reference_id = screen["source_route"].strip("/").replace("/", "-").replace("#", "--") or "root"
-    reference_dir = web_reference / reference_id
-    # The sales route captures as khitmee-sales while registry uses sales-voucher.
-    aliases = [reference_id, screen["source_route"].strip("/").replace("_", "-"), screen["id"]]
-    existing_reference = next((web_reference / alias for alias in aliases if (web_reference / alias / "reference.png").exists()), reference_dir)
-    reference_png = existing_reference / "reference.png"
-    screen_native_evidence = native_evidence / screen["id"]
-    native_png = screen_native_evidence / "native.png"
-    reference_dom = load_json(existing_reference / "dom.json", {})
-    native_tree = load_json(screen_native_evidence / "element-tree.json", {})
 
-    required_files = {
+def keyboard_check(screen_dir: Path, reference_dom: dict[str, Any]) -> dict[str, Any]:
+    required = sorted(set(reference_dom.get("pageShortcuts", [])) | {key for control in reference_dom.get("controls", []) for key in control.get("keyboard", [])})
+    path = screen_dir / "keyboard-results.json"
+    data = load_json(path, None)
+    outcomes = data.get("shortcuts", {}) if isinstance(data, dict) else {}
+    missing = [key for key in required if outcomes.get(key, {}).get("passed") is not True]
+    return {
+        "passed": bool(required) and not missing,
+        "requiredShortcuts": required,
+        "missingBehavioralResults": missing,
+        "path": str(path),
+    }
+
+
+def state_dirs(base: Path) -> dict[str, Path]:
+    states = {}
+    if (base / "reference.png").exists() or (base / "native.png").exists():
+        states["initial"] = base
+    if base.exists():
+        for child in sorted(base.iterdir()):
+            if child.is_dir() and ((child / "reference.png").exists() or (child / "native.png").exists()):
+                states[child.name] = child
+    return states
+
+
+def compare_state(screen: dict[str, Any], state: str, reference_dir: Path, native_dir: Path, evidence_out: Path) -> dict[str, Any]:
+    failures = []
+    checks: dict[str, Any] = {}
+    reference_png = reference_dir / "reference.png"
+    native_png = native_dir / "native.png"
+    reference_dom_path = reference_dir / "dom.json"
+    native_tree_path = native_dir / "element-tree.json"
+    required = {
         "reference-screenshot": reference_png,
         "native-screenshot": native_png,
-        "reference-dom": existing_reference / "dom.json",
-        "reference-trace": existing_reference / "trace.json",
-        "native-element-tree": screen_native_evidence / "element-tree.json",
+        "reference-dom": reference_dom_path,
+        "reference-trace": reference_dir / "trace.json",
+        "native-element-tree": native_tree_path,
     }
-    for kind, path in required_files.items():
+    for kind, path in required.items():
         exists = path.exists()
-        result["checks"][kind] = {"passed": exists, "path": str(path)}
+        checks[kind] = {"passed": exists, "path": str(path)}
         if not exists:
-            result["failures"].append(f"missing {kind}: {path}")
+            failures.append(f"missing {kind}: {path}")
 
+    acceptance = screen.get("acceptance", {})
     if reference_png.exists() and native_png.exists():
-        visual_report = compare_visual(
-            reference_png,
-            native_png,
-            evidence_out / screen["id"] / "visual-comparison.json",
-            float(screen.get("acceptance", {}).get("visual_max_failed_pixel_ratio", 0.0)),
-        )
-        result["checks"]["visual-comparison"] = visual_report
-        if not visual_report.get("passed"):
-            result["failures"].append("visual comparison failed or inputs were incomparable")
+        visual = compare_visual(reference_png, native_png, evidence_out / screen["id"] / state / "visual-comparison.json", float(acceptance.get("visual_max_failed_pixel_ratio", 0.0)))
+        checks["visual-comparison"] = visual
+        if not visual.get("passed"):
+            failures.append("visual comparison failed or inputs were incomparable")
 
+    reference_dom = load_json(reference_dom_path, {})
+    native_tree = load_json(native_tree_path, {})
     if not reference_dom or not native_tree:
-        result["checks"]["structured-evidence"] = {"passed": False, "error": "reference DOM or native element tree is empty/missing"}
-        if (existing_reference / "dom.json").exists() or (screen_native_evidence / "element-tree.json").exists():
-            result["failures"].append("structured evidence is empty; text/accessibility/keyboard checks cannot run")
+        checks["structure"] = {"passed": False, "error": "empty or missing structured evidence"}
+        if reference_dom_path.exists() or native_tree_path.exists():
+            failures.append("structured evidence is empty; structural checks cannot run")
     else:
-        reference_text = flatten_text(reference_dom.get("bodyText", "")) + " " + flatten_text(reference_dom.get("controls", []))
-        native_text = flatten_text(native_tree)
-        title = reference_dom.get("h1") or reference_dom.get("title") or screen.get("title", "")
-        title_probe = str(title).split()[0] if title else ""
-        text_passed = bool(title_probe and title_probe.casefold() in native_text.casefold())
-        result["checks"]["text-probe"] = {"passed": text_passed, "probe": title_probe}
-        if not text_passed:
-            result["failures"].append(f"native tree does not contain reference title probe {title_probe!r}")
+        structure = compare_structure(reference_dom, native_tree, float(acceptance.get("geometry_tolerance_px", 0.0)))
+        checks["structure"] = structure
+        if not structure["passed"]:
+            failures.append("control identity, text/accessibility semantics, geometry, or state comparison failed")
+        keyboard = keyboard_check(native_dir, reference_dom)
+        checks["keyboard"] = keyboard
+        if acceptance.get("require_keyboard_parity", True) and not keyboard["passed"]:
+            failures.append("behavioral keyboard evidence missing or failing")
 
-        reference_roles = {control.get("role") for control in reference_dom.get("controls", []) if control.get("role")}
-        native_roles = set()
-        for element in native_tree.get("elements", []) if isinstance(native_tree, dict) else []:
-            accessible = element.get("accessible", {}) if isinstance(element, dict) else {}
-            role = accessible.get("role") or element.get("accessibleRole") or element.get("role")
-            if role:
-                native_roles.add(str(role))
-        missing_roles = sorted(reference_roles - native_roles)
-        role_passed = not missing_roles
-        result["checks"]["accessibility-role-probe"] = {"passed": role_passed, "missingRoles": missing_roles, "nativeRoles": sorted(native_roles)}
-        if not role_passed:
-            result["failures"].append(f"native accessibility roles missing {missing_roles}")
+    return {"state": state, "passed": not failures, "failures": failures, "checks": checks}
 
-        required_shortcuts = sorted({key for control in reference_dom.get("controls", []) for key in control.get("keyboard", [])})
-        keyboard_results_path = screen_native_evidence / "keyboard-results.json"
-        keyboard_results = load_json(keyboard_results_path, None)
-        shortcut_results = keyboard_results.get("shortcuts", {}) if isinstance(keyboard_results, dict) else {}
-        missing_shortcut_results = [shortcut for shortcut in required_shortcuts if shortcut_results.get(shortcut, {}).get("passed") is not True]
-        shortcut_probe_passed = bool(required_shortcuts) and not missing_shortcut_results
-        result["checks"]["keyboard-probe"] = {
-            "passed": shortcut_probe_passed,
-            "requiredShortcuts": required_shortcuts,
-            "missingBehavioralResults": missing_shortcut_results,
-            "path": str(keyboard_results_path),
-        }
-        if not shortcut_probe_passed:
-            result["failures"].append(f"native behavioral keyboard evidence missing or failing for {missing_shortcut_results or required_shortcuts}")
+
+def evaluate_screen(screen: dict[str, Any], web_reference: Path, native_evidence: Path, evidence_out: Path, business_report: Path | None, performance_report: Path | None) -> dict[str, Any]:
+    reference_id = screen["source_route"].strip("/").replace("/", "-").replace("#", "--") or "root"
+    aliases = [reference_id, screen["source_route"].strip("/").replace("_", "-"), screen["id"]]
+    reference_base = next((web_reference / alias for alias in aliases if (web_reference / alias).exists()), web_reference / reference_id)
+    native_base = native_evidence / screen["id"]
+    reference_states = state_dirs(reference_base)
+    native_states = state_dirs(native_base)
+    state_names = sorted(set(reference_states) | set(native_states), key=lambda value: (value != "initial", value))
+    result = {"screen": screen["id"], "passed": False, "failures": [], "states": [], "checks": {}}
+    if not state_names:
+        result["failures"].append(f"no reference or native capture states found for {screen['id']}")
+    for state in state_names:
+        if state not in reference_states:
+            state_result = {"state": state, "passed": False, "failures": ["reference state capture missing"], "checks": {}}
+        elif state not in native_states:
+            state_result = {"state": state, "passed": False, "failures": ["native state capture missing"], "checks": {}}
+        else:
+            state_result = compare_state(screen, state, reference_states[state], native_states[state], evidence_out)
+        result["states"].append(state_result)
+        result["failures"].extend(f"{state}: {failure}" for failure in state_result["failures"])
 
     if business_report is None or not business_report.exists():
         result["checks"]["business-outcome"] = {"passed": False, "error": "business outcome report missing"}
         result["failures"].append("business outcome evidence missing")
     else:
         business = load_json(business_report, {})
-        passed = bool(business.get("passed"))
         result["checks"]["business-outcome"] = business
-        if not passed:
+        if not business.get("passed"):
             result["failures"].append("business outcome comparison failed")
-
     if performance_report is None or not performance_report.exists():
         result["checks"]["performance"] = {"passed": False, "error": "performance report missing"}
         result["failures"].append("performance evidence missing")
     else:
         performance = load_json(performance_report, {})
-        passed = bool(performance.get("passed"))
         result["checks"]["performance"] = performance
-        if not passed:
+        if not performance.get("passed"):
             result["failures"].append("performance qualification failed")
-
     result["passed"] = not result["failures"]
     return result
 
@@ -190,33 +278,25 @@ def main() -> int:
     screens = [screen for screen in registry.get("screens", []) if not selected or screen.get("id") in selected]
     business_report = Path(args.business_report) if args.business_report else None
     performance_report = Path(args.performance_report) if args.performance_report else None
-
-    results = [
-        evaluate_screen(screen, Path(args.web_reference), Path(args.native_evidence), Path(args.evidence_out), business_report, performance_report)
-        for screen in screens
-    ]
+    results = [evaluate_screen(screen, Path(args.web_reference), Path(args.native_evidence), Path(args.evidence_out), business_report, performance_report) for screen in screens]
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "generatedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "passed": bool(results) and all(result["passed"] for result in results),
+        "passed": bool(results) and all(item["passed"] for item in results),
         "results": results,
     }
-    report_path = Path(args.evidence_out) / "verification-report.json"
-    write_json(report_path, report)
+    write_json(Path(args.evidence_out) / "verification-report.json", report)
 
     if args.update_registry:
         for screen in registry.get("screens", []):
-            matching = next((result for result in results if result["screen"] == screen.get("id")), None)
-            if matching is None:
-                continue
-            if matching["passed"]:
-                screen["status"] = "verified" if screen.get("status") != "regression-locked" else "regression-locked"
-                screen["failures"] = []
-            else:
-                screen["failures"] = sorted(set(screen.get("failures", []) + matching["failures"]))
+            matched = next((item for item in results if item["screen"] == screen.get("id")), None)
+            if matched and matched["passed"]:
+                screen["status"] = "verified"
+            elif matched:
+                screen["failures"] = matched["failures"]
         write_json(registry_path, registry)
 
-    print(json.dumps({"passed": report["passed"], "screens": len(results), "report": str(report_path)}, sort_keys=True))
+    print(json.dumps({"passed": report["passed"], "report": str(Path(args.evidence_out) / "verification-report.json"), "screens": len(results)}))
     return 0 if report["passed"] else 1
 
 
