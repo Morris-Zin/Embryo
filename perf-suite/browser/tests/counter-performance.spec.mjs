@@ -178,6 +178,33 @@ test.describe("cashier counter performance regressions", () => {
     expect(requests, "expired visible suggestions must be refreshed before Enter uses them").toHaveLength(2);
   });
 
+  test("refresh omits the highlighted item without silently substituting another match", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    let includeSelected = true;
+    const requests = [];
+    const item = (code) => ({ item_code: code, item_name: code + " name", stock_uom: "Nos", rate: 10, actual_qty: 8 });
+    await page.route("**/api/method/khitmee_ops.api.search.search_items*", async (route) => {
+      requests.push(route.request().url());
+      const items = includeSelected ? [item("TEST-A"), item("TEST-B")] : [item("TEST-A")];
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: { items } }) });
+    });
+
+    await page.locator("#item-search").fill("A");
+    await expect(page.locator("#search-results li").nth(1)).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    includeSelected = false;
+    await page.evaluate(() => {
+      const realNow = Date.now.bind(Date);
+      Date.now = () => realNow() + 30001;
+    });
+    await page.keyboard.press("Enter");
+
+    await expect.poll(() => requests.length, { message: "expired visible suggestions must be refreshed" }).toBe(2);
+    await page.waitForTimeout(100);
+    await expect(page.locator("#lines-body tr"), "a missing selected item must not be replaced by the first remaining match").toHaveCount(0);
+    await expect(page.locator("#status")).toContainText(/no longer available/i);
+  });
+
   for (const releaseOrder of ["oldest-first", "newest-first"]) {
     test("A-B-A pending search interleaving does not reuse an obsolete generation (" + releaseOrder + ")", async ({ page }) => {
       await openAuthenticatedCounter(page);

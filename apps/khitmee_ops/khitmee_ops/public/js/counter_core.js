@@ -357,12 +357,19 @@
 				state.searchKey = searchKey;
 				state.searchAt = now;
 				state.searchItems = result.items || [];
-				state.activeIndex = state.searchItems.length ? 0 : -1;
+				let selectedIndex = -1;
 				if (selectedItemCode) {
-					const selectedIndex = state.searchItems.findIndex(function (item) {
+					selectedIndex = state.searchItems.findIndex(function (item) {
 						return item.item_code === selectedItemCode;
 					});
-					if (selectedIndex >= 0) state.activeIndex = selectedIndex;
+				}
+				if (selectedIndex >= 0) {
+					state.activeIndex = selectedIndex;
+				} else if (selectedItemCode) {
+					state.activeIndex = -1;
+					setStatus(selectedItemCode + " is no longer available in the current search results.", "error");
+				} else {
+					state.activeIndex = state.searchItems.length ? 0 : -1;
 				}
 				if (useCache && state.searchItems.length) {
 					state.searchCache.delete(searchKey);
@@ -613,7 +620,7 @@
 				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
 				searchDebouncer.cancel();
 				searchItems({ cache: true, render: false }).then(function () {
-					const item = state.searchItems[state.activeIndex] || state.searchItems[0];
+					const item = state.activeIndex >= 0 ? state.searchItems[state.activeIndex] : null;
 					if (item) addItem(item);
 				});
 			} else if (event.key === "Escape") {
