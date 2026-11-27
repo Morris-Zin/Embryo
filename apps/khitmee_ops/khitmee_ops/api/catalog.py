@@ -239,8 +239,10 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 	permission_version = _permission_version(frappe.session.user)
 	scope = _scope(warehouse, price_list, customer)
 	previous_since = _parse_datetime(incoming.get("since"))
+	permissioned_reset = _item_permission_restrictions_active()
 	reset = (
-		cint(incoming.get("schema")) != SYNC_SCHEMA_VERSION
+		permissioned_reset
+		or cint(incoming.get("schema")) != SYNC_SCHEMA_VERSION
 		or incoming.get("permission") != permission_version
 		or incoming.get("scope") != scope
 		or previous_since is None
@@ -263,6 +265,8 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 			continue
 		active_rows.append(row)
 
+	# Permission-aware deployments use a full replacement rather than tombstones. A
+	# tombstone for an item the cashier could never see would disclose its item code.
 	active_payload = _catalog_public_rows(active_rows, warehouse, price_list, customer)
 	active_by_code = {row["item_code"]: row for row in active_payload}
 	items = []

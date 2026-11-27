@@ -154,6 +154,26 @@ class TestCatalogEndpoint(unittest.TestCase):
 			{"item_code": "ACTIVE", "deleted": True},
 		])
 
+	def test_item_permission_restrictions_force_reset(self):
+		now = datetime(2026, 1, 2, 12, 0, 0)
+		previous = {
+			"schema": 1,
+			"since": catalog._format_datetime(now - timedelta(minutes=2)),
+			"permission": "hooks:v1",
+			"scope": {"warehouse": "Shop 1", "price_list": "Retail", "customer": ""},
+		}
+		with (
+			patch.object(catalog, "_server_now", return_value=catalog._format_datetime(now)),
+			patch.object(catalog, "_permission_version", return_value="hooks:v1"),
+			patch.object(catalog, "_item_permission_restrictions_active", return_value=True),
+			patch.object(catalog, "_all_active_item_codes", return_value=[]),
+			patch.object(catalog, "_active_item_count", return_value=0),
+			patch.object(catalog, "_changed_item_codes") as changed,
+		):
+			result = catalog.sync_catalog("Shop 1", "Retail", state=json.dumps(previous))
+		self.assertTrue(result["reset"])
+		changed.assert_not_called()
+
 	def test_scope_or_permission_mismatch_forces_reset(self):
 		now = datetime(2026, 1, 2, 12, 0, 0)
 		previous = {
