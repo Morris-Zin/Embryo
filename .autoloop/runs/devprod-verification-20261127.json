@@ -121,6 +121,13 @@
       "at": "2026-11-27T17:13:21Z",
       "event": "resolve-finding",
       "finding_id": "cloud-zizmor-online"
+    },
+    {
+      "at": "2026-11-27T17:13:41Z",
+      "code_tree_sha256": "4f06c421f1e7f29385653ef3ac7a274fef62f2b3e11a585d50c213b8c5aca0c7",
+      "event": "shard-passed",
+      "shard": "verification",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -182,16 +189,16 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "0a69af12425eab5f5b8a91fb27f18658d9363e9a",
-      "passed_code_tree_sha256": null,
+      "last_green_sha": "76d1c16560f3546ccd35b6698c9fc09f0cde3086",
+      "passed_code_tree_sha256": "4f06c421f1e7f29385653ef3ac7a274fef62f2b3e11a585d50c213b8c5aca0c7",
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "in_progress",
+  "status": "gate_passed",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:13:21Z"
+  "updated_at": "2026-11-27T17:13:41Z"
 }
