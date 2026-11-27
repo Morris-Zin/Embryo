@@ -17,6 +17,7 @@ dev = [
     "hypothesis==6.160.0",
     "unittest-parallel==1.8.6",
     "zizmor==1.33.1",
+    "uv==0.13.10",
 ]
 
 [build-system]
