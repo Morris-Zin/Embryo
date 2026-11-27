@@ -28,6 +28,13 @@ MAX_CATALOG_ITEMS = 20000
 PERMISSION_BATCH_SIZE = 500
 
 
+def batched(values, size=500):
+	"""Yield bounded chunks so SQL IN predicates cannot grow without limit."""
+	items = list(values or [])
+	for start in range(0, len(items), max(1, int(size))):
+		yield items[start : start + max(1, int(size))]
+
+
 def _format_datetime(value):
 	if isinstance(value, datetime):
 		return value.strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -222,34 +229,37 @@ def _tombstoned_item_codes(since):
 def _fetch_catalog_rows(item_codes):
 	if not item_codes:
 		return {}
-	placeholders = ", ".join(["%s"] * len(item_codes))
-	rows = frappe.db.sql(
-		f"""
-		SELECT
-			item.name AS item_code,
-			item.item_name,
-			item.stock_uom,
-			item.item_group,
-			item.brand,
-			COALESCE(barcode.barcode, '') AS barcode,
-			COALESCE(barcode.barcode_text, '') AS barcode_text,
-			item.modified
-		FROM `tabItem` AS item
-		LEFT JOIN (
+	result = {}
+	for item_code_chunk in batched(item_codes, 500):
+		placeholders = ", ".join(["%s"] * len(item_code_chunk))
+		rows = frappe.db.sql(
+			f"""
 			SELECT
-				parent,
-				MIN(barcode) AS barcode,
-				GROUP_CONCAT(barcode ORDER BY barcode SEPARATOR ' ') AS barcode_text
-			FROM `tabItem Barcode`
-			WHERE parent IN ({placeholders}) AND parentfield = 'barcodes'
-			GROUP BY parent
-		) AS barcode ON barcode.parent = item.name
-		WHERE item.name IN ({placeholders}) AND item.disabled = 0 AND item.has_variants = 0
-		""",
-		[*item_codes, *item_codes],
-		as_dict=True,
-	)
-	return {row.item_code: row for row in rows}
+				item.name AS item_code,
+				item.item_name,
+				item.stock_uom,
+				item.item_group,
+				item.brand,
+				COALESCE(barcode.barcode, '') AS barcode,
+				COALESCE(barcode.barcode_text, '') AS barcode_text,
+				item.modified
+			FROM `tabItem` AS item
+			LEFT JOIN (
+				SELECT
+					parent,
+					MIN(barcode) AS barcode,
+					GROUP_CONCAT(barcode ORDER BY barcode SEPARATOR ' ') AS barcode_text
+				FROM `tabItem Barcode`
+				WHERE parent IN ({placeholders}) AND parentfield = 'barcodes'
+				GROUP BY parent
+			) AS barcode ON barcode.parent = item.name
+			WHERE item.name IN ({placeholders}) AND item.disabled = 0 AND item.has_variants = 0
+			""",
+			[*item_code_chunk, *item_code_chunk],
+			as_dict=True,
+		)
+		result.update({row.item_code: row for row in rows})
+	return result
 
 
 def _catalog_public_rows(rows, warehouse, price_list, customer):
