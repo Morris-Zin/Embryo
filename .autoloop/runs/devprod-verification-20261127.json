@@ -29,10 +29,19 @@
       "opened_at": "2026-11-27T17:42:58Z",
       "resolved_at": "2026-11-27T17:43:04Z",
       "reviewer": "devin-review",
+      "safeguard": {
+        "artifact": "tools/test_fast_check_guardrails.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-27T17:45:11Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "The benchmark evidence test now pins the corrected 477 total and 154 tools-suite counts.",
+        "why_not_static": "Count consistency depends on the content of the benchmark artifact and cannot be expressed by the existing Python AST static rules."
+      },
       "severity": "P2",
       "stage": "cloud",
-      "status": "fixed_pending_review",
-      "summary": "Benchmark evidence still reported 475/152 after the two evidence-safeguard tests increased discovery to 477/154"
+      "status": "safeguarded",
+      "summary": "Benchmark evidence still reported 475/152 after the two evidence-safeguard tests increased discovery to 477/154",
+      "verified_at": "2026-11-27T17:44:54Z"
     },
     "cloud-cache-safeguard-shape": {
       "finding_id": "cloud-cache-safeguard-shape",
@@ -40,10 +49,19 @@
       "opened_at": "2026-11-27T17:42:58Z",
       "resolved_at": "2026-11-27T17:43:04Z",
       "reviewer": "devin-review",
+      "safeguard": {
+        "artifact": "tools/test_fast_check_guardrails.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-27T17:45:11Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "The strengthened cache safeguard counts per-job bootstrap and UV_CACHE_DIR entries and verifies each cache-dependency-path.",
+        "why_not_static": "The safeguard must inspect repeated YAML job configuration across two workflows; existing static lint rules do not model GitHub Actions job structure."
+      },
       "severity": "P2",
       "stage": "cloud",
-      "status": "fixed_pending_review",
-      "summary": "The uv cache safeguard only checked presence of UV_CACHE_DIR and did not verify per-job cache-dependency-path coverage"
+      "status": "safeguarded",
+      "summary": "The uv cache safeguard only checked presence of UV_CACHE_DIR and did not verify per-job cache-dependency-path coverage",
+      "verified_at": "2026-11-27T17:44:54Z"
     },
     "cloud-merge-result": {
       "finding_id": "cloud-merge-result",
@@ -51,9 +69,17 @@
       "opened_at": "2026-11-27T17:13:16Z",
       "resolved_at": "2026-11-27T17:13:21Z",
       "reviewer": "devin-review",
+      "safeguard": {
+        "artifact": ".github/workflows/ci.yml",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-27T17:45:10Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "Ordinary pull_request CI is architecturally unconditional, so merge-result verification cannot be skipped while candidate checks verify immutable heads.",
+        "why_not_static": null
+      },
       "severity": "P1",
       "stage": "cloud",
-      "status": "closed_needs_safeguard",
+      "status": "safeguarded",
       "summary": "Skipping ordinary CI for labeled autoloop PRs would leave merge-result behavior untested because candidate checks test only the immutable PR head",
       "verified_at": "2026-11-27T17:16:24Z"
     },
@@ -63,9 +89,17 @@
       "opened_at": "2026-11-27T17:32:31Z",
       "resolved_at": "2026-11-27T17:33:04Z",
       "reviewer": "devin-review",
+      "safeguard": {
+        "artifact": "tools/test_fast_check_guardrails.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-27T17:45:10Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "The uv safeguard requires the installer pin in the dependency manifest plus per-job cache paths and UV_CACHE_DIR coverage.",
+        "why_not_static": "The defect is an interaction between dependency manifests, generated cache keys, and multiple workflow jobs; no existing static lint rule evaluates that cross-file behavior."
+      },
       "severity": "P1",
       "stage": "cloud",
-      "status": "closed_needs_safeguard",
+      "status": "safeguarded",
       "summary": "The setup-python cache key can exactly hit a pre-uv pip-only cache; exact hits are not resaved, so the uv cache remains cold and dev packages are downloaded every run",
       "verified_at": "2026-11-27T17:35:21Z"
     },
@@ -75,9 +109,17 @@
       "opened_at": "2026-11-27T17:13:16Z",
       "resolved_at": "2026-11-27T17:13:21Z",
       "reviewer": "devin-review",
+      "safeguard": {
+        "artifact": "tools/test_fast_check_guardrails.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-27T17:45:10Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "TestZizmorGate asserts the workflow scan always passes --offline and workflow collection arguments.",
+        "why_not_static": "Token-influenced network behavior depends on the exact runtime CLI invocation; repository static rules cannot execute the installed binary interface."
+      },
       "severity": "P1",
       "stage": "cloud",
-      "status": "closed_needs_safeguard",
+      "status": "safeguarded",
       "summary": "zizmor inherited GH_TOKEN/GITHUB_TOKEN and could perform online audits, violating the offline fast-check contract in disconnected development",
       "verified_at": "2026-11-27T17:16:24Z"
     },
@@ -87,9 +129,17 @@
       "opened_at": "2026-11-27T17:25:41Z",
       "resolved_at": "2026-11-27T17:26:14Z",
       "reviewer": "devin-session-deep-audit",
+      "safeguard": {
+        "artifact": "tools/test_fast_check_guardrails.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-27T17:45:10Z",
+        "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+        "summary": "The benchmark evidence test requires exact baseline and final discovery counts plus the explicit no-baseline-tests-removed claim.",
+        "why_not_static": "The evidence lives in run-specific markdown rather than a typed interface; a regression test is the executable check available without creating broader framework machinery."
+      },
       "severity": "P2",
       "stage": "deep",
-      "status": "closed_needs_safeguard",
+      "status": "safeguarded",
       "summary": "Benchmark and PR evidence say test count is unchanged even though the branch adds regression tests; the accurate claim is that no baseline tests were removed and total discovered tests increased",
       "verified_at": "2026-11-27T17:35:21Z"
     }
@@ -298,6 +348,62 @@
       "at": "2026-11-27T17:43:12Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-27T17:44:54Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "awaiting_deep_review",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:44:54Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "safeguard_pending",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:45:10Z",
+      "event": "record-safeguard",
+      "finding_id": "cloud-merge-result",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-27T17:45:10Z",
+      "event": "record-safeguard",
+      "finding_id": "cloud-zizmor-online",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-27T17:45:10Z",
+      "event": "record-safeguard",
+      "finding_id": "cloud-uv-cache-key",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-27T17:45:10Z",
+      "event": "record-safeguard",
+      "finding_id": "deep-test-count-claim",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-27T17:45:11Z",
+      "event": "record-safeguard",
+      "finding_id": "cloud-benchmark-stale-count",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-27T17:45:11Z",
+      "event": "record-safeguard",
+      "finding_id": "cloud-cache-safeguard-shape",
+      "layer": "layer_4_runtime_test",
+      "status": "ready_to_merge"
     }
   ],
   "issue_number": null,
@@ -377,10 +483,79 @@
       "reviewer": "devin-review",
       "stage": "cloud",
       "verdict": "reject"
+    },
+    {
+      "at": "2026-11-27T17:44:54Z",
+      "code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "reviewer": "devin-review",
+      "stage": "cloud",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:44:54Z",
+      "code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "reviewer": "devin-session-deep-audit",
+      "stage": "deep",
+      "verdict": "pass"
     }
   ],
   "run_id": "devprod-verification-20261127",
-  "safeguards": [],
+  "safeguards": [
+    {
+      "artifact": ".github/workflows/ci.yml",
+      "finding_id": "cloud-merge-result",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-27T17:45:10Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "Ordinary pull_request CI is architecturally unconditional, so merge-result verification cannot be skipped while candidate checks verify immutable heads.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/test_fast_check_guardrails.py",
+      "finding_id": "cloud-zizmor-online",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-27T17:45:10Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "TestZizmorGate asserts the workflow scan always passes --offline and workflow collection arguments.",
+      "why_not_static": "Token-influenced network behavior depends on the exact runtime CLI invocation; repository static rules cannot execute the installed binary interface."
+    },
+    {
+      "artifact": "tools/test_fast_check_guardrails.py",
+      "finding_id": "cloud-uv-cache-key",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-27T17:45:10Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "The uv safeguard requires the installer pin in the dependency manifest plus per-job cache paths and UV_CACHE_DIR coverage.",
+      "why_not_static": "The defect is an interaction between dependency manifests, generated cache keys, and multiple workflow jobs; no existing static lint rule evaluates that cross-file behavior."
+    },
+    {
+      "artifact": "tools/test_fast_check_guardrails.py",
+      "finding_id": "deep-test-count-claim",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-27T17:45:10Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "The benchmark evidence test requires exact baseline and final discovery counts plus the explicit no-baseline-tests-removed claim.",
+      "why_not_static": "The evidence lives in run-specific markdown rather than a typed interface; a regression test is the executable check available without creating broader framework machinery."
+    },
+    {
+      "artifact": "tools/test_fast_check_guardrails.py",
+      "finding_id": "cloud-benchmark-stale-count",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-27T17:45:11Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "The benchmark evidence test now pins the corrected 477 total and 154 tools-suite counts.",
+      "why_not_static": "Count consistency depends on the content of the benchmark artifact and cannot be expressed by the existing Python AST static rules."
+    },
+    {
+      "artifact": "tools/test_fast_check_guardrails.py",
+      "finding_id": "cloud-cache-safeguard-shape",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-27T17:45:11Z",
+      "safeguard_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "summary": "The strengthened cache safeguard counts per-job bootstrap and UV_CACHE_DIR entries and verifies each cache-dependency-path.",
+      "why_not_static": "The safeguard must inspect repeated YAML job configuration across two workflows; existing static lint rules do not model GitHub Actions job structure."
+    }
+  ],
   "schema_version": 1,
   "shards": {
     "verification": {
@@ -410,7 +585,7 @@
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "ready_to_merge",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:43:12Z"
+  "updated_at": "2026-11-27T17:45:11Z"
 }
