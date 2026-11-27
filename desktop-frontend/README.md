@@ -48,6 +48,30 @@ python desktop-frontend/tools/verify.py --screen sales-voucher --screen item-sea
 
 `verify.py` exits nonzero when evidence is missing or incomparable. It must never be edited to treat missing ERPNext, visual, accessibility, keyboard, business or performance evidence as success.
 
+### One-to-one state verification contract
+
+Evidence is state-based. The initial capture lives directly under `evidence/web-reference/<route-or-screen>/` and `evidence/native/<screen>/`; interaction states live in lowercase child directories such as `search-results/` or `draft-line-added/`. Both sides must contain the same state directories.
+
+Reference captures accept deterministic replay actions. Replaying from a fresh page is intentional: actions must include the full path from the initial state.
+
+```bash
+node desktop-frontend/tools/capture_reference.mjs   --base-url http://127.0.0.1:18086   --routes /khitmee_sales   --state search-results   --actions '[{"type":"fill","selector":"#item-search","value":"paracetamol"},{"type":"wait","ms":300}]'
+```
+
+Native captures use the same state name and semantic action sequence, driven through Slint MCP rather than browser automation:
+
+```bash
+node desktop-frontend/tools/capture_native_mcp.mjs   --port 49272 --screen sales-voucher --state search-results   --actions '[{"type":"fill","label":"Barcode / item search F2","value":"paracetamol"},{"type":"wait","ms":300}]'
+```
+
+The verifier compares exact PNG bytes/pixels, dimensions, differing-pixel ratio and bounds; visible-control identity, role, label/text, accessibility state, geometry, and disabled state; behavioral keyboard outcomes; ERPNext business outcomes; and performance evidence. Exact screenshot matching is the default visual gate. Diagnostic metrics never soften a configured acceptance threshold. Missing evidence, empty structured evidence, unmatched states, mismatched dimensions, or missing behavioral keyboard results are failures.
+
+Harness self-tests use synthetic evidence and must pass after every verifier change:
+
+```bash
+python desktop-frontend/tools/test_verify.py
+```
+
 ## Concurrent-agent ownership model
 
 Screen agents own only their screen slice under `owner_scope`; shared edits belong to the narrower shared-component scopes recorded in `registry/screens.json`:
