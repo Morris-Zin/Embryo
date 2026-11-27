@@ -15,7 +15,7 @@
       "expectText": "Add at least one item before submitting."
     }
   ],
-  "capturedAt": "2026-11-27T14:25:19.199Z",
+  "capturedAt": "2026-11-27T14:38:47.244Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
@@ -24,8 +24,8 @@
   "screenshotSha256": "b217be0e9fdc7ed51c1156d081101f4944c48053455bef07427f18d666f8b8fb",
   "window": {
     "position": {
-      "x": 52,
-      "y": 52
+      "x": 130,
+      "y": 130
     },
     "rootElementHandle": {
       "generation": "1",

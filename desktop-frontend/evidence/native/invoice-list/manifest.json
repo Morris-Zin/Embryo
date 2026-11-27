@@ -3,7 +3,7 @@
   "screenId": "invoice-list",
   "state": "initial",
   "actions": [],
-  "capturedAt": "2026-11-27T14:25:36.640Z",
+  "capturedAt": "2026-11-27T14:38:51.274Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
@@ -12,8 +12,8 @@
   "screenshotSha256": "6943fedcc707e65a386beb817491dca63b8e11243b023d07997a239f6241a957",
   "window": {
     "position": {
-      "x": 156,
-      "y": 156
+      "x": 26,
+      "y": 26
     },
     "rootElementHandle": {
       "generation": "1",
@@ -25,7 +25,7 @@
       "width": 1180
     }
   },
-  "elementCount": 267,
+  "elementCount": 268,
   "toolNames": [
     "list_windows",
     "get_window_properties",

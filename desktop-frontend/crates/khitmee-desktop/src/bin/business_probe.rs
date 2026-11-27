@@ -20,15 +20,19 @@ struct SaleFixture {
 }
 
 fn arg_value(args: &[String], name: &str) -> Option<String> {
-    args.windows(2).find(|pair| pair[0] == name).map(|pair| pair[1].clone())
+    args.windows(2)
+        .find(|pair| pair[0] == name)
+        .map(|pair| pair[1].clone())
 }
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let args = env::args().collect::<Vec<_>>();
     let fixture_path = arg_value(&args, "--fixture").ok_or("--fixture is required")?;
-    let client_voucher_id = arg_value(&args, "--client-voucher-id").ok_or("--client-voucher-id is required")?;
+    let client_voucher_id =
+        arg_value(&args, "--client-voucher-id").ok_or("--client-voucher-id is required")?;
     let outcome = PathBuf::from(arg_value(&args, "--outcome").ok_or("--outcome is required")?);
-    let base_url = arg_value(&args, "--base-url").unwrap_or_else(|| "http://127.0.0.1:18086".into());
+    let base_url =
+        arg_value(&args, "--base-url").unwrap_or_else(|| "http://127.0.0.1:18086".into());
     let username = arg_value(&args, "--username").unwrap_or_else(|| "Administrator".into());
     let password = arg_value(&args, "--password").unwrap_or_default();
 
@@ -39,7 +43,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         client.submit_transfer(
             &client_voucher_id,
             &fixture.warehouse,
-            fixture.target_warehouse.as_deref().ok_or("transfer fixture requires target_warehouse")?,
+            fixture
+                .target_warehouse
+                .as_deref()
+                .ok_or("transfer fixture requires target_warehouse")?,
             fixture.transfer_mode.as_deref().unwrap_or("direct"),
             fixture.outgoing_stock_entry.as_deref(),
             &fixture.items,

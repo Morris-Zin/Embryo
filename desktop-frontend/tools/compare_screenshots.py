@@ -59,6 +59,19 @@ def main() -> int:
                     channel_deltas = [max(pixel[:3]) for pixel in pixels]
                     nonzero = [(index % left.size[0], index // left.size[0]) for index, pixel in enumerate(pixels) if pixel[:3] != (0, 0, 0)]
                     ratio = failed / total if total else 1.0
+                    exact_or_near = {}
+                    for tolerance in (1, 2, 5, 10, 25):
+                        near = sum(1 for delta in channel_deltas if delta <= tolerance)
+                        exact_or_near[f"within{tolerance}PixelRatio"] = near / total if total else 0.0
+                    regions = {}
+                    grid_x, grid_y = 8, 5
+                    for gy in range(grid_y):
+                        for gx in range(grid_x):
+                            box = (gx * left.size[0] // grid_x, gy * left.size[1] // grid_y, (gx + 1) * left.size[0] // grid_x, (gy + 1) * left.size[1] // grid_y)
+                            region = diff.crop(box).convert("L")
+                            histogram = region.histogram()
+                            region_total = (box[2] - box[0]) * (box[3] - box[1])
+                            regions[f"{gx},{gy}"] = round((region_total - histogram[0]) / region_total, 6) if region_total else 1.0
                     report.update(
                         dimensionsMatch=True,
                         pixelsExactlyEqual=failed == 0,
@@ -68,6 +81,8 @@ def main() -> int:
                         maxFailedPixelRatio=args.max_failed_pixel_ratio,
                         meanMaxChannelDelta=(sum(channel_deltas) / total) if total else 255.0,
                         maxChannelDelta=max(channel_deltas, default=255),
+                        nearEqualRatios=exact_or_near,
+                        regionalFailedPixelRatio=regions,
                     )
                     if nonzero:
                         xs = [point[0] for point in nonzero]

@@ -13,7 +13,7 @@
       "ms": 500
     }
   ],
-  "capturedAt": "2026-11-27T14:31:54.024Z",
+  "capturedAt": "2026-11-27T14:38:53.879Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
@@ -22,8 +22,8 @@
   "screenshotSha256": "280292bd2b16538931b09daab39344230fc8460f98621c2cfe239ee2020ddcfc",
   "window": {
     "position": {
-      "x": 234,
-      "y": 234
+      "x": 52,
+      "y": 52
     },
     "rootElementHandle": {
       "generation": "1",

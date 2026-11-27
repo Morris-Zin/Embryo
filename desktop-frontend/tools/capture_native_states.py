@@ -14,6 +14,9 @@ import socket
 import sys
 import time
 import urllib.request
+import shutil
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,35 +52,70 @@ def ready(port):
     except OSError:
         return False
 
+def copy_catalog_template(worker_dir):
+    template = Path(tempfile.gettempdir()) / "khitmee-native-pilot"
+    worker_dir.mkdir(parents=True, exist_ok=True)
+    for source in template.glob("catalog*"):
+        if source.is_file():
+            shutil.copy2(source, worker_dir / source.name)
+
+
+def capture_one(index, screen, state, config):
+    port = 49400 + index
+    env = os.environ.copy()
+    data_dir = Path(tempfile.gettempdir()) / f"khitmee-native-capture-{port}"
+    if data_dir.exists():
+        shutil.rmtree(data_dir, ignore_errors=True)
+    copy_catalog_template(data_dir)
+    env.update({
+        "SLINT_MCP_PORT": str(port),
+        "SLINT_EMIT_DEBUG_INFO": "1",
+        "KHITMEE_CATALOG_ROWS": "10000",
+        "KHITMEE_INVOICE_ROWS": "10000",
+        "KHITMEE_NATIVE_DATA_DIR": str(data_dir),
+    })
+    if config.get("initial"):
+        env["KHITMEE_INITIAL_SCREEN"] = config["initial"]
+    process = subprocess.Popen([str(EXE)], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.time() + 35
+        while time.time() < deadline and not ready(port):
+            if process.poll() is not None:
+                return (screen, state, "native process exited before MCP startup")
+            time.sleep(.05)
+        if not ready(port):
+            return (screen, state, "native MCP did not start")
+        time.sleep(1.0)
+        cmd = ["node", str(ROOT / "tools" / "capture_native_mcp.mjs"), "--port", str(port), "--screen", screen, "--state", state, "--actions", json.dumps(config["actions"], separators=(",", ":"))]
+        result = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=35)
+        if result.returncode:
+            return (screen, state, (result.stderr + result.stdout).strip()[-500:])
+        return None
+    finally:
+        try:
+            process.kill()
+            process.wait(timeout=2)
+        except Exception:
+            pass
+        shutil.rmtree(data_dir, ignore_errors=True)
+
+
 def main():
     if not EXE.exists():
         print(f"missing executable {EXE}; build khitmee-desktop first", file=sys.stderr)
         return 2
-    failures=[]
-    for index,((screen,state),config) in enumerate(states().items()):
-        port=49400+index
-        env=os.environ.copy()
-        env.update({"SLINT_MCP_PORT":str(port),"SLINT_EMIT_DEBUG_INFO":"1","KHITMEE_CATALOG_ROWS":"10000","KHITMEE_INVOICE_ROWS":"10000"})
-        if config.get("initial"): env["KHITMEE_INITIAL_SCREEN"]=config["initial"]
-        subprocess.run(["taskkill.exe","/F","/IM","khitmee-desktop.exe"],capture_output=True)
-        time.sleep(0.35)
-        process=subprocess.Popen([str(EXE)],cwd=ROOT,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        try:
-            deadline=time.time()+35
-            while time.time()<deadline and not ready(port): time.sleep(.05)
-            if not ready(port):
-                failures.append((screen,state,"native MCP did not start")); continue
-            time.sleep(1.25)
-            cmd=["node",str(ROOT/"tools"/"capture_native_mcp.mjs"),"--port",str(port),"--screen",screen,"--state",state,"--actions",json.dumps(config["actions"],separators=(",",":"))]
-            result=subprocess.run(cmd,cwd=REPO,capture_output=True,text=True,timeout=30)
-            if result.returncode:
-                failures.append((screen,state,(result.stderr+result.stdout).strip()[-500:]))
-        finally:
-            subprocess.run(["taskkill.exe","/F","/IM","khitmee-desktop.exe"],capture_output=True)
-            time.sleep(0.2)
-            try: process.kill(); process.wait(timeout=2)
-            except Exception: pass
-    print(json.dumps({"passed":not failures,"failures":failures},indent=2))
+    subprocess.run(["taskkill.exe", "/F", "/IM", "khitmee-desktop.exe"], capture_output=True)
+    time.sleep(0.35)
+    workers = int(os.environ.get("KHITMEE_CAPTURE_WORKERS", "4"))
+    failures = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(capture_one, index, screen, state, config) for index, ((screen, state), config) in enumerate(states().items())]
+        for future in as_completed(futures):
+            failure = future.result()
+            if failure:
+                failures.append(failure)
+    subprocess.run(["taskkill.exe", "/F", "/IM", "khitmee-desktop.exe"], capture_output=True)
+    print(json.dumps({"passed": not failures, "failures": failures, "workers": workers}, indent=2))
     return 1 if failures else 0
 
 if __name__ == "__main__": raise SystemExit(main())

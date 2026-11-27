@@ -5,11 +5,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 struct IndexedItem {
     row: CatalogItem,
-    folded_code: String,
-    folded_name: String,
-    folded_group: String,
-    folded_brand: String,
     folded_barcode_text: String,
+    prefix_fields: String,
     search_text: String,
 }
 
@@ -20,6 +17,13 @@ impl IndexedItem {
         let folded_group = fold(row.item_group.as_deref().unwrap_or(""));
         let folded_brand = fold(row.brand.as_deref().unwrap_or(""));
         let folded_barcode_text = fold(row.barcode_text.as_deref().unwrap_or(""));
+        let prefix_fields = [
+            folded_code.as_str(),
+            folded_name.as_str(),
+            folded_group.as_str(),
+            folded_brand.as_str(),
+        ]
+        .join("\u{1e}");
         let search_text = [
             folded_code.as_str(),
             folded_name.as_str(),
@@ -30,11 +34,8 @@ impl IndexedItem {
         .join("\u{1f}");
         Self {
             row,
-            folded_code,
-            folded_name,
-            folded_group,
-            folded_brand,
             folded_barcode_text,
+            prefix_fields,
             search_text,
         }
     }
@@ -92,38 +93,32 @@ impl CatalogIndex {
             return Vec::new();
         }
         let limit = limit.min(25);
-        let mut exact = Vec::new();
-        let mut prefix = Vec::new();
-        let mut substring = Vec::new();
-
         if let Some(position) = self.exact_barcode.get(&folded_term) {
             // A complete barcode identifies one sellable unit. Returning immediately avoids
             // scanning the whole catalog on the dominant cashier path.
             return vec![self.items[*position].row.clone()];
         }
 
-        for item in &self.items {
-            if exact
-                .iter()
-                .any(|row: &CatalogItem| row.item_code == item.row.item_code)
-            {
-                continue;
-            }
-            let is_prefix = item.folded_code.starts_with(&folded_term)
-                || item.folded_name.starts_with(&folded_term)
-                || item.folded_group.starts_with(&folded_term)
-                || item.folded_brand.starts_with(&folded_term);
+        let mut prefix = Vec::new();
+        let mut substring = Vec::new();
+        for (position, item) in self.items.iter().enumerate() {
+            let is_prefix = item
+                .prefix_fields
+                .split('\u{1e}')
+                .any(|field| field.starts_with(&folded_term));
             if is_prefix {
-                prefix.push(item.row.clone());
+                prefix.push(position);
             } else if memmem::find(item.search_text.as_bytes(), folded_term.as_bytes()).is_some() {
-                substring.push(item.row.clone());
+                substring.push(position);
             }
         }
 
-        exact.extend(prefix);
-        exact.extend(substring);
-        exact.truncate(limit);
-        exact
+        prefix
+            .into_iter()
+            .chain(substring)
+            .take(limit)
+            .map(|position| self.items[position].row.clone())
+            .collect()
     }
 }
 

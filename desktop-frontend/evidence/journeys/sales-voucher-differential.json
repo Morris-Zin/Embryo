@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "passed": false,
+  "failures": [
+    {
+      "step": 2,
+      "op": "increase",
+      "field": "totalQty",
+      "web": "2",
+      "native": "1"
+    },
+    {
+      "step": 2,
+      "op": "increase",
+      "field": "subtotal",
+      "web": "36.92",
+      "native": "18.46"
+    },
+    {
+      "step": 2,
+      "op": "increase",
+      "field": "quantities",
+      "web": [
+        "2"
+      ],
+      "native": [
+        "1"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "f9"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "increase"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "2",
+        "subtotal": "36.92",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "2"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": [
+        {
+          "field": "totalQty",
+          "web": "2",
+          "native": "1"
+        },
+        {
+          "field": "subtotal",
+          "web": "36.92",
+          "native": "18.46"
+        },
+        {
+          "field": "quantities",
+          "web": [
+            "2"
+          ],
+          "native": [
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "decrease"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 4,
+      "action": {
+        "op": "quantity",
+        "value": "2.5"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "2.5"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "2.5"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 5,
+      "action": {
+        "op": "clear"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 6,
+      "action": {
+        "op": "search",
+        "value": "Mekong"
+      },
+      "web": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 482 18.46"
+      },
+      "native": {
+        "status": "Add at least one item before submitting.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 482 18.46"
+      },
+      "differences": []
+    }
+  ]
+}

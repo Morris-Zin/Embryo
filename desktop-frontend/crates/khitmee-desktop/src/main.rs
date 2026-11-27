@@ -36,9 +36,15 @@ struct InvoiceSeed {
     status: String,
 }
 
-
 fn new_client_voucher_id() -> String {
-    format!("native-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_nanos()).unwrap_or_default())
+    format!(
+        "native-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    )
 }
 
 struct ErpRuntimeConfig {
@@ -60,8 +66,10 @@ impl ErpRuntimeConfig {
             password: env::var("KHITMEE_ERP_PASSWORD").unwrap_or_default(),
             warehouse: env::var("KHITMEE_ERP_WAREHOUSE").ok()?,
             customer: env::var("KHITMEE_ERP_CUSTOMER").unwrap_or_else(|_| "KM-CUST-0001".into()),
-            price_list: env::var("KHITMEE_ERP_PRICE_LIST").unwrap_or_else(|_| "Standard Selling".into()),
-            target_warehouse: env::var("KHITMEE_ERP_TARGET_WAREHOUSE").unwrap_or_else(|_| "Shop 1 - KMD".into()),
+            price_list: env::var("KHITMEE_ERP_PRICE_LIST")
+                .unwrap_or_else(|_| "Standard Selling".into()),
+            target_warehouse: env::var("KHITMEE_ERP_TARGET_WAREHOUSE")
+                .unwrap_or_else(|_| "Shop 1 - KMD".into()),
             outcome_path: env::var("KHITMEE_NATIVE_OUTCOME").ok(),
         })
     }
@@ -71,7 +79,10 @@ fn write_native_outcome(path: &str, client_voucher_id: &str, response: &serde_js
     if let Some(parent) = std::path::Path::new(path).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let voucher_no = response.get("voucher_no").cloned().unwrap_or(serde_json::Value::Null);
+    let voucher_no = response
+        .get("voucher_no")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let evidence = serde_json::json!({
         "schemaVersion": 1,
         "adapter": "khitmee-desktop-ui-submit",
@@ -81,8 +92,12 @@ fn write_native_outcome(path: &str, client_voucher_id: &str, response: &serde_js
         "response": response,
         "voucher_no": voucher_no,
     });
-    let _ = std::fs::write(path, serde_json::to_string_pretty(&evidence).unwrap_or_default() + "
-");
+    let _ = std::fs::write(
+        path,
+        serde_json::to_string_pretty(&evidence).unwrap_or_default()
+            + "
+",
+    );
 }
 
 fn money(value: f64) -> String {
@@ -109,23 +124,28 @@ struct SeedItemFixture {
 }
 
 fn seed_fixture_items() -> Vec<CatalogItem> {
-    let rows: Vec<SeedItemFixture> = serde_json::from_str(include_str!("../../../fixtures/smoke-items.json"))
-        .expect("valid smoke item fixture");
+    let rows: Vec<SeedItemFixture> =
+        serde_json::from_str(include_str!("../../../fixtures/smoke-items.json"))
+            .expect("valid smoke item fixture");
     rows.into_iter()
         .map(|row| {
-            let actual_qty = if row.item_code == "KM-00001" { 485.0 } else { 500.0 };
+            let actual_qty = if row.item_code == "KM-00001" {
+                485.0
+            } else {
+                500.0
+            };
             CatalogItem {
-            barcode: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
-            barcode_text: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
-            item_code: row.item_code,
-            item_name: Some(row.item_name),
-            stock_uom: Some(row.uom),
-            item_group: Some("Smoke fixture".into()),
-            brand: Some("Khitmee".into()),
-            rate: row.rate,
-            actual_qty,
-            modified: Some("2026-11-27 00:00:00.000000".into()),
-            deleted: false,
+                barcode: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
+                barcode_text: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
+                item_code: row.item_code,
+                item_name: Some(row.item_name),
+                stock_uom: Some(row.uom),
+                item_group: Some("Smoke fixture".into()),
+                brand: Some("Khitmee".into()),
+                rate: row.rate,
+                actual_qty,
+                modified: Some("2026-11-27 00:00:00.000000".into()),
+                deleted: false,
             }
         })
         .collect()
@@ -193,26 +213,126 @@ fn fixture_catalog(rows: usize) -> Vec<CatalogItem> {
 
 fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
     let reference_rows = [
-        ("Khit Customer 0006", "ACC-SINV-RET-2026-00114", "Return", "-18.46"),
-        ("Khit Customer 0005", "ACC-SINV-RET-2026-00113", "Return", "-18.46"),
-        ("Khit Customer 0004", "ACC-SINV-RET-2026-00112", "Return", "-18.46"),
-        ("Khit Customer 0003", "ACC-SINV-RET-2026-00111", "Return", "-18.46"),
-        ("Khit Customer 0002", "ACC-SINV-RET-2026-00110", "Return", "-18.46"),
-        ("Khit Customer 0030", "ACC-SINV-2026-04921", "Unpaid", "36.92"),
-        ("Khit Customer 0029", "ACC-SINV-2026-04920", "Unpaid", "18.46"),
-        ("Khit Customer 0028", "ACC-SINV-2026-04919", "Unpaid", "36.92"),
-        ("Khit Customer 0027", "ACC-SINV-2026-04918", "Unpaid", "18.46"),
-        ("Khit Customer 0026", "ACC-SINV-2026-04917", "Unpaid", "36.92"),
-        ("Khit Customer 0025", "ACC-SINV-2026-04916", "Unpaid", "79.50"),
-        ("Khit Customer 0024", "ACC-SINV-2026-04915", "Unpaid", "36.92"),
-        ("Khit Customer 0023", "ACC-SINV-2026-04914", "Unpaid", "18.46"),
-        ("Khit Customer 0022", "ACC-SINV-2026-04913", "Unpaid", "36.92"),
-        ("Khit Customer 0021", "ACC-SINV-2026-04912", "Unpaid", "18.46"),
-        ("Khit Customer 0020", "ACC-SINV-2026-04911", "Unpaid", "36.92"),
-        ("Khit Customer 0019", "ACC-SINV-2026-04910", "Unpaid", "79.50"),
-        ("Khit Customer 0018", "ACC-SINV-2026-04909", "Unpaid", "36.92"),
-        ("Khit Customer 0017", "ACC-SINV-2026-04908", "Unpaid", "18.46"),
-        ("Khit Customer 0016", "ACC-SINV-2026-04907", "Unpaid", "36.92"),
+        (
+            "Khit Customer 0006",
+            "ACC-SINV-RET-2026-00114",
+            "Return",
+            "-18.46",
+        ),
+        (
+            "Khit Customer 0005",
+            "ACC-SINV-RET-2026-00113",
+            "Return",
+            "-18.46",
+        ),
+        (
+            "Khit Customer 0004",
+            "ACC-SINV-RET-2026-00112",
+            "Return",
+            "-18.46",
+        ),
+        (
+            "Khit Customer 0003",
+            "ACC-SINV-RET-2026-00111",
+            "Return",
+            "-18.46",
+        ),
+        (
+            "Khit Customer 0002",
+            "ACC-SINV-RET-2026-00110",
+            "Return",
+            "-18.46",
+        ),
+        (
+            "Khit Customer 0030",
+            "ACC-SINV-2026-04921",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0029",
+            "ACC-SINV-2026-04920",
+            "Unpaid",
+            "18.46",
+        ),
+        (
+            "Khit Customer 0028",
+            "ACC-SINV-2026-04919",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0027",
+            "ACC-SINV-2026-04918",
+            "Unpaid",
+            "18.46",
+        ),
+        (
+            "Khit Customer 0026",
+            "ACC-SINV-2026-04917",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0025",
+            "ACC-SINV-2026-04916",
+            "Unpaid",
+            "79.50",
+        ),
+        (
+            "Khit Customer 0024",
+            "ACC-SINV-2026-04915",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0023",
+            "ACC-SINV-2026-04914",
+            "Unpaid",
+            "18.46",
+        ),
+        (
+            "Khit Customer 0022",
+            "ACC-SINV-2026-04913",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0021",
+            "ACC-SINV-2026-04912",
+            "Unpaid",
+            "18.46",
+        ),
+        (
+            "Khit Customer 0020",
+            "ACC-SINV-2026-04911",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0019",
+            "ACC-SINV-2026-04910",
+            "Unpaid",
+            "79.50",
+        ),
+        (
+            "Khit Customer 0018",
+            "ACC-SINV-2026-04909",
+            "Unpaid",
+            "36.92",
+        ),
+        (
+            "Khit Customer 0017",
+            "ACC-SINV-2026-04908",
+            "Unpaid",
+            "18.46",
+        ),
+        (
+            "Khit Customer 0016",
+            "ACC-SINV-2026-04907",
+            "Unpaid",
+            "36.92",
+        ),
     ];
     (0..rows)
         .map(|index| {
@@ -221,7 +341,11 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
                     name: (*name).into(),
                     customer: (*customer).into(),
                     posting_date: "2026-11-27".into(),
-                    due_date: if *status == "Return" { "2026-11-27".into() } else { "2026-12-11".into() },
+                    due_date: if *status == "Return" {
+                        "2026-11-27".into()
+                    } else {
+                        "2026-12-11".into()
+                    },
                     total: total.parse().unwrap_or(0.0),
                     status: (*status).into(),
                 };
@@ -298,7 +422,6 @@ fn voucher_model(lines: &[LineState]) -> ModelRc<VoucherLine> {
     Rc::new(VecModel::from(rows)).into()
 }
 
-
 fn fixture_invoice_suffix(index: usize) -> String {
     let mut value = index + 1;
     let mut suffix = String::new();
@@ -328,29 +451,49 @@ fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
             total_text: money(row.total).into(),
             status: row.status.clone().into(),
             customer_width: match row.customer.as_str() {
-                "Khit Customer 0006" => 134.125, "Khit Customer 0005" => 134.0,
-                "Khit Customer 0004" => 134.5625, "Khit Customer 0003" => 134.234375,
-                "Khit Customer 0002" => 133.890625, "Khit Customer 0030" => 134.234375,
-                "Khit Customer 0029" => 133.578125, "Khit Customer 0028" => 133.5625,
-                "Khit Customer 0027" => 132.703125, "Khit Customer 0026" => 133.578125,
-                "Khit Customer 0025" => 133.453125, "Khit Customer 0024" => 133.796875,
-                "Khit Customer 0023" => 133.6875, "Khit Customer 0022" => 133.34375,
-                "Khit Customer 0021" => 130.53125, "Khit Customer 0020" => 133.890625,
-                "Khit Customer 0019" => 130.78125, "Khit Customer 0018" => 130.75,
-                "Khit Customer 0017" => 129.90625, "Khit Customer 0016" => 130.78125,
+                "Khit Customer 0006" => 134.125,
+                "Khit Customer 0005" => 134.0,
+                "Khit Customer 0004" => 134.5625,
+                "Khit Customer 0003" => 134.234375,
+                "Khit Customer 0002" => 133.890625,
+                "Khit Customer 0030" => 134.234375,
+                "Khit Customer 0029" => 133.578125,
+                "Khit Customer 0028" => 133.5625,
+                "Khit Customer 0027" => 132.703125,
+                "Khit Customer 0026" => 133.578125,
+                "Khit Customer 0025" => 133.453125,
+                "Khit Customer 0024" => 133.796875,
+                "Khit Customer 0023" => 133.6875,
+                "Khit Customer 0022" => 133.34375,
+                "Khit Customer 0021" => 130.53125,
+                "Khit Customer 0020" => 133.890625,
+                "Khit Customer 0019" => 130.78125,
+                "Khit Customer 0018" => 130.75,
+                "Khit Customer 0017" => 129.90625,
+                "Khit Customer 0016" => 130.78125,
                 _ => 134.0,
             },
             name_width: match row.name.as_str() {
-                "ACC-SINV-RET-2026-00114" => 186.890625, "ACC-SINV-RET-2026-00113" => 186.5625,
-                "ACC-SINV-RET-2026-00112" => 186.21875, "ACC-SINV-RET-2026-00111" => 183.40625,
-                "ACC-SINV-RET-2026-00110" => 186.765625, "ACC-SINV-2026-04921" => 157.125,
-                "ACC-SINV-2026-04920" => 160.484375, "ACC-SINV-2026-04919" => 157.359375,
-                "ACC-SINV-2026-04918" => 157.34375, "ACC-SINV-2026-04917" => 156.484375,
-                "ACC-SINV-2026-04916" => 157.359375, "ACC-SINV-2026-04915" => 157.234375,
-                "ACC-SINV-2026-04914" => 157.796875, "ACC-SINV-2026-04913" => 157.46875,
-                "ACC-SINV-2026-04912" => 157.125, "ACC-SINV-2026-04911" => 154.3125,
-                "ACC-SINV-2026-04910" => 157.671875, "ACC-SINV-2026-04909" => 160.71875,
-                "ACC-SINV-2026-04908" => 160.703125, "ACC-SINV-2026-04907" => 159.578125,
+                "ACC-SINV-RET-2026-00114" => 186.890625,
+                "ACC-SINV-RET-2026-00113" => 186.5625,
+                "ACC-SINV-RET-2026-00112" => 186.21875,
+                "ACC-SINV-RET-2026-00111" => 183.40625,
+                "ACC-SINV-RET-2026-00110" => 186.765625,
+                "ACC-SINV-2026-04921" => 157.125,
+                "ACC-SINV-2026-04920" => 160.484375,
+                "ACC-SINV-2026-04919" => 157.359375,
+                "ACC-SINV-2026-04918" => 157.34375,
+                "ACC-SINV-2026-04917" => 156.484375,
+                "ACC-SINV-2026-04916" => 157.359375,
+                "ACC-SINV-2026-04915" => 157.234375,
+                "ACC-SINV-2026-04914" => 157.796875,
+                "ACC-SINV-2026-04913" => 157.46875,
+                "ACC-SINV-2026-04912" => 157.125,
+                "ACC-SINV-2026-04911" => 154.3125,
+                "ACC-SINV-2026-04910" => 157.671875,
+                "ACC-SINV-2026-04909" => 160.71875,
+                "ACC-SINV-2026-04908" => 160.703125,
+                "ACC-SINV-2026-04907" => 159.578125,
                 _ => 157.0,
             },
         })
@@ -397,7 +540,10 @@ fn load_fixture_catalog(
     let scope = format!("fixture:{rows}");
     let fixture_rows = fixture_catalog(rows);
     let first = fixture_rows.first().expect("non-empty fixture catalog");
-    let sync_token = format!("fixture-v3:{rows}:{}:{}:{}", first.item_code, first.actual_qty, first.rate);
+    let sync_token = format!(
+        "fixture-v3:{rows}:{}:{}:{}",
+        first.item_code, first.actual_qty, first.rate
+    );
     if store.sync_token(&scope)? != sync_token || store.item_count(&scope)? != rows {
         store.apply_sync(&scope, true, &sync_token, &fixture_rows)?;
     }
@@ -411,6 +557,71 @@ fn load_fixture_catalog(
     Ok(fixture_catalog(rows))
 }
 
+#[cfg(feature = "encrypted-catalog")]
+fn load_live_catalog(
+    config: &ErpRuntimeConfig,
+) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+    let data_dir = env::var("KHITMEE_NATIVE_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| env::temp_dir().join("khitmee-native-pilot"));
+    let key_path = data_dir.join("catalog.key");
+    let db_path = data_dir.join("catalog-live.sqlite");
+    let key = load_or_create_key(&key_path)?;
+    let store = EncryptedStore::open(&db_path, &hex_key(&key))?;
+    let scope = format!(
+        "erp:{}:{}:{}",
+        config.warehouse, config.price_list, config.customer
+    );
+    let prior_token = store.sync_token(&scope)?;
+    let client = ErpClient::login(&config.base_url, &config.username, &config.password)?;
+    let payload = client.sync_catalog(
+        &config.warehouse,
+        &config.price_list,
+        if prior_token.is_empty() {
+            None
+        } else {
+            Some(prior_token.as_str())
+        },
+        Some(config.customer.as_str()),
+    )?;
+    if payload.get("complete").and_then(|value| value.as_bool()) == Some(false) {
+        return Err("ERP catalog response is incomplete for the server catalog cap".into());
+    }
+    let items = serde_json::from_value::<Vec<CatalogItem>>(
+        payload
+            .get("items")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
+    )?;
+    let reset = payload
+        .get("reset")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
+    let sync_token = payload
+        .get("sync_token")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    store.apply_sync(&scope, reset, sync_token, &items)?;
+    store.rows(&scope)
+}
+
+#[cfg(feature = "encrypted-catalog")]
+fn load_catalog(
+    catalog_rows: usize,
+) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+    if let Some(config) = ErpRuntimeConfig::from_env() {
+        return load_live_catalog(&config);
+    }
+    load_fixture_catalog(catalog_rows)
+}
+
+#[cfg(not(feature = "encrypted-catalog"))]
+fn load_catalog(
+    catalog_rows: usize,
+) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+    fixture_catalog(catalog_rows)
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let catalog_rows = env::var("KHITMEE_CATALOG_ROWS")
         .ok()
@@ -421,8 +632,8 @@ fn main() -> Result<(), slint::PlatformError> {
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(10_000);
 
-    let stored_rows =
-        load_fixture_catalog(catalog_rows).expect("open the encrypted fixture catalog store");
+    let stored_rows = load_catalog(catalog_rows)
+        .unwrap_or_else(|error| panic!("open the encrypted catalog store: {error}"));
     let by_code = stored_rows
         .iter()
         .map(|row| (row.item_code.clone(), row.clone()))
@@ -462,7 +673,6 @@ fn main() -> Result<(), slint::PlatformError> {
             let state = state.borrow();
             app.set_search_results(search_model(&state.catalog, term.as_str()));
             app.set_search_open(!term.trim().is_empty());
-
         }
     });
 
@@ -481,9 +691,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 add_item_to_draft(&mut state, item);
                 refresh_voucher(&app, &state);
             } else if matches.is_empty() {
-                app.set_status_text("Scan/search matched no item in the local catalog snapshot".into());
+                app.set_status_text(
+                    "Scan/search matched no item in the local catalog snapshot".into(),
+                );
             } else {
-                app.set_status_text("Scan/search is ambiguous; narrow the term or choose a result".into());
+                app.set_status_text(
+                    "Scan/search is ambiguous; narrow the term or choose a result".into(),
+                );
             }
         }
     });
@@ -517,14 +731,17 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-
     app.on_increase_line({
         let app = app.as_weak();
         let state = state.clone();
         move |code| {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
-            if let Some(line) = state.lines.iter_mut().find(|line| line.item.item_code == code.as_str()) {
+            if let Some(line) = state
+                .lines
+                .iter_mut()
+                .find(|line| line.item.item_code == code.as_str())
+            {
                 line.qty = ((line.qty + 1.0) * 1000.0).round() / 1000.0;
             }
             refresh_voucher(&app, &state);
@@ -537,7 +754,11 @@ fn main() -> Result<(), slint::PlatformError> {
         move |code| {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
-            if let Some(position) = state.lines.iter().position(|line| line.item.item_code == code.as_str()) {
+            if let Some(position) = state
+                .lines
+                .iter()
+                .position(|line| line.item.item_code == code.as_str())
+            {
                 let next = ((state.lines[position].qty - 1.0) * 1000.0).round() / 1000.0;
                 if next <= 0.0 {
                     state.lines.remove(position);
@@ -555,7 +776,11 @@ fn main() -> Result<(), slint::PlatformError> {
         move |code, value| {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
-            if let Some(position) = state.lines.iter().position(|line| line.item.item_code == code.as_str()) {
+            if let Some(position) = state
+                .lines
+                .iter()
+                .position(|line| line.item.item_code == code.as_str())
+            {
                 let next = value.parse::<f64>().unwrap_or(0.0).max(0.0);
                 if next == 0.0 {
                     state.lines.remove(position);

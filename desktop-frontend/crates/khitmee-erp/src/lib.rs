@@ -35,7 +35,10 @@ impl ErpClient {
     pub fn login(base_url: &str, username: &str, password: &str) -> ErpResult<Self> {
         let client = Client::builder().cookie_store(true).build()?;
         let response = client
-            .post(format!("{}/api/method/login", base_url.trim_end_matches('/')))
+            .post(format!(
+                "{}/api/method/login",
+                base_url.trim_end_matches('/')
+            ))
             .json(&json!({"usr": username, "pwd": password}))
             .send()?;
         let csrf = response
@@ -51,21 +54,30 @@ impl ErpClient {
                     .map(str::to_owned)
             });
         if !response.status().is_success() {
-            return Err(Box::new(ErpError(format!("ERP login failed with HTTP {}", response.status()))));
+            return Err(Box::new(ErpError(format!(
+                "ERP login failed with HTTP {}",
+                response.status()
+            ))));
         }
         let base_url = base_url.trim_end_matches('/').to_owned();
         let mut headers = HeaderMap::new();
         if let Some(csrf) = csrf {
             headers.insert("X-Frappe-CSRF-Token", HeaderValue::from_str(&csrf)?);
         }
-        let client = Client::builder().cookie_store(true).default_headers(headers).build()?;
+        let client = Client::builder()
+            .cookie_store(true)
+            .default_headers(headers)
+            .build()?;
         // Re-login through the CSRF-aware client so its cookie jar is authoritative for calls.
         let response = client
             .post(format!("{base_url}/api/method/login"))
             .json(&json!({"usr": username, "pwd": password}))
             .send()?;
         if !response.status().is_success() {
-            return Err(Box::new(ErpError(format!("ERP login failed with HTTP {}", response.status()))));
+            return Err(Box::new(ErpError(format!(
+                "ERP login failed with HTTP {}",
+                response.status()
+            ))));
         }
         Ok(Self { base_url, client })
     }
@@ -77,7 +89,9 @@ impl ErpClient {
             .json(payload)
             .send()?;
         let status = response.status();
-        let body = response.json::<Value>().unwrap_or_else(|_| json!({"error": "non-json ERP response"}));
+        let body = response
+            .json::<Value>()
+            .unwrap_or_else(|_| json!({"error": "non-json ERP response"}));
         if !status.is_success() {
             return Err(Box::new(ErpError(format!(
                 "ERP method {endpoint} failed with HTTP {status}: {}",
@@ -85,6 +99,24 @@ impl ErpClient {
             ))));
         }
         Ok(body.get("message").cloned().unwrap_or(body))
+    }
+
+    pub fn sync_catalog(
+        &self,
+        warehouse: &str,
+        price_list: &str,
+        state: Option<&str>,
+        customer: Option<&str>,
+    ) -> ErpResult<Value> {
+        self.post_method(
+            "khitmee_ops.api.catalog.sync_catalog",
+            &json!({
+                "warehouse": warehouse,
+                "price_list": price_list,
+                "state": state.unwrap_or(""),
+                "customer": customer.unwrap_or(""),
+            }),
+        )
     }
 
     pub fn submit_sale(
