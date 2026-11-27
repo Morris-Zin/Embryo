@@ -89,6 +89,8 @@ async function main() {
     await fs.mkdir(screenDir, { recursive: true });
     requests.length = 0;
     trace.length = 0;
+    // Hash-only navigation would otherwise reuse the prior route's edited document.
+    await page.goto('about:blank');
     const response = await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(500);
@@ -145,7 +147,10 @@ async function main() {
           })(),
           hasAccessibilityName: Boolean(element.getAttribute('aria-label') || element.getAttribute('aria-labelledby') || (element.closest('label') && (element.closest('label').control === element || element.tagName === 'SELECT'))),
           ariaExpanded: element.getAttribute('aria-expanded') || '',
-          keyboard: [...element.querySelectorAll('kbd')].map((kbd) => kbd.textContent.trim()).filter(Boolean),
+          keyboard: [...new Set([
+            ...element.querySelectorAll('kbd'),
+            ...(element.closest('label')?.querySelectorAll('kbd') || []),
+          ].map((kbd) => kbd.textContent.trim()).filter(Boolean))],
           inputType: element.getAttribute('type') || '',
           placeholder: element.getAttribute('placeholder') || '',
           value: element.value || '',
@@ -188,7 +193,15 @@ async function main() {
     });
   }
 
-  await fs.writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  const manifestPath = path.join(outDir, 'manifest.json');
+  const priorManifest = JSON.parse(await fs.readFile(manifestPath, 'utf8').catch(() => '{"routes":[]}'));
+  const merged = new Map();
+  for (const entry of priorManifest.routes || []) {
+    if (entry?.id) merged.set(`${entry.state || 'initial'}:${entry.id}`, entry);
+  }
+  for (const entry of manifest.routes) merged.set(`${entry.state || 'initial'}:${entry.id}`, entry);
+  manifest.routes = [...merged.values()];
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   await browser.close();
   console.log(`captured ${manifest.routes.length} reference routes into ${outDir}`);
 }
