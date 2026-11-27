@@ -78,7 +78,7 @@ def check(root):
         elif shutil.which("npx"):
             run(["npx", "--offline", "--yes", "knip@" + version], app)
         elif shutil.which("pnpm"):
-            run(["pnpm", "dlx", "knip@" + version], app)
+            run(["pnpm", "dlx", "--offline", "knip@" + version], app)
         else:
             raise RuntimeError("install npx or pnpm")
 
