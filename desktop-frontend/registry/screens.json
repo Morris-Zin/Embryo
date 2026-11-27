@@ -464,11 +464,14 @@
         "evidence/journeys/stock-transfer-permission-denied.json",
         "evidence/journeys/stock-transfer-idempotency.json",
         "evidence/benchmarks/stock-transfer-comparison.json",
+        "evidence/visual/stock-transfer-composite-initial.png",
+        "evidence/visual/stock-transfer-composite-scan.png",
+        "evidence/visual/stock-transfer-composite-submitted.png",
+        "evidence/visual/stock-transfer-visual-erp-outcomes.json",
         "experiments/0007-stock-transfer-qualification.md"
       ],
       "failures": [
         "cross-process memory/frame/network-byte performance evidence pending",
-        "visual/video qualification pending",
         "real barcode scanner and printer hardware evidence pending"
       ],
       "acceptance": {

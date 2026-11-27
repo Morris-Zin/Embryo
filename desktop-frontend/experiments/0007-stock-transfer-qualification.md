@@ -16,6 +16,8 @@
 - `evidence/journeys/stock-transfer-permission-denied.json` — browser and native both surface `No permission for Stock Entry` for the isolated no-permission counter user.
 - `evidence/journeys/stock-transfer-idempotency.json` — two concurrent submissions with one `client_voucher_id` resolved to the same Stock Entry (`MAT-STE-2026-00245`).
 - `evidence/benchmarks/stock-transfer-comparison.json` — identical 10,000-row search/scan workload: native Slint p50 search 27.4 ms versus 123.9 ms original web and 126.5 ms PR #8 loopback; native p50 scan 20.8 ms versus 29.6 ms original web and 30.4 ms PR #8 loopback.
+- `evidence/visual/stock-transfer-composite-initial.png`, `evidence/visual/stock-transfer-composite-scan.png` and `evidence/visual/stock-transfer-composite-submitted.png` — maximized native/browser visual comparison after responsive repair.
+- `evidence/visual/stock-transfer-visual-erp-outcomes.json` — visual-flow ERP readback for native `MAT-STE-2026-00250` and browser `MAT-STE-2026-00251`, both submitted Material Transfers with matching warehouses, item, quantity, UOM and valuation.
 
 ## Reproduction commands
 
@@ -67,6 +69,9 @@ KHITMEE_DESKTOP_TOKEN="$ISOLATED_DESKTOP_TOKEN" ERPNEXT_PASSWORD="$ADMIN_PASSWOR
 5. Native startup refreshed Sales Invoice rows even when launching directly into stock transfer, causing an irrelevant invoice-permission status for the no-permission user.
 6. The oracle incorrectly treated independently generated browser/native outgoing voucher IDs as a mismatch; voucher-shaped values are normalized while the authoritative ERP readback still verifies each actual voucher.
 7. The source-warehouse oracle inferred state by scanning all combo values and could confuse target/source values; it now reads the `Source warehouse` combo directly.
+8. Visual testing found the transfer instance still fixed at 1180×760 inside a maximized window, leaving large unused areas; it now uses the parent window size and expands the lines table vertically.
+9. Visual testing found the first scanned row hidden behind the fixed footer; transfer details now use a compact responsive two-column layout and the lines panel starts high enough for the first row to be visible.
+10. Visual testing found native transfer rows displaying sales rate/amount `18.46`; transfer rows now display non-monetary dashes like the browser while authoritative ERP valuation remains server-calculated.
 
 ## Regression
 
@@ -75,7 +80,7 @@ After the strengthened baseline oracle was introduced, invoice-list initial/filt
 ## Remaining honest gaps
 
 - Cross-process memory, frame scrolling, network-byte totals, hardware barcode/printer latency and low-end Windows performance remain unmeasured.
-- Real printer hardware remains unproven; evidence is the same print-companion dry-run path used by the browser.
+- Real printer hardware remains unproven; evidence is the same print-companion dry-run path used by the browser. The dry-run receipt labels the target warehouse as `Customer` in both implementations; this is an upstream print-template semantic concern, not a native/browser parity difference.
 - Real barcode scanner hardware remains unproven; barcode input is simulated through the same keyboard/text path as prior screen evidence.
 - Exact browser geometry is intentionally not the oracle. Styling, responsive use of space, state, keyboard behavior, validation and business outcome are the parity criteria.
 - Visual/video review for stock transfer is still required before closing the screen's final evidence package.

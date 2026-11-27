@@ -2,7 +2,7 @@
 use khitmee_catalog::{hex_key, load_or_create_key, EncryptedStore};
 use khitmee_catalog::{CatalogIndex, CatalogItem};
 use khitmee_erp::{ErpClient, SaleItem};
-use slint::{Model, ModelRc, SharedString, VecModel};
+use slint::{ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -69,9 +69,7 @@ struct ErpRuntimeConfig {
     username: String,
     password: String,
     warehouse: String,
-    customer: String,
     price_list: String,
-    target_warehouse: String,
     outcome_path: Option<String>,
 }
 
@@ -82,11 +80,8 @@ impl ErpRuntimeConfig {
             username: env::var("KHITMEE_ERP_USERNAME").unwrap_or_else(|_| "Administrator".into()),
             password: env::var("KHITMEE_ERP_PASSWORD").unwrap_or_default(),
             warehouse: env::var("KHITMEE_ERP_WAREHOUSE").ok()?,
-            customer: env::var("KHITMEE_ERP_CUSTOMER").unwrap_or_else(|_| "KM-CUST-0001".into()),
             price_list: env::var("KHITMEE_ERP_PRICE_LIST")
                 .unwrap_or_else(|_| "Standard Selling".into()),
-            target_warehouse: env::var("KHITMEE_ERP_TARGET_WAREHOUSE")
-                .unwrap_or_else(|_| "Shop 1 - KMD".into()),
             outcome_path: env::var("KHITMEE_NATIVE_OUTCOME").ok(),
         })
     }
@@ -414,7 +409,7 @@ fn search_model(index: &CatalogIndex, term: &str) -> ModelRc<CatalogChoice> {
     Rc::new(VecModel::from(rows)).into()
 }
 
-fn voucher_model(lines: &[LineState]) -> ModelRc<VoucherLine> {
+fn voucher_model(lines: &[LineState], show_rates: bool) -> ModelRc<VoucherLine> {
     let rows = lines
         .iter()
         .map(|line| VoucherLine {
@@ -432,8 +427,18 @@ fn voucher_model(lines: &[LineState]) -> ModelRc<VoucherLine> {
                 .clone()
                 .unwrap_or_else(|| "Nos".into())
                 .into(),
-            rate_text: money(line.item.rate).into(),
-            amount_text: money(line.item.rate * line.qty).into(),
+            rate_text: if show_rates {
+                money(line.item.rate)
+            } else {
+                "-".into()
+            }
+            .into(),
+            amount_text: if show_rates {
+                money(line.item.rate * line.qty)
+            } else {
+                "-".into()
+            }
+            .into(),
         })
         .collect::<Vec<_>>();
     Rc::new(VecModel::from(rows)).into()
@@ -531,7 +536,7 @@ fn add_item_to_draft(state: &mut PilotState, item: CatalogItem) {
 }
 
 fn refresh_voucher(app: &AppWindow, state: &PilotState) {
-    app.set_voucher_lines(voucher_model(&state.lines));
+    app.set_voucher_lines(voucher_model(&state.lines, app.get_current_screen() != 1));
     let total_qty: f64 = state.lines.iter().map(|line| line.qty).sum();
     let subtotal: f64 = state
         .lines

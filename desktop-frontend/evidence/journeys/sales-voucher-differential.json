@@ -399,7 +399,7 @@
         "warehouse": "Dist Hub 1",
         "selectedResultIndex": 0,
         "results": [
-          "KM-00001 Mekong Fresh Beverage 00001 Stock 462 18.46",
+          "KM-00001 Mekong Fresh Beverage 00001 Stock 457 18.46",
           "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
           "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
           "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
@@ -410,7 +410,7 @@
           "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
           "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77"
         ],
-        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 462 18.46",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 457 18.46",
         "searchValue": "Mekong"
       },
       "native": {
@@ -426,7 +426,7 @@
         "warehouse": "Dist Hub 1",
         "selectedResultIndex": 0,
         "results": [
-          "KM-00001 Mekong Fresh Beverage 00001 Stock 462 18.46",
+          "KM-00001 Mekong Fresh Beverage 00001 Stock 457 18.46",
           "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
           "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
           "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
@@ -437,7 +437,7 @@
           "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
           "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77"
         ],
-        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 462 18.46",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 457 18.46",
         "searchValue": "Mekong"
       },
       "differences": []

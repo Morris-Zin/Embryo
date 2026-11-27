@@ -303,7 +303,7 @@ component CounterScreen inherits FocusScope {
     property <length> content-x: 28px + root.side-width + root.gutter;
     property <length> content-width: root.width - root.content-x - 28px;
     property <length> lines-width: root.width - 56px;
-    property <length> lines-top: root.sales-mode ? 501px : 592px;
+    property <length> lines-top: root.sales-mode ? 501px : 441px;
     property <length> lines-required-height: 96px + root.voucher-lines.length * 48px;
     property <length> lines-available-height: root.height - 72px - root.lines-top - 16px;
     property <length> lines-height: root.lines-available-height > root.lines-required-height ? root.lines-available-height : root.lines-required-height;
@@ -381,7 +381,7 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 28px; y: 95px; width: root.side-width; height: root.sales-mode ? 390px : 481px;
+        x: 28px; y: 95px; width: root.side-width; height: root.sales-mode ? 390px : 330px;
         Text { x: 21px; y: 30px; text: root.sales-mode ? "Sale details" : "Transfer details"; color: Design.text; font-size: 16px; font-weight: 700; }
 
         Text { x: 21px; y: 67px; text: root.sales-mode ? "Shop warehouse" : "Source warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
@@ -421,26 +421,26 @@ component CounterScreen inherits FocusScope {
         PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 258px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
         PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 304px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
 
-        Text { visible: !root.sales-mode; x: 21px; y: 144px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        Text { visible: !root.sales-mode; x: root.field-right-x; y: 67px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
         ComboBox {
             visible: !root.sales-mode;
-            x: 21px; y: 167.78125px; width: root.side-width - 42px; height: 40px;
+            x: root.field-right-x; y: 90.59375px; width: root.field-width; height: 40px;
             model: root.target-warehouse-options;
             accessible-label: "Target warehouse";
             selected(value) => { root.target-warehouse-selected(value); }
         }
-        Text { visible: !root.sales-mode; x: 21px; y: 221px; text: "Transfer mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        Text { visible: !root.sales-mode; x: 21px; y: 144px; text: "Transfer mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
         transfer-mode-combo := ComboBox {
             visible: !root.sales-mode;
-            x: 21px; y: 244.96875px; width: root.side-width - 42px; height: 40px;
+            x: 21px; y: 167.78125px; width: root.field-width; height: 40px;
             model: root.transfer-mode-options;
             accessible-label: "Transfer mode";
             selected(value) => { root.transfer-mode-selected(value); }
         }
-        Text { visible: !root.sales-mode; x: 21px; y: 298px; text: "Outgoing stock entry"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        Text { visible: !root.sales-mode; x: root.field-right-x; y: 144px; text: "Outgoing stock entry"; color: Design.muted; font-size: 13px; font-weight: 700; }
         LineEdit {
             visible: !root.sales-mode;
-            x: 21px; y: 322.15625px; width: root.side-width - 42px; height: 40px;
+            x: root.field-right-x; y: 167.78125px; width: root.field-width; height: 40px;
             enabled: transfer-mode-combo.current-value == "Receive from transit";
             placeholder-text: "Required in receive mode";
             accessible-enabled: transfer-mode-combo.current-value == "Receive from transit";
@@ -448,13 +448,13 @@ component CounterScreen inherits FocusScope {
             accessible-label: "Outgoing stock entry";
             edited => { root.outgoing-stock-entry-edited(self.text); }
         }
-        Text { visible: !root.sales-mode; x: 21px; y: 375px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        PrintRadio { visible: !root.sales-mode; x: 21px; y: 399.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
-        PrintRadio { visible: !root.sales-mode; x: 174.453125px; y: 399.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
+        Text { visible: !root.sales-mode; x: 21px; y: 221px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        PrintRadio { visible: !root.sales-mode; x: 21px; y: 245px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
+        PrintRadio { visible: !root.sales-mode; x: root.field-right-x; y: 245px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
     }
 
     PanelBox {
-        x: root.content-x; y: 95px; width: root.content-width; height: root.sales-mode ? 390px : 481px;
+        x: root.content-x; y: 95px; width: root.content-width; height: root.sales-mode ? 390px : 330px;
         Text { x: 19px; y: 30px; text: "Scan or search"; color: Design.text; font-size: 16px; font-weight: 700; }
         Text { x: 19px; y: 64px; text: "Barcode / item search"; color: Design.muted; font-size: 13px; font-weight: 700; }
         Rectangle {
@@ -540,7 +540,7 @@ component CounterScreen inherits FocusScope {
     }
 
     if root.search-open: Rectangle {
-        x: root.content-x + 16px; y: (root.sales-mode ? 473px : 566px) + root.content-y; width: root.content-width - 32px; height: 384px;
+        x: root.content-x + 16px; y: (root.sales-mode ? 473px : 415px) + root.content-y; width: root.content-width - 32px; height: 384px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
@@ -1203,7 +1203,7 @@ export component AppWindow inherits Window {
     }
 
     if current-screen == 1: CounterScreen {
-        width: 1180px; height: 760px;
+        width: parent.width; height: parent.height;
         sales-mode: false;
         warehouse-options: root.warehouse-options;
         customer-options: root.customer-options;
