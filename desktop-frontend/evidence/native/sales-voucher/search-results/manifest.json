@@ -13,17 +13,17 @@
       "ms": 400
     }
   ],
-  "capturedAt": "2026-11-27T13:41:03.861Z",
+  "capturedAt": "2026-11-27T13:42:09.172Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "f00e2e664b24a6a5798712e80777b1a8db51ebc5fab519e4426a9090a688d955",
+  "screenshotSha256": "9195997dcd03fd562b69125f9db132399dc97cc8319b5d938ef19f617477b619",
   "window": {
     "position": {
-      "x": 130,
-      "y": 130
+      "x": 156,
+      "y": 156
     },
     "rootElementHandle": {
       "generation": "1",

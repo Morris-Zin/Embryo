@@ -1,0 +1,12 @@
+{
+  "shortcuts": {
+    "F2": {
+      "passed": true,
+      "evidence": {
+        "targetFound": true,
+        "accessibleValue": "Mekong",
+        "probeText": "Mekong"
+      }
+    }
+  }
+}

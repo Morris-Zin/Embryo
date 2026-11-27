@@ -354,6 +354,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_current_screen(match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
         Ok("stock-transfer") | Ok("transfer") | Ok("1") => 1,
         Ok("invoice-list") | Ok("invoices") | Ok("2") => 2,
+        Ok("item-search") | Ok("4") => 4,
         _ => 0,
     });
     refresh_voucher(&app, &state.borrow());

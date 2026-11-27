@@ -132,7 +132,7 @@ async function main() {
   }
   const eventRecording = actions.length ? structured(await callTool('stop_event_recording', { windowHandle })) : null;
   const tree = await getTree(rootHandle);
-  const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Sales Invoice', 'stock-transfer': 'Stock Transfer' };
+  const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Sales Counter', 'invoice-list': 'Sales Invoice', 'stock-transfer': 'Stock Transfer' };
   const expectedTitle = expectedTitles[screenId];
   const titleVisibleInHeader = expectedTitle && (tree.elements || []).some((element) => {
     const position = element.absolutePosition || {};

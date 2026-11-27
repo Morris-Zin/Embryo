@@ -1,0 +1,3646 @@
+{
+  "elements": [
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "1"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "AppWindow::root",
+          "typeName": "Window"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {},
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "2"
+      },
+      "size": {
+        "height": 760,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "CounterScreen"
+        },
+        {
+          "id": "root",
+          "typeName": "FocusScope"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": -43
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "3"
+      },
+      "size": {
+        "height": 80,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 32,
+        "y": -12
+      },
+      "accessibleLabel": "Sales Counter",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "4"
+      },
+      "size": {
+        "height": 40,
+        "width": 350
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 964,
+        "y": -25
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "5"
+      },
+      "size": {
+        "height": 48,
+        "width": 188
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 973,
+        "y": -17
+      },
+      "accessibleLabel": "Sales",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "6"
+      },
+      "size": {
+        "height": 40,
+        "width": 70
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "NavPill"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 973,
+        "y": -17
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "7"
+      },
+      "size": {
+        "height": 40,
+        "width": 70
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "NavPill::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 991,
+        "y": -6.5
+      },
+      "accessibleLabel": "Sales",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "8"
+      },
+      "size": {
+        "height": 19,
+        "width": 34
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1051,
+        "y": -17
+      },
+      "accessibleLabel": "Transfer",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "9"
+      },
+      "size": {
+        "height": 40,
+        "width": 93
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "NavPill"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1051,
+        "y": -17
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "10"
+      },
+      "size": {
+        "height": 40,
+        "width": 93
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "NavPill::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1070.5,
+        "y": -6.5
+      },
+      "accessibleLabel": "Transfer",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "11"
+      },
+      "size": {
+        "height": 19,
+        "width": 54
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "12"
+      },
+      "size": {
+        "height": 481,
+        "width": 432
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "PanelBox"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "13"
+      },
+      "size": {
+        "height": 481,
+        "width": 432
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 82
+      },
+      "accessibleLabel": "Sale details",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "14"
+      },
+      "size": {
+        "height": 22,
+        "width": 85
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 119
+      },
+      "accessibleLabel": "Shop warehouse",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "15"
+      },
+      "size": {
+        "height": 18,
+        "width": 101
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 143
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Dist Hub 1",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "16"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 143
+      },
+      "accessibleLabel": "Dist Hub 1",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "17"
+      },
+      "size": {
+        "height": 40,
+        "width": 362
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 421,
+        "y": 143
+      },
+      "accessibleLabel": "▾",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "18"
+      },
+      "size": {
+        "height": 40,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "19"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 196
+      },
+      "accessibleLabel": "Customer",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "20"
+      },
+      "size": {
+        "height": 18,
+        "width": 59
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "21"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 220
+      },
+      "accessibleEnabled": true,
+      "accessiblePlaceholderText": "Filter customers…",
+      "accessibleRole": "TextInput",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "22"
+      },
+      "size": {
+        "height": 48,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "23"
+      },
+      "size": {
+        "height": 48,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "24"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 48,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "25"
+      },
+      "size": {
+        "height": 48,
+        "width": 372
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "26"
+      },
+      "size": {
+        "height": 48,
+        "width": 372
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "27"
+      },
+      "size": {
+        "height": 48,
+        "width": 372
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "28"
+      },
+      "size": {
+        "height": 48,
+        "width": 372
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 220
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "29"
+      },
+      "size": {
+        "height": 48,
+        "width": 371
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 53,
+        "y": 266
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "30"
+      },
+      "size": {
+        "height": 2,
+        "width": 388
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "31"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 273
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Choose customer",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "32"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 273
+      },
+      "accessibleLabel": "Choose customer",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "33"
+      },
+      "size": {
+        "height": 40,
+        "width": 362
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 421,
+        "y": 273
+      },
+      "accessibleLabel": "▾",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "34"
+      },
+      "size": {
+        "height": 40,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 319
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "35"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 319
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "36"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 319
+      },
+      "accessibleLabel": "Load more customers",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "37"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 319
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "38"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 176,
+        "y": 329.5
+      },
+      "accessibleLabel": "Load more customers",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "39"
+      },
+      "size": {
+        "height": 19,
+        "width": 142
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "40"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 372
+      },
+      "accessibleLabel": "Payment mode",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "41"
+      },
+      "size": {
+        "height": 18,
+        "width": 93
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "42"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 396
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "No payment / credit",
+      "accessibleRole": "Combobox",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "43"
+      },
+      "size": {
+        "height": 40,
+        "width": 396
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserSelect"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 396
+      },
+      "accessibleLabel": "No payment / credit",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "44"
+      },
+      "size": {
+        "height": 40,
+        "width": 362
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 421,
+        "y": 396
+      },
+      "accessibleLabel": "▾",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "45"
+      },
+      "size": {
+        "height": 40,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "46"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 449
+      },
+      "accessibleLabel": "Print format",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "47"
+      },
+      "size": {
+        "height": 18,
+        "width": 76
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "48"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 474
+      },
+      "accessibleLabel": "Voucher 80mm",
+      "accessibleRole": "RadioButton",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "49"
+      },
+      "size": {
+        "height": 42,
+        "width": 143
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "PrintRadio"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 61,
+        "y": 487
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "50"
+      },
+      "size": {
+        "height": 14,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 64,
+        "y": 490
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "51"
+      },
+      "size": {
+        "height": 8,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 81,
+        "y": 474
+      },
+      "accessibleLabel": "Voucher 80mm",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "52"
+      },
+      "size": {
+        "height": 42,
+        "width": 103
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "53"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 202,
+        "y": 473
+      },
+      "accessibleLabel": "Canon A4",
+      "accessibleRole": "RadioButton",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "54"
+      },
+      "size": {
+        "height": 42,
+        "width": 108
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "PrintRadio"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 214,
+        "y": 486
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "55"
+      },
+      "size": {
+        "height": 14,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 217,
+        "y": 489
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "56"
+      },
+      "size": {
+        "height": 8,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 234,
+        "y": 473
+      },
+      "accessibleLabel": "Canon A4",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "57"
+      },
+      "size": {
+        "height": 42,
+        "width": 68
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "58"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "59"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "60"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "61"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "62"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "63"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "64"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "65"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "66"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 476,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "67"
+      },
+      "size": {
+        "height": 481,
+        "width": 676
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "PanelBox"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 476,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "68"
+      },
+      "size": {
+        "height": 481,
+        "width": 676
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 495,
+        "y": 82
+      },
+      "accessibleLabel": "Scan or search",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "69"
+      },
+      "size": {
+        "height": 22,
+        "width": 108
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 495,
+        "y": 116
+      },
+      "accessibleLabel": "Barcode / item search",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "70"
+      },
+      "size": {
+        "height": 18,
+        "width": 133
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 496,
+        "y": 134
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "71"
+      },
+      "size": {
+        "height": 17,
+        "width": 21
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 501,
+        "y": 135.5
+      },
+      "accessibleLabel": "F2",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "72"
+      },
+      "size": {
+        "height": 14,
+        "width": 11
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 495,
+        "y": 164
+      },
+      "accessibleEnabled": true,
+      "accessiblePlaceholderText": "Scan barcode or type item name…",
+      "accessibleRole": "Combobox",
+      "accessibleValue": "Mekong",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "73"
+      },
+      "size": {
+        "height": 48,
+        "width": 636
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "CounterScreen::item-search",
+          "typeName": "LineEdit"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 495,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "74"
+      },
+      "size": {
+        "height": 48,
+        "width": 636
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::background",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 495,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "75"
+      },
+      "layoutKind": "HorizontalLayout",
+      "size": {
+        "height": 48,
+        "width": 636
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::layout",
+          "typeName": "HorizontalLayout"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "76"
+      },
+      "size": {
+        "height": 48,
+        "width": 596
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::base",
+          "typeName": "LineEditBase"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "77"
+      },
+      "size": {
+        "height": 48,
+        "width": 596
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "78"
+      },
+      "size": {
+        "height": 48,
+        "width": 596
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::placeholder",
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "79"
+      },
+      "size": {
+        "height": 48,
+        "width": 596
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ContextMenuArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "80"
+      },
+      "size": {
+        "height": 48,
+        "width": 595
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEditBase::text-input",
+          "typeName": "TextInput"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1103,
+        "y": 164
+      },
+      "accessibleRole": "Image",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "112"
+      },
+      "size": {
+        "height": 48,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "LineEditClearIcon"
+        },
+        {
+          "id": "root",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1103,
+        "y": 164
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "113"
+      },
+      "size": {
+        "height": 48,
+        "width": 16
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 499,
+        "y": 210
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "81"
+      },
+      "size": {
+        "height": 2,
+        "width": 628
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "LineEdit::focus-border",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 476,
+        "y": 52
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "82"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 491,
+        "y": 160
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "83"
+      },
+      "size": {
+        "height": 56,
+        "width": 644
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 549
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "84"
+      },
+      "size": {
+        "height": 96,
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "PanelBox"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 549
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "85"
+      },
+      "size": {
+        "height": 96,
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 549
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "86"
+      },
+      "size": {
+        "height": 72,
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 49,
+        "y": 571
+      },
+      "accessibleLabel": "Lines",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "87"
+      },
+      "size": {
+        "height": 22,
+        "width": 39
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1064,
+        "y": 562
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "88"
+      },
+      "size": {
+        "height": 40,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1064,
+        "y": 562
+      },
+      "accessibleLabel": "Clear",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "89"
+      },
+      "size": {
+        "height": 40,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1064,
+        "y": 562
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "90"
+      },
+      "size": {
+        "height": 40,
+        "width": 67
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1080.5,
+        "y": 572.5
+      },
+      "accessibleLabel": "Clear",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "91"
+      },
+      "size": {
+        "height": 19,
+        "width": 34
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 615
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "92"
+      },
+      "size": {
+        "height": 36,
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 43,
+        "y": 624
+      },
+      "accessibleLabel": "ITEM",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "93"
+      },
+      "size": {
+        "height": 16,
+        "width": 300
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 348,
+        "y": 624
+      },
+      "accessibleLabel": "QTY",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "94"
+      },
+      "size": {
+        "height": 16,
+        "width": 325
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 688,
+        "y": 624
+      },
+      "accessibleLabel": "UOM",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "95"
+      },
+      "size": {
+        "height": 16,
+        "width": 70
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 758,
+        "y": 624
+      },
+      "accessibleLabel": "RATE",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "96"
+      },
+      "size": {
+        "height": 16,
+        "width": 130
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 888,
+        "y": 624
+      },
+      "accessibleLabel": "AMOUNT",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "97"
+      },
+      "size": {
+        "height": 16,
+        "width": 175
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 651
+      },
+      "accessibleOrientation": "Vertical",
+      "accessibleRole": "List",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "98"
+      },
+      "size": {
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ListView"
+        },
+        {
+          "id": "root",
+          "typeName": "ScrollView"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 651
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "99"
+      },
+      "size": {
+        "width": 1124
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::flickable",
+          "typeName": "Flickable"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 651
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "100"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 651
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "101"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 492,
+        "y": 523
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "114"
+      },
+      "size": {
+        "height": 384,
+        "width": 644
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 492,
+        "y": 523
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "115"
+      },
+      "size": {
+        "height": 384,
+        "width": 644
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "accessibleOrientation": "Vertical",
+      "accessibleRole": "List",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "116"
+      },
+      "size": {
+        "height": 374,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "ListView"
+        },
+        {
+          "id": "root",
+          "typeName": "ScrollView"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "117"
+      },
+      "size": {
+        "height": 374,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::flickable",
+          "typeName": "Flickable"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "118"
+      },
+      "size": {
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "accessibleLabel": "Mekong Fresh Beverage 00001",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "119"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "120"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 535
+      },
+      "accessibleLabel": "KM-00001",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "121"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 558
+      },
+      "accessibleLabel": "Mekong Fresh Beverage 00001",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "122"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 535
+      },
+      "accessibleLabel": "Stock 485",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "123"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 558
+      },
+      "accessibleLabel": "18.46",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "124"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 584
+      },
+      "accessibleLabel": "Mekong Fresh Staple 00005",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "125"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 584
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "126"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 591
+      },
+      "accessibleLabel": "KM-00005",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "127"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 614
+      },
+      "accessibleLabel": "Mekong Fresh Staple 00005",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "128"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 591
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "129"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 614
+      },
+      "accessibleLabel": "36.03",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "130"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 640
+      },
+      "accessibleLabel": "Mekong Fresh Baby Care 00007",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "131"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 640
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "132"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 647
+      },
+      "accessibleLabel": "KM-00007",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "133"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 670
+      },
+      "accessibleLabel": "Mekong Fresh Baby Care 00007",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "134"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 647
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "135"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 670
+      },
+      "accessibleLabel": "24.34",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "136"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 696
+      },
+      "accessibleLabel": "Mekong Fresh Staple 00021",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "137"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 696
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "138"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 703
+      },
+      "accessibleLabel": "KM-00021",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "139"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 726
+      },
+      "accessibleLabel": "Mekong Fresh Staple 00021",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "140"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 703
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "141"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 726
+      },
+      "accessibleLabel": "14.62",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "142"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 752
+      },
+      "accessibleLabel": "Mekong Fresh Cleaning 00038",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "143"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 752
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "144"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 759
+      },
+      "accessibleLabel": "KM-00038",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "145"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 782
+      },
+      "accessibleLabel": "Mekong Fresh Cleaning 00038",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "146"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 759
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "147"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 782
+      },
+      "accessibleLabel": "10.40",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "148"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 808
+      },
+      "accessibleLabel": "Mekong Fresh Snack 00050",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "149"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 808
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "150"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 815
+      },
+      "accessibleLabel": "KM-00050",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "151"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 838
+      },
+      "accessibleLabel": "Mekong Fresh Snack 00050",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "152"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 815
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "153"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 838
+      },
+      "accessibleLabel": "50.26",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "154"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 864
+      },
+      "accessibleLabel": "Mekong Fresh Cleaning 00054",
+      "accessibleRole": "Button",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "155"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "SearchResultRow"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 864
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "156"
+      },
+      "size": {
+        "height": 56,
+        "width": 634
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "SearchResultRow::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 871
+      },
+      "accessibleLabel": "KM-00054",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "157"
+      },
+      "size": {
+        "height": 19,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 507,
+        "y": 894
+      },
+      "accessibleLabel": "Mekong Fresh Cleaning 00054",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "158"
+      },
+      "size": {
+        "height": 16,
+        "width": 484
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 871
+      },
+      "accessibleLabel": "Stock 500",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "159"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 999,
+        "y": 894
+      },
+      "accessibleLabel": "4.82",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "160"
+      },
+      "size": {
+        "height": 18,
+        "width": 120
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "161"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1117,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "162"
+      },
+      "size": {
+        "height": 374,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollView::vertical-bar",
+          "typeName": "ScrollBar"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1117,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "163"
+      },
+      "size": {
+        "height": 374,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1125,
+        "y": 544
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "164"
+      },
+      "size": {
+        "height": 91.36285400390625,
+        "width": 2
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::thumb",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1117,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "165"
+      },
+      "size": {
+        "height": 374,
+        "width": 14
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::touch-area",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 532
+      },
+      "handle": {
+        "generation": "1",
+        "index": "166"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 532
+      },
+      "handle": {
+        "generation": "1",
+        "index": "167"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::up-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 532
+      },
+      "handle": {
+        "generation": "1",
+        "index": "168"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 532
+      },
+      "handle": {
+        "generation": "1",
+        "index": "169"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 892
+      },
+      "handle": {
+        "generation": "1",
+        "index": "170"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 892
+      },
+      "handle": {
+        "generation": "1",
+        "index": "171"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollBar::down-scroll-button",
+          "typeName": "ScrollViewButton"
+        },
+        {
+          "id": "root",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 892
+      },
+      "handle": {
+        "generation": "1",
+        "index": "172"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 1120,
+        "y": 892
+      },
+      "handle": {
+        "generation": "1",
+        "index": "173"
+      },
+      "size": {
+        "height": 6,
+        "width": 8
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "ScrollViewButton::icon",
+          "typeName": "Image"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 497,
+        "y": 528
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "174"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "y": 688
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "102"
+      },
+      "size": {
+        "height": 72,
+        "width": 1180
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 712
+      },
+      "accessibleLabel": "Total qty",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "103"
+      },
+      "size": {
+        "height": 19,
+        "width": 100
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 102,
+        "y": 707
+      },
+      "accessibleLabel": "0",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "104"
+      },
+      "size": {
+        "height": 28,
+        "width": 35
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 150,
+        "y": 712
+      },
+      "accessibleLabel": "Subtotal",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "105"
+      },
+      "size": {
+        "height": 19,
+        "width": 70
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 224,
+        "y": 707
+      },
+      "accessibleLabel": "0.00",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "106"
+      },
+      "size": {
+        "height": 28,
+        "width": 70
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 330,
+        "y": 714
+      },
+      "accessibleLabel": "Ready. Scan a barcode or press F2 to search.",
+      "accessibleRole": "Text",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "107"
+      },
+      "size": {
+        "height": 19,
+        "width": 620
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 961,
+        "y": 700
+      },
+      "computedOpacity": 0.550000011920929,
+      "handle": {
+        "generation": "1",
+        "index": "108"
+      },
+      "size": {
+        "height": 48,
+        "width": 187
+      },
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 961,
+        "y": 700
+      },
+      "accessibleLabel": "Submit & Print  F9",
+      "accessibleRole": "Button",
+      "computedOpacity": 0.550000011920929,
+      "handle": {
+        "generation": "1",
+        "index": "109"
+      },
+      "size": {
+        "height": 48,
+        "width": 187
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "BrowserButton"
+        },
+        {
+          "id": "root",
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 961,
+        "y": 700
+      },
+      "computedOpacity": 0.550000011920929,
+      "handle": {
+        "generation": "1",
+        "index": "110"
+      },
+      "size": {
+        "height": 48,
+        "width": 187
+      },
+      "typeNamesAndIds": [
+        {
+          "id": "BrowserButton::touch",
+          "typeName": "TouchArea"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 991.5,
+        "y": 714.5
+      },
+      "accessibleLabel": "Submit & Print  F9",
+      "accessibleRole": "Text",
+      "computedOpacity": 0.550000011920929,
+      "handle": {
+        "generation": "1",
+        "index": "111"
+      },
+      "size": {
+        "height": 19,
+        "width": 126
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Text"
+        }
+      ]
+    }
+  ],
+  "totalCount": 174,
+  "truncated": false
+}

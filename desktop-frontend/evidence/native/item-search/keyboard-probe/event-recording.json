@@ -1,0 +1,199 @@
+{
+  "events": [
+    {
+      "event": {
+        "keyPressed": {
+          "text": ""
+        }
+      },
+      "result": "Accepted",
+      "timestampMs": "1795787036781",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": ""
+        }
+      },
+      "result": "Rejected",
+      "sequence": "1",
+      "timestampMs": "1795787036781",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "M"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "2",
+      "timestampMs": "1795787036921",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "M"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "3",
+      "timestampMs": "1795787036921",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "e"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "4",
+      "timestampMs": "1795787036948",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "e"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "5",
+      "timestampMs": "1795787036948",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "k"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "6",
+      "timestampMs": "1795787036966",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "k"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "7",
+      "timestampMs": "1795787036966",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "o"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "8",
+      "timestampMs": "1795787036985",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "o"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "9",
+      "timestampMs": "1795787036985",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "n"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "10",
+      "timestampMs": "1795787037004",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "n"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "11",
+      "timestampMs": "1795787037004",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyPressed": {
+          "text": "g"
+        }
+      },
+      "result": "Accepted",
+      "sequence": "12",
+      "timestampMs": "1795787037022",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    },
+    {
+      "event": {
+        "keyReleased": {
+          "text": "g"
+        }
+      },
+      "result": "Rejected",
+      "sequence": "13",
+      "timestampMs": "1795787037022",
+      "windowHandle": {
+        "generation": "1",
+        "index": "1"
+      }
+    }
+  ]
+}

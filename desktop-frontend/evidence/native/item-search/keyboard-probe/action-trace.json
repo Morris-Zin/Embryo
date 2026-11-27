@@ -1,0 +1,11 @@
+[
+  {
+    "index": 0,
+    "action": {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "Mekong",
+      "targetElementId": "item-search"
+    }
+  }
+]

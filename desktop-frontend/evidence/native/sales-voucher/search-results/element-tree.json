@@ -2324,7 +2324,7 @@
         "x": 999,
         "y": 578
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 485",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2459,7 +2459,7 @@
         "x": 999,
         "y": 634
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2594,7 +2594,7 @@
         "x": 999,
         "y": 690
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2729,7 +2729,7 @@
         "x": 999,
         "y": 746
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2864,7 +2864,7 @@
         "x": 999,
         "y": 802
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -2999,7 +2999,7 @@
         "x": 999,
         "y": 858
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -3134,7 +3134,7 @@
         "x": 999,
         "y": 914
       },
-      "accessibleLabel": "Stock 100",
+      "accessibleLabel": "Stock 500",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
