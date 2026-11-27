@@ -24,6 +24,15 @@ struct PilotState {
     invoices: Vec<InvoiceSeed>,
     invoice_filter: String,
     client_voucher_id: String,
+    warehouses: Vec<(String, String)>,
+    customers: Vec<(String, String)>,
+    payment_modes: Vec<(String, String)>,
+    warehouse: String,
+    customer: String,
+    payment_mode: String,
+    price_list: String,
+    print_endpoint: String,
+    print_token: String,
 }
 
 #[derive(Clone)]
@@ -622,6 +631,47 @@ fn load_catalog(
     fixture_catalog(catalog_rows)
 }
 
+
+fn label_model(rows: &[(String, String)]) -> ModelRc<SharedString> {
+    Rc::new(VecModel::from(rows.iter().map(|(label, _)| SharedString::from(label.as_str())).collect::<Vec<_>>())).into()
+}
+
+fn choice_rows(value: &serde_json::Value, key: &str, label_key: &str, blank: Option<&str>) -> Vec<(String, String)> {
+    let mut rows = Vec::new();
+    if let Some(label) = blank { rows.push((label.to_owned(), String::new())); }
+    if let Some(items) = value.as_array() {
+        rows.extend(items.iter().filter_map(|row| {
+            let name = row.get(key)?.as_str()?.to_owned();
+            let label = row.get(label_key).and_then(|value| value.as_str()).unwrap_or(name.as_str()).to_owned();
+            Some((label, name))
+        }));
+    }
+    rows
+}
+
+fn load_counter_context(config: Option<&ErpRuntimeConfig>) -> (Vec<(String, String)>, Vec<(String, String)>, Vec<(String, String)>, String, String, String) {
+    let fallback_warehouses = vec![("Dist Hub 1".into(), "Dist Hub 1 - KMD".into())];
+    let fallback_customers = vec![("Choose customer".into(), String::new()), ("Khit Customer 0001".into(), "KM-CUST-0001".into())];
+    let fallback_payments = vec![("No payment / credit".into(), String::new()), ("Cash".into(), "Cash".into())];
+    let fallback_price = "Standard Selling".to_owned();
+    let Some(config) = config else { return (fallback_warehouses, fallback_customers, fallback_payments, fallback_price, "http://127.0.0.1:18421/print".into(), String::new()); };
+    let result = ErpClient::login(&config.base_url, &config.username, &config.password)
+        .and_then(|client| client.post_method("khitmee_ops.api.search.get_counter_context", &serde_json::json!({"mode":"sales"})));
+    let Ok(context) = result else { return (fallback_warehouses, fallback_customers, fallback_payments, fallback_price, "http://127.0.0.1:18421/print".into(), String::new()); };
+    let warehouses = choice_rows(context.get("warehouses").unwrap_or(&serde_json::Value::Null), "name", "warehouse_name", None);
+    let customers = choice_rows(context.get("customers").unwrap_or(&serde_json::Value::Null), "name", "customer_name", Some("Choose customer"));
+    let payments = choice_rows(context.get("modes_of_payment").unwrap_or(&serde_json::Value::Null), "name", "name", Some("No payment / credit"));
+    let price_list = context.get("default_price_list").and_then(|value| value.as_str()).unwrap_or("Standard Selling").to_owned();
+    (
+        if warehouses.is_empty() { fallback_warehouses } else { warehouses },
+        if customers.len() > 1 { customers } else { fallback_customers },
+        if payments.len() > 1 { payments } else { fallback_payments },
+        price_list,
+        context.get("print_endpoint").and_then(|value| value.as_str()).unwrap_or("http://127.0.0.1:18421/print").to_owned(),
+        context.get("print_token").and_then(|value| value.as_str()).unwrap_or("").to_owned(),
+    )
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let catalog_rows = env::var("KHITMEE_CATALOG_ROWS")
         .ok()
@@ -639,6 +689,9 @@ fn main() -> Result<(), slint::PlatformError> {
         .map(|row| (row.item_code.clone(), row.clone()))
         .collect::<HashMap<_, _>>();
     let catalog = CatalogIndex::rebuild(stored_rows);
+    let runtime_config = ErpRuntimeConfig::from_env();
+    let (warehouses, customers, payment_modes, price_list, print_endpoint, print_token) = load_counter_context(runtime_config.as_ref());
+    let warehouse = warehouses.first().map(|(_, value)| value.clone()).unwrap_or_default();
     let state = Rc::new(RefCell::new(PilotState {
         catalog_size: catalog.len(),
         catalog,
@@ -647,6 +700,15 @@ fn main() -> Result<(), slint::PlatformError> {
         invoices: fixture_invoices(invoice_rows),
         invoice_filter: String::new(),
         client_voucher_id: new_client_voucher_id(),
+        warehouses,
+        customers,
+        payment_modes,
+        warehouse,
+        customer: String::new(),
+        payment_mode: String::new(),
+        price_list,
+        print_endpoint,
+        print_token,
     }));
 
     let app = AppWindow::new()?;
@@ -655,6 +717,12 @@ fn main() -> Result<(), slint::PlatformError> {
             "Fixture-only qualification data: {catalog_rows} catalog rows and {invoice_rows} invoice rows. ERPNext parity is pending live reference capture."
         ))
     );
+    {
+        let state_ref = state.borrow();
+        app.set_warehouse_options(label_model(&state_ref.warehouses));
+        app.set_customer_options(label_model(&state_ref.customers));
+        app.set_payment_options(label_model(&state_ref.payment_modes));
+    }
     app.set_invoice_rows(invoice_model(&state.borrow().invoices, ""));
     app.set_search_results(search_model(&state.borrow().catalog, "retail"));
     app.set_current_screen(match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
@@ -664,6 +732,36 @@ fn main() -> Result<(), slint::PlatformError> {
         _ => 0,
     });
     refresh_voucher(&app, &state.borrow());
+
+    app.on_warehouse_selected({
+        let state = state.clone();
+        move |label| {
+            let mut state = state.borrow_mut();
+            if let Some((_, value)) = state.warehouses.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+                state.warehouse = value;
+            }
+        }
+    });
+
+    app.on_customer_selected({
+        let state = state.clone();
+        move |label| {
+            let mut state = state.borrow_mut();
+            if let Some((_, value)) = state.customers.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+                state.customer = value;
+            }
+        }
+    });
+
+    app.on_payment_selected({
+        let state = state.clone();
+        move |label| {
+            let mut state = state.borrow_mut();
+            if let Some((_, value)) = state.payment_modes.iter().find(|(candidate, _)| candidate == label.as_str()).cloned() {
+                state.payment_mode = value;
+            }
+        }
+    });
 
     app.on_search_edited({
         let app = app.as_weak();
@@ -814,8 +912,20 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             let sales_mode = app.get_current_screen() != 1;
-            let (items, client_voucher_id) = {
+            let (items, client_voucher_id, warehouse, customer, price_list, payment_mode) = {
                 let state = state.borrow();
+                if sales_mode && state.warehouse.is_empty() {
+                    app.set_status_text("Choose a shop warehouse.".into());
+                    return;
+                }
+                if sales_mode && state.customer.is_empty() {
+                    app.set_status_text("Choose a customer.".into());
+                    return;
+                }
+                if sales_mode && state.price_list.is_empty() {
+                    app.set_status_text("Price list is not configured.".into());
+                    return;
+                }
                 (
                     state.lines.iter().map(|line| SaleItem {
                         item_code: line.item.item_code.clone(),
@@ -824,15 +934,19 @@ fn main() -> Result<(), slint::PlatformError> {
                         rate: sales_mode.then_some(line.item.rate),
                     }).collect::<Vec<_>>(),
                     state.client_voucher_id.clone(),
+                    state.warehouse.clone(),
+                    state.customer.clone(),
+                    state.price_list.clone(),
+                    state.payment_mode.clone(),
                 )
             };
             app.set_status_text("Submitting voucher…".into());
             let result = ErpClient::login(&config.base_url, &config.username, &config.password)
                 .and_then(|client| {
                     if sales_mode {
-                        client.submit_sale(&client_voucher_id, &config.warehouse, &config.customer, &config.price_list, &items, None, "voucher")
+                        client.submit_sale(&client_voucher_id, &warehouse, &customer, &price_list, &items, (!payment_mode.is_empty()).then_some(payment_mode.as_str()), "voucher")
                     } else {
-                        client.submit_transfer(&client_voucher_id, &config.warehouse, &config.target_warehouse, "direct", None, &items, "voucher")
+                        client.submit_transfer(&client_voucher_id, &warehouse, &config.target_warehouse, "direct", None, &items, "voucher")
                     }
                 });
             match result {
@@ -841,7 +955,21 @@ fn main() -> Result<(), slint::PlatformError> {
                         write_native_outcome(path, &client_voucher_id, &response);
                     }
                     let voucher_no = response.get("voucher_no").and_then(|value| value.as_str()).unwrap_or("voucher");
-                    app.set_status_text(format!("Submitted {voucher_no} — native print adapter pending validation.").into());
+                    let print_note = {
+                        let state = state.borrow();
+                        if let Some(payload) = response.get("receipt_payload") {
+                            match ErpClient::print_receipt(&state.print_endpoint, &state.print_token, payload) {
+                                Ok(body) if body.get("dry_run").and_then(|value| value.as_bool()).unwrap_or(false) => {
+                                    " — print companion dry-run (nothing printed).".to_owned()
+                                }
+                                Ok(_) => " and sent to printer.".to_owned(),
+                                Err(error) => format!(" — print companion failed: {error}"),
+                            }
+                        } else {
+                            " — print status unclear; receipt payload missing.".to_owned()
+                        }
+                    };
+                    app.set_status_text(format!("Submitted {voucher_no}{print_note}").into());
                     let mut state = state.borrow_mut();
                     state.lines.clear();
                     state.client_voucher_id = new_client_voucher_id();

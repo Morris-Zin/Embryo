@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": true,
+    "matched": true,
+    "webVoucher": "ACC-SINV-2026-04926",
+    "nativeVoucher": "ACC-SINV-2026-04927",
+    "web": {
+      "docstatus": 1,
+      "customer": "KM-CUST-0001",
+      "totalQty": 1,
+      "grandTotal": 18.46,
+      "outstanding": 18.46,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      }
+    },
+    "native": {
+      "docstatus": 1,
+      "customer": "KM-CUST-0001",
+      "totalQty": 1,
+      "grandTotal": 18.46,
+      "outstanding": 18.46,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      }
+    },
+    "mismatches": []
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "customer",
+        "value": "Khit Customer 0001"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "f9"
+      },
+      "web": {
+        "status": "Submitted ACC-SINV-2026-04926 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Submitted ACC-SINV-2026-04927 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "wait",
+        "ms": 4000
+      },
+      "web": {
+        "status": "Submitted ACC-SINV-2026-04926 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "native": {
+        "status": "Submitted ACC-SINV-2026-04927 — print companion dry-run (nothing printed).",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Khit Customer 0001",
+        "firstResult": ""
+      },
+      "differences": []
+    }
+  ]
+}

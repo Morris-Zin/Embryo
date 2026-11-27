@@ -1,4 +1,4 @@
-import { AboutSlint, LineEdit, ListView } from "std-widgets.slint";
+import { AboutSlint, ComboBox, LineEdit, ListView } from "std-widgets.slint";
 
 export struct CatalogChoice {
     item-code: string,
@@ -68,6 +68,7 @@ component BrowserSelect inherits Rectangle {
     in property <string> label-text: "";
     in property <bool> use-label-text: false;
     in property <bool> disabled: false;
+    callback clicked();
     background: #ffffff;
     border-color: Design.line;
     border-width: 1px;
@@ -286,6 +287,9 @@ component VoucherLineRow inherits Rectangle {
 
 component CounterScreen inherits FocusScope {
     in property <bool> sales-mode;
+    in property <[string]> warehouse-options;
+    in property <[string]> customer-options;
+    in property <[string]> payment-options;
     in property <length> initial-scroll-offset: 0px;
     in-out property <length> content-y: 0px;
     in property <[CatalogChoice]> search-results;
@@ -296,6 +300,9 @@ component CounterScreen inherits FocusScope {
     in property <string> subtotal-text;
     in-out property <bool> clear-scan-after-accept;
     callback navigate(int);
+    callback warehouse-selected(string);
+    callback customer-selected(string);
+    callback payment-selected(string);
     callback search-edited(string);
     callback sales-scan-accepted(string);
     callback choose-item(string);
@@ -349,7 +356,12 @@ component CounterScreen inherits FocusScope {
         Text { x: 21px; y: 30px; text: root.sales-mode ? "Sale details" : "Transfer details"; color: Design.text; font-size: 16px; font-weight: 700; }
 
         Text { x: 21px; y: 67px; text: root.sales-mode ? "Shop warehouse" : "Source warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { x: 21px; y: 90.59375px; width: 396.421875px; height: 40px; value: "Dist Hub 1"; label-text: root.sales-mode ? "Shop warehouse" : "Source warehouse"; use-label-text: true; }
+        ComboBox {
+            x: 21px; y: 90.59375px; width: 396.421875px; height: 40px;
+            model: root.warehouse-options;
+            accessible-label: root.sales-mode ? "Shop warehouse" : "Source warehouse";
+            selected(value) => { root.warehouse-selected(value); }
+        }
 
         Text { visible: root.sales-mode; x: 21px; y: 144px; text: "Customer"; color: Design.muted; font-size: 13px; font-weight: 700; }
         LineEdit {
@@ -360,10 +372,22 @@ component CounterScreen inherits FocusScope {
             accessible-label: "Customer Choose customer Load more customers";
             font-size: 17px;
         }
-        BrowserSelect { visible: root.sales-mode; x: 21px; y: 221.375px; width: 396.421875px; height: 40px; value: "Choose customer"; label-text: ""; use-label-text: true; }
+        ComboBox {
+            visible: root.sales-mode;
+            x: 21px; y: 221.375px; width: 396.421875px; height: 40px;
+            model: root.customer-options;
+            accessible-label: "";
+            selected(value) => { root.customer-selected(value); }
+        }
         BrowserButton { visible: root.sales-mode; x: 21px; y: 266.96875px; width: 396.421875px; height: 40px; text: "Load more customers"; }
         Text { visible: root.sales-mode; x: 21px; y: 320px; text: "Payment mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { visible: root.sales-mode; x: 21px; y: 344.15625px; width: 396.421875px; height: 40px; value: "No payment / credit"; label-text: "Payment mode"; use-label-text: true; }
+        ComboBox {
+            visible: root.sales-mode;
+            x: 21px; y: 344.15625px; width: 396.421875px; height: 40px;
+            model: root.payment-options;
+            accessible-label: "Payment mode";
+            selected(value) => { root.payment-selected(value); }
+        }
         Text { visible: root.sales-mode; x: 21px; y: 397px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
         PrintRadio { visible: root.sales-mode; x: 21px; y: 421.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
         PrintRadio { visible: root.sales-mode; x: 174.453125px; y: 421.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
@@ -1022,6 +1046,9 @@ export component AppWindow inherits Window {
     in property <[CatalogChoice]> search-results: [];
     in property <[VoucherLine]> voucher-lines: [];
     in property <[InvoiceRow]> invoice-rows: [];
+    in property <[string]> warehouse-options: [];
+    in property <[string]> customer-options: [];
+    in property <[string]> payment-options: [];
     in-out property <string> status-text: "Ready. Scan a barcode or press F2 to search.";
     in-out property <string> total-qty-text: "0";
     in-out property <string> subtotal-text: "0.00";
@@ -1031,6 +1058,9 @@ export component AppWindow inherits Window {
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
 
+    callback warehouse-selected(string);
+    callback customer-selected(string);
+    callback payment-selected(string);
     callback search-edited(string);
     callback sales-scan-accepted(string);
     callback choose-item(string);
@@ -1045,6 +1075,9 @@ export component AppWindow inherits Window {
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: 1180px; height: 760px;
         sales-mode: true;
+        warehouse-options: root.warehouse-options;
+        customer-options: root.customer-options;
+        payment-options: root.payment-options;
         initial-scroll-offset: current-screen == 4 ? 43px : 0px;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
@@ -1054,6 +1087,9 @@ export component AppWindow inherits Window {
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
         navigate(screen) => { current-screen = screen; }
+        warehouse-selected(value) => { root.warehouse-selected(value); }
+        customer-selected(value) => { root.customer-selected(value); }
+        payment-selected(value) => { root.payment-selected(value); }
         search-edited(text) => { root.search-edited(text); }
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }
@@ -1068,6 +1104,9 @@ export component AppWindow inherits Window {
     if current-screen == 1: CounterScreen {
         width: 1180px; height: 760px;
         sales-mode: false;
+        warehouse-options: root.warehouse-options;
+        customer-options: root.customer-options;
+        payment-options: root.payment-options;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
         search-open: root.search-open;
@@ -1076,6 +1115,9 @@ export component AppWindow inherits Window {
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
         navigate(screen) => { current-screen = screen; }
+        warehouse-selected(value) => { root.warehouse-selected(value); }
+        customer-selected(value) => { root.customer-selected(value); }
+        payment-selected(value) => { root.payment-selected(value); }
         search-edited(text) => { root.search-edited(text); }
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }

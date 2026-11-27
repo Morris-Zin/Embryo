@@ -31,24 +31,60 @@ async function nativeAct(ctx,a){
  if(a.op==='search'||a.op==='scan'){const target=await find(ctx,{elementId:'item-search'});await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});await sleep(500);if(a.op==='scan'){await call('dispatch_key_event',{windowHandle:ctx.wh,text:special.Enter,eventType:'PressAndRelease'});await sleep(400)}return}
  if(a.op==='scroll'){await call('dispatch_pointer_scroll',{windowHandle:ctx.wh,position:{x:590,y:344},deltaY:-Math.abs(Number(a.deltaY||500)),deltaX:0});return sleep(350)}
  if(a.op==='increase'||a.op==='decrease'||a.op==='remove'||a.op==='clear'){const label={increase:'Increase quantity',decrease:'Decrease quantity',remove:'Remove line',clear:'Clear'}[a.op];const target=await find(ctx,{label});await call('click_element',{elementHandle:target.handle});return sleep(250)}
+ if(a.op==='customer'){
+  const wanted=String(a.value||'Khit Customer 0001');
+  for(let attempt=0;attempt<4;attempt++){
+   const t=await tree(ctx);
+   const combo=(t.elements||[]).find(e=>e.accessibleRole==='Combobox'&&(e.accessibleValue==='Choose customer'||e.accessibleValue===wanted||(!e.accessibleLabel&&e.accessibleValue)));
+   if(combo)await call('click_element',{elementHandle:combo.handle});
+   for(let poll=0;poll<10;poll++){
+     await sleep(80);
+     const openTree=await tree(ctx);
+     const item=(openTree.elements||[]).find(e=>e.accessibleRole==='ListItem'&&e.accessibleLabel===wanted);
+     if(item){await call('click_element',{elementHandle:item.handle});await sleep(350);return}
+    }
+  }
+  throw Error('native customer option did not open: '+wanted)
+ }
  if(a.op==='quantity'){const target=(await tree(ctx)).elements?.find(e=>e.accessibleLabel==='Quantity');if(!target)throw Error('quantity target missing');await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});await sleep(250);return}
  if(a.op==='choose'){const rows=(await tree(ctx)).elements?.filter(e=>e.accessibleRole==='ListItem');const target=rows[a.index||0];if(!target)throw Error('choice missing');await call('click_element',{elementHandle:target.handle});return sleep(300)}
  throw Error('unsupported native op '+a.op)
 }
 function texts(t){return(t.elements||[]).filter(e=>e.accessibleRole==='Text').map(e=>({text:e.accessibleLabel||'',x:e.absolutePosition?.x||0,y:e.absolutePosition?.y||0}))}
-async function nativeObs(ctx){const t=await tree(ctx),els=t.elements||[],tx=texts(t);const at=(x,y)=>tx.filter(e=>Math.abs(e.x-x)<8&&Math.abs(e.y-y)<8).map(e=>e.text).join(' ');const quantities=els.filter(e=>e.accessibleLabel==='Quantity').map(e=>e.accessibleValue||'');const submit=els.find(e=>e.accessibleLabel==='Submit & Print  F9');const status=tx.filter(e=>Math.abs(e.y-714)<4&&e.x>240&&e.x<300).map(e=>e.text).join(' ');return{status,totalQty:at(102,707),subtotal:at(224,707),submitDisabled:submit?submit.accessibleEnabled!==true:true,lineCount:quantities.length,quantities,searchExpanded:String((els.find(e=>e.accessibleLabel==='Barcode / item search F2')?.accessibleExpanded==='true')||els.filter(e=>e.accessibleRole==='ListItem').length>0),resultCount:els.filter(e=>e.accessibleRole==='ListItem').length,firstResult:(els.find(e=>e.accessibleRole==='ListItem')?.accessibleLabel||'').replace(/\s+/g,' ')}}
-async function webObs(page){return page.evaluate(()=>({status:document.querySelector('#status')?.textContent.trim()||'',totalQty:document.querySelector('#total-qty')?.textContent.trim()||'',subtotal:document.querySelector('#subtotal')?.textContent.trim()||'',submitDisabled:Boolean(document.querySelector('#submit-print')?.disabled),lineCount:document.querySelectorAll('#lines-body tr').length,quantities:[...document.querySelectorAll('#lines-body input[aria-label="Quantity"]')].map(x=>x.value),searchExpanded:document.querySelector('#item-search')?.getAttribute('aria-expanded')||'false',resultCount:document.querySelectorAll('#search-results .search-option-button').length,firstResult:(document.querySelector('#search-results .search-option-button')?.innerText||'').replace(/\s+/g,' ')}))}
+async function nativeObs(ctx){const t=await tree(ctx),els=t.elements||[],tx=texts(t);const at=(x,y)=>tx.filter(e=>Math.abs(e.x-x)<8&&Math.abs(e.y-y)<8).map(e=>e.text).join(' ');const quantities=els.filter(e=>e.accessibleLabel==='Quantity').map(e=>e.accessibleValue||'');const submit=els.find(e=>e.accessibleLabel==='Submit & Print  F9');const status=tx.filter(e=>Math.abs(e.y-714)<4&&e.x>240&&e.x<300).map(e=>e.text).join(' ');return{status,totalQty:at(102,707),subtotal:at(224,707),submitDisabled:submit?submit.accessibleEnabled!==true:true,lineCount:quantities.length,quantities,searchExpanded:String((els.find(e=>e.accessibleLabel==='Barcode / item search F2')?.accessibleExpanded==='true')||els.filter(e=>e.accessibleRole==='ListItem').length>0),resultCount:els.filter(e=>e.accessibleRole==='ListItem').length,customer:(els.filter(e=>e.accessibleRole==='Combobox').find(e=>!e.accessibleLabel&&e.accessibleValue)?.accessibleValue)||'',firstResult:(els.find(e=>e.accessibleRole==='ListItem')?.accessibleLabel||'').replace(/\s+/g,' ')}}
+async function webObs(page){return page.evaluate(()=>({status:document.querySelector('#status')?.textContent.trim()||'',totalQty:document.querySelector('#total-qty')?.textContent.trim()||'',subtotal:document.querySelector('#subtotal')?.textContent.trim()||'',submitDisabled:Boolean(document.querySelector('#submit-print')?.disabled),lineCount:document.querySelectorAll('#lines-body tr').length,quantities:[...document.querySelectorAll('#lines-body input[aria-label="Quantity"]')].map(x=>x.value),searchExpanded:document.querySelector('#item-search')?.getAttribute('aria-expanded')||'false',resultCount:document.querySelectorAll('#search-results .search-option-button').length,customer:document.querySelector('#customer')?.selectedOptions?.[0]?.textContent?.trim()||'',firstResult:(document.querySelector('#search-results .search-option-button')?.innerText||'').replace(/\s+/g,' ')}))}
 async function webAct(page,a){
  if(a.op==='wait')return page.waitForTimeout(a.ms||250);
  if(a.op==='key'||a.op==='f2'||a.op==='f9'){await page.keyboard.press(a.op==='f2'?'F2':a.op==='f9'?'F9':a.key);return page.waitForTimeout(250)}
  if(a.op==='search'||a.op==='scan'){await page.locator('#item-search').fill(String(a.value));await page.waitForTimeout(650);if(a.op==='scan'){await page.locator('#item-search').press('Enter');await page.waitForTimeout(400)}return}
  if(a.op==='scroll'){await page.mouse.move(590,344);await page.mouse.wheel(0,Math.abs(Number(a.deltaY||500)));return page.waitForTimeout(350)}
  if(a.op==='increase'||a.op==='decrease'||a.op==='remove'||a.op==='clear'){const label={increase:'Increase quantity',decrease:'Decrease quantity',remove:'Remove line',clear:'Clear'}[a.op];if(a.op==='clear')await page.getByRole('button',{name:'Clear'}).first().click();else await page.getByLabel(label).first().click();return page.waitForTimeout(250)}
+ if(a.op==='customer'){await page.locator('#customer').selectOption({label:String(a.value||'Khit Customer 0001')});await page.waitForTimeout(250);return}
  if(a.op==='quantity'){await page.locator('input[aria-label="Quantity"]').first().fill(String(a.value));await page.waitForTimeout(250);return}
  if(a.op==='choose'){await page.locator('#search-results .search-option-button').nth(a.index||0).click();return page.waitForTimeout(300)}
  throw Error('unsupported web op '+a.op)
 }
-function compare(a,b){const diffs=[];for(const k of Object.keys(a)){let x=a[k],y=b[k];if(k==='firstResult'){x=String(x).replace(/\s+/g,' ');y=String(y).replace(/\s+/g,' ')}if(JSON.stringify(x)!==JSON.stringify(y))diffs.push({field:k,web:x,native:y})}return diffs}
+function compare(a,b){const diffs=[];for(const k of Object.keys(a)){let x=a[k],y=b[k];if(k==='status'){x=String(x).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>');y=String(y).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>')}if(k==='firstResult'){x=String(x).replace(/\s+/g,' ');y=String(y).replace(/\s+/g,' ')}if(JSON.stringify(x)!==JSON.stringify(y))diffs.push({field:k,web:x,native:y})}return diffs}
+async function businessOutcome(page,steps){
+ const final=steps[steps.length-1]||{};
+ const extract=(side)=>String(final[side]?.status||'').match(/Submitted\s+(ACC-[A-Z]+-\d+-\d+)/)?.[1];
+ const webVoucher=extract('web'),nativeVoucher=extract('native');
+ if(!webVoucher||!nativeVoucher)return{attempted:false,matched:false,reason:'submission voucher number missing',webVoucher,nativeVoucher};
+ const read=async(voucher)=>page.evaluate(async(voucher)=>{
+  const response=await fetch('/api/resource/Sales%20Invoice/'+encodeURIComponent(voucher),{credentials:'include'});
+  if(!response.ok)return{error:'HTTP '+response.status};
+  const d=(await response.json()).data;
+  const item=(d.items||[])[0]||{};
+  return{docstatus:d.docstatus,customer:d.customer,totalQty:d.total_qty,grandTotal:d.grand_total,outstanding:d.outstanding_amount,item:{itemCode:item.item_code,qty:item.qty,rate:item.rate,amount:item.amount,warehouse:item.warehouse}};
+ },voucher);
+ const web=await read(webVoucher),native=await read(nativeVoucher);
+ const keys=['docstatus','customer','totalQty','grandTotal','outstanding'];
+ const mismatches=[];
+ for(const key of keys)if(JSON.stringify(web[key])!==JSON.stringify(native[key]))mismatches.push({field:key,web:web[key],native:native[key]});
+ for(const key of Object.keys(web.item||{}))if(JSON.stringify(web.item?.[key])!==JSON.stringify(native.item?.[key]))mismatches.push({field:'item.'+key,web:web.item?.[key],native:native.item?.[key]});
+ return{attempted:true,matched:mismatches.length===0,webVoucher,nativeVoucher,web,native,mismatches};
+}
+
 async function main(){
  const env={...process.env,SLINT_MCP_PORT:String(port),SLINT_EMIT_DEBUG_INFO:'1',KHITMEE_CATALOG_ROWS:'10000',KHITMEE_INVOICE_ROWS:'10000',KHITMEE_ERP_URL:baseUrl,KHITMEE_ERP_USERNAME:username,KHITMEE_ERP_PASSWORD:password,KHITMEE_ERP_WAREHOUSE:'Dist Hub 1 - KMD',KHITMEE_ERP_CUSTOMER:'KM-CUST-0001',KHITMEE_ERP_PRICE_LIST:'Standard Selling'};
  const child=spawn(path.resolve(exe),{cwd:path.resolve('desktop-frontend'),env,stdio:'ignore'});
@@ -68,8 +104,10 @@ async function main(){
    steps.push({index:i,action:a,web,native,differences:diffs});
    failures.push(...diffs.map(d=>({step:i,op:a.op,...d})));
   }
+  const businessOutcomeEvidence=await businessOutcome(page,steps);
+  failures.push(...(businessOutcomeEvidence.mismatches||[]).map(d=>({step:'businessOutcome',op:'erp-readback',...d})));
   await browser.close();
-  const report={schemaVersion:1,passed:failures.length===0,failures,steps};
+  const report={schemaVersion:1,passed:failures.length===0,failures,businessOutcome:businessOutcomeEvidence,steps};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify({passed:report.passed,failureCount:failures.length,out}));
   process.exitCode=report.passed?0:1;
