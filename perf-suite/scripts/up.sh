@@ -173,6 +173,7 @@ sync_khitmee_ops() {
   mkdir -p "$(dirname "$target_dir")"
   local rsync_args=(
     -a --delete --checksum
+    --no-owner --no-group
     --chmod=D755,F644
     --exclude='.git/'
     --exclude='__pycache__/'
