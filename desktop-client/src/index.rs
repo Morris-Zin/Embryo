@@ -118,9 +118,6 @@ impl CatalogIndex {
             } else if memmem::find(item.search_text.as_bytes(), folded_term.as_bytes()).is_some() {
                 substring.push(item.row.clone());
             }
-            if exact.len() + prefix.len() + substring.len() >= limit * 4 {
-                break;
-            }
         }
 
         exact.extend(prefix);
@@ -164,6 +161,25 @@ mod tests {
         let hits = index.search("ham", 10);
         let codes: Vec<&str> = hits.iter().map(|row| row.item_code.as_str()).collect();
         assert_eq!(codes, vec!["A-PREFIX"]);
+    }
+
+    #[test]
+    fn substring_matches_do_not_hide_later_prefix_matches() {
+        let mut rows = Vec::new();
+        for index in 0..50 {
+            rows.push(row(
+                &format!("S-{index:02}"),
+                &format!("Large red substring {index}"),
+                &format!("9{index:03}"),
+            ));
+        }
+        rows.push(row("RED-PREFIX", "Red final", "8888"));
+        let index = CatalogIndex::rebuild(rows);
+        let hits = index.search("red", 10);
+        assert_eq!(
+            hits.first().map(|row| row.item_code.as_str()),
+            Some("RED-PREFIX")
+        );
     }
 
     #[test]
