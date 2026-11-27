@@ -27,6 +27,7 @@ ORACLE_REGISTRY = {
 	"profit_summary/store.py": "no-oracle-reason",
 	"profit_summary/export_service.py": "no-oracle-reason",
 	"profit_summary/parity_check.py": "no-oracle-reason",
+	"profit_summary/reconcile.py": "no-oracle-reason",
 }
 
 

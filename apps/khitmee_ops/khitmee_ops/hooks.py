@@ -53,6 +53,7 @@ scheduler_events = {
 	"cron": {
 		"*/10 * * * *": ["khitmee_ops.profit_summary.rebuilder.process_dirty_slices"],
 		"5 0 * * *": ["khitmee_ops.profit_summary.rebuilder.enqueue_yesterday_rollover"],
+		"40 2 * * *": ["khitmee_ops.profit_summary.reconcile.nightly_reconcile"],
 	},
 	"hourly": ["khitmee_ops.profit_summary.export_service.cleanup_expired_exports"],
 }

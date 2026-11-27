@@ -530,8 +530,15 @@ class TestNativeExportClosureAndCli(ExportServiceTestCase):
 
 			self.assertEqual(
 				[command.name for command in commands_module.commands],
-				["khitmee-setup-indexes", "khitmee-export-profit", "khitmee-check-profit-parity"],
+				[
+					"khitmee-setup-indexes",
+					"khitmee-export-profit",
+					"khitmee-check-profit-parity",
+					"khitmee-reconcile-profit-summary",
+				],
 			)
+			reconcile_source = inspect.getsource(commands_module.khitmee_reconcile_profit_summary.callback)
+			self.assertIn("from khitmee_ops.profit_summary.reconcile import reconcile_summary_against_ledger", reconcile_source)
 			export_source = inspect.getsource(commands_module.khitmee_export_profit.callback)
 			parity_source = inspect.getsource(commands_module.khitmee_check_profit_parity.callback)
 			self.assertIn("enqueue_profit_csv_export_for_user", export_source)

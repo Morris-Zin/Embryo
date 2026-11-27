@@ -729,6 +729,61 @@ def mark_claim_failed(claim: ClaimRecord, error_message: str) -> None:
 	_commit()
 
 
+_RECONCILE_LEDGER_SQL = """
+	SELECT
+		si.posting_date AS posting_date,
+		IFNULL(sii.warehouse, '') AS warehouse,
+		CASE WHEN si.is_return = 1 AND IFNULL(si.return_against, '') = '' THEN 'unlinked_return' ELSE 'normal' END AS bucket,
+		SUM(CASE WHEN si.is_debit_note = 1 THEN 0 ELSE sii.stock_qty END) AS qty,
+		SUM(sii.base_net_amount) AS base_amount
+	FROM `tabSales Invoice` si
+	JOIN `tabSales Invoice Item` sii ON sii.parent = si.name AND sii.parenttype = 'Sales Invoice'
+	LEFT JOIN `tabKhitmee Profit Replay Candidate` rc
+		ON rc.company = si.company AND rc.posting_date = si.posting_date AND rc.sales_invoice = si.name
+	WHERE si.company = %(company)s
+		AND si.docstatus = 1
+		AND si.is_opening != 'Yes'
+		AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+		AND NOT (si.is_return = 1 AND IFNULL(si.return_against, '') != '')
+		AND rc.sales_invoice IS NULL
+	GROUP BY 1, 2, 3
+"""
+
+_RECONCILE_STORED_SQL = """
+	SELECT
+		s.posting_date, s.warehouse,
+		s.normal_qty, s.normal_base_amount,
+		s.unlinked_return_qty, s.unlinked_return_base_amount
+	FROM `tabDaily Profit by Shop` s
+	JOIN `tabKhitmee Profit Day State` d
+		ON d.company = s.company AND d.posting_date = s.posting_date AND d.status = 'clean'
+	WHERE s.company = %(company)s AND s.posting_date BETWEEN %(from_date)s AND %(to_date)s
+"""
+
+_RECONCILE_CLEAN_DAYS_SQL = """
+	SELECT posting_date FROM `tabKhitmee Profit Day State`
+	WHERE company = %(company)s AND status = 'clean' AND posting_date BETWEEN %(from_date)s AND %(to_date)s
+"""
+
+
+def get_reconcile_inputs(company: str, from_date: str, to_date: str):
+	"""Return (clean_days, stored_rows, ledger_rows) for ledger reconciliation.
+
+	Ledger rows are Set A only: submitted invoice lines minus that day's Set B
+	replay candidates, bucketed exactly like the rebuilder's partition.  Linked
+	returns are excluded outright: their effect is folded into the original,
+	which is always Set B (``linked_return_original``).
+	"""
+	db = _require_frappe().db
+	params = {"company": company, "from_date": from_date, "to_date": to_date}
+	clean_days = [_as_date_string(row[0]) for row in db.sql(_RECONCILE_CLEAN_DAYS_SQL, params)]
+	if not clean_days:
+		return [], [], []
+	stored_rows = db.sql(_RECONCILE_STORED_SQL, params, as_dict=True)
+	ledger_rows = db.sql(_RECONCILE_LEDGER_SQL, params, as_dict=True)
+	return clean_days, stored_rows, ledger_rows
+
+
 def _doc_value(doc, fieldname, default=None):
 	if hasattr(doc, "get"):
 		return doc.get(fieldname, default)

@@ -126,4 +126,31 @@ def khitmee_check_profit_parity(
 		sys.exit(result["exit_code"])
 
 
-commands = [khitmee_setup_indexes, khitmee_export_profit, khitmee_check_profit_parity]
+@click.command("khitmee-reconcile-profit-summary")
+@click.option("--company", required=True, help="Company scope")
+@click.option("--from-date", required=True, help="First posting date to reconcile")
+@click.option("--to-date", required=True, help="Last posting date to reconcile")
+@pass_context
+def khitmee_reconcile_profit_summary(context, company, from_date, to_date):
+	"""Cheap stored profit summary qty/amount check against submitted invoice lines."""
+	exit_code = 0
+	for site in context.sites:
+		frappe.init(site)
+		frappe.connect()
+		try:
+			from khitmee_ops.profit_summary.reconcile import reconcile_summary_against_ledger
+
+			drifts = reconcile_summary_against_ledger(company, from_date, to_date)
+		finally:
+			frappe.destroy()
+		click.echo(json.dumps({"site": site, "drift_count": len(drifts), "drifts": drifts[:200]}, indent=2))
+		exit_code = exit_code or (1 if drifts else 0)
+	sys.exit(exit_code)
+
+
+commands = [
+	khitmee_setup_indexes,
+	khitmee_export_profit,
+	khitmee_check_profit_parity,
+	khitmee_reconcile_profit_summary,
+]
