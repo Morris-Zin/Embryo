@@ -42,7 +42,7 @@ node desktop-frontend/tools/capture_reference.mjs \
 Capture native evidence and compare it:
 
 ```bash
-node desktop-frontend/tools/capture_native_mcp.mjs --port 49272
+node desktop-frontend/tools/capture_native_mcp.mjs --port 49272 --screen sales-voucher
 python desktop-frontend/tools/verify.py --screen sales-voucher --screen item-search --screen invoice-list
 ```
 

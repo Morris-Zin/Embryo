@@ -305,7 +305,10 @@ export component AppWindow inherits Window {
                             input-type: search;
                             placeholder-text: "Scan barcode or type item name…";
                             edited => { root.search-edited(self.text); }
-                            accepted => { root.sales-scan-accepted(self.text); }
+                            accepted => {
+                                root.sales-scan-accepted(self.text);
+                                self.text = "";
+                            }
                         }
                         Text {
                             text: "F2 focuses search · exact barcode returns one sellable unit";

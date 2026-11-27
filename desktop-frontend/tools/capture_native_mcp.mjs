@@ -10,7 +10,8 @@ function arg(name, fallback = '') {
 }
 
 const port = Number(arg('port', process.env.SLINT_MCP_PORT || '49272'));
-const outDir = path.resolve(arg('out', 'desktop-frontend/evidence/native'));
+const screenId = arg('screen', 'sales-voucher');
+const outDir = path.resolve(arg('out', path.join('desktop-frontend/evidence/native', screenId)));
 const endpoint = `http://127.0.0.1:${port}/mcp`;
 let nextId = 1;
 
@@ -68,6 +69,7 @@ async function main() {
   await fs.writeFile(screenshotPath, Buffer.from(image.data, 'base64'));
   const manifest = {
     schemaVersion: 1,
+    screenId,
     capturedAt: new Date().toISOString(),
     server: initialized.serverInfo || {},
     screenshot: 'native.png',
