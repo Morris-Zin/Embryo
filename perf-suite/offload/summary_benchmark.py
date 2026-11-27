@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
 from typing import Any
@@ -128,35 +127,12 @@ def execute_timed(cursor, sql: str, params: tuple[Any, ...] = (), fetch: bool = 
     }
 
 
-def numeric_value(value):
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return Decimal(str(value))
-    if isinstance(value, str):
-        try:
-            return Decimal(value)
-        except InvalidOperation:
-            return None
-    return None
-
-
-def values_match(left, right) -> bool:
-    if left is None or right is None:
-        return left is right
-    left_num = numeric_value(left)
-    right_num = numeric_value(right)
-    if left_num is not None and right_num is not None:
-        return left_num == right_num
-    return str(left) == str(right)
-
-
 def compare_rows(left, right) -> dict[str, Any]:
     mismatches = []
     if len(left) != len(right):
         mismatches.append({"kind": "row_count", "raw": len(left), "summary": len(right)})
     for index, (lrow, rrow) in enumerate(zip(left, right)):
-        if len(lrow) != len(rrow) or not all(values_match(lval, rval) for lval, rval in zip(lrow, rrow)):
+        if tuple(lrow) != tuple(rrow):
             ltuple = tuple(str(value) for value in lrow)
             rtuple = tuple(str(value) for value in rrow)
             mismatches.append({"kind": "value", "row": index, "raw": ltuple, "summary": rtuple})

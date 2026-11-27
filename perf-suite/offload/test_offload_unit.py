@@ -36,13 +36,23 @@ class TableSpecTest(unittest.TestCase):
 
 
 class ParityNormalizationTest(unittest.TestCase):
+    def test_distinct_text_keys_must_fail_even_when_amounts_match(self):
+        for key in ("001", "1.0", "+1"):
+            with self.subTest(key=key):
+                result = compare_result_rows(
+                    [["Warehouse", key, "10.000000000"]],
+                    [("Warehouse", "1", Decimal("10"))],
+                )
+                self.assertFalse(result["passed"])
+                self.assertEqual(result["mismatches"][0]["column"], 1)
+
     def test_decimal_strings_compare_by_numeric_value(self):
-        self.assertTrue(values_equal(Decimal("12.3400"), "12.34"))
-        self.assertTrue(values_equal(12, "12.0"))
-        self.assertFalse(values_equal(Decimal("12.34"), "12.35"))
+        self.assertTrue(values_equal("12.34", Decimal("12.3400")))
+        self.assertTrue(values_equal("12.0", 12))
+        self.assertFalse(values_equal("12.35", Decimal("12.34")))
 
     def test_dates_compare_to_iso_database_json(self):
-        self.assertTrue(values_equal(date(2026, 11, 26), "2026-11-26"))
+        self.assertTrue(values_equal("2026-11-26", date(2026, 11, 26)))
 
     def test_rows_compare_exactly_after_numeric_normalization(self):
         result = compare_result_rows(

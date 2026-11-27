@@ -163,34 +163,18 @@ def run_duckdb_queries(conn, company: str, from_date: str, to_date: str, query_k
     return results
 
 
-def decimal_or_none(value: Any) -> Decimal | None:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+def values_equal(serialized: Any, typed: Any) -> bool:
+    """Use the DuckDB result type to decode the MariaDB JSON value."""
+    if isinstance(typed, (Decimal, int, float)) and not isinstance(typed, bool):
+        if isinstance(serialized, bool):
+            return False
         try:
-            return Decimal(str(value))
+            return Decimal(str(serialized)) == Decimal(str(typed))
         except InvalidOperation:
-            return None
-    if isinstance(value, str):
-        try:
-            return Decimal(value)
-        except InvalidOperation:
-            return None
-    return None
-
-
-def values_equal(left: Any, right: Any) -> bool:
-    if left is None or right is None:
-        return left is right
-    lnum = decimal_or_none(left)
-    rnum = decimal_or_none(right)
-    if lnum is not None and rnum is not None:
-        return lnum == rnum
-    if isinstance(left, (date, datetime, time_type)):
-        left = left.isoformat()
-    if isinstance(right, (date, datetime, time_type)):
-        right = right.isoformat()
-    return left == right
+            return False
+    if isinstance(typed, (date, datetime, time_type)):
+        return serialized == typed.isoformat()
+    return type(serialized) is type(typed) and serialized == typed
 
 
 def compare_result_rows(mariadb_rows: list[list[Any]], duckdb_rows: list[tuple[Any, ...]]) -> dict[str, Any]:
