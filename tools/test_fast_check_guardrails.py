@@ -340,6 +340,21 @@ class TestDevToolGate(unittest.TestCase):
 		self.assertEqual(missing, [])
 
 
+class TestZizmorGate(unittest.TestCase):
+	def test_zizmor_gate_is_explicitly_offline(self):
+		with (
+			mock.patch.object(fc, "assert_dev_tools_available"),
+			mock.patch.object(fc, "installed_script", return_value="/venv/bin/zizmor"),
+			mock.patch.object(fc, "run", return_value="") as run_mock,
+		):
+			fc.zizmor_workflows(Path("/repo"))
+
+		argv = run_mock.call_args.args[0]
+		self.assertEqual(argv[0], "/venv/bin/zizmor")
+		self.assertIn("--offline", argv)
+		self.assertIn("--collect=workflows", argv)
+
+
 class TestParallelUnittestSelection(unittest.TestCase):
 	def test_tools_suite_uses_measured_class_parallelism(self):
 		command = fc.unittest_parallel_command(Path("/repo"))

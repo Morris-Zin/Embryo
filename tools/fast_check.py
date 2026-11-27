@@ -674,7 +674,7 @@ def zizmor_workflows(root):
 	cli = installed_script("zizmor")
 	if not cli:
 		raise RuntimeError("missing pinned dev tools: zizmor")
-	run([cli, "--collect=workflows", "."], root)
+	run([cli, "--offline", "--collect=workflows", "."], root)
 
 
 def check(root):
