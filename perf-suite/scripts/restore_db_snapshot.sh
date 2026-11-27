@@ -53,7 +53,7 @@ docker start "$CONTAINER" >/dev/null
 DB_STOPPED=0
 
 for _ in $(seq 1 120); do
-  status="$(docker inspect --format '{{.Health.Status}}' "$CONTAINER" 2>/dev/null || true)"
+  status="$(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || true)"
   if [[ "$status" == "healthy" ]]; then
     echo "Restored $VOLUME; $CONTAINER is healthy"
     exit 0

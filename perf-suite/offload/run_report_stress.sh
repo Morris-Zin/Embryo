@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/offload/run_report_stress.sh --run-id ID [--duration 3m] [--vouchers-per-5min 500] [--report-from DATE] [--report-to DATE]
+Usage: bash perf-suite/offload/run_report_stress.sh --run-id ID [--duration 3m] [--vouchers-per-5min 500] [--report-from DATE] [--report-to DATE] [--scenario report_stress]
 
 Runs the existing k6 report_stress scenario against isolated khitmee-perf with
 six shop workers and two report managers. When no report dates are passed, the
@@ -19,6 +19,7 @@ DURATION="3m"
 VOUCHERS_PER_5MIN="500"
 REPORT_FROM=""
 REPORT_TO=""
+SCENARIO="report_stress"
 
 while (($#)); do
   case "$1" in
@@ -32,6 +33,8 @@ while (($#)); do
     --report-from=*) REPORT_FROM="${1#--report-from=}"; shift ;;
     --report-to) REPORT_TO="${2:?missing --report-to value}"; shift 2 ;;
     --report-to=*) REPORT_TO="${1#--report-to=}"; shift ;;
+    --scenario) SCENARIO="${2:?missing --scenario value}"; shift 2 ;;
+    --scenario=*) SCENARIO="${1#--scenario=}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -83,4 +86,4 @@ env \
   MSYS_NO_PATHCONV=1 \
   MSYS2_ARG_CONV_EXCL='*' \
   "${extra_env[@]}" \
-  bash "$REPO_ROOT/perf-suite/k6/run_k6.sh" report_stress
+  bash "$REPO_ROOT/perf-suite/k6/run_k6.sh" "$SCENARIO"
