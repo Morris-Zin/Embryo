@@ -66,6 +66,8 @@ class PublishResult(TypedDict):
 	built_generation: int
 
 
+# Scale of the decimal(18, 6) summary amount/qty columns (setup/indexes.py).
+SUMMARY_STORAGE_SCALE = 6
 CALC_VERSION = 2  # 2: same-day linked returns are replay candidates
 DEFAULT_ROUNDING_METHOD = "Banker's Rounding (legacy)"
 

@@ -1084,6 +1084,27 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		self.assertEqual(ensured[0], "2026-01-03")
 		self.assertEqual(ensured[-1], "2026-01-07")
 
+	def test_export_rejects_input_over_cap_before_extraction(self):
+		# Codex P1: never materialize an unbounded export in the long worker.
+		from khitmee_ops.profit_summary import budget, export_service
+
+		with patch.object(budget, "preflight_detail_input_rows", return_value=export_service.MAX_EXPORT_INPUT_ROWS + 1), patch.object(
+			export_service, "run_detail_gross_profit", side_effect=AssertionError("must not extract")
+		):
+			with self.assertRaises(export_service.frappe.ValidationError):
+				export_service.write_profit_csv({"company": "C", "group_by": "Invoice"}, "unused.csv")
+
+	def test_precision_beyond_storage_scale_is_not_additive_safe(self):
+		# Codex P2: decimal(18, 6) columns would silently round 7+ decimal values.
+		row = {
+			"sales_invoice": "SI-1", "posting_date": "2026-01-01", "warehouse": "W", "qty": 1, "base_amount": 1,
+			"buying_amount": 1, "update_stock": 1, "valuation_source": "sle", "is_precision_safe": True,
+		}
+		batch = {"contributions": [row], "currency_precision": 7, "float_precision": 2}
+		with patch.object(store, "current_day_flags", side_effect=lambda safe=True: {**self.FLAGS, "is_additive_safe": safe}):
+			_shop, _replay, flags = rebuilder.partition_day_contributions(batch, "C", "2026-01-01")
+		self.assertFalse(flags["is_additive_safe"])
+
 	def test_clean_report_without_replay_uses_site_precision(self):
 		# Devin: the empty replay batch's placeholder precision must not win.
 		with patch.object(store, "current_day_flags", return_value={**self.FLAGS, "currency_precision": 2, "float_precision": 4}):

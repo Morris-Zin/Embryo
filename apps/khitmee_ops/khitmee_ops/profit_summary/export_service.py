@@ -516,7 +516,20 @@ def _row_values(row, fieldnames):
 	return [_csv_value(row)]
 
 
+# The export worker materializes the whole report before writing, so cap its input
+# up front instead of letting a year-long Invoice export exhaust the long worker.
+MAX_EXPORT_INPUT_ROWS = 50_000
+
+
 def write_profit_csv(filters, path, *, invoice_ids=None):
+	if invoice_ids is None:
+		from khitmee_ops.profit_summary.budget import preflight_detail_input_rows
+
+		input_rows = preflight_detail_input_rows(filters, cap=MAX_EXPORT_INPUT_ROWS)
+		if input_rows > MAX_EXPORT_INPUT_ROWS:
+			raise frappe.ValidationError(
+				f"Profit export input cap exceeded ({MAX_EXPORT_INPUT_ROWS} invoice lines); narrow the date range"
+			)
 	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False)
 	group_by = (filters or {}).get("group_by") or "Invoice"
 	if group_by != "Invoice" and max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:

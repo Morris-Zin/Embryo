@@ -138,13 +138,63 @@ def khitmee_reconcile_profit_summary(context, company, from_date, to_date):
 		frappe.init(site)
 		frappe.connect()
 		try:
-			from khitmee_ops.profit_summary.reconcile import reconcile_summary_against_ledger
+			from khitmee_ops.profit_summary.reconcile import reconcile_with_coverage
 
-			drifts = reconcile_summary_against_ledger(company, from_date, to_date)
+			result = reconcile_with_coverage(company, from_date, to_date)
 		finally:
 			frappe.destroy()
-		click.echo(json.dumps({"site": site, "drift_count": len(drifts), "drifts": drifts[:200]}, indent=2))
-		exit_code = exit_code or (1 if drifts else 0)
+		drifts = result["drifts"]
+		complete = result["clean_days"] >= result["total_days"]
+		click.echo(
+			json.dumps(
+				{
+					"site": site,
+					"drift_count": len(drifts),
+					"clean_days": result["clean_days"],
+					"total_days": result["total_days"],
+					"coverage_complete": complete,
+					"drifts": drifts[:200],
+				},
+				indent=2,
+			)
+		)
+		# 1 = drift found; 2 = no drift, but some days were not comparable.
+		exit_code = exit_code or (1 if drifts else 0 if complete else 2)
+	sys.exit(exit_code)
+
+
+@click.command("khitmee-prepare-profit-summary")
+@click.option("--timeout-seconds", type=int, default=3600, show_default=True, help="Give up after this long")
+@pass_context
+def khitmee_prepare_profit_summary(context, timeout_seconds=3600):
+	"""Register missing/outdated profit summary days and rebuild them until none are dirty."""
+	import time
+
+	exit_code = 0
+	for site in context.sites:
+		frappe.init(site)
+		frappe.connect()
+		try:
+			from khitmee_ops.profit_summary.rebuilder import (
+				process_dirty_slices_scheduled,
+				register_missing_history,
+			)
+
+			registered = register_missing_history()
+			deadline = time.monotonic() + timeout_seconds
+			rebuilt = 0
+			drained = False
+			while time.monotonic() < deadline:
+				processed = process_dirty_slices_scheduled()
+				frappe.db.commit()
+				rebuilt += processed
+				if processed == 0:
+					drained = True
+					break
+		finally:
+			frappe.destroy()
+		click.echo(json.dumps({"site": site, **registered, "rebuilt_days": rebuilt, "drained": drained}))
+		exit_code = exit_code or (0 if drained else 1)
 	sys.exit(exit_code)
 
 
@@ -153,4 +203,5 @@ commands = [
 	khitmee_export_profit,
 	khitmee_check_profit_parity,
 	khitmee_reconcile_profit_summary,
+	khitmee_prepare_profit_summary,
 ]

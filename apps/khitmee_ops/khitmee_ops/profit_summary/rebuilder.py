@@ -206,6 +206,10 @@ def partition_day_contributions(batch, company: str, posting_date: str):
 			}
 		)
 
+	# Summary columns are decimal(18, 6); a site precision beyond that would be
+	# silently rounded on publish, so such days must not be trusted as additive.
+	if currency_precision > store.SUMMARY_STORAGE_SCALE or float_precision > store.SUMMARY_STORAGE_SCALE:
+		is_additive_safe = False
 	flags = store.current_day_flags(is_additive_safe)
 	flags["currency_precision"] = int((batch or {}).get("currency_precision") or flags["currency_precision"])
 	flags["float_precision"] = int((batch or {}).get("float_precision") or flags["float_precision"])
@@ -357,6 +361,9 @@ def rebuild_claimed_day(claim: store.ClaimRecord):
 	return store.publish_day_snapshot(claim, target_gen, repost_sig, shop_rows, replay_rows, day_flags)
 
 
+EXPANSION_RANGE_LIMIT = 200
+
+
 def expand_dirty_ranges(company: str | None = None, batch_days: int = 30, deadline: float | None = None) -> int:
 	"""Expand active dirty ranges in ascending cursor batches of at most 30 days."""
 	if frappe is None:
@@ -364,7 +371,8 @@ def expand_dirty_ranges(company: str | None = None, batch_days: int = 30, deadli
 	expanded = 0
 	today = _today()
 	yesterday = _add_days(today, -1)
-	for dirty_range in store.get_unprocessed_dirty_ranges(company=company):
+	# Bounded read: a large backlog is worked through over successive ticks.
+	for dirty_range in store.get_unprocessed_dirty_ranges(company=company, limit=EXPANSION_RANGE_LIMIT):
 		if deadline is not None and time.monotonic() >= deadline:
 			break
 		if company and dirty_range.get("company") != company:
