@@ -624,6 +624,7 @@ component InvoiceGeneratedRow inherits Rectangle {
     y: 190px + index * 41px;
     accessible-role: list-item;
     accessible-label: invoice.customer + "|" + invoice.status + "|" + invoice.posting-date + "|" + invoice.due-date + "|" + "$ " + invoice.total-text + "|" + invoice.name;
+    property <length> content-width: root.width - 240px;
 
     TouchArea { clicked => { root.open-invoice(invoice.name); } }
 
@@ -634,42 +635,42 @@ component InvoiceGeneratedRow inherits Rectangle {
     }
 
     Rectangle {
-        x: 333px; y: 0.59375px; width: invoice.customer-width; height: 18.796875px;
+        x: 250px + root.content-width * 0.02; y: 0.59375px; width: root.content-width * 0.15; height: 18.796875px;
         accessible-role: button; accessible-label: invoice.customer; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: invoice.customer; color: Design.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
-        x: 475px; y: 2.84375px; width: 56px; height: 17px;
+        x: 250px + root.content-width * 0.19; y: 2.84375px; width: root.content-width * 0.08; height: 17px;
         accessible-role: button; accessible-label: invoice.status; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: invoice.status; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
-        x: 538.421875px; y: 2.84375px; width: 74.765625px; height: 17px;
+        x: 250px + root.content-width * 0.29; y: 2.84375px; width: root.content-width * 0.10; height: 17px;
         accessible-role: button; accessible-label: invoice.posting-date; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: invoice.posting-date; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
-        x: 656.125px; y: 2.84375px; width: invoice.due-date == "2026-11-27" ? 74.765625px : 73.046875px; height: 17px;
+        x: 250px + root.content-width * 0.41; y: 2.84375px; width: root.content-width * 0.10; height: 17px;
         accessible-role: button; accessible-label: invoice.due-date; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: invoice.due-date; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
-        x: 773.84375px; y: 0px; width: 102.703125px; height: 21px;
+        x: 250px + root.content-width * 0.55; y: 0px; width: root.content-width * 0.12; height: 21px;
         accessible-role: button; accessible-label: "$ " + invoice.total-text; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: "$ " + invoice.total-text; color: Design.text; font-size: 11px; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
-        x: 891.546875px; y: 0.15625px; width: invoice.name-width; height: 19.6875px;
+        x: 250px + root.content-width * 0.70; y: 0.15625px; width: root.content-width * 0.26; height: 19.6875px;
         accessible-role: button; accessible-label: invoice.name; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: invoice.name; color: Design.focus; font-size: 11px; vertical-alignment: center; overflow: elide; }
@@ -688,8 +689,8 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-open(string);
     background: #f4f5f7;
 
-    Rectangle { x: 0px; y: 0px; width: 240px; height: 760px; background: #f8fafc; }
-    Rectangle { x: 240px; y: 0px; width: 940px; height: 760px; background: #ffffff; }
+    Rectangle { x: 0px; y: 0px; width: 240px; height: parent.height; background: #f8fafc; }
+    Rectangle { x: 240px; y: 0px; width: parent.width - 240px; height: parent.height; background: #ffffff; }
     Text { x: 258px; y: 12px; width: 180px; height: 24px; text: "Sales Invoice"; accessible-label: "Sales Invoice"; color: #17202a; font-size: 15px; font-weight: 650; }
 
     invoice-scroll := Flickable {
@@ -697,9 +698,14 @@ component InvoiceScreen inherits Rectangle {
         content-width: root.width;
         content-height: 230px + root.invoice-rows.length * 41px;
         for row[index] in root.invoice-rows: InvoiceGeneratedRow {
-            x: 0px; y: 0px; width: 1180px; invoice: row; index: index;
+            x: 0px; width: root.width; invoice: row; index: index;
             open-invoice(name) => { root.invoice-open(name); }
         }
+    }
+
+    Rectangle {
+        x: 240px; y: parent.height - 45px; width: parent.width - 240px; height: 45px;
+        background: #ffffff; border-color: #e4e7ec; border-width: 1px;
     }
 
     Rectangle {
@@ -1079,41 +1085,41 @@ component InvoiceScreen inherits Rectangle {
     }
 
     Rectangle {
-        x: 296px; y: 725px; width: 173.359375px; height: 28px;
+        x: 296px; y: parent.height - 35px; width: 80px; height: 28px;
         accessible-role: radio-group; accessible-label: "Page Size"; accessible-enabled: true;
         background: transparent;
         if "Page Size" != "": Text { width: 100%; height: 100%; text: "Page Size"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 297px; y: 726px; width: 32.21875px; height: 26px;
+        x: 386px; y: parent.height - 34px; width: 32px; height: 26px;
         accessible-role: radio-button; accessible-label: "20"; accessible-enabled: true;
         background: transparent;
         if "20" != "": Text { width: 100%; height: 100%; text: "20"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 333.21875px; y: 726px; width: 37.953125px; height: 26px;
+        x: 424px; y: parent.height - 34px; width: 38px; height: 26px;
         accessible-role: radio-button; accessible-label: "100"; accessible-enabled: true;
         background: transparent;
         Text { width: 100%; height: 100%; text: "100"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
     Rectangle {
-        x: 375.171875px; y: 726px; width: 40.671875px; height: 26px;
+        x: 468px; y: parent.height - 34px; width: 41px; height: 26px;
         accessible-role: radio-button; accessible-label: "500"; accessible-enabled: true;
         background: transparent;
         if "500" != "": Text { width: 100%; height: 100%; text: "500"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 419.84375px; y: 726px; width: 48.515625px; height: 26px;
+        x: 515px; y: parent.height - 34px; width: 49px; height: 26px;
         accessible-role: radio-button; accessible-label: "2500"; accessible-enabled: true;
         background: transparent;
         if "2500" != "": Text { width: 100%; height: 100%; text: "2500"; color: #344054; font-size: 11px; overflow: elide; vertical-alignment: center; }
     }
 
     Rectangle {
-        x: 1066.375px; y: 725px; width: 88.625px; height: 28px;
+        x: parent.width - 114px; y: parent.height - 35px; width: 88.625px; height: 28px;
         visible: root.invoice-rows.length >= 20;
         accessible-role: button; accessible-label: "Load More"; accessible-enabled: true;
         background: transparent;
@@ -1135,7 +1141,7 @@ component InvoiceScreen inherits Rectangle {
         background: transparent;
     }
     invoice-filter := LineEdit {
-        x: 296px; y: 62px; width: 107px; height: 28px;
+        x: 296px; y: 62px; width: 230px; height: 28px;
         placeholder-text: "ID";
         font-size: 12px;
         accessible-role: text-input;
@@ -1143,7 +1149,7 @@ component InvoiceScreen inherits Rectangle {
         text <=> root.invoice-filter-text;
         edited => { root.invoice-filter-edited(self.text); }
     }
-    Text { x: 296px; y: 716px; width: 180px; height: 18px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
+    Text { x: 590px; y: parent.height - 35px; width: 180px; height: 28px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
 }
 
 component DetailFieldBox inherits Rectangle {
@@ -1397,7 +1403,7 @@ export component AppWindow inherits Window {
     }
 
     if current-screen == 2: InvoiceScreen {
-        width: 1180px; height: 760px;
+        width: parent.width; height: parent.height;
         invoice-rows: root.invoice-rows;
         invoice-filter-text <=> root.invoice-filter-text;
         invoice-count-text: root.invoice-count-text;

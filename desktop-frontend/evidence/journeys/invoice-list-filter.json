@@ -6,7 +6,7 @@
   "businessOutcome": {
     "attempted": false,
     "matched": true,
-    "reason": "read-only invoice list journey"
+    "reason": "read-only invoice journey"
   },
   "steps": [
     {

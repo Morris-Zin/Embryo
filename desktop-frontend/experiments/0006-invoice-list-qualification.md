@@ -17,6 +17,7 @@
 - Native sorting uses the authoritative ERP reportview `name asc`/`name desc` ordering and the visible sort-direction control toggles it.
 - The harness normalizes the browser sort direction to descending before each invoice journey so user-specific ERP sort state cannot leak between runs.
 - Invoice MCP extraction uses targeted `query_element_descendants` because `get_element_tree` is hard-capped at 1,000 elements.
+- Because native rows outside the scroll viewport are clipped from accessibility extraction, invoice observation now scrolls through the native list, deduplicates semantic rows by invoice ID, and restores the viewport before comparison. This verifies loaded-row parity without requiring off-screen rows to be visually rendered.
 
 ## Defects caught by the harness and fixed
 

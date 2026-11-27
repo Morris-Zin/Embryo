@@ -11,6 +11,8 @@ The differential harness starts web and native on the authoritative Sales Invoic
 Evidence:
 
 - `desktop-frontend/evidence/journeys/invoice-detail-initial.json` — passed with zero differences.
+- `desktop-frontend/evidence/visual/invoice-detail-composite-list.png` — maximized browser/native list comparison after responsive and footer repairs.
+- `desktop-frontend/evidence/visual/invoice-detail-composite-detail.png` — browser/native detail comparison after responsive and footer repairs.
 
 Reproduction:
 
@@ -35,5 +37,5 @@ The ERP password is read from the isolated environment in the normal qualificati
 - Full editable draft Sales Invoice form behavior is not implemented or qualified; current evidence covers a submitted read-only invoice.
 - Tab interactions (`Payments`, `Address & Contact`, `Terms`, `More Info`, `Connections`) are visually represented but not behaviorally qualified.
 - Cancel, email, assignment, attachment, tag, share, print, and connection actions are not implemented.
-- Multi-item invoices, return invoices, paid/overdue statuses, permission denial, keyboard/form-focus behavior, visual video evidence, and performance evidence remain open.
+- Multi-item invoices, return invoices, paid/overdue statuses, permission denial, keyboard/form-focus behavior, comprehensive visual state coverage, and performance evidence remain open.
 - Cross-process memory/frame/network-byte measurements and hardware qualification remain open.
