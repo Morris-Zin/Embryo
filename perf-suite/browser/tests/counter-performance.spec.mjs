@@ -141,6 +141,83 @@ test.describe("cashier counter performance regressions", () => {
   });
 
 
+  test("visible suggestions refresh after the freshness window and preserve the selected item", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    let rate = 10;
+    const requests = [];
+    const item = (code) => ({
+      item_code: code,
+      item_name: code + " name",
+      stock_uom: "Nos",
+      rate,
+      actual_qty: 8,
+    });
+    await page.route("**/api/method/khitmee_ops.api.search.search_items*", async (route) => {
+      requests.push(route.request().url());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ message: { items: [item("TEST-A"), item("TEST-B")] } }),
+      });
+    });
+
+    await page.locator("#item-search").fill("A");
+    await expect(page.locator("#search-results li").nth(1)).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.locator("#item-search")).toHaveAttribute("aria-activedescendant", "search-option-1");
+
+    rate = 20;
+    await page.evaluate(() => {
+      const realNow = Date.now.bind(Date);
+      Date.now = () => realNow() + 30001;
+    });
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator('#lines-body tr[data-index="0"] strong')).toHaveText("TEST-B");
+    await expect(page.locator('#lines-body tr[data-index="0"] .line-rate')).toHaveText("20.00");
+    expect(requests, "expired visible suggestions must be refreshed before Enter uses them").toHaveLength(2);
+  });
+
+  for (const releaseOrder of ["oldest-first", "newest-first"]) {
+    test("A-B-A pending search interleaving does not reuse an obsolete generation (" + releaseOrder + ")", async ({ page }) => {
+      await openAuthenticatedCounter(page);
+      const pending = [];
+      await page.route("**/api/method/khitmee_ops.api.search.search_items*", (route) => {
+        pending.push({ route, q: new URL(route.request().url()).searchParams.get("q") });
+      });
+      const fulfill = async (entry) => {
+        await entry.route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            message: {
+              items: [{ item_code: "TEST-" + entry.q, item_name: entry.q + " name", stock_uom: "Nos", rate: 10, actual_qty: 8 }],
+            },
+          }),
+        });
+      };
+
+      await page.locator("#item-search").fill("A");
+      await expect.poll(() => pending.filter((entry) => entry.q === "A").length).toBe(1);
+      await page.locator("#item-search").fill("B");
+      await expect.poll(() => pending.filter((entry) => entry.q === "B").length).toBe(1);
+      await page.locator("#item-search").fill("A");
+      await page.keyboard.press("Enter");
+      await expect.poll(() => pending.filter((entry) => entry.q === "A").length, {
+        message: "returning to A after B invalidated its generation must start a fresh lookup",
+      }).toBe(2);
+
+      const aRequests = pending.filter((entry) => entry.q === "A");
+      const bRequests = pending.filter((entry) => entry.q === "B");
+      const newestFirst = [aRequests[1], bRequests[0], aRequests[0]];
+      const oldestFirst = [aRequests[0], bRequests[0], aRequests[1]];
+      for (const entry of releaseOrder === "newest-first" ? newestFirst : oldestFirst) await fulfill(entry);
+
+      await expect(page.locator("#lines-body tr")).toHaveCount(1);
+      await expect(page.locator('#lines-body tr[data-index="0"] strong')).toHaveText("TEST-A");
+    });
+  }
+
   test("failed scan searches never add stale autocomplete items", async ({ page }) => {
     await openAuthenticatedCounter(page);
     await page.locator("#item-search").fill(itemCode(0));

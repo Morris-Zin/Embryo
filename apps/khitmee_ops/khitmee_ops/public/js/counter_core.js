@@ -27,6 +27,7 @@
 		minimumFractionDigits: 0,
 		maximumFractionDigits: 3,
 	});
+	const SEARCH_RESULT_TTL_MS = 30000;
 
 	function formatMoney(value) {
 		return moneyFormatter.format(Number(value || 0));
@@ -118,6 +119,7 @@
 			searchItems: [],
 			activeIndex: -1,
 			searchKey: "",
+			searchAt: 0,
 			searchRequestId: 0,
 			searchCache: new Map(),
 			inflightSearches: new Map(),
@@ -307,15 +309,20 @@
 			const customer = els.customer && els.customer.value ? els.customer.value : "";
 			const priceList = els.priceList && els.priceList.value ? els.priceList.value : state.context.default_price_list;
 			const searchKey = [term, searchWarehouse(), priceList, customer, config.showRates ? "rates" : "no-rates"].join("\u001f");
-			if (state.searchKey === searchKey && state.searchItems.length) return;
+			const selectedItemCode =
+				state.searchKey === searchKey && state.searchItems[state.activeIndex]
+					? state.searchItems[state.activeIndex].item_code
+					: "";
+			if (state.searchKey === searchKey && state.searchItems.length && Date.now() - state.searchAt < SEARCH_RESULT_TTL_MS) return;
 			const useCache = !!(options && options.cache);
 			const shouldRender = !options || options.render !== false;
 			if (useCache) {
 				const cached = state.searchCache.get(searchKey);
-				if (cached && Date.now() - cached.at < 30000) {
+				if (cached && Date.now() - cached.at < SEARCH_RESULT_TTL_MS) {
 					state.searchCache.delete(searchKey);
 					state.searchCache.set(searchKey, cached);
 					state.searchKey = searchKey;
+					state.searchAt = cached.at;
 					state.searchItems = cached.items;
 					state.activeIndex = state.searchItems.length ? 0 : -1;
 					if (shouldRender) renderResults();
@@ -325,6 +332,7 @@
 			let requestId;
 			let requestPromise;
 			let flight = state.inflightSearches.get(searchKey);
+			if (flight && flight.requestId !== state.searchRequestId) flight = null;
 			if (flight) {
 				if (!shouldRender) flight.render = false;
 				requestId = flight.requestId;
@@ -345,12 +353,20 @@
 			try {
 				const result = await requestPromise;
 				if (requestId !== state.searchRequestId || els.search.value.trim() !== term) return;
+				const now = Date.now();
 				state.searchKey = searchKey;
+				state.searchAt = now;
 				state.searchItems = result.items || [];
 				state.activeIndex = state.searchItems.length ? 0 : -1;
+				if (selectedItemCode) {
+					const selectedIndex = state.searchItems.findIndex(function (item) {
+						return item.item_code === selectedItemCode;
+					});
+					if (selectedIndex >= 0) state.activeIndex = selectedIndex;
+				}
 				if (useCache && state.searchItems.length) {
 					state.searchCache.delete(searchKey);
-					state.searchCache.set(searchKey, { at: Date.now(), items: state.searchItems });
+					state.searchCache.set(searchKey, { at: now, items: state.searchItems });
 					if (state.searchCache.size > 100) {
 						state.searchCache.delete(state.searchCache.keys().next().value);
 					}
@@ -577,6 +593,7 @@
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
+			state.searchAt = 0;
 			state.searchItems = [];
 			state.activeIndex = -1;
 			hideResults();
