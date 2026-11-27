@@ -21,6 +21,9 @@ const routes = arg('routes', '/khitmee_sales,/khitmee_transfer').split(',').map(
 const username = arg('username', process.env.ERPNEXT_USERNAME || 'Administrator');
 const password = arg('password', process.env.ERPNEXT_PASSWORD || process.env.ADMIN_PASSWORD || '');
 const headless = arg('headed', 'false') !== 'true';
+const stateName = arg('state', 'initial');
+const actions = JSON.parse(arg('actions', '[]'));
+if (!/^[a-z0-9][a-z0-9-]*$/.test(stateName)) throw new Error('state must be a lowercase evidence directory name');
 
 async function sha256File(file) {
   return crypto.createHash('sha256').update(await fs.readFile(file)).digest('hex');
@@ -79,13 +82,26 @@ async function main() {
 
   for (const route of routes) {
     const id = route.replace(/^\//, '').replaceAll('/', '-').replaceAll('#', '--') || 'root';
-    const screenDir = path.join(outDir, id);
+    const screenDir = stateName === 'initial' ? path.join(outDir, id) : path.join(outDir, id, stateName);
     await fs.mkdir(screenDir, { recursive: true });
     requests.length = 0;
     trace.length = 0;
     const response = await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(500);
+    for (const [index, action] of actions.entries()) {
+      const target = action.selector ? page.locator(action.selector).first() : null;
+      trace.push({ type: 'capture-action', index, action });
+      if (action.type === 'fill') await target.fill(String(action.value ?? ''));
+      else if (action.type === 'click') await target.click();
+      else if (action.type === 'press') await target.press(action.key);
+      else if (action.type === 'key') await page.keyboard.press(action.key);
+      else if (action.type === 'wait') await page.waitForTimeout(Number(action.ms || 0));
+      else if (action.type === 'select') await target.selectOption(String(action.value ?? ''));
+      else throw new Error(`unsupported capture action type: ${action.type}`);
+      await page.waitForTimeout(Number(action.settleMs ?? 150));
+    }
+    await page.waitForTimeout(250);
 
     const screenshotPath = path.join(screenDir, 'reference.png');
     await page.screenshot({ path: screenshotPath, fullPage: false, animations: 'disabled' });
@@ -138,6 +154,8 @@ async function main() {
       controls: dom.controls.length,
       title: dom.title,
       h1: dom.h1,
+      state: stateName,
+      actions,
     });
   }
 

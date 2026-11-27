@@ -12,7 +12,11 @@ function arg(name, fallback = '') {
 const port = Number(arg('port', process.env.SLINT_MCP_PORT || '49272'));
 const screenId = arg('screen', '');
 if (!screenId) throw new Error('--screen is required so evidence cannot be filed under the wrong screen');
-const outDir = path.resolve(arg('out', path.join('desktop-frontend/evidence/native', screenId)));
+const stateName = arg('state', 'initial');
+if (!/^[a-z0-9][a-z0-9-]*$/.test(stateName)) throw new Error('state must be a lowercase evidence directory name');
+const defaultOut = stateName === 'initial' ? path.join('desktop-frontend/evidence/native', screenId) : path.join('desktop-frontend/evidence/native', screenId, stateName);
+const outDir = path.resolve(arg('out', defaultOut));
+const actions = JSON.parse(arg('actions', '[]'));
 const endpoint = `http://127.0.0.1:${port}/mcp`;
 let nextId = 1;
 
@@ -45,6 +49,24 @@ function structured(result) {
   try { return JSON.parse(text); } catch { return { text }; }
 }
 
+
+const specialKeys = Object.fromEntries(Object.entries({ Enter: 10, Escape: 27, Tab: 9, Backspace: 8, F1: 0xF704, F2: 0xF705, F3: 0xF706, F4: 0xF707, F5: 0xF708, F6: 0xF709, F7: 0xF70A, F8: 0xF70B, F9: 0xF70C, F10: 0xF70D, F11: 0xF70E, F12: 0xF70F }).map(([key, code]) => [key, String.fromCharCode(code)]));
+function keyText(key) { return specialKeys[key] || key; }
+async function getTree(rootHandle) {
+  return structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
+}
+async function findTarget(rootHandle, action) {
+  const tree = await getTree(rootHandle);
+  const elements = tree.elements || [];
+  const found = elements.find((element) => {
+    if (action.elementId) return (element.typeNamesAndIds || []).some((entry) => entry === action.elementId || entry.endsWith(`::${action.elementId}`));
+    if (action.label) return element.accessibleLabel === action.label;
+    return false;
+  });
+  if (!found?.handle) throw new Error(`native target not found for action ${JSON.stringify(action)}`);
+  return found;
+}
+
 async function main() {
   await fs.mkdir(outDir, { recursive: true });
   const initialized = await rpc('initialize', {
@@ -62,7 +84,23 @@ async function main() {
   const properties = structured(await callTool('get_window_properties', { windowHandle }));
   const rootHandle = properties.rootElementHandle || properties.root_element_handle || properties.rootElement?.handle;
   if (!rootHandle) throw new Error(`No root element handle in ${JSON.stringify(properties)}`);
-  const tree = structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
+  const actionTrace = [];
+  if (actions.length) await callTool('start_event_recording', { windowHandle });
+  for (const [index, action] of actions.entries()) {
+    actionTrace.push({ index, action });
+    if (action.type === 'wait') await new Promise((resolve) => setTimeout(resolve, Number(action.ms || 0)));
+    else if (action.type === 'key') await callTool('dispatch_key_event', { windowHandle, text: keyText(action.key), eventType: 'PressAndRelease' });
+    else if (action.type === 'fill') {
+      const target = await findTarget(rootHandle, action);
+      await callTool('set_element_value', { elementHandle: target.handle, value: String(action.value ?? '') });
+    } else if (action.type === 'click') {
+      const target = await findTarget(rootHandle, action);
+      await callTool('click_element', { elementHandle: target.handle });
+    } else throw new Error(`unsupported native capture action type: ${action.type}`);
+    await new Promise((resolve) => setTimeout(resolve, Number(action.settleMs ?? 150)));
+  }
+  const eventRecording = actions.length ? structured(await callTool('stop_event_recording', { windowHandle })) : null;
+  const tree = await getTree(rootHandle);
   const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Invoice List' };
   const expectedTitle = expectedTitles[screenId];
   const titleVisibleInHeader = expectedTitle && (tree.elements || []).some((element) => {
@@ -80,6 +118,8 @@ async function main() {
   const manifest = {
     schemaVersion: 1,
     screenId,
+    state: stateName,
+    actions,
     capturedAt: new Date().toISOString(),
     server: initialized.serverInfo || {},
     screenshot: 'native.png',
@@ -88,6 +128,8 @@ async function main() {
     elementCount: tree.elements?.length ?? tree.length ?? 0,
     toolNames: (tools.tools || []).map((tool) => tool.name),
   };
+  if (eventRecording) await fs.writeFile(path.join(outDir, 'event-recording.json'), JSON.stringify(eventRecording, null, 2) + String.fromCharCode(10));
+  await fs.writeFile(path.join(outDir, 'action-trace.json'), JSON.stringify(actionTrace, null, 2) + String.fromCharCode(10));
   await fs.writeFile(path.join(outDir, 'window.json'), JSON.stringify(properties, null, 2) + '\n');
   await fs.writeFile(path.join(outDir, 'element-tree.json'), JSON.stringify(tree, null, 2) + '\n');
   await fs.writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
