@@ -124,6 +124,12 @@ The corrected `DECIMAL(21,9)` full export contained 2,601,283 rows in 108,327,91
 
 Across export plus the probe suite, the database container used 87.5 cgroup CPU-seconds and read 23.4GB from disk in 295s; the backend used 148.5 cgroup CPU-seconds while streaming CSV. The 320MiB InnoDB buffer pool cannot hold the scanned working set, so warm execution remained slow. DuckDB peak process memory stayed below the 512MB memory limit.
 
+Compact machine-readable evidence is preserved in `benchmark-evidence/year-20261127.json`. Raw large query results remain ignored benchmark artifacts and can be regenerated with the commands above.
+
+### Inventory closing-balance check
+
+The canonical stock-ledger aggregate was compared with ERPNext-generated Stock Closing Balance rows at 2026-10-27. All 64,789 warehouse/item quantities matched exactly. Twenty-one rows differed in stock value only below 0.00000002 because closing balances store FIFO-rounded valuation; this is evidence that production valuation parity must use the ERPNext oracle rather than treating additive value sums as sufficient.
+
 ### Incrementally maintained MariaDB daily summary PoC
 
 The 2,190-row date/warehouse summary table was only 245,760 bytes. Exact numeric parity passed for the additive canonical aggregate.
