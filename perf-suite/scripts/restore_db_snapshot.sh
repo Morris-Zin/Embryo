@@ -50,6 +50,7 @@ docker run --rm \
   "$IMAGE" \
   sh -c '
     set -e
+    trap 'rm -rf /from/.restore-new' EXIT
     rm -rf /from/.restore-new /from/.restore-old
     mkdir /from/.restore-new
     tar xzf "/snapshot/$SNAPSHOT_NAME" -C /from/.restore-new
@@ -64,6 +65,7 @@ docker run --rm \
       mv "$path" /from/
     done
     rmdir /from/.restore-new
+    trap - EXIT
     rm -rf /from/.restore-old
   '
 docker start "$CONTAINER" >/dev/null
