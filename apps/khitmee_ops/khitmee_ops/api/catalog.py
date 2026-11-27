@@ -103,6 +103,23 @@ def _permitted_codes(item_codes):
 	return set(permitted)
 
 
+def record_item_catalog_tombstone(doc=None, method=None, *args, **kwargs):
+	"""Record the old Item code before a delete or rename removes it from live rows."""
+	old_name = getattr(doc, "name", None) if doc is not None else None
+	if method == "after_rename":
+		old_name = kwargs.get("old_name") or kwargs.get("old") or (args[0] if args else old_name)
+	if not old_name or (method == "after_rename" and old_name == getattr(doc, "name", None)):
+		return
+	frappe.db.sql(
+		"""
+		INSERT INTO `tabKhitmee Catalog Tombstone` (`item_code`, `modified`)
+		VALUES (%s, NOW(6))
+		ON DUPLICATE KEY UPDATE `modified` = NOW(6)
+		""",
+		(old_name,),
+	)
+
+
 def _active_item_count():
 	rows = frappe.db.sql(
 		"SELECT COUNT(*) FROM `tabItem` WHERE disabled = 0 AND has_variants = 0",
@@ -151,10 +168,14 @@ def _changed_item_codes(since, warehouse):
 			SELECT bin.item_code AS item_code
 			FROM `tabBin` AS bin
 			WHERE bin.warehouse = %s AND bin.modified >= %s
+			UNION
+			SELECT tombstone.item_code AS item_code
+			FROM `tabKhitmee Catalog Tombstone` AS tombstone
+			WHERE tombstone.modified >= %s
 		) AS changed
 		ORDER BY changed.item_code
 		""",
-		(cutoff, cutoff, cutoff, warehouse, cutoff),
+		(cutoff, cutoff, cutoff, warehouse, cutoff, cutoff),
 		as_dict=False,
 	)
 	return [row[0] for row in rows]

@@ -79,6 +79,7 @@ class TestCatalogSyncState(unittest.TestCase):
 		self.assertIn("UNION", queries[0])
 		self.assertIn("`tabItem Price`", queries[0])
 		self.assertIn("`tabBin`", queries[0])
+		self.assertIn("`tabKhitmee Catalog Tombstone`", queries[0])
 		self.assertEqual(params[0][3], "Shop 1")
 		self.assertEqual(params[0][0], "2026-01-02 11:59:50.000000")
 
@@ -86,6 +87,18 @@ class TestCatalogSyncState(unittest.TestCase):
 		now = datetime(2026, 1, 2, 12, 0, 0)
 		self.assertTrue(catalog._delta_is_stale(now - timedelta(hours=24, seconds=1), now))
 		self.assertFalse(catalog._delta_is_stale(now - timedelta(hours=1), now))
+
+
+class TestCatalogTombstones(unittest.TestCase):
+	def test_trash_and_rename_record_old_item_code(self):
+		queries = []
+		catalog.frappe.db.sql = lambda query, values=None, **kwargs: queries.append((query, values)) or []
+		catalog.record_item_catalog_tombstone(SimpleNamespace(name="OLD-ITEM"), "on_trash")
+		self.assertEqual(queries[-1][1], ("OLD-ITEM",))
+		catalog.record_item_catalog_tombstone(SimpleNamespace(name="NEW-ITEM"), "after_rename", "OLD-ITEM", "NEW-ITEM", False)
+		self.assertEqual(queries[-1][1], ("OLD-ITEM",))
+		catalog.record_item_catalog_tombstone(SimpleNamespace(name="NEW-ITEM"), "after_rename", "NEW-ITEM", "NEW-ITEM", False)
+		self.assertEqual(len(queries), 2)
 
 
 class TestCatalogEndpoint(unittest.TestCase):
