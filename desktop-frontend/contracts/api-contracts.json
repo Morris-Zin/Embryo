@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "authority": "ERPNext remains authoritative for financial transactions, inventory mutations, permissions and pricing",
+  "contracts": [
+    {
+      "endpoint": "khitmee_ops.api.catalog.sync_catalog",
+      "method": "POST",
+      "mutation": false,
+      "parameters": {
+        "warehouse": "required non-group enabled Warehouse readable by the user",
+        "price_list": "required enabled selling Price List readable by the user",
+        "state": "optional JSON sync token/state previously returned by server",
+        "customer": "optional readable Customer for customer-specific pricing"
+      },
+      "response": {
+        "schema_version": 1,
+        "reset": "boolean; true on schema/scope/permission/staleness/date boundary mismatch",
+        "sync_token": "canonical JSON state token",
+        "server_time": "server timestamp with microsecond precision",
+        "stale_after_seconds": 120,
+        "complete": "false when active catalog exceeds safety cap",
+        "items": "public catalog rows or tombstones {item_code,deleted:true}"
+      },
+      "securityInvariants": [
+        "Only public counter fields are returned; supplier, purchase-rate, cost and valuation fields are excluded",
+        "Permission-restricted deployments force reset instead of leaking item-code tombstones",
+        "Deltas intentionally overlap by 10 seconds and are idempotent",
+        "Rates/quantities are advisory snapshots; submission revalidates in ERPNext"
+      ]
+    },
+    {
+      "endpoint": "khitmee_ops.api.search.search_items",
+      "method": "POST",
+      "mutation": false,
+      "parameters": {
+        "q": "search term or barcode",
+        "warehouse": "required readable Warehouse",
+        "price_list": "required when include_rates is true",
+        "limit": "clamped to 1..25",
+        "customer": "optional customer-specific pricing context",
+        "uom": "optional UOM conversion context",
+        "include_rates": "boolean-ish server-parsed flag"
+      },
+      "response": {
+        "items": "public item rows ranked exact barcode, prefix, then substring"
+      },
+      "securityInvariants": [
+        "Searchable field allowlist is name/item_code/item_name/item_group/brand plus barcodes",
+        "Permission filtering is applied before public rows are returned",
+        "Client-side ranking must preserve exact barcode then prefix then substring ordering"
+      ]
+    },
+    {
+      "endpoint": "khitmee_ops.api.vouchers.submit_sale",
+      "method": "POST",
+      "mutation": true,
+      "parameters": {
+        "client_voucher_id": "required normalized client idempotency key",
+        "warehouse": "required readable Warehouse",
+        "customer": "required Customer",
+        "price_list": "required enabled selling Price List",
+        "items": "array of {item_code, qty, uom?, rate?}",
+        "payment_mode": "optional Mode of Payment",
+        "printer_type": "voucher or a4",
+        "override_rate": "requires explicit Sales Invoice write permission"
+      },
+      "response": {
+        "voucher_no": "authoritative submitted Sales Invoice name",
+        "receipt_payload": "server-built print payload"
+      },
+      "securityInvariants": [
+        "ERPNext creates and submits the Sales Invoice",
+        "Client-supplied rates are ignored unless override_rate is authorized",
+        "Idempotency keys bind to canonical request fingerprints",
+        "Concurrent replays never create duplicate financial documents",
+        "The native client must not construct authoritative totals or bypass this endpoint"
+      ]
+    }
+  ]
+}

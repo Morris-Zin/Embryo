@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-27T11:57:30Z",
+  "passed": false,
+  "results": [
+    {
+      "screen": "sales-voucher",
+      "passed": false,
+      "failures": [
+        "missing reference-screenshot: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\reference.png",
+        "missing native-screenshot: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\native.png",
+        "missing reference-dom: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\dom.json",
+        "missing reference-trace: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\trace.json",
+        "missing native-element-tree: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\element-tree.json",
+        "business outcome evidence missing",
+        "performance evidence missing"
+      ],
+      "checks": {
+        "reference-screenshot": {
+          "passed": false,
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\reference.png"
+        },
+        "native-screenshot": {
+          "passed": false,
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\native.png"
+        },
+        "reference-dom": {
+          "passed": false,
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\dom.json"
+        },
+        "reference-trace": {
+          "passed": false,
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\trace.json"
+        },
+        "native-element-tree": {
+          "passed": false,
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\element-tree.json"
+        },
+        "business-outcome": {
+          "passed": false,
+          "error": "business outcome report missing"
+        },
+        "performance": {
+          "passed": false,
+          "error": "performance report missing"
+        }
+      }
+    }
+  ]
+}

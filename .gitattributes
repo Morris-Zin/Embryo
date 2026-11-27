@@ -1,0 +1,2 @@
+*.sh text eol=lf
+*.slint text eol=lf
