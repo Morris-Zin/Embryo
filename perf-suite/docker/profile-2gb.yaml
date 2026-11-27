@@ -55,7 +55,7 @@ services:
       - --preload
       - --max-requests=1500
       - --max-requests-jitter=300
-      - khitmee_ops.preload_wsgi:application
+      - frappe.app:application
 
   queue:
     image: ${CUSTOM_IMAGE:-frappe/erpnext}:${CUSTOM_TAG:-v16.60.0}
@@ -64,8 +64,6 @@ services:
     platform: linux/amd64
     mem_limit: 144m
     environment:
-      KHITMEE_PREWARM_CATALOG: "1"
-      KHITMEE_WORKER_RECYCLE_RSS_MB: "140"
       MALLOC_ARENA_MAX: "2"
     command:
       - bench
