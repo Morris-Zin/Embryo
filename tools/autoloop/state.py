@@ -273,6 +273,7 @@ def init_run(
             "pr_number": pr_number,
             "base_branch": base_branch,
             "base_sha": resolved_base_sha,
+            "last_integrated_sha": None,
             "merge_mode": merge_mode,
             "contract_revision": 0,
             "contract_sha256": None,
@@ -326,6 +327,11 @@ def complete_grill(
             state["reviewers"]["deep"] = bool(deep_review)
         state["allowed_paths"] = list(allowed_paths or [])
         state["allow_policy_paths"] = list(allow_policy_paths or [])
+        unknown_check_shards = sorted(set((shard_checks or {}).keys()) - set(shards.keys()))
+        if unknown_check_shards:
+            raise IllegalTransitionError(
+                f"shard_checks references unknown shard(s): {', '.join(unknown_check_shards)}"
+            )
         shard_map: dict[str, Any] = {}
         for sid, paths in shards.items():
             if not paths:
@@ -371,6 +377,7 @@ def lock_run(
         _write_trusted_contract(repo, contract)
         for sdata in state["shards"].values():
             sdata["status"] = "locked"
+            sdata["has_passed_individually"] = False
             if not sdata.get("last_green_sha"):
                 sdata["last_green_sha"] = state.get("base_sha")
         state["status"] = "locked"
@@ -549,10 +556,12 @@ def refresh_base(
         if state.get("pending_contract_amendments"):
             raise IllegalTransitionError("cannot refresh-base while contract amendments are pending")
         state["base_sha"] = resolved_base
+        state["last_integrated_sha"] = None
         for sdata in state["shards"].values():
             sdata["status"] = "locked"
             sdata["worker_strikes"] = 0
             sdata["passed_code_tree_sha256"] = None
+            sdata["has_passed_individually"] = False
             sdata["last_green_sha"] = resolved_base
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
@@ -635,13 +644,18 @@ def record_all_shards_pass(
                     f"cannot integrate shard {sid!r} from status {sdata['status']!r}"
                 )
         eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
+        if head_sha:
+            state["last_integrated_sha"] = head_sha
+        single_shard = len(state["shards"]) == 1
         for sdata in state["shards"].values():
             sdata["status"] = "passed"
             sdata["worker_strikes"] = 0
             sdata["pending_dead_end_sig"] = None
             sdata["passed_code_tree_sha256"] = eff_code_hash
-            if head_sha:
-                sdata["last_green_sha"] = head_sha
+            if single_shard:
+                sdata["has_passed_individually"] = True
+                if head_sha:
+                    sdata["last_green_sha"] = head_sha
         _apply_post_pass_status(state, prev_status, eff_code_hash)
         state["history"].append(
             {
@@ -668,9 +682,13 @@ def retry_shard(
     """Record a failed shard attempt; enforce strikes/replan/max-attempts & safe rollback restore (exit 4)."""
     with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
         state = load_run(repo, run_id)
-        _require_status(state, ("in_progress", "retrying"), "retry-shard")
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "safeguard_pending", "ready_to_merge"),
+            "retry-shard",
+        )
         shard = _require_shard(state, shard_id)
-        if shard["status"] not in ("in_progress", "retrying"):
+        if shard["status"] not in ("in_progress", "retrying", "passed"):
             raise IllegalTransitionError(
                 f"cannot retry shard {shard_id!r} from status {shard['status']!r}"
             )
@@ -721,6 +739,7 @@ def retry_shard(
             shard["status"] = "retrying"
             reason = f"strike {shard['worker_strikes']}/{max_strikes}"
 
+        state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
         hist_entry: dict[str, Any] = {
             "at": utc_now(),
@@ -843,6 +862,7 @@ def apply_replan(
             shard["status"] = "locked"
             shard["worker_strikes"] = 0
             shard["passed_code_tree_sha256"] = None
+            shard["has_passed_individually"] = False
         state["status"] = derive_run_status(state)
         state["history"].append(
             {
@@ -886,13 +906,17 @@ def resolve_contract_change(
                 for sid, cmds in shard_checks.items():
                     shard = _require_shard(state, sid)
                     shard["checks"] = list(cmds)
+                    shard["has_passed_individually"] = False
+                    shard["passed_code_tree_sha256"] = None
             if new_base_sha:
                 resolved_base = git_rev_parse(repo, new_base_sha)
                 state["base_sha"] = resolved_base
+                state["last_integrated_sha"] = None
                 for sdata in state["shards"].values():
                     sdata["status"] = "locked"
                     sdata["worker_strikes"] = 0
                     sdata["passed_code_tree_sha256"] = None
+                    sdata["has_passed_individually"] = False
                     sdata["last_green_sha"] = resolved_base
             state["contract_revision"] = int(state.get("contract_revision") or 0) + 1
             contract = _build_frozen_contract(state)
@@ -905,6 +929,7 @@ def resolve_contract_change(
                 sdata["status"] = "locked"
                 sdata["worker_strikes"] = 0
                 sdata["passed_code_tree_sha256"] = None
+                sdata["has_passed_individually"] = False
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
         state["history"].append(
@@ -944,6 +969,8 @@ def human_resolve(
                 shard = _require_shard(state, sid)
                 shard["status"] = "locked"
                 shard["worker_strikes"] = 0
+                shard["passed_code_tree_sha256"] = None
+                shard["has_passed_individually"] = False
             state["status"] = derive_run_status(state)
         state["history"].append(
             {"at": utc_now(), "event": "human-resolve", "action": action, "note": note, "status": state["status"]}

@@ -679,7 +679,10 @@ def format_contract_comment(contract: dict[str, Any]) -> str:
     rev = int(contract["contract_revision"])
     digest = contract_sha256(contract)
     pretty = json.dumps(contract, indent=2, sort_keys=True)
-    return f"<!-- autoloop-contract:v1 rev={rev} sha256={digest} -->\n```json\n{pretty}\n```\n"
+    pr_line = ""
+    if contract.get("pr_number") is not None:
+        pr_line = f"Bound PR: #{int(contract['pr_number'])}\n"
+    return f"<!-- autoloop-contract:v1 rev={rev} sha256={digest} -->\n{pr_line}```json\n{pretty}\n```\n"
 
 
 def _is_comment_owner_authentic(comment: dict[str, Any], trusted_owners: set[str]) -> bool:
@@ -1010,6 +1013,82 @@ class GitHubAPIClient:
                 break
             after = page_info.get("endCursor")
         return threads
+
+    def find_contract_issue_numbers(self, pr_number: int) -> list[int]:
+        """Discover issue numbers linked via PR timeline or containing autoloop-contract markers.
+
+        Uses only `issues: read` + `pull-requests: read` so PR body/commit edits cannot sever
+        issue-only enrollment.
+        """
+        found: set[int] = set()
+        timeline_query = """
+        query($owner: String!, $name: String!, $number: Int!, $after: String) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $number) {
+              timelineItems(first: 100, after: $after, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT]) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  __typename
+                  ... on CrossReferencedEvent {
+                    source {
+                      __typename
+                      ... on Issue { number }
+                    }
+                  }
+                  ... on ConnectedEvent {
+                    subject {
+                      __typename
+                      ... on Issue { number }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        after = None
+        while True:
+            data = self._graphql(
+                timeline_query,
+                {"owner": self.owner, "name": self.repo_name, "number": int(pr_number), "after": after},
+            )
+            node = ((data.get("repository") or {}).get("pullRequest") or {}).get("timelineItems") or {}
+            for item in node.get("nodes") or []:
+                if not isinstance(item, dict):
+                    continue
+                src = item.get("source") if item.get("__typename") == "CrossReferencedEvent" else item.get("subject")
+                if isinstance(src, dict) and src.get("__typename") == "Issue" and isinstance(src.get("number"), int):
+                    found.add(int(src["number"]))
+            page_info = node.get("pageInfo") or {}
+            if not page_info.get("hasNextPage"):
+                break
+            after = page_info.get("endCursor")
+
+        search_query = """
+        query($q: String!, $after: String) {
+          search(query: $q, type: ISSUE, first: 100, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              __typename
+              ... on Issue { number }
+            }
+          }
+        }
+        """
+        q_str = f'repo:{self.repo_slug} is:issue "autoloop.v1" "pr_number" {int(pr_number)}'
+        after = None
+        while True:
+            data = self._graphql(search_query, {"q": q_str, "after": after})
+            node = data.get("search") or {}
+            for item in node.get("nodes") or []:
+                if isinstance(item, dict) and item.get("__typename") == "Issue" and isinstance(item.get("number"), int):
+                    found.add(int(item["number"]))
+            page_info = node.get("pageInfo") or {}
+            if not page_info.get("hasNextPage"):
+                break
+            after = page_info.get("endCursor")
+        return sorted(found)
 
 
 def _has_owner_label_event(events: list[dict[str, Any]], label_name: str, trusted_owners: set[str]) -> bool:
@@ -1377,10 +1456,6 @@ def verify_pr_integrity(
         pr_comments = github_client.get_issue_comments_graphql(pr_number)
         pr_reviews = github_client.get_pr_reviews(pr_number)
         pr_commits_api = github_client.get_pr_commits(pr_number)
-        if hasattr(github_client, "get_pr_review_threads"):
-            pr_review_threads = github_client.get_pr_review_threads(pr_number)
-        if mode == "finalize" and hasattr(github_client, "get_check_runs"):
-            pr_check_runs = github_client.get_check_runs(resolved_head)
 
     label_set = set(pr_labels)
     has_autoloop_label = "autoloop" in label_set
@@ -1399,9 +1474,16 @@ def verify_pr_integrity(
     pr_bound_contract = pr_contracts[0] if pr_contracts else None
 
     # Resolve linked issue comments BEFORE early non-enrolled exit so issue-only enrollment is sticky!
-    referenced_issues = _extract_referenced_issue_numbers(
-        repo, mb_target, resolved_head, pr_body, pr_comments, present_run_paths, trusted_owners
+    referenced_issues_set = set(
+        _extract_referenced_issue_numbers(
+            repo, mb_target, resolved_head, pr_body, pr_comments, present_run_paths, trusted_owners
+        )
     )
+    if github_client is not None and hasattr(github_client, "find_contract_issue_numbers"):
+        for inum in github_client.find_contract_issue_numbers(pr_number):
+            if isinstance(inum, int) and inum > 0:
+                referenced_issues_set.add(inum)
+    referenced_issues = sorted(referenced_issues_set)
     issue_comments_cache: dict[int, list[dict[str, Any]]] = {}
     issue_bound_contracts: list[dict[str, Any]] = []
     if github_client is not None and referenced_issues:
@@ -1628,7 +1710,7 @@ def verify_pr_integrity(
             "shard_checks": shard_checks_payload,
         }
 
-    # --- Finalize Mode: Independent Shard Results, Review, Threads & Safeguard Artifacts ---
+    # --- Finalize Mode: Independent Shard Results, Review & Safeguard Artifacts ---
     if candidate_checks_result is not None:
         if candidate_checks_result != "success":
             raise GuardError(
@@ -1642,6 +1724,8 @@ def verify_pr_integrity(
         if not shard_exec_verified:
             raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
     else:
+        if github_client is not None and hasattr(github_client, "get_check_runs"):
+            pr_check_runs = github_client.get_check_runs(resolved_head)
         shard_exec_verified = any(
             cr.get("name") == "autoloop-candidate-checks"
             and cr.get("status") == "completed"
@@ -1667,12 +1751,11 @@ def verify_pr_integrity(
     if run_data.get("status") != "ready_to_merge":
         raise GuardError(f"enrolled PR run status must be 'ready_to_merge', got {run_data.get('status')!r}")
 
-    # Verify no unresolved review threads on PR
+    # Conversation resolution is enforced natively by the GitHub Ruleset (`required_review_thread_resolution: true`)
+    # because GitHub Actions does not trigger on thread-resolution events; surface count as telemetry only.
+    if github_client is not None and hasattr(github_client, "get_pr_review_threads"):
+        pr_review_threads = github_client.get_pr_review_threads(pr_number)
     unresolved_threads = [t for t in pr_review_threads if not t.get("isResolved")]
-    if unresolved_threads:
-        raise GuardError(
-            f"enrolled PR has {len(unresolved_threads)} unresolved review thread(s)"
-        )
 
     # Cross-check independent owner-declared findings + run findings + safeguard artifacts on tree
     findings = run_data.get("findings") or {}
@@ -1774,4 +1857,5 @@ def verify_pr_integrity(
         "code_tree_sha256": actual_code_hash,
         "merge_tree_oid": merge_tree_oid,
         "shard_checks": shard_checks_payload,
+        "unresolved_review_threads": len(unresolved_threads),
     }

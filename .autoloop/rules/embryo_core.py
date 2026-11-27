@@ -344,6 +344,47 @@ def _dict_comp_strips_key(node: ast.DictComp, key_name: str) -> bool:
     return False
 
 
+def _is_falsy_const(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value in (False, 0, None, "")
+
+
+def _stmt_always_exits(stmts: list[ast.stmt]) -> bool:
+    for stmt in stmts:
+        if isinstance(stmt, (ast.Return, ast.Raise)):
+            return True
+        if isinstance(stmt, ast.If) and stmt.orelse:
+            if _stmt_always_exits(stmt.body) and _stmt_always_exits(stmt.orelse):
+                return True
+    return False
+
+
+def _dict_explicitly_falsy_key(node: ast.Dict, key_name: str) -> bool:
+    safe = False
+    for dk, dv in zip(node.keys, node.values):
+        if dk is None:
+            safe = False
+        elif isinstance(dk, ast.Constant) and dk.value == key_name:
+            safe = _is_falsy_const(dv)
+    return safe
+
+
+def _dict_unsanitized_forward(node: ast.Dict, sanitized: set[str]) -> str | None:
+    """Return an unsanitized source name if `**{...}` forwards an unstripped mapping or unknown flag."""
+    unsafe_src: str | None = None
+    for dk, dv in zip(node.keys, node.values):
+        if dk is None:
+            src = _dotted_call_name(dv)
+            if src in ("frappe.form_dict", "form_dict", "kwargs") and src not in sanitized:
+                unsafe_src = src
+        elif isinstance(dk, ast.Constant) and dk.value == "export_in_background":
+            if _is_falsy_const(dv):
+                unsafe_src = None
+            elif not _is_truthy_const(dv):
+                # Unknown dynamic value (e.g. `flag`) may be truthy at runtime
+                unsafe_src = unsafe_src or "export_in_background"
+    return unsafe_src
+
+
 def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
     """Rule 3: Ban truthy `export_in_background` or unstripped forwarding in apps/khitmee_ops report handlers."""
     rule_id = "no-background-email-export"
@@ -363,119 +404,217 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
         if not is_report_handler:
             continue
 
-        # Collect stripped variable names per function scope (e.g. kwargs.pop("export_in_background", None))
-        stripped_in_funcs: list[tuple[ast.AST, set[str]]] = []
-        for fn in ast.walk(tree):
-            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                stripped: set[str] = set()
-                for sub in ast.walk(fn):
-                    if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) and sub.func.attr == "pop":
-                        if sub.args and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == "export_in_background":
-                            stripped.add(_dotted_call_name(sub.func.value))
-                    elif isinstance(sub, ast.Delete):
-                        for dtgt in sub.targets:
-                            if (
-                                isinstance(dtgt, ast.Subscript)
-                                and isinstance(dtgt.slice, ast.Constant)
-                                and dtgt.slice.value == "export_in_background"
-                            ):
-                                stripped.add(_dotted_call_name(dtgt.value))
-                    elif isinstance(sub, ast.Assign) and not _is_truthy_const(sub.value):
-                        for atgt in sub.targets:
-                            if (
-                                isinstance(atgt, ast.Subscript)
-                                and isinstance(atgt.slice, ast.Constant)
-                                and atgt.slice.value == "export_in_background"
-                            ):
-                                stripped.add(_dotted_call_name(atgt.value))
-                    elif isinstance(sub, ast.Assign) and isinstance(sub.value, ast.DictComp) and _dict_comp_strips_key(
-                        sub.value, "export_in_background"
-                    ):
-                        for atgt in sub.targets:
-                            if isinstance(atgt, ast.Name):
-                                stripped.add(atgt.id)
-                stripped_in_funcs.append((fn, stripped))
-
-        def _is_stripped_for_node(call_node: ast.Call, var_name: str) -> bool:
-            for fn, stripped_vars in stripped_in_funcs:
-                if call_node in ast.walk(fn) and var_name in stripped_vars:
-                    return True
-            return False
-
-        for node in ast.walk(tree):
-            # Direct keyword arg: export_in_background=True / 1
-            if isinstance(node, ast.Call):
-                for kw in node.keywords:
-                    if kw.arg == "export_in_background" and _is_truthy_const(kw.value):
-                        violations.append(
-                            _v(
-                                rule_id,
-                                path,
-                                getattr(kw, "lineno", node.lineno),
-                                "truthy export_in_background is forbidden in report handlers",
-                            )
-                        )
-                # Unstripped forwarding of form_dict / kwargs into export helpers
-                call_leaf = _dotted_call_name(node.func).rsplit(".", 1)[-1]
-                if call_leaf in export_call_names:
+        def _check_expr(expr: ast.AST, sanitized: set[str]) -> None:
+            stack: list[ast.AST] = [expr]
+            while stack:
+                node = stack.pop()
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                    if isinstance(node, ast.Lambda):
+                        _check_expr(node.body, set())
+                    continue
+                if isinstance(node, ast.Call):
                     for kw in node.keywords:
-                        if kw.arg is None:
-                            if isinstance(kw.value, ast.DictComp) and _dict_comp_strips_key(
-                                kw.value, "export_in_background"
-                            ):
-                                continue
-                            if isinstance(kw.value, ast.Dict):
-                                dict_safe = False
-                                for dk, dv in zip(kw.value.keys, kw.value.values):
-                                    if (
-                                        isinstance(dk, ast.Constant)
-                                        and dk.value == "export_in_background"
-                                        and not _is_truthy_const(dv)
-                                    ):
-                                        dict_safe = True
-                                if dict_safe:
-                                    continue
-                            forwarded = _dotted_call_name(kw.value)
-                            if forwarded in ("frappe.form_dict", "form_dict", "kwargs") and not _is_stripped_for_node(
-                                node, forwarded
-                            ):
-                                violations.append(
-                                    _v(
-                                        rule_id,
-                                        path,
-                                        getattr(node, "lineno", 1),
-                                        f"unstripped **{forwarded} forwarding into {call_leaf}() may enable export_in_background",
-                                    )
+                        if kw.arg == "export_in_background" and _is_truthy_const(kw.value):
+                            violations.append(
+                                _v(
+                                    rule_id,
+                                    path,
+                                    getattr(kw, "lineno", node.lineno),
+                                    "truthy export_in_background is forbidden in report handlers",
                                 )
-            # Dict literal: {"export_in_background": True/1}
-            if isinstance(node, ast.Dict):
-                for k, val in zip(node.keys, node.values):
-                    if isinstance(k, ast.Constant) and k.value == "export_in_background" and _is_truthy_const(val):
-                        violations.append(
-                            _v(
-                                rule_id,
-                                path,
-                                getattr(k, "lineno", node.lineno),
-                                "truthy 'export_in_background' dict entry is forbidden in report handlers",
                             )
-                        )
-            # Subscript assignment: payload["export_in_background"] = True
-            if isinstance(node, ast.Assign):
-                if _is_truthy_const(node.value):
-                    for tgt in node.targets:
+                    call_leaf = _dotted_call_name(node.func).rsplit(".", 1)[-1]
+                    if call_leaf in export_call_names:
+                        for kw in node.keywords:
+                            if kw.arg is None:
+                                if isinstance(kw.value, ast.DictComp) and _dict_comp_strips_key(
+                                    kw.value, "export_in_background"
+                                ):
+                                    continue
+                                if isinstance(kw.value, ast.Dict):
+                                    unsafe_src = _dict_unsanitized_forward(kw.value, sanitized)
+                                    if unsafe_src is not None:
+                                        violations.append(
+                                            _v(
+                                                rule_id,
+                                                path,
+                                                getattr(node, "lineno", 1),
+                                                f"unstripped **{unsafe_src} forwarding into {call_leaf}() may enable export_in_background",
+                                            )
+                                        )
+                                    continue
+                                forwarded = _dotted_call_name(kw.value)
+                                if forwarded in ("frappe.form_dict", "form_dict", "kwargs") and (
+                                    forwarded not in sanitized
+                                ):
+                                    violations.append(
+                                        _v(
+                                            rule_id,
+                                            path,
+                                            getattr(node, "lineno", 1),
+                                            f"unstripped **{forwarded} forwarding into {call_leaf}() may enable export_in_background",
+                                        )
+                                    )
+                elif isinstance(node, ast.Dict):
+                    for k, val in zip(node.keys, node.values):
                         if (
-                            isinstance(tgt, ast.Subscript)
-                            and isinstance(tgt.slice, ast.Constant)
-                            and tgt.slice.value == "export_in_background"
+                            isinstance(k, ast.Constant)
+                            and k.value == "export_in_background"
+                            and _is_truthy_const(val)
                         ):
                             violations.append(
                                 _v(
                                     rule_id,
                                     path,
-                                    getattr(node, "lineno", 1),
-                                    "assigning truthy export_in_background is forbidden in report handlers",
+                                    getattr(k, "lineno", node.lineno),
+                                    "truthy 'export_in_background' dict entry is forbidden in report handlers",
                                 )
                             )
+                for child in ast.iter_child_nodes(node):
+                    stack.append(child)
+
+        def _pop_target(expr: ast.AST) -> str | None:
+            if (
+                isinstance(expr, ast.Call)
+                and isinstance(expr.func, ast.Attribute)
+                and expr.func.attr == "pop"
+                and expr.args
+                and isinstance(expr.args[0], ast.Constant)
+                and expr.args[0].value == "export_in_background"
+            ):
+                return _dotted_call_name(expr.func.value)
+            return None
+
+        def _update_sanitized_from_assign(targets: list[ast.expr], value: ast.expr, sanitized: set[str]) -> None:
+            popped = _pop_target(value)
+            if popped:
+                sanitized.add(popped)
+            is_safe_comp = isinstance(value, ast.DictComp) and _dict_comp_strips_key(value, "export_in_background")
+            is_safe_dict = isinstance(value, ast.Dict) and _dict_explicitly_falsy_key(value, "export_in_background")
+            is_falsy_val = _is_falsy_const(value)
+            is_truthy_val = _is_truthy_const(value)
+
+            for tgt in targets:
+                if (
+                    isinstance(tgt, ast.Subscript)
+                    and isinstance(tgt.slice, ast.Constant)
+                    and tgt.slice.value == "export_in_background"
+                ):
+                    if is_truthy_val:
+                        violations.append(
+                            _v(
+                                rule_id,
+                                path,
+                                getattr(tgt, "lineno", 1),
+                                "assigning truthy export_in_background is forbidden in report handlers",
+                            )
+                        )
+                    target_name = _dotted_call_name(tgt.value)
+                    if is_falsy_val:
+                        sanitized.add(target_name)
+                    else:
+                        sanitized.discard(target_name)
+                elif isinstance(tgt, (ast.Name, ast.Attribute)):
+                    target_name = _dotted_call_name(tgt)
+                    if is_safe_comp or is_safe_dict:
+                        sanitized.add(target_name)
+                    else:
+                        sanitized.discard(target_name)
+                elif isinstance(tgt, (ast.Tuple, ast.List)):
+                    for elt in tgt.elts:
+                        if isinstance(elt, (ast.Name, ast.Attribute)):
+                            sanitized.discard(_dotted_call_name(elt))
+
+        def _scan_block(stmts: list[ast.stmt], sanitized: set[str]) -> set[str]:
+            cur = set(sanitized)
+            for stmt in stmts:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for dec in stmt.decorator_list:
+                        _check_expr(dec, cur)
+                    for default in list(stmt.args.defaults) + [d for d in stmt.args.kw_defaults if d is not None]:
+                        _check_expr(default, cur)
+                    _scan_block(stmt.body, set())
+                    continue
+                if isinstance(stmt, ast.ClassDef):
+                    for dec in stmt.decorator_list:
+                        _check_expr(dec, cur)
+                    for base in stmt.bases:
+                        _check_expr(base, cur)
+                    _scan_block(stmt.body, set())
+                    continue
+                if isinstance(stmt, ast.Expr):
+                    _check_expr(stmt.value, cur)
+                    popped = _pop_target(stmt.value)
+                    if popped:
+                        cur.add(popped)
+                elif isinstance(stmt, ast.Assign):
+                    _check_expr(stmt.value, cur)
+                    _update_sanitized_from_assign(stmt.targets, stmt.value, cur)
+                elif isinstance(stmt, ast.AnnAssign):
+                    if stmt.value is not None:
+                        _check_expr(stmt.value, cur)
+                        _update_sanitized_from_assign([stmt.target], stmt.value, cur)
+                elif isinstance(stmt, ast.Delete):
+                    for dtgt in stmt.targets:
+                        if (
+                            isinstance(dtgt, ast.Subscript)
+                            and isinstance(dtgt.slice, ast.Constant)
+                            and dtgt.slice.value == "export_in_background"
+                        ):
+                            cur.add(_dotted_call_name(dtgt.value))
+                        elif isinstance(dtgt, (ast.Name, ast.Attribute)):
+                            cur.discard(_dotted_call_name(dtgt))
+                elif isinstance(stmt, ast.If):
+                    _check_expr(stmt.test, cur)
+                    then_san = _scan_block(stmt.body, set(cur))
+                    else_san = _scan_block(stmt.orelse, set(cur))
+                    then_exits = _stmt_always_exits(stmt.body)
+                    else_exits = _stmt_always_exits(stmt.orelse) if stmt.orelse else False
+                    if then_exits and not else_exits:
+                        cur = else_san
+                    elif else_exits and not then_exits:
+                        cur = then_san
+                    else:
+                        cur = then_san & else_san
+                elif isinstance(stmt, (ast.For, ast.AsyncFor)):
+                    _check_expr(stmt.iter, cur)
+                    body_san = _scan_block(stmt.body, set(cur))
+                    else_san = _scan_block(stmt.orelse, set(cur)) if stmt.orelse else set(cur)
+                    cur = cur & body_san & else_san
+                elif isinstance(stmt, ast.While):
+                    _check_expr(stmt.test, cur)
+                    body_san = _scan_block(stmt.body, set(cur))
+                    else_san = _scan_block(stmt.orelse, set(cur)) if stmt.orelse else set(cur)
+                    cur = cur & body_san & else_san
+                elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+                    for item in stmt.items:
+                        _check_expr(item.context_expr, cur)
+                        if item.optional_vars is not None and isinstance(item.optional_vars, (ast.Name, ast.Attribute)):
+                            cur.discard(_dotted_call_name(item.optional_vars))
+                    cur = _scan_block(stmt.body, cur)
+                elif isinstance(stmt, ast.Try):
+                    body_san = _scan_block(stmt.body, set(cur))
+                    else_san = _scan_block(stmt.orelse, set(body_san)) if stmt.orelse else body_san
+                    paths: list[set[str]] = []
+                    if not _stmt_always_exits(stmt.body) and not _stmt_always_exits(stmt.orelse):
+                        paths.append(else_san)
+                    for handler in stmt.handlers:
+                        h_san = _scan_block(handler.body, set(cur))
+                        if not _stmt_always_exits(handler.body):
+                            paths.append(h_san)
+                    if paths:
+                        merged = set(paths[0])
+                        for p in paths[1:]:
+                            merged &= p
+                        cur = merged
+                    if stmt.finalbody:
+                        cur = _scan_block(stmt.finalbody, cur)
+                else:
+                    for child in ast.iter_child_nodes(stmt):
+                        _check_expr(child, cur)
+            return cur
+
+        _scan_block(tree.body, set())
     return violations
 
 

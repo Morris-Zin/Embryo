@@ -124,6 +124,8 @@ class FakeGitHubClient:
         commit_lookup: dict[str, dict] | None = None,
         review_threads: list[dict] | None = None,
         check_runs: dict[str, list[dict]] | None = None,
+        contract_issue_numbers: list[int] | None = None,
+        forbid_check_runs: bool = False,
     ) -> None:
         self._events = list(pr_events or [])
         self._comments = {k: list(v) for k, v in (comments_by_number or {}).items()}
@@ -132,6 +134,8 @@ class FakeGitHubClient:
         self._commit_lookup = dict(commit_lookup or {})
         self._review_threads = list(review_threads or [])
         self._check_runs = dict(check_runs or {})
+        self._contract_issue_numbers = list(contract_issue_numbers or [])
+        self._forbid_check_runs = bool(forbid_check_runs)
 
     def get_pr_events(self, pr_number: int) -> list[dict]:
         return list(self._events)
@@ -156,7 +160,12 @@ class FakeGitHubClient:
     def get_pr_review_threads(self, pr_number: int) -> list[dict]:
         return list(self._review_threads)
 
+    def find_contract_issue_numbers(self, pr_number: int) -> list[int]:
+        return list(self._contract_issue_numbers)
+
     def get_check_runs(self, ref: str) -> list[dict]:
+        if self._forbid_check_runs:
+            raise GuardError("403 Resource not accessible by integration (checks:read absent)")
         return list(self._check_runs.get(ref, []))
 
 
@@ -1398,20 +1407,23 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
                 pr_labels=[], github_client=gh_superseded, candidate_checks_result="success",
             )
 
-        # Unresolved review thread MUST fail even with approval!
+        # Unresolved review thread is surfaced as telemetry (not a deadlocking CI error,
+        # since native GitHub Ruleset enforces required_review_thread_resolution), AND
+        # finalize with candidate_checks_result must NEVER call get_check_runs (no checks:read needed).
         gh_unresolved = FakeGitHubClient(
             comments_by_number={
                 20: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
             },
             pr_reviews=[{"id": 3, "user": "alice", "state": "APPROVED", "commit_id": pr_head}],
             review_threads=[{"id": "PRRT_1", "isResolved": False, "comments": [{"author": "alice", "body": "Fix"}]}],
+            forbid_check_runs=True,
         )
-        with self.assertRaises(GuardError) as ctx_th:
-            verify_pr_integrity(
-                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
-                pr_labels=[], github_client=gh_unresolved, candidate_checks_result="success",
-            )
-        self.assertIn("unresolved review thread", str(ctx_th.exception))
+        fin_unres = verify_pr_integrity(
+            self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
+            pr_labels=[], github_client=gh_unresolved, mode="finalize", candidate_checks_result="success",
+        )
+        self.assertEqual(fin_unres["verdict"], "enrolled-pass")
+        self.assertEqual(fin_unres["unresolved_review_threads"], 1)
 
         # Preflight returns frozen shard checks; Finalize passes when thread resolved & approval clean
         gh_ok = FakeGitHubClient(
@@ -1420,6 +1432,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             },
             pr_reviews=[{"id": 3, "user": "alice", "state": "APPROVED", "commit_id": pr_head}],
             review_threads=[{"id": "PRRT_1", "isResolved": True, "comments": [{"author": "alice", "body": "Fix"}]}],
+            forbid_check_runs=True,
         )
         pre = verify_pr_integrity(
             self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
@@ -1432,6 +1445,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             pr_labels=[], github_client=gh_ok, mode="finalize", candidate_checks_result="success",
         )
         self.assertEqual(fin["verdict"], "enrolled-pass")
+        self.assertEqual(fin["unresolved_review_threads"], 0)
 
     def test_unattributed_stacked_commit_rejected_on_policy_exception(self) -> None:
         _git(self.repo, "checkout", "-b", "stack-base")
@@ -1746,6 +1760,288 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         self.assertFalse(any(v.rule_id == "autoloop-skill-parity-and-optin" for v in v7_empty))
         v7_one = evaluate_file_map(rules_dir, {"tools/autoloop/skill/SKILL.md": base_skills["tools/autoloop/skill/SKILL.md"]})
         self.assertTrue(any(v.rule_id == "autoloop-skill-parity-and-optin" for v in v7_one))
+
+    def test_export_rule_definite_sanitization_and_named_dict_comp(self) -> None:
+        rules_dir = REPO_ROOT / ".autoloop/rules"
+        base_skills = {
+            "tools/autoloop/skill/SKILL.md": (REPO_ROOT / "tools/autoloop/skill/SKILL.md").read_bytes(),
+            ".devin/skills/autoloop/SKILL.md": (REPO_ROOT / ".devin/skills/autoloop/SKILL.md").read_bytes(),
+        }
+        report_path = "apps/khitmee_ops/khitmee_ops/api/rep.py"
+
+        def _hits(code: bytes) -> list:
+            return [
+                v for v in evaluate_file_map(rules_dir, {**base_skills, report_path: code})
+                if v.rule_id == "no-background-email-export"
+            ]
+
+        # Named key-removing dict comprehension is allowed
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs = {k: v for k, v in kwargs.items() if k != "export_in_background"}\n'
+                b'    return export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        # Explicit known-falsy assignment is allowed
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs["export_in_background"] = False\n'
+                b'    return export_query(**kwargs)\n'
+            ),
+            [],
+        )
+        # Pop only on one branch must FAIL
+        self.assertTrue(
+            _hits(
+                b'def run(fmt, **kwargs):\n'
+                b'    if fmt == "csv":\n'
+                b'        kwargs.pop("export_in_background", None)\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Pop AFTER call must FAIL
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    res = export_query(**kwargs)\n'
+                b'    kwargs.pop("export_in_background", None)\n'
+                b'    return res\n'
+            )
+        )
+        # Unknown flag assignment must FAIL
+        self.assertTrue(
+            _hits(
+                b'def run(flag, **kwargs):\n'
+                b'    kwargs["export_in_background"] = flag\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Rebinding kwargs after pop must FAIL
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    kwargs.pop("export_in_background", None)\n'
+                b'    kwargs = frappe.form_dict\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Pop inside nested function must NOT sanitize outer function
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    def helper(kwargs):\n'
+                b'        kwargs.pop("export_in_background", None)\n'
+                b'    return export_query(**kwargs)\n'
+            )
+        )
+        # Inline dict with unknown flag or unpack-after-override must FAIL; unpack-before-False PASSES
+        self.assertTrue(
+            _hits(
+                b'def run(flag, **kwargs):\n'
+                b'    return export_query(**{**kwargs, "export_in_background": flag})\n'
+            )
+        )
+        self.assertTrue(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    return export_query(**{"export_in_background": False, **kwargs})\n'
+            )
+        )
+        self.assertEqual(
+            _hits(
+                b'def run(**kwargs):\n'
+                b'    return export_query(**{**kwargs, "export_in_background": False})\n'
+            ),
+            [],
+        )
+
+    def test_complete_grill_rejects_unknown_shard_checks(self) -> None:
+        run_id = "run-typo-check"
+        init_run(self.repo, run_id, "Typo shard check", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        with self.assertRaises(IllegalTransitionError) as ctx:
+            complete_grill(
+                self.repo,
+                run_id,
+                summary="g",
+                shards={"reports": ["src/a.py"]},
+                shard_checks={"report": ["python -c \"print(1)\""]},
+                lock_dir=self.lock_dir,
+            )
+        self.assertIn("unknown shard", str(ctx.exception))
+
+    def test_multi_shard_rollback_after_integration_and_refresh_base_clears_individual_pass(self) -> None:
+        run_id = "run-ms-rollback"
+        init_run(self.repo, run_id, "Multi-shard rollback", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(
+            self.repo,
+            run_id,
+            summary="Two shards",
+            shards={"a": ["src/a.py"], "b": ["src/b.py"]},
+            lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, run_id, base_sha=self.main_sha, lock_dir=self.lock_dir)
+
+        wt_a = self.tmp_path / "wt_rb_a"
+        wt_b = self.tmp_path / "wt_rb_b"
+        _git(self.repo, "worktree", "add", "-b", "rb/a", str(wt_a), "main")
+        _git(self.repo, "worktree", "add", "-b", "rb/b", str(wt_b), "main")
+        try:
+            start_shard(self.repo, run_id, "a", worktree_path=str(wt_a), last_green_sha=self.main_sha, lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "b", worktree_path=str(wt_b), last_green_sha=self.main_sha, lock_dir=self.lock_dir)
+
+            _write_lf(wt_a / "src/a.py", "def a():\n    return 10\n")
+            _git(wt_a, "add", "src/a.py")
+            _git(wt_a, "commit", "-m", "a green")
+            sha_a = _git(wt_a, "rev-parse", "HEAD")
+
+            _write_lf(wt_b / "src/b.py", "def b():\n    return 20\n")
+            _git(wt_b, "add", "src/b.py")
+            _git(wt_b, "commit", "-m", "b green")
+            sha_b = _git(wt_b, "rev-parse", "HEAD")
+
+            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "a", "--skip-fast-check"]), 0)
+            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "b", "--skip-fast-check"]), 0)
+
+            _git(self.repo, "checkout", "-b", "rb/int")
+            _git(self.repo, "merge", "--no-ff", "rb/a", "-m", "merge a")
+            _git(self.repo, "merge", "--no-ff", "rb/b", "-m", "merge b")
+            int_sha = _git(self.repo, "rev-parse", "HEAD")
+            self.assertEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]), 0)
+
+            st_int = load_run(self.repo, run_id)
+            self.assertEqual(st_int["last_integrated_sha"], int_sha)
+            # Shard-local rollback anchors MUST stay shard-local (not overwritten with integration commit)
+            self.assertEqual(st_int["shards"]["a"]["last_green_sha"], sha_a)
+            self.assertEqual(st_int["shards"]["b"]["last_green_sha"], sha_b)
+
+            # Review rejects integration -> worker A edits and hits 3 strikes -> clean rollback without UnsafeRollbackError
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+            h_int = compute_code_tree_sha256(self.repo, int_sha, run_id=run_id)
+            record_review(
+                self.repo, run_id, stage="cloud", verdict="reject", reviewer="alice", code_tree_sha256=h_int,
+                findings=[{"finding_id": "F-INT", "summary": "Fix edge case in a"}], lock_dir=self.lock_dir,
+            )
+
+            _write_lf(wt_a / "src/a.py", "def a():\n    return -999\n")
+            _git(wt_a, "add", "src/a.py")
+            _git(wt_a, "commit", "-m", "bad fix in a")
+            for attempt in range(3):
+                st_r = retry_shard(
+                    self.repo, run_id, "a", check_name="pytest", error_output=f"fail {attempt}", lock_dir=self.lock_dir,
+                )
+            self.assertEqual(st_r["status"], "needs_replan")
+            self.assertEqual(st_r["shards"]["a"]["status"], "needs_replan")
+            self.assertEqual((wt_a / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 10\n")
+
+            # Refresh base MUST clear has_passed_individually so check --all-shards cannot bypass individual rechecks
+            apply_replan(self.repo, run_id, plan_summary="Retry cleanly", shard_id="a", lock_dir=self.lock_dir)
+            _git(self.repo, "checkout", "main")
+            _write_lf(self.repo / "README.md", "# Updated main M2\n")
+            _git(self.repo, "add", "README.md")
+            _git(self.repo, "commit", "-m", "main M2")
+            m2_sha = _git(self.repo, "rev-parse", "HEAD")
+
+            st_ref = refresh_base(self.repo, run_id, new_base_sha=m2_sha, lock_dir=self.lock_dir)
+            self.assertFalse(st_ref["shards"]["a"]["has_passed_individually"])
+            self.assertFalse(st_ref["shards"]["b"]["has_passed_individually"])
+            start_shard(self.repo, run_id, "a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "b", worktree_path=str(wt_b), lock_dir=self.lock_dir)
+            # Even on a clean commit descending from M2, check --all-shards MUST fail until each shard passes individually
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
+                EXIT_ILLEGAL_TRANSITION,
+            )
+        finally:
+            subprocess.run(["git", "checkout", "main"], cwd=self.repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=self.repo, capture_output=True)
+            subprocess.run(["git", "worktree", "remove", "--force", str(wt_b)], cwd=self.repo, capture_output=True)
+
+    def test_post_review_safeguard_failure_supports_retry_and_recovery(self) -> None:
+        run_id = "run-post-review-retry"
+        init_run(self.repo, run_id, "Post-review retry", base_sha=self.main_sha, cloud_review=False, deep_review=False, lock_dir=self.lock_dir)
+        complete_grill(self.repo, run_id, summary="g", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+
+        _git(self.repo, "checkout", "-b", "feat/pr-retry")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 7\n")
+        _git(self.repo, "add", "src/a.py")
+        _git(self.repo, "commit", "-m", "v1")
+        h1 = compute_code_tree_sha256(self.repo, "HEAD", run_id=run_id)
+        record_shard_pass(self.repo, run_id, "s1", code_tree_sha256=h1, head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        # Enter safeguard_pending via an open finding -> resolved -> zero-reviewer submit
+        st = load_run(self.repo, run_id)
+        st["findings"]["F-POST"] = {"finding_id": "F-POST", "status": "fixed_pending_review", "summary": "Add guard"}
+        (self.repo / f".autoloop/runs/{run_id}.json").write_text(json.dumps(st), encoding="utf-8")
+        st_sg = submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        self.assertEqual(st_sg["status"], "safeguard_pending")
+
+        # Safeguard check fails -> retry_shard MUST reopen out of safeguard_pending
+        st_ret = retry_shard(
+            self.repo, run_id, "s1", check_name="fast_check", error_output="lint failed", lock_dir=self.lock_dir,
+        )
+        self.assertEqual(st_ret["status"], "retrying")
+        self.assertEqual(st_ret["shards"]["s1"]["status"], "retrying")
+        st_de = log_dead_end(
+            self.repo, run_id, "s1", hypothesis="Tried bad rule", outcome="Syntax error", lock_dir=self.lock_dir,
+        )
+        self.assertEqual(st_de["status"], "in_progress")
+        _git(self.repo, "checkout", "main")
+
+    def test_issue_only_enrollment_cannot_be_bypassed_by_severing_pr_references(self) -> None:
+        run_id = "run-issue-only"
+        init_run(self.repo, run_id, "Issue only", issue_number=42, pr_number=99, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(self.repo, run_id, summary="g", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, base_sha=self.main_sha, pr_number=99, lock_dir=self.lock_dir)
+        pub = publish_contract(self.repo, run_id, lock_dir=self.lock_dir)
+        self.assertIn("Bound PR: #99", pub["comment_markdown"])
+
+        # PR branch has NO .autoloop/runs file, NO autoloop label, and NO #42 mention in body or commits
+        _git(self.repo, "checkout", "-b", "feat/severed")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 123\n")
+        _git(self.repo, "add", "src/a.py")
+        _git(self.repo, "commit", "-m", "unrelated message with no issue ref")
+        head_sha = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        gh_severed = FakeGitHubClient(
+            comments_by_number={
+                42: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
+            },
+            contract_issue_numbers=[42],
+            forbid_check_runs=True,
+        )
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=head_sha,
+                pr_number=99,
+                pr_author="devin-worker",
+                pr_labels=[],
+                pr_body="Removed all issue links",
+                github_client=gh_severed,
+                mode="finalize",
+                candidate_checks_result="success",
+            )
+
+        # Meanwhile a truly ordinary non-enrolled PR succeeds without ever calling get_check_runs
+        gh_ordinary = FakeGitHubClient(forbid_check_runs=True)
+        res_ord = verify_pr_integrity(
+            self.repo,
+            base_sha=self.main_sha,
+            head_sha=head_sha,
+            pr_number=100,
+            pr_author="devin-worker",
+            pr_labels=[],
+            pr_body="Ordinary PR",
+            github_client=gh_ordinary,
+            mode="finalize",
+        )
+        self.assertEqual(res_ord["verdict"], "non-enrolled-pass")
 
     def test_cli_smoke_lint_and_dry_run_sync(self) -> None:
         import io
