@@ -172,6 +172,13 @@
       "event": "shard-passed",
       "shard": "verification",
       "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-27T17:30:13Z",
+      "code_tree_sha256": "c823f1fdda82b38549ccda87568d1ef4f38752aa861e46e7779a3cf98881d4aa",
+      "event": "shard-passed",
+      "shard": "verification",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -247,8 +254,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "4ce5f34a141d800bf5a4cc2ebc69de3c73d9b623",
-      "passed_code_tree_sha256": "4f06c421f1e7f29385653ef3ac7a274fef62f2b3e11a585d50c213b8c5aca0c7",
+      "last_green_sha": "53b4bac27330d2c68c44904a0fb50ca4d5bfb6f1",
+      "passed_code_tree_sha256": "c823f1fdda82b38549ccda87568d1ef4f38752aa861e46e7779a3cf98881d4aa",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -258,5 +265,5 @@
   },
   "status": "gate_passed",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:26:20Z"
+  "updated_at": "2026-11-27T17:30:13Z"
 }
