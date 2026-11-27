@@ -18,6 +18,7 @@ const nativeExe=path.resolve(arg('native-exe','desktop-frontend/target/debug/khi
 const serviceExe=path.resolve(arg('service-exe','desktop-client/target/release/khitmee-catalog-service.exe'));
 const port=Number(arg('port','49391'));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const barcodes=['8850000000010','8850000000027','8850000000034','8850000000041','8850000000058','8850000000065','8850000000072','8850000000089','8850000000096','8850000000102','8850000000119','8850000000126','8850000000133','8850000000140','8850000000157','8850000000164','8850000000171','8850000000188','8850000000195','8850000000201'];
 let nextId=1;
 async function rpc(method,params={}){const r=await fetch(`http://127.0.0.1:${port}/mcp`,{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:nextId++,method,params})});const text=await r.text();const data=text.startsWith('data:')||text.startsWith('event:')?text.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n'):text;const parsed=JSON.parse(data);if(parsed.error)throw Error(JSON.stringify(parsed.error));return parsed.result}
 function structured(result){if(result.structuredContent)return result.structuredContent;const text=result.content?.find(x=>x.type==='text')?.text;try{return JSON.parse(text)}catch{return result}}
@@ -39,12 +40,12 @@ async function benchWeb(page,mode){
   await page.locator('#item-search').fill('Mekong');
   const search=await waitWeb(page,o=>o.resultCount>0);
   await page.keyboard.press('Escape').catch(()=>{});
-  await page.locator('#item-search').fill('8850000000010');
+  const barcode=barcodes[i%barcodes.length];await page.locator('#item-search').fill(barcode);
   const before=await page.evaluate(()=>document.querySelectorAll('#lines-body tr').length);
   const scanStart=performance.now();await page.locator('#item-search').press('Enter');
   const scan=await waitWeb(page,o=>o.lineCount>before).catch(async()=>({ms:performance.now()-scanStart,obs:await page.evaluate(()=>({lineCount:document.querySelectorAll('#lines-body tr').length}))}));
   await page.getByRole('button',{name:'Clear'}).first().click();await page.waitForTimeout(180);
-  samples.push({searchMs:search.ms,scanMs:scan.ms,searchResults:search.obs.resultCount});
+  samples.push({barcode,searchMs:search.ms,scanMs:scan.ms,searchResults:search.obs.resultCount});
  }
  return aggregate(samples);
 }
@@ -55,12 +56,12 @@ async function benchNative(ctx){
   const target=await searchTarget();
   await call('set_element_value',{elementHandle:target.handle,value:'Mekong'});
   const search=await waitNative(ctx,o=>o.resultCount>0);
-  await call('set_element_value',{elementHandle:target.handle,value:'8850000000010'});
+  const barcode=barcodes[i%barcodes.length];await call('set_element_value',{elementHandle:target.handle,value:barcode});
   const before=(await nativeObs(ctx)).lineCount;
   const scanStart=performance.now();await call('dispatch_key_event',{windowHandle:ctx.wh,text:'\n',eventType:'PressAndRelease'});
   const scan=await waitNative(ctx,o=>o.lineCount>before).catch(async()=>({ms:performance.now()-scanStart,obs:await nativeObs(ctx)}));
   const t=await tree(ctx);const clear=(t.elements||[]).find(e=>e.accessibleLabel==='Clear');if(clear)await call('click_element',{elementHandle:clear.handle});await sleep(180);
-  samples.push({searchMs:search.ms,scanMs:scan.ms,searchResults:search.obs.resultCount});
+  samples.push({barcode,searchMs:search.ms,scanMs:scan.ms,searchResults:search.obs.resultCount});
  }
  return aggregate(samples);
 }
@@ -79,7 +80,7 @@ async function main(){
   const pr8RustLoopback=await benchWeb(page,'rust');
   const ctx=await nativeContext();const nativeSlint=await benchNative(ctx);
   await browser.close();
-  const report={schemaVersion:1,generatedAt:new Date().toISOString(),iterations,workload:{searchTerm:'Mekong',barcode:'8850000000010',catalogRows:10000,note:'wall-clock UI latency from input action to observable result/line; includes web debounce/rendering and native reactive rendering'},results:{originalWeb,pr8RustLoopback,nativeSlint},pendingRequiredMeasurements:['cross-process memory comparison','frame latency during scrolling','network byte totals','barcode hardware latency','printer latency','low-end Windows hardware']};
+  const report={schemaVersion:1,generatedAt:new Date().toISOString(),iterations,workload:{searchTerm:'Mekong',barcodes,catalogRows:10000,note:'wall-clock UI latency from input action to observable result/line; includes web debounce/rendering and native reactive rendering'},results:{originalWeb,pr8RustLoopback,nativeSlint},pendingRequiredMeasurements:['cross-process memory comparison','frame latency during scrolling','network byte totals','barcode hardware latency','printer latency','low-end Windows hardware']};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+String.fromCharCode(10));
   console.log(JSON.stringify({out,web:originalWeb.scanMs.p50,pr8:pr8RustLoopback.scanMs.p50,native:nativeSlint.scanMs.p50}));
  }finally{service.kill();native.kill()}

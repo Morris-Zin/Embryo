@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-27T16:08:10Z",
+  "passed": false,
+  "failures": [
+    "pending required measurement: frame latency under scrolling",
+    "pending required measurement: p95 input latency",
+    "pending required measurement: allocation counts/rates",
+    "pending required measurement: network traffic against ERPNext",
+    "pending required measurement: barcode scanning device latency",
+    "pending required measurement: printing latency",
+    "pending required measurement: low-end Windows hardware validation"
+  ],
+  "measuredGatePassed": true,
+  "pendingRequiredMeasurements": [
+    "frame latency under scrolling",
+    "p95 input latency",
+    "allocation counts/rates",
+    "network traffic against ERPNext",
+    "barcode scanning device latency",
+    "printing latency",
+    "low-end Windows hardware validation"
+  ],
+  "runs": [
+    {
+      "rows": 10000,
+      "invoiceRows": 10000,
+      "coldStartupMs": 591.11959999791,
+      "idleWorkingSetBytes": 51732480,
+      "exitCodeBeforeStop": null,
+      "stdoutTail": "",
+      "stderrTail": "Slint MCP server listening on http://127.0.0.1:49380/mcp\n"
+    },
+    {
+      "rows": 100000,
+      "invoiceRows": 10000,
+      "coldStartupMs": 848.6320999982127,
+      "idleWorkingSetBytes": 153333760,
+      "exitCodeBeforeStop": null,
+      "stdoutTail": "",
+      "stderrTail": "Slint MCP server listening on http://127.0.0.1:49381/mcp\n"
+    }
+  ]
+}
