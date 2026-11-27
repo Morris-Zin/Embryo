@@ -156,7 +156,7 @@ fn route_request(
 
     if method == Method::Get && path == "/state" {
         let scope = match query_value(&url, "scope") {
-            Some(scope) if valid_scope(&scope) => scope,
+            Some(scope) if valid_scoped_request(&scope, origin) => scope,
             _ => return error_response(400, "valid scope is required", origin),
         };
         return match (
@@ -183,7 +183,7 @@ fn route_request(
 
     if method == Method::Get && path == "/search" {
         let scope = match query_value(&url, "scope") {
-            Some(scope) if valid_scope(&scope) => scope,
+            Some(scope) if valid_scoped_request(&scope, origin) => scope,
             _ => return error_response(400, "valid scope is required", origin),
         };
         let term = query_value(&url, "q").unwrap_or_default();
@@ -230,7 +230,7 @@ fn handle_sync(
         Ok(payload) => payload,
         Err(err) => return error_response(400, &format!("invalid sync payload: {err}"), origin),
     };
-    if !valid_scope(&payload.scope) || payload.items.len() > 25_000 {
+    if !valid_scoped_request(&payload.scope, origin) || payload.items.len() > 25_000 {
         return error_response(400, "invalid sync scope or item count", origin);
     }
     match state.apply_sync(payload) {
@@ -258,6 +258,17 @@ fn valid_scope(scope: &str) -> bool {
         && scope
             .chars()
             .all(|char| !char.is_control() || char == '\u{1f}')
+}
+
+fn scope_matches_origin(scope: &str, origin: Option<&str>) -> bool {
+    match origin {
+        Some(origin) => scope.split('\u{1f}').next() == Some(origin),
+        None => true,
+    }
+}
+
+fn valid_scoped_request(scope: &str, origin: Option<&str>) -> bool {
+    valid_scope(scope) && scope_matches_origin(scope, origin)
 }
 
 fn authorized(request: &Request, config: &ServiceConfig) -> bool {
@@ -369,6 +380,19 @@ mod tests {
         assert!(constant_time_eq(b"secret", b"secret"));
         assert!(!constant_time_eq(b"secret", b"secreu"));
         assert!(!constant_time_eq(b"secret", b"secret-longer"));
+    }
+
+    #[test]
+    fn scope_must_belong_to_browser_origin() {
+        assert!(scope_matches_origin(
+            "http://127.0.0.1:18086\u{1f}Shop 1\u{1f}Retail",
+            Some("http://127.0.0.1:18086")
+        ));
+        assert!(!scope_matches_origin(
+            "http://127.0.0.1:18085\u{1f}Shop 1\u{1f}Retail",
+            Some("http://127.0.0.1:18086")
+        ));
+        assert!(scope_matches_origin("legacy\u{1f}Shop 1", None));
     }
 
     #[test]

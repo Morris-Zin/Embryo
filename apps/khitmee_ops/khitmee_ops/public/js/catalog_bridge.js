@@ -1,7 +1,7 @@
 (function () {
 	"use strict";
 
-	const SERVICE_URL = "http://127.0.0.1:18422";
+	const DEFAULT_SERVICE_PORT = 18422;
 	const DB_NAME = "khitmee-catalog-poc";
 	const STORE_NAME = "catalogs";
 	const DEFAULT_STALE_AFTER_SECONDS = 120;
@@ -19,6 +19,14 @@
 		lastError: "",
 	};
 	window.__khitmeeCatalogStatus = status;
+
+	function serviceUrl() {
+		const params = new URLSearchParams(window.location.search);
+		const raw = params.get("khitmee_catalog_port") || window.localStorage.getItem("khitmee-catalog-port") || String(DEFAULT_SERVICE_PORT);
+		const port = Number(raw);
+		if (!Number.isInteger(port) || port < 1 || port > 65535) return "http://127.0.0.1:" + DEFAULT_SERVICE_PORT;
+		return "http://127.0.0.1:" + port;
+	}
 
 	function requestedMode() {
 		const params = new URLSearchParams(window.location.search);
@@ -64,7 +72,7 @@
 	}
 
 	function scopeKey(scope) {
-		return [scope.warehouse || "", scope.priceList || ""].join("\u001f");
+		return [window.location.origin, scope.warehouse || "", scope.priceList || ""].join("\u001f");
 	}
 
 	function openDatabase() {
@@ -136,7 +144,7 @@
 	}
 
 	async function rustState(key, token) {
-		const result = await requestJson(SERVICE_URL + "/state?scope=" + encodeURIComponent(key), {
+		const result = await requestJson(serviceUrl() + "/state?scope=" + encodeURIComponent(key), {
 			method: "GET",
 			headers: serviceHeaders(token),
 		});
@@ -167,7 +175,7 @@
 	async function applyRustSync(key, payload, token) {
 		const headers = serviceHeaders(token);
 		headers["Content-Type"] = "application/json";
-		return requestJson(SERVICE_URL + "/sync", {
+		return requestJson(serviceUrl() + "/sync", {
 			method: "POST",
 			headers: headers,
 			body: JSON.stringify({
@@ -281,7 +289,7 @@
 			q: term,
 			limit: String(limit),
 		});
-		return requestJson(SERVICE_URL + "/search?" + params.toString(), {
+		return requestJson(serviceUrl() + "/search?" + params.toString(), {
 			method: "GET",
 			headers: serviceHeaders(scope.token),
 		});
