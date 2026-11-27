@@ -50,7 +50,7 @@
 			return {};
 		});
 		if (!response.ok) {
-			const message = data.exception || data.message || response.statusText || "Request failed";
+			const message = data._error_message || data.exception || data.message || response.statusText || "Request failed";
 			throw new Error(Array.isArray(message) ? message.join("\n") : message);
 		}
 		return data.message !== undefined ? data.message : data;

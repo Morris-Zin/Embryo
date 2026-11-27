@@ -13,6 +13,7 @@ const username=arg('username','Administrator'),password=arg('password',process.e
 const out=path.resolve(arg('out','desktop-frontend/evidence/journeys/sales-voucher-differential.json'));
 const exe=arg('exe','desktop-frontend/target/debug/khitmee-desktop.exe');
 const port=Number(arg('port','49390'));
+const scenario=arg('scenario','exact');
 const sequence=JSON.parse(arg('sequence','[{"op":"f9"},{"op":"scan","value":"8850000000010"},{"op":"scroll","deltaY":500},{"op":"increase"},{"op":"decrease"},{"op":"quantity","value":"2.5"},{"op":"clear"},{"op":"search","value":"Mekong"}]'));
 let nextId=1;
 async function rpc(method,params={}){const r=await fetch(`http://127.0.0.1:${port}/mcp`,{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:nextId++,method,params})});const text=await r.text();const data=text.startsWith('data:')||text.startsWith('event:')?text.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n'):text;const parsed=JSON.parse(data);if(parsed.error)throw Error(JSON.stringify(parsed.error));return parsed.result}
@@ -64,7 +65,8 @@ async function webAct(page,a){
  if(a.op==='choose'){await page.locator('#search-results .search-option-button').nth(a.index||0).click();return page.waitForTimeout(300)}
  throw Error('unsupported web op '+a.op)
 }
-function compare(a,b){const diffs=[];for(const k of Object.keys(a)){let x=a[k],y=b[k];if(k==='status'){x=String(x).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>');y=String(y).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>')}if(k==='firstResult'){x=String(x).replace(/\s+/g,' ');y=String(y).replace(/\s+/g,' ')}if(JSON.stringify(x)!==JSON.stringify(y))diffs.push({field:k,web:x,native:y})}return diffs}
+function permissionStatus(value){const text=String(value);if(/permission/i.test(text)&&/Sales Invoice/i.test(text))return'permission-denied:Sales Invoice';return text}
+function compare(a,b){const diffs=[];for(const k of Object.keys(a)){let x=a[k],y=b[k];if(k==='status'&&scenario==='permission-denied'){x=permissionStatus(x);y=permissionStatus(y)}else if(k==='status'){x=String(x).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>');y=String(y).replace(/ACC-[A-Z]+-\d+-\d+/g,'<voucher>')}if(k==='firstResult'){x=String(x).replace(/\s+/g,' ');y=String(y).replace(/\s+/g,' ')}if(JSON.stringify(x)!==JSON.stringify(y))diffs.push({field:k,web:x,native:y})}return diffs}
 async function businessOutcome(page,steps){
  const final=steps[steps.length-1]||{};
  const extract=(side)=>String(final[side]?.status||'').match(/Submitted\s+(ACC-[A-Z]+-\d+-\d+)/)?.[1];
@@ -107,7 +109,7 @@ async function main(){
   const businessOutcomeEvidence=await businessOutcome(page,steps);
   failures.push(...(businessOutcomeEvidence.mismatches||[]).map(d=>({step:'businessOutcome',op:'erp-readback',...d})));
   await browser.close();
-  const report={schemaVersion:1,passed:failures.length===0,failures,businessOutcome:businessOutcomeEvidence,steps};
+  const report={schemaVersion:1,scenario,passed:failures.length===0,failures,businessOutcome:businessOutcomeEvidence,steps};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify({passed:report.passed,failureCount:failures.length,out}));
   process.exitCode=report.passed?0:1;

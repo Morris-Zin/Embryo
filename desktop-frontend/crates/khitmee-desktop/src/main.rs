@@ -975,7 +975,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     state.client_voucher_id = new_client_voucher_id();
                     refresh_voucher(&app, &state);
                 }
-                Err(error) => app.set_status_text(format!("ERPNext submission failed: {error}").into()),
+                Err(error) => app.set_status_text(error.to_string().into()),
             }
         }
     });

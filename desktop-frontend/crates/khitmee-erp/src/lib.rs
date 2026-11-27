@@ -93,10 +93,7 @@ impl ErpClient {
             .json::<Value>()
             .unwrap_or_else(|_| json!({"error": "non-json ERP response"}));
         if !status.is_success() {
-            return Err(Box::new(ErpError(format!(
-                "ERP method {endpoint} failed with HTTP {status}: {}",
-                compact_error(&body)
-            ))));
+            return Err(Box::new(ErpError(compact_error(&body))));
         }
         Ok(body.get("message").cloned().unwrap_or(body))
     }
@@ -183,5 +180,8 @@ impl ErpClient {
 }
 
 fn compact_error(body: &Value) -> String {
+    if let Some(message) = body.get("_error_message").and_then(|value| value.as_str()) {
+        return message.to_owned();
+    }
     body.to_string().chars().take(300).collect()
 }
