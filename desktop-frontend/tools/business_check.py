@@ -48,6 +48,12 @@ def login_opener(base_url: str, username: str, password: str) -> urllib.request.
     )
     opener.open(request, timeout=20).read()
     csrf_token = next((cookie.value for cookie in jar if cookie.name == "csrf_token"), None)
+    if not csrf_token:
+        import re
+
+        boot_html = opener.open(f"{base_url.rstrip('/')}/app", timeout=20).read().decode(errors="replace")
+        match = re.search(r"(?:frappe\.csrf_token|window\.csrf_token)\s*=\s*[\"']([^\"']+)[\"']", boot_html)
+        csrf_token = match.group(1) if match else None
     if csrf_token:
         opener.addheaders = [("X-Frappe-CSRF-Token", csrf_token)]
     return opener
