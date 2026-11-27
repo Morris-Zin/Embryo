@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-11-27T13:14:59.136Z",
+  "baseUrl": "http://127.0.0.1:18086",
+  "viewport": {
+    "width": 1180,
+    "height": 760,
+    "deviceScaleFactor": 1
+  },
+  "routes": [
+    {
+      "route": "/app/sales-invoice",
+      "id": "app-sales-invoice",
+      "httpStatus": 200,
+      "screenshot": "app-sales-invoice/reference.png",
+      "screenshotSha256": "f3f0d28d6de196aa6420aba0ccdaf55576db359bd8fe4290177d2f816849c53d",
+      "controls": 259,
+      "title": "Sales Invoice",
+      "h1": "",
+      "state": "initial",
+      "actions": []
+    }
+  ],
+  "authentication": "credentials supplied"
+}
