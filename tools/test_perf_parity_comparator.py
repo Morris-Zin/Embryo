@@ -335,5 +335,31 @@ class GrossProfitComparatorNegativeControlTests(unittest.TestCase):
         self.assertTrue(any(m["kind"] in {"invoice_bucket_order", "invoice_bucket_order_at_position"} for m in mismatches))
 
 
+class OracleSidecarRunnerTests(unittest.TestCase):
+    def test_host_only_flags_are_not_forwarded(self):
+        argv = ["--require-db", "--runner", "sidecar", "--sidecar-memory=2g", "--only", "gp", "--runner=exec"]
+        self.assertEqual(perf_parity._strip_host_only_args(argv), ["--require-db", "--only", "gp"])
+
+    def test_sidecar_is_bounded_without_swap_and_reuses_backend_mounts(self):
+        command = perf_parity.build_sidecar_command(
+            "khitmee-perf-backend-1",
+            "frappe/erpnext:v16",
+            "khitmee-perf_default",
+            "1536m",
+            ["--require-db"],
+            "p1",
+            env=["PYTHONPATH=/home/frappe/frappe-bench/apps/khitmee_ops", "HOSTNAME=abc"],
+        )
+        self.assertIn("PYTHONPATH=/home/frappe/frappe-bench/apps/khitmee_ops", command)
+        self.assertNotIn("HOSTNAME=abc", command)
+        self.assertEqual(command[:4], ["docker", "run", "--rm", "-i"])
+        self.assertEqual(command[command.index("--memory") + 1], "1536m")
+        self.assertEqual(command[command.index("--memory-swap") + 1], "1536m")
+        self.assertEqual(command[command.index("--volumes-from") + 1], "khitmee-perf-backend-1")
+        self.assertEqual(command[command.index("--network") + 1], "khitmee-perf_default")
+        self.assertEqual(command[-3:], ["-", "--inside-backend", "--require-db"])
+        self.assertNotIn("khitmee-erpnext", " ".join(command))
+
+
 if __name__ == "__main__":
     unittest.main()

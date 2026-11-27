@@ -2308,16 +2308,82 @@ def run_inside_backend(args, fresh_connection_hook=None):
             except Exception:
                 pass
             frappe.destroy()
+        try:
+            import resource
+
+            emit("PARITY_PEAK_RSS", {"ru_maxrss_mib": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 2)})
+        except Exception:
+            pass
 
 
-def host_exec(argv):
+BENCH_PYTHON ="/home/frappe/frappe-bench/env/bin/python"
+BENCH_SITES = "/home/frappe/frappe-bench/sites"
+SIDECAR_LABEL = "khitmee.perf.parity-sidecar=1"
+
+
+def _strip_host_only_args(argv):
+    """Drop host-runner flags so the inner process only sees suite arguments."""
+    stripped = []
+    skip_next = False
+    for arg in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in ("--runner", "--sidecar-memory"):
+            skip_next = True
+            continue
+        if arg.startswith("--runner=") or arg.startswith("--sidecar-memory="):
+            continue
+        stripped.append(arg)
+    return stripped
+
+
+def build_sidecar_command(backend, image, network, memory, inner_argv, name, env=()):
+    """Ephemeral oracle runner sharing the backend's image, mounts and network.
+
+    The stock ERPNext Gross Profit oracle caches full Stock Ledger history per
+    (item, warehouse) for the lifetime of one report run, which exceeds the
+    2gb profile's 576 MiB backend cgroup.  Running it in a separate, bounded
+    container keeps the oracle byte-for-byte stock ERPNext while the
+    production-shaped backend limits stay honest.  Swap is pinned equal to
+    memory so an undersized cap fails fast with OOM instead of thrashing.
+    ``env`` carries the backend's own environment (e.g. the PYTHONPATH that
+    exposes the bind-mounted khitmee_ops app).
+    """
+    env_args = []
+    for entry in env:
+        if entry.split("=", 1)[0] in ("HOSTNAME", "HOME"):
+            continue
+        env_args += ["-e", entry]
+    return [
+        "docker", "run", "--rm", "-i",
+        "--name", name,
+        "--label", SIDECAR_LABEL,
+        "--network", network,
+        "--volumes-from", backend,
+        "--memory", memory,
+        "--memory-swap", memory,
+        *env_args,
+        "-e", "PYTHONDONTWRITEBYTECODE=1",
+        "-w", BENCH_SITES,
+        "--entrypoint", BENCH_PYTHON,
+        image,
+        "-", "--inside-backend", *inner_argv,
+    ]
+
+
+def _inspect_backend(backend, template):
+    return subprocess.check_output(
+        ["docker", "inspect", "-f", template, backend],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+
+
+def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
     backend = f"{PROJECT}-backend-1"
     try:
-        project = subprocess.check_output(
-            ["docker", "inspect", "-f", '{{ index .Config.Labels "com.docker.compose.project" }}', backend],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
+        project = _inspect_backend(backend, '{{ index .Config.Labels "com.docker.compose.project" }}')
     except (OSError, subprocess.CalledProcessError):
         print(f"perf parity requires the isolated {backend} container", file=sys.stderr)
         return 3
@@ -2325,11 +2391,29 @@ def host_exec(argv):
         print(f"refusing parity run: {backend} compose project is {project!r}, expected {PROJECT!r}", file=sys.stderr)
         return 3
     source = Path(__file__).read_bytes()
-    command = [
-        "docker", "exec", "-i", "-e", "PYTHONDONTWRITEBYTECODE=1",
-        "-w", "/home/frappe/frappe-bench/sites", backend,
-        "/home/frappe/frappe-bench/env/bin/python", "-", "--inside-backend", *argv,
-    ]
+    inner_argv = _strip_host_only_args(argv)
+    if runner == "exec":
+        command = [
+            "docker", "exec", "-i", "-e", "PYTHONDONTWRITEBYTECODE=1",
+            "-w", BENCH_SITES, backend,
+            BENCH_PYTHON, "-", "--inside-backend", *inner_argv,
+        ]
+    else:
+        try:
+            image = _inspect_backend(backend, "{{.Config.Image}}")
+            networks = _inspect_backend(
+                backend, "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
+            ).split()
+            env = json.loads(_inspect_backend(backend, "{{json .Config.Env}}") or "[]")
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            print(f"could not inspect {backend} image/network for the oracle sidecar", file=sys.stderr)
+            return 3
+        network = f"{PROJECT}_default" if f"{PROJECT}_default" in networks else (networks[0] if networks else "")
+        if not image or not network or not network.startswith(PROJECT):
+            print(f"refusing sidecar: unexpected image {image!r} or network {network!r}", file=sys.stderr)
+            return 3
+        name = f"{PROJECT}-parity-{int(time.time())}"
+        command = build_sidecar_command(backend, image, network, sidecar_memory, inner_argv, name, env=env)
     return subprocess.run(command, input=source).returncode
 
 
@@ -2343,6 +2427,13 @@ def build_parser():
     parser.add_argument("--custom-to-date", "--gp-to-date", dest="custom_to_date", default=None, help="optional custom Gross Profit range end")
     parser.add_argument("--require-db", action="store_true", help="fail unless the live bench DB executes all verification cases without skips or failures")
     parser.add_argument("--only", action="append", choices=("gp", "sb", "search", "voucher", "all"), help="run one section; repeatable")
+    parser.add_argument(
+        "--runner",
+        choices=("sidecar", "exec"),
+        default="sidecar",
+        help="sidecar (default): bounded throwaway container so the stock oracle cannot starve the 576 MiB backend; exec: legacy docker exec into the backend",
+    )
+    parser.add_argument("--sidecar-memory", default="1536m", help="memory (and swap) cap for the oracle sidecar")
     parser.add_argument("--inside-backend", action="store_true", help=argparse.SUPPRESS)
     return parser
 
@@ -2352,7 +2443,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.inside_backend:
         return run_inside_backend(args)
-    return host_exec(argv)
+    return host_exec(argv, runner=args.runner, sidecar_memory=args.sidecar_memory)
 
 
 if __name__ == "__main__":
