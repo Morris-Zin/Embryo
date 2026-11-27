@@ -1105,6 +1105,24 @@ class TestPr12ReviewFixes(unittest.TestCase):
 			_shop, _replay, flags = rebuilder.partition_day_contributions(batch, "C", "2026-01-01")
 		self.assertFalse(flags["is_additive_safe"])
 
+	def test_high_precision_site_goes_to_detail_not_pending(self):
+		with patch.object(query, "authorize_profit_request"), patch.object(
+			store, "verify_repost_triggers_installed", return_value=(True, [])
+		), patch.object(
+			query, "evaluate_summary_eligibility", return_value={"eligible": True, "reason": "eligible"}
+		), patch.object(store, "current_day_flags", return_value={**self.FLAGS, "float_precision": 7}), patch.object(
+			query, "_query_summary_in_snapshot", side_effect=AssertionError("must not use stored summary")
+		), patch.object(query, "_run_detail", return_value={"mode": "detail"}) as detail:
+			query.query_profit({"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "group_by": "Monthly"})
+		self.assertEqual(detail.call_args.kwargs["message"], "precision_exceeds_summary_storage")
+
+	def test_preflight_scopes_selected_invoice_family(self):
+		sql, params = build_detail_preflight_query(
+			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-12-31", "sales_invoice": "SI-9"}, cap=10
+		)
+		self.assertIn("(`si`.`name` = %s OR `si`.`return_against` = %s)", sql)
+		self.assertEqual(params.count("SI-9"), 4)
+
 	def test_clean_report_without_replay_uses_site_precision(self):
 		# Devin: the empty replay batch's placeholder precision must not win.
 		with patch.object(store, "current_day_flags", return_value={**self.FLAGS, "currency_precision": 2, "float_precision": 4}):

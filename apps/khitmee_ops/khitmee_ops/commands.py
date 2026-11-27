@@ -133,7 +133,8 @@ def khitmee_check_profit_parity(
 @pass_context
 def khitmee_reconcile_profit_summary(context, company, from_date, to_date):
 	"""Cheap stored profit summary qty/amount check against submitted invoice lines."""
-	exit_code = 0
+	any_drift = False
+	any_incomplete = False
 	for site in context.sites:
 		frappe.init(site)
 		frappe.connect()
@@ -158,9 +159,10 @@ def khitmee_reconcile_profit_summary(context, company, from_date, to_date):
 				indent=2,
 			)
 		)
-		# 1 = drift found; 2 = no drift, but some days were not comparable.
-		exit_code = exit_code or (1 if drifts else 0 if complete else 2)
-	sys.exit(exit_code)
+		any_drift = any_drift or bool(drifts)
+		any_incomplete = any_incomplete or not complete
+	# 1 = drift on any site (takes priority); 2 = no drift, but some days were not comparable.
+	sys.exit(1 if any_drift else 2 if any_incomplete else 0)
 
 
 @click.command("khitmee-prepare-profit-summary")
@@ -180,20 +182,29 @@ def khitmee_prepare_profit_summary(context, timeout_seconds=3600):
 				register_missing_history,
 			)
 
+			from khitmee_ops.profit_summary.store import count_pending_summary_work
+
 			registered = register_missing_history()
 			deadline = time.monotonic() + timeout_seconds
 			rebuilt = 0
-			drained = False
-			while time.monotonic() < deadline:
+			idle_ticks = 0
+			pending = count_pending_summary_work()
+			# A zero-claim tick can mean an empty backlog, lock contention, or days
+			# blocked by a repost / left failed; only the pending count decides.
+			while pending["total"] and time.monotonic() < deadline and idle_ticks < 6:
 				processed = process_dirty_slices_scheduled()
 				frappe.db.commit()
 				rebuilt += processed
-				if processed == 0:
-					drained = True
-					break
+				idle_ticks = 0 if processed else idle_ticks + 1
+				if not processed:
+					time.sleep(10)
+				pending = count_pending_summary_work()
+			drained = not pending["total"]
 		finally:
 			frappe.destroy()
-		click.echo(json.dumps({"site": site, **registered, "rebuilt_days": rebuilt, "drained": drained}))
+		click.echo(
+			json.dumps({"site": site, **registered, "rebuilt_days": rebuilt, "drained": drained, "pending": pending})
+		)
 		exit_code = exit_code or (0 if drained else 1)
 	sys.exit(exit_code)
 

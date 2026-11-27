@@ -320,6 +320,39 @@ def _day_state_params(company, posting_date, flags):
 	)
 
 
+def count_pending_summary_work() -> dict:
+	"""Past days not yet clean (by status, blocked-by-repost included) plus open ranges."""
+	frappe_obj = _require_frappe()
+	try:
+		from frappe.utils import nowdate
+	except Exception:  # pragma: no cover - offline fallback
+		def nowdate():
+			return date.today().isoformat()
+
+	rows = frappe_obj.db.sql(
+		"""
+		SELECT `status`, COUNT(*)
+		FROM `tabKhitmee Profit Day State`
+		WHERE `posting_date` < %s AND `status` <> 'clean'
+		GROUP BY `status`
+		""",
+		(nowdate(),),
+	)
+	by_status = {str(row[0]): int(row[1]) for row in rows or []}
+	# Future-only ranges stay open by design until time catches up; not pending work.
+	range_rows = frappe_obj.db.sql(
+		"""
+		SELECT COUNT(*)
+		FROM `tabKhitmee Profit Dirty Range`
+		WHERE `processed` = 0
+			AND COALESCE(DATE_ADD(`cursor_date`, INTERVAL 1 DAY), `from_date`) < %s
+		""",
+		(nowdate(),),
+	)
+	open_ranges = int(_first(range_rows[0]) or 0) if range_rows else 0
+	return {"days_by_status": by_status, "open_ranges": open_ranges, "total": sum(by_status.values()) + open_ranges}
+
+
 def get_history_start(company: str, to_date: str) -> str | None:
 	"""First submitted Sales Invoice posting date on or before ``to_date``."""
 	rows = _require_frappe().db.sql(

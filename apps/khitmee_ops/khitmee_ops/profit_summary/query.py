@@ -817,6 +817,11 @@ def query_profit(filters: dict, user: str | None = None) -> QueryProfitResult:
 			},
 		)
 	eligibility = evaluate_summary_eligibility(filters, user)
+	flags = store.current_day_flags()
+	if eligibility.get("eligible") and max(int(flags["currency_precision"]), int(flags["float_precision"])) > store.SUMMARY_STORAGE_SCALE:
+		# Stored snapshots cannot hold this precision, so rebuilt days are never
+		# trusted; go straight to the budgeted detail path instead of pending forever.
+		eligibility = {**eligibility, "eligible": False, "reason": "precision_exceeds_summary_storage"}
 
 	if not eligibility.get("eligible"):
 		_begin_repeatable_read_snapshot()

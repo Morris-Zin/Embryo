@@ -72,10 +72,13 @@ jobs:
       # days and rebuild them so the gate's 1-year coverage check is meaningful.
       - name: Prepare profit summaries
         run: |
+          # Same site the stack was provisioned with (up.sh honours SITE_NAME).
+          site="$(sed -n 's/^SITE_NAME=//p' perf-suite/docker/.env | tail -1)"
+          site="${site:-bench-loadtest.localhost}"
           docker exec -w /home/frappe/frappe-bench khitmee-perf-backend-1 \
-            bench --site bench-loadtest.localhost migrate --skip-search-index
+            bench --site "$site" migrate --skip-search-index
           docker exec -w /home/frappe/frappe-bench khitmee-perf-backend-1 \
-            bench --site bench-loadtest.localhost khitmee-prepare-profit-summary --timeout-seconds 3600
+            bench --site "$site" khitmee-prepare-profit-summary --timeout-seconds 3600
 
       # Fail-closed: tools/perf_parity.py --require-db exits non-zero when the bench
       # database is unavailable, executed_cases == 0, skipped_cases > 0, or

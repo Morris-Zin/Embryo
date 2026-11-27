@@ -126,6 +126,11 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		"`si`.`is_opening` != 'Yes'",
 		"`si`.`posting_date` BETWEEN %s AND %s",
 	]
+	sales_invoice = filters.get("sales_invoice")
+	if sales_invoice:
+		# Stock Gross Profit honours a selected invoice; count only its family.
+		where.append("(`si`.`name` = %s OR `si`.`return_against` = %s)")
+		params.extend([sales_invoice, sales_invoice])
 	warehouse = filters.get("warehouse")
 	if warehouse:
 		lft_rgt = (

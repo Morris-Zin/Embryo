@@ -2287,10 +2287,16 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			dn_detail = effective_dn_detail(row)
 			product_bundles = self._product_bundles_for_row(row, dn_detail) if getattr(self, "product_bundles", None) else {}
 			if row.item_code in product_bundles:
+				# Same component quantity as get_buying_amount_from_product_bundle: FIFO/LIFO
+				# average rates depend on qty, and the first lookup per key is cached.
+				billed_share = None
 				for packed_item in product_bundles[row.item_code]:
 					if packed_item.get("parent_detail_docname") != (dn_detail or row.get("item_row")):
 						continue
+					if billed_share is None:
+						billed_share = self.get_billed_share_of_bundle(row)
 					packed_row = dict(row)
+					packed_row["qty"] = flt(packed_item.get("total_qty")) * -1 * billed_share
 					packed_row["warehouse"] = packed_item.get("warehouse")
 					packed_row["delivered_warehouse"] = None
 					packed_row["serial_and_batch_bundle"] = packed_item.get("serial_and_batch_bundle")
@@ -2298,10 +2304,23 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 						pairs.append((packed_row, packed_item.get("item_code")))
 			elif row.get("item_row") in bundle_deliveries:
 				for delivered_row, packed_items in bundle_deliveries[row.get("item_row")]:
+					delivery = dict(row)
+					delivery.update(
+						{
+							"dn_detail": delivered_row.get("name"),
+							"delivery_note": delivered_row.get("parent"),
+							"item_row": delivered_row.get("name"),
+							"qty": delivered_row.get("stock_qty"),
+						}
+					)
+					billed_share = None
 					for packed_item in packed_items:
 						if packed_item.get("parent_detail_docname") != delivered_row.get("name"):
 							continue
+						if billed_share is None:
+							billed_share = self.get_billed_share_of_bundle(delivery)
 						packed_row = dict(row)
+						packed_row["qty"] = flt(packed_item.get("total_qty")) * -1 * billed_share
 						packed_row["update_stock"] = 0
 						packed_row["dn_detail"] = delivered_row.get("name")
 						packed_row["delivery_note"] = delivered_row.get("parent")
