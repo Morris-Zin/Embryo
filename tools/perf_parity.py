@@ -5,11 +5,14 @@ The module is importable on a plain host Python: comparison helpers stay pure an
 Frappe is imported lazily only inside the perf backend container.
 """
 import argparse
+import calendar
+import gc
 import json
 import random
 import subprocess
 import sys
 import time
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -1129,6 +1132,206 @@ def explain_query_offenses(frappe, label, sql, params, checker):
     return checker(rows, label)
 
 
+def _batched_ids(values, size=1000):
+    items = list(values or [])
+    for offset in range(0, len(items), max(1, int(size))):
+        yield items[offset : offset + max(1, int(size))]
+
+
+def _format_posting_time_key(value):
+    if value is None:
+        return "00:00:00.000000"
+    if isinstance(value, timedelta):
+        total_us = max(0, round(value.total_seconds() * 1_000_000))
+        hours, rem = divmod(total_us, 3_600_000_000)
+        minutes, rem = divmod(rem, 60_000_000)
+        seconds, microseconds = divmod(rem, 1_000_000)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{microseconds:06d}"
+    text = str(value).strip()
+    if "." in text:
+        head, frac = text.split(".", 1)
+        parts = head.split(":")
+        h, m, s = (int(parts[i]) if i < len(parts) and parts[i] else 0 for i in range(3))
+        return f"{h:02d}:{m:02d}:{s:02d}.{frac[:6].ljust(6, '0')}"
+    parts = text.split(":")
+    h, m, s = (int(float(parts[i])) if i < len(parts) and parts[i] else 0 for i in range(3))
+    return f"{h:02d}:{m:02d}:{s:02d}.000000"
+
+
+def build_live_invoice_order_keys(frappe, columns, data):
+    """Derive exact (query_phase, posting_date, posting_time) tie buckets for Invoice rows."""
+    rows = [row_as_dict(columns, row, index) for index, row in enumerate(data or [])]
+    if not rows:
+        return []
+    header_names = []
+    header_slots = {}
+    for row in rows:
+        if is_total_row(row) or row_indent(row) != 0:
+            continue
+        inv_name = invoice_header_key(row)
+        if inv_name:
+            name_str = str(inv_name)
+            header_names.append(name_str)
+            header_slots.setdefault(name_str, []).append(row["_row_index"])
+
+    header_set = set(header_names)
+    meta_by_name = {}
+    for chunk in _batched_ids(sorted(header_set), 1000):
+        placeholders = ", ".join(["%s"] * len(chunk))
+        fetched = frappe.db.sql(
+            f"""
+            SELECT `name`, `posting_date`, `posting_time`, `is_return`, `return_against`
+            FROM `tabSales Invoice`
+            WHERE `name` IN ({placeholders})
+            """,
+            chunk,
+            as_dict=True,
+        )
+        for item in fetched or []:
+            meta_by_name[str(item.get("name"))] = item
+
+    sequence = [None] * len(rows)
+    for inv_name, slots in header_slots.items():
+        meta = meta_by_name.get(inv_name)
+        if not meta:
+            continue
+        is_linked_return = bool(int(meta.get("is_return") or 0) == 1 and meta.get("return_against"))
+        query_phase = 0 if is_linked_return and str(meta.get("return_against")) not in header_set else 1
+        key = (
+            query_phase,
+            str(scalar(meta.get("posting_date")) or ""),
+            _format_posting_time_key(meta.get("posting_time")),
+        )
+        for slot in slots:
+            sequence[slot] = key
+    return sequence
+
+
+def _month_windows(from_date_str, to_date_str):
+    start = date.fromisoformat(str(from_date_str)[:10])
+    end = date.fromisoformat(str(to_date_str)[:10])
+    windows = []
+    cur = start
+    while cur <= end:
+        last_day = calendar.monthrange(cur.year, cur.month)[1]
+        month_end = min(end, date(cur.year, cur.month, last_day))
+        windows.append((cur.isoformat(), month_end.isoformat()))
+        if month_end >= end:
+            break
+        cur = month_end + timedelta(days=1)
+    return windows
+
+
+def run_upstream_gross_profit_piecewise_by_month(frappe, filters):
+    """Run stock Gross Profit month-by-month when zero linked returns cross months."""
+    from frappe.utils import cint, flt
+    from erpnext.accounts.report.gross_profit.gross_profit import execute as stock_execute
+
+    company = filters.get("company")
+    from_date = str(filters.get("from_date"))[:10]
+    to_date = str(filters.get("to_date"))[:10]
+    group_by = filters.get("group_by")
+    cross_month = frappe.db.sql(
+        """
+        SELECT COUNT(*)
+        FROM `tabSales Invoice` AS `ret`
+        INNER JOIN `tabSales Invoice` AS `orig` ON `orig`.`name` = `ret`.`return_against`
+        WHERE `ret`.`company` = %s
+          AND `ret`.`docstatus` = 1
+          AND `ret`.`is_return` = 1
+          AND IFNULL(`ret`.`return_against`, '') != ''
+          AND (`ret`.`posting_date` BETWEEN %s AND %s OR `orig`.`posting_date` BETWEEN %s AND %s)
+          AND DATE_FORMAT(`ret`.`posting_date`, '%%Y-%%m') != DATE_FORMAT(`orig`.`posting_date`, '%%Y-%%m')
+        """,
+        (company, from_date, to_date, from_date, to_date),
+    )
+    if cross_month and int(cross_month[0][0] or 0) > 0:
+        return run_gross_profit(frappe, "upstream", filters)
+
+    currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
+    float_precision = cint(frappe.db.get_default("float_precision")) or 2
+    currency = filters.get("currency") or frappe.get_cached_value("Company", company, "default_currency")
+    columns = None
+    group_field = "warehouse" if group_by == "Warehouse" else "monthly"
+
+    start_wall = time.monotonic()
+    monthly_rows = []
+    wh_accum = {}
+    wh_order = {}
+    for month_idx, (m_start, m_end) in enumerate(_month_windows(from_date, to_date)):
+        m_filters = frappe._dict({**filters, "from_date": m_start, "to_date": m_end, "currency": currency})
+        m_cols, m_data = stock_execute(m_filters)
+        if columns is None:
+            columns = m_cols
+        fields = column_fieldnames(m_cols)
+        for row_idx, raw_row in enumerate(m_data or []):
+            row = row_as_dict(m_cols, raw_row, row_idx)
+            if is_total_row(row, group_field):
+                continue
+            if group_by == "Monthly":
+                ordered_row = [row.get(f) for f in fields] if not isinstance(raw_row, dict) else dict(raw_row)
+                monthly_rows.append((row, ordered_row))
+            else:
+                wh = str(row.get("warehouse") or "")
+                wh_order.setdefault(wh, (month_idx, row_idx))
+                acc = wh_accum.setdefault(wh, {"qty": Decimal("0"), "base": Decimal("0"), "buying": Decimal("0")})
+                acc["qty"] += Decimal(str(row.get("qty") or 0))
+                acc["base"] += Decimal(str(row.get("selling_amount") or 0))
+                acc["buying"] += Decimal(str(row.get("buying_amount") or 0))
+        gc.collect()
+
+    if columns is None:
+        m_cols, m_data = stock_execute(frappe._dict({**filters, "from_date": from_date, "to_date": to_date, "currency": currency}))
+        return m_cols, m_data, time.monotonic() - start_wall
+
+    fields = column_fieldnames(columns)
+    output = []
+    total_base = 0.0
+    total_buying = 0.0
+    if group_by == "Monthly":
+        for row_dict, raw_item in monthly_rows:
+            total_base += float(row_dict.get("selling_amount") or 0.0)
+            total_buying += float(row_dict.get("buying_amount") or 0.0)
+            output.append(raw_item)
+    else:
+        for wh in sorted(wh_accum, key=lambda key: wh_order[key]):
+            acc = wh_accum[wh]
+            qty_val = flt(float(acc["qty"]), float_precision)
+            selling_val = flt(float(acc["base"]), currency_precision)
+            buying_val = flt(float(acc["buying"]), currency_precision)
+            gross_val = flt(selling_val + abs(buying_val) if buying_val < 0 else selling_val - buying_val, currency_precision)
+            row_map = {
+                "warehouse": wh,
+                "qty": qty_val,
+                "avg._selling_rate": flt(selling_val / qty_val, float_precision) if qty_val else 0,
+                "valuation_rate": flt(buying_val / qty_val, float_precision) if qty_val else 0,
+                "selling_amount": selling_val,
+                "buying_amount": buying_val,
+                "gross_profit": gross_val,
+                "gross_profit_%": flt((gross_val / abs(selling_val)) * 100.0, currency_precision) if selling_val else 0,
+                "currency": currency,
+            }
+            total_base += selling_val
+            total_buying += buying_val
+            output.append([row_map.get(f) for f in fields])
+
+    total_gross = flt(total_base + abs(total_buying) if total_buying < 0 else total_base - total_buying)
+    total_pct = flt((total_gross / abs(total_base)) * 100.0, currency_precision) if total_base else 0
+    total_map = {
+        group_field: "Total",
+        "qty": None,
+        "avg._selling_rate": None,
+        "valuation_rate": None,
+        "selling_amount": total_base,
+        "buying_amount": total_buying,
+        "gross_profit": total_gross,
+        "gross_profit_%": total_pct,
+        "currency": currency,
+    }
+    output.append([total_map.get(f) for f in fields])
+    return columns, output, time.monotonic() - start_wall
+
+
 def run_gp_parity(frappe, args):
     mismatches = []
     explain_offenses = []
@@ -1148,7 +1351,11 @@ def run_gp_parity(frappe, args):
                         "group_by": group_by,
                         "include_returned_invoices": include_returned,
                     }))
-    grouped_ranges = [("1y", DATE_1Y_FROM, DATE_TO)]
+    grouped_ranges = [
+        ("30d", DATE_30D_FROM, DATE_TO),
+        ("start_2m", "2025-11-26", "2025-12-31"),
+        ("1y", DATE_1Y_FROM, DATE_TO),
+    ]
     custom_from_date = getattr(args, "custom_from_date", None)
     custom_to_date = getattr(args, "custom_to_date", None)
     if custom_from_date or custom_to_date:
@@ -1186,7 +1393,16 @@ def run_gp_parity(frappe, args):
                 captured_semijoin.setdefault((logical, semijoin_query_label(sql)), (sql, params))
         else:
             fast_columns, fast_data, fast_seconds = run_gross_profit(frappe, "fast", filters)
-        upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
+        if label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
+            upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
+        else:
+            upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
+        order_keys = None
+        if filters.get("group_by") == "Invoice":
+            order_keys = {
+                "fast": build_live_invoice_order_keys(frappe, fast_columns, fast_data),
+                "upstream": build_live_invoice_order_keys(frappe, upstream_columns, upstream_data),
+            }
         case_mismatches = compare_gross_profit_rows(
             fast_columns,
             fast_data,
@@ -1194,6 +1410,7 @@ def run_gp_parity(frappe, args):
             upstream_data,
             tolerance=1e-7,
             compare_group_order=filters.get("group_by") in {"Invoice", "Warehouse", "Monthly"},
+            order_keys=order_keys,
         )
         executed_cases += 1
         if case_mismatches:

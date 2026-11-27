@@ -1580,7 +1580,11 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				cache.clear()
 
 	def _hints_enabled(self):
-		return not (self.filters.get("sales_invoice") or self.filters.get("item_code"))
+		return not (
+			self.filters.get("sales_invoice")
+			or self.filters.get("item_code")
+			or getattr(self, "_scoped_invoice_ids", None) is not None
+		)
 
 	def _invoice_scope_criterion(self, SI):
 		scoped_invoice_ids = getattr(self, "_scoped_invoice_ids", None)

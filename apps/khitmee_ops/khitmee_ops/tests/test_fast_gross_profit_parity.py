@@ -1390,16 +1390,17 @@ class TestReplayIndexAndAverageRatePreload(unittest.TestCase):
 
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.filters = AttrDict(company="Company", warehouse="W1")
-		generator._hints_enabled = lambda: True
 		generator._upstream_prepare_invoice_query = lambda: FakeQuery()
 
 		generator._scoped_invoice_ids = ("SI-1",)
+		self.assertFalse(generator._hints_enabled())
 		scoped_query = generator.prepare_invoice_query()
 		self.assertFalse(generator._warehouse_semijoin_enabled())
 		self.assertEqual(scoped_query.indexes, [])
 
 		generator._scoped_invoice_ids = None
 		generator.filters["warehouse"] = None
+		self.assertTrue(generator._hints_enabled())
 		full_query = generator.prepare_invoice_query()
 		self.assertEqual(full_query.indexes, [SI_IDX])
 

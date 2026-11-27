@@ -297,6 +297,43 @@ class GrossProfitComparatorNegativeControlTests(unittest.TestCase):
             [],
         )
 
+    def test_invoice_order_keys_allow_equal_timestamp_swap_and_reject_distinct_timestamp_swap(self):
+        def make_rows(first_inv, second_inv):
+            metrics = {
+                "ACC-SINV-2026-317777": (100.0, 70.0, 30.0),
+                "ACC-SINV-2026-317776": (50.0, 30.0, 20.0),
+            }
+            rows = []
+            for inv in (first_inv, second_inv):
+                selling, buying, profit = metrics[inv]
+                rows.append({"sales_invoice": inv, "indent": 0, "posting_date": "2026-11-25", "selling_amount": selling, "buying_amount": buying, "gross_profit": profit})
+                rows.append({"sales_invoice": "ITEM-1", "parent_invoice": inv, "indent": 1, "selling_amount": selling, "buying_amount": buying, "gross_profit": profit})
+            rows.append({"sales_invoice": "Total", "selling_amount": 150.0, "buying_amount": 100.0, "gross_profit": 50.0})
+            return rows
+
+        fast_data = make_rows("ACC-SINV-2026-317777", "ACC-SINV-2026-317776")
+        upstream_data = make_rows("ACC-SINV-2026-317776", "ACC-SINV-2026-317777")
+        same_ts = (1, "2026-11-25", "20:49:27.000000")
+        equal_keys = {
+            "fast": [same_ts, None, same_ts, None, None],
+            "upstream": [same_ts, None, same_ts, None, None],
+        }
+        self.assertEqual(
+            perf_parity.compare_gross_profit_rows(
+                [], fast_data, [], upstream_data, tolerance=1e-7, compare_group_order=True, order_keys=equal_keys
+            ),
+            [],
+        )
+        newer_ts = (1, "2026-11-25", "20:49:28.000000")
+        distinct_keys = {
+            "fast": [same_ts, None, newer_ts, None, None],
+            "upstream": [newer_ts, None, same_ts, None, None],
+        }
+        mismatches = perf_parity.compare_gross_profit_rows(
+            [], fast_data, [], upstream_data, tolerance=1e-7, compare_group_order=True, order_keys=distinct_keys
+        )
+        self.assertTrue(any(m["kind"] in {"invoice_bucket_order", "invoice_bucket_order_at_position"} for m in mismatches))
+
 
 if __name__ == "__main__":
     unittest.main()

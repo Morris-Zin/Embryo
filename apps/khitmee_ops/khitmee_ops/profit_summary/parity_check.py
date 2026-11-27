@@ -3,6 +3,7 @@
 import importlib
 import sys
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -17,6 +18,210 @@ class ParityCheckResult(TypedDict):
 
 
 QUERY_EXECUTE_NAMES = ("query_profit", "execute", "run_profit_summary", "get_profit_summary", "run")
+_GP_NUMERIC_FIELDS = frozenset(
+	{
+		"qty",
+		"avg._selling_rate",
+		"valuation_rate",
+		"selling_amount",
+		"base_amount",
+		"buying_amount",
+		"gross_profit",
+		"gross_profit_%",
+	}
+)
+_TOTAL_ROW_FIELDS = (
+	"sales_invoice",
+	"item_code",
+	"invoice_or_item",
+	"warehouse",
+	"monthly",
+	"month",
+	"posting_period",
+)
+_COLUMN_METADATA_FIELDS = ("fieldname", "label", "fieldtype", "options", "width")
+
+
+def _scalar(value):
+	if isinstance(value, Decimal):
+		return float(value)
+	if hasattr(value, "isoformat"):
+		return value.isoformat()
+	if isinstance(value, float):
+		return round(value, 9)
+	return value
+
+
+def _column_fieldnames(columns):
+	return [col.get("fieldname") if isinstance(col, dict) else None for col in (columns or [])]
+
+
+def _row_as_dict(columns, row, index):
+	if isinstance(row, dict):
+		result = dict(row)
+	else:
+		result = dict(zip(_column_fieldnames(columns), row))
+	result["_row_index"] = index
+	return result
+
+
+def _is_total_row(row, group_field=None):
+	if not isinstance(row, dict):
+		return False
+	if group_field and row.get(group_field) == "Total":
+		return True
+	if any(row.get(field) == "Total" for field in _TOTAL_ROW_FIELDS):
+		return True
+	first_key = next((key for key in row if not str(key).startswith("_")), None)
+	return first_key is not None and row.get(first_key) == "Total"
+
+
+def _as_float(value):
+	if value is None:
+		return None
+	try:
+		return float(value)
+	except (TypeError, ValueError):
+		return None
+
+
+def _compare_field_maps(fast_row, upstream_row, tolerance, location):
+	mismatches = []
+	fields = sorted((set(fast_row) | set(upstream_row)) - {"_row_index"}, key=str)
+	for field in fields:
+		if field in _GP_NUMERIC_FIELDS:
+			fast_raw = fast_row.get(field)
+			upstream_raw = upstream_row.get(field)
+			if (fast_raw is None) != (upstream_raw is None):
+				mismatches.append(
+					{
+						"kind": "null_numeric",
+						"field": field,
+						"location": location,
+						"fast": _scalar(fast_raw),
+						"upstream": _scalar(upstream_raw),
+						"tolerance": tolerance,
+					}
+				)
+				continue
+			fast_num = _as_float(fast_raw)
+			upstream_num = _as_float(upstream_raw)
+			if fast_num is None or upstream_num is None:
+				if fast_num != upstream_num:
+					mismatches.append(
+						{
+							"kind": "numeric_field",
+							"field": field,
+							"location": location,
+							"fast": _scalar(fast_raw),
+							"upstream": _scalar(upstream_raw),
+							"diff": None,
+							"tolerance": tolerance,
+						}
+					)
+				continue
+			diff = abs(fast_num - upstream_num)
+			if diff > tolerance + 1e-12:
+				mismatches.append(
+					{
+						"kind": "numeric_field",
+						"field": field,
+						"location": location,
+						"fast": _scalar(fast_raw),
+						"upstream": _scalar(upstream_raw),
+						"diff": diff,
+						"tolerance": tolerance,
+					}
+				)
+			continue
+		fast_val = _scalar(fast_row.get(field))
+		upstream_val = _scalar(upstream_row.get(field))
+		if fast_val != upstream_val:
+			mismatches.append(
+				{
+					"kind": "exact_field" if field == "currency" else "identity_field",
+					"field": field,
+					"location": location,
+					"fast": fast_val,
+					"upstream": upstream_val,
+				}
+			)
+	return mismatches
+
+
+def _compare_gross_profit_rows_fallback(
+	fast_columns,
+	fast_data,
+	upstream_columns,
+	upstream_data,
+	*,
+	tolerance=1e-7,
+	check_column_metadata=True,
+	compare_group_order=False,
+	order_keys=None,
+):
+	"""Self-contained oracle comparator used inside bench containers without tools/."""
+	fast_rows = [_row_as_dict(fast_columns, row, i) for i, row in enumerate(fast_data or [])]
+	upstream_rows = [_row_as_dict(upstream_columns, row, i) for i, row in enumerate(upstream_data or [])]
+	mismatches = []
+
+	fast_fields = _column_fieldnames(fast_columns)
+	upstream_fields = _column_fieldnames(upstream_columns)
+	group_field = fast_fields[0] if fast_fields else None
+	if fast_fields != upstream_fields:
+		mismatches.append({"kind": "columns", "fast": fast_fields, "upstream": upstream_fields})
+	if check_column_metadata and fast_columns and upstream_columns:
+		if len(fast_columns) != len(upstream_columns):
+			mismatches.append(
+				{"kind": "column_count", "fast": len(fast_columns), "upstream": len(upstream_columns)}
+			)
+		for col_idx, (fast_col, upstream_col) in enumerate(zip(fast_columns, upstream_columns)):
+			fcol = fast_col if isinstance(fast_col, dict) else {}
+			ucol = upstream_col if isinstance(upstream_col, dict) else {}
+			for field in _COLUMN_METADATA_FIELDS:
+				if field not in fcol and field not in ucol:
+					continue
+				if _scalar(fcol.get(field)) != _scalar(ucol.get(field)):
+					mismatches.append(
+						{
+							"kind": "column_metadata",
+							"column_index": col_idx,
+							"field": field,
+							"fast": _scalar(fcol.get(field)),
+							"upstream": _scalar(ucol.get(field)),
+						}
+					)
+	if len(fast_rows) != len(upstream_rows):
+		mismatches.append({"kind": "row_count", "fast": len(fast_rows), "upstream": len(upstream_rows)})
+
+	fast_totals = [row for row in fast_rows if _is_total_row(row, group_field)]
+	upstream_totals = [row for row in upstream_rows if _is_total_row(row, group_field)]
+	if len(fast_totals) != 1 or len(upstream_totals) != 1:
+		if fast_rows or upstream_rows:
+			mismatches.append(
+				{"kind": "total_row_count", "fast": len(fast_totals), "upstream": len(upstream_totals)}
+			)
+	else:
+		fast_tot_idx = fast_rows.index(fast_totals[0])
+		up_tot_idx = upstream_rows.index(upstream_totals[0])
+		if fast_tot_idx != len(fast_rows) - 1:
+			mismatches.append(
+				{"kind": "total_row_not_final", "side": "fast", "position": fast_tot_idx}
+			)
+		if up_tot_idx != len(upstream_rows) - 1:
+			mismatches.append(
+				{"kind": "total_row_not_final", "side": "upstream", "position": up_tot_idx}
+			)
+		mismatches.extend(_compare_field_maps(fast_totals[0], upstream_totals[0], tolerance, "total"))
+
+	fast_body = [row for row in fast_rows if not _is_total_row(row, group_field)]
+	upstream_body = [row for row in upstream_rows if not _is_total_row(row, group_field)]
+	if not compare_group_order:
+		fast_body = sorted(fast_body, key=lambda r: str(_scalar(r.get(group_field) or "")))
+		upstream_body = sorted(upstream_body, key=lambda r: str(_scalar(r.get(group_field) or "")))
+	for index, (fast_row, upstream_row) in enumerate(zip(fast_body, upstream_body)):
+		mismatches.extend(_compare_field_maps(fast_row, upstream_row, tolerance, f"group-row:{index}"))
+	return mismatches
 
 
 def _load_comparator():
@@ -28,9 +233,12 @@ def _load_comparator():
 		repo_root = Path(__file__).resolve().parents[4]
 		if str(repo_root) not in sys.path:
 			sys.path.insert(0, str(repo_root))
-		from tools.perf_parity import compare_gross_profit_rows
+		try:
+			from tools.perf_parity import compare_gross_profit_rows
 
-		return compare_gross_profit_rows
+			return compare_gross_profit_rows
+		except ImportError:
+			return _compare_gross_profit_rows_fallback
 
 
 def _resolve_profit_summary_execute():

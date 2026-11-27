@@ -1,3 +1,4 @@
+import json
 import sys
 
 import click
@@ -121,6 +122,7 @@ def khitmee_check_profit_parity(
 			)
 		finally:
 			frappe.destroy()
+		click.echo(json.dumps(result, indent=2, default=str))
 		sys.exit(result["exit_code"])
 
 

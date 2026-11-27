@@ -766,6 +766,12 @@ def query_profit(filters: dict, user: str | None = None) -> QueryProfitResult:
 	for date_key in ("from_date", "to_date"):
 		if filters.get(date_key):
 			filters[date_key] = _as_date_string(filters[date_key])
+	if not filters.get("currency") and filters.get("company") and frappe is not None:
+		get_cached = getattr(frappe, "get_cached_value", None)
+		if callable(get_cached):
+			default_currency = get_cached("Company", filters["company"], "default_currency")
+			if default_currency:
+				filters["currency"] = default_currency
 	authorize_profit_request(filters, user)
 	triggers_installed, missing_triggers = store.verify_repost_triggers_installed()
 	if not triggers_installed:

@@ -462,6 +462,47 @@ class ParityCheckCallableOfflineTests(unittest.TestCase):
         self.assertEqual(result["exit_code"], 1)
         self.assertTrue(any(mismatch["kind"] == "non_oracle_mode" for mismatch in result["mismatches"]))
 
+    def test_comparator_fallback_loads_without_tools_and_enforces_oracle_checks(self):
+        fake_path = Path("/container/bench/apps/khitmee_ops/khitmee_ops/profit_summary/parity_check.py")
+        with mock.patch.dict(sys.modules, {"tools": None, "tools.perf_parity": None}), mock.patch.object(
+            parity_check, "__file__", str(fake_path)
+        ):
+            comparator = parity_check._load_comparator()
+
+        self.assertIs(comparator, parity_check._compare_gross_profit_rows_fallback)
+        cols = [
+            {"fieldname": "warehouse", "label": "Warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 100},
+            {"fieldname": "selling_amount", "label": "Selling Amount", "fieldtype": "Currency", "options": "currency", "width": 100},
+        ]
+        fast = [
+            {"warehouse": "W-A", "selling_amount": 100.0},
+            {"warehouse": "Total", "qty": None, "selling_amount": 100.0},
+        ]
+        upstream_num = [
+            {"warehouse": "W-A", "selling_amount": 100.000001},
+            {"warehouse": "Total", "qty": None, "selling_amount": 100.0},
+        ]
+        self.assertTrue(
+            any(m["kind"] == "numeric_field" for m in comparator(cols, fast, cols, upstream_num, tolerance=1e-7))
+        )
+        upstream_zero = [
+            {"warehouse": "W-A", "selling_amount": 100.0},
+            {"warehouse": "Total", "qty": 0.0, "selling_amount": 100.0},
+        ]
+        self.assertTrue(
+            any(m["kind"] == "null_numeric" for m in comparator(cols, fast, cols, upstream_zero, tolerance=1e-7))
+        )
+        cols_bad_meta = [
+            {"fieldname": "warehouse", "label": "Warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 180},
+            cols[1],
+        ]
+        self.assertTrue(
+            any(
+                m["kind"] == "column_metadata"
+                for m in comparator(cols, fast, cols_bad_meta, copy.deepcopy(fast), check_column_metadata=True)
+            )
+        )
+
 
 try:
     import frappe
