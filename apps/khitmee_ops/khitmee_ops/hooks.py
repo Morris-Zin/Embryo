@@ -10,9 +10,13 @@ app_version = "0.1.0"
 # They are intentionally not imported here: importing click/frappe command modules in hooks
 # slows every web worker startup.
 
+_profit_stock_voucher_hook = "khitmee_ops.profit_summary.store.on_stock_voucher_change"
+
 doc_events = {
 	"Sales Invoice": {
 		"validate": "khitmee_ops.api.vouchers.sync_counter_autopay_payment",
+		"on_submit": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
+		"on_cancel": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
 	},
 	"Item": {
 		"after_insert": "khitmee_ops.api.search.invalidate_item_search_cache",
@@ -20,6 +24,37 @@ doc_events = {
 		"on_trash": "khitmee_ops.api.search.invalidate_item_search_cache",
 		"after_rename": "khitmee_ops.api.search.invalidate_item_search_cache",
 	},
+	"Purchase Invoice": {
+		"on_submit": _profit_stock_voucher_hook,
+		"on_cancel": _profit_stock_voucher_hook,
+	},
+	"Purchase Receipt": {
+		"on_submit": _profit_stock_voucher_hook,
+		"on_cancel": _profit_stock_voucher_hook,
+	},
+	"Stock Entry": {
+		"on_submit": _profit_stock_voucher_hook,
+		"on_cancel": _profit_stock_voucher_hook,
+	},
+	"Stock Reconciliation": {
+		"on_submit": _profit_stock_voucher_hook,
+		"on_cancel": _profit_stock_voucher_hook,
+	},
+	"Delivery Note": {
+		"on_submit": _profit_stock_voucher_hook,
+		"on_cancel": _profit_stock_voucher_hook,
+	},
+	"Repost Item Valuation": {
+		"on_trash": "khitmee_ops.profit_summary.store.on_repost_trash",
+	},
+}
+
+scheduler_events = {
+	"cron": {
+		"*/10 * * * *": ["khitmee_ops.profit_summary.rebuilder.process_dirty_slices"],
+		"5 0 * * *": ["khitmee_ops.profit_summary.rebuilder.enqueue_yesterday_rollover"],
+	},
+	"hourly": ["khitmee_ops.profit_summary.export_service.cleanup_expired_exports"],
 }
 
 after_request = ["khitmee_ops.api.memory.maybe_trim_heap"]

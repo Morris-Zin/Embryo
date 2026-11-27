@@ -1,1 +1,1 @@
-
+khitmee_ops.setup.indexes
