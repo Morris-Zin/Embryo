@@ -117,21 +117,11 @@ jobs:
     if: needs.autoloop-preflight.outputs.enrolled == 'true'
     runs-on: ubuntu-latest
     permissions: {}
-    outputs:
-      trusted_shard_results_b64: ${{ steps.shard_harness.outputs.trusted_shard_results_b64 }}
     steps:
       - name: Checkout candidate PR head for fast-check
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          path: candidate-fast
-          persist-credentials: false
-
-      - name: Checkout fresh candidate PR head for frozen shard checks
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: candidate-shards
           persist-credentials: false
 
       - name: Set up Node
@@ -147,8 +137,7 @@ jobs:
       - name: Warm pinned Knip cache
         run: npx --yes knip@6.46.1 --version
 
-      - name: Run candidate fast-check (isolated checkout)
-        working-directory: candidate-fast
+      - name: Run candidate fast-check (isolated VM)
         env:
           AUTOLOOP_PINNED_KNIP: "6.46.1"
         run: |
@@ -156,24 +145,49 @@ jobs:
           env -u GITHUB_OUTPUT -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
             python -B tools/khitmee_dev.py fast-check
 
-      - name: Run trusted FrozenContractV1 shard checks and emit per-shard attestation
+  autoloop-shard-checks:
+    name: autoloop-shard-checks
+    needs: autoloop-preflight
+    if: needs.autoloop-preflight.outputs.enrolled == 'true'
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      trusted_shard_results_b64: ${{ steps.shard_harness.outputs.trusted_shard_results_b64 }}
+    steps:
+      - name: Checkout fresh candidate PR head in isolated runner VM
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate-repo
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify committed tree hash and execute FrozenContractV1 shard checks
         id: shard_harness
         env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ needs.autoloop-preflight.outputs.run_id }}
           SHARD_CHECKS_B64: ${{ needs.autoloop-preflight.outputs.shard_checks_b64 }}
           EXPECTED_SHARD_CHECKS_SHA256: ${{ needs.autoloop-preflight.outputs.shard_checks_sha256 }}
           CODE_TREE_SHA256: ${{ needs.autoloop-preflight.outputs.code_tree_sha256 }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, hashlib, json, os, subprocess, sys
+          import base64, hashlib, json, os, re, shutil, subprocess, sys, tempfile
 
+          head_sha = (os.environ.get("HEAD_SHA") or "").strip()
+          run_id = (os.environ.get("RUN_ID") or "").strip()
           raw_b64 = (os.environ.get("SHARD_CHECKS_B64") or "").strip()
           expected_sha = (os.environ.get("EXPECTED_SHARD_CHECKS_SHA256") or "").strip()
-          code_tree_sha = (os.environ.get("CODE_TREE_SHA256") or "").strip()
+          expected_tree_sha = (os.environ.get("CODE_TREE_SHA256") or "").strip()
           gh_out = os.environ.get("GITHUB_OUTPUT") or ""
 
-          if not raw_b64 or not expected_sha or not code_tree_sha:
-              print("ERROR: missing preflight shard manifest outputs", file=sys.stderr)
+          if not (head_sha and run_id and raw_b64 and expected_sha and expected_tree_sha):
+              print("ERROR: missing required preflight shard manifest outputs", file=sys.stderr)
               sys.exit(3)
 
           manifest_bytes = base64.b64decode(raw_b64)
@@ -187,6 +201,49 @@ jobs:
               print("ERROR: frozen shard checks manifest must be a non-empty list", file=sys.stderr)
               sys.exit(3)
 
+          actual_head = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], cwd="candidate-repo", text=True
+          ).strip()
+          if actual_head != head_sha:
+              print(f"ERROR: candidate checkout HEAD {actual_head} != expected {head_sha}", file=sys.stderr)
+              sys.exit(3)
+
+          # Independently recompute code_tree_sha256 from candidate-repo Git tree before running any shard
+          slug_re = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+          def is_meta(p: str) -> bool:
+              if p == f".autoloop/runs/{run_id}.json":
+                  return True
+              prefix = f".autoloop/experiments/{run_id}-"
+              if p.startswith(prefix) and p.endswith(".md"):
+                  slug = p[len(prefix):-3]
+                  return "/" not in slug and bool(slug_re.match(slug))
+              return False
+
+          raw_tree = subprocess.check_output(
+              ["git", "ls-tree", "-r", "-z", head_sha], cwd="candidate-repo"
+          )
+          entries = []
+          for chunk in raw_tree.split(b"\0"):
+              if not chunk:
+                  continue
+              meta, path_b = chunk.split(b"\t", 1)
+              mode, obj_type, sha = meta.decode("ascii").split(" ")
+              path_s = path_b.decode("utf-8", errors="surrogateescape")
+              entries.append((mode, obj_type, sha, path_s))
+          entries.sort(key=lambda e: e[3].encode("utf-8"))
+          hasher = hashlib.sha256()
+          for mode, obj_type, sha, path_s in entries:
+              if is_meta(path_s):
+                  continue
+              hasher.update(f"{mode} {obj_type} {sha}\t{path_s}\0".encode("utf-8"))
+          computed_tree_sha = hasher.hexdigest()
+          if computed_tree_sha != expected_tree_sha:
+              print(
+                  f"ERROR: computed code_tree_sha256 ({computed_tree_sha}) != preflight ({expected_tree_sha})",
+                  file=sys.stderr,
+              )
+              sys.exit(3)
+
           child_env = {
               k: v
               for k, v in os.environ.items()
@@ -198,10 +255,25 @@ jobs:
               if not sid:
                   print("ERROR: shard manifest item missing shard_id", file=sys.stderr)
                   sys.exit(3)
-              for cmd in item.get("checks") or []:
-                  print(f"Running frozen shard check [{sid}]: {cmd}")
-                  subprocess.run(cmd, shell=True, cwd="candidate-shards", env=child_env, check=True)
-              passed_shards[sid] = code_tree_sha
+              # Execute each shard in its own fresh detached worktree so shards cannot tamper with each other
+              wt_dir = tempfile.mkdtemp(prefix=f"autoloop-shard-{sid}-")
+              try:
+                  subprocess.run(
+                      ["git", "worktree", "add", "--detach", wt_dir, head_sha],
+                      cwd="candidate-repo",
+                      check=True,
+                  )
+                  for cmd in item.get("checks") or []:
+                      print(f"Running frozen shard check [{sid}]: {cmd}")
+                      subprocess.run(cmd, shell=True, cwd=wt_dir, env=child_env, check=True)
+                  passed_shards[sid] = computed_tree_sha
+              finally:
+                  subprocess.run(
+                      ["git", "worktree", "remove", "--force", wt_dir],
+                      cwd="candidate-repo",
+                      capture_output=True,
+                  )
+                  shutil.rmtree(wt_dir, ignore_errors=True)
 
           att_b64 = base64.b64encode(
               json.dumps(passed_shards, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -215,6 +287,7 @@ jobs:
     needs:
       - autoloop-preflight
       - autoloop-candidate-checks
+      - autoloop-shard-checks
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -274,10 +347,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          ENROLLED: ${{ needs.autoloop-preflight.outputs.enrolled }}
           CANDIDATE_CHECKS_RESULT: ${{ needs.autoloop-candidate-checks.result }}
-          TRUSTED_SHARD_RESULTS_B64: ${{ needs.autoloop-candidate-checks.outputs.trusted_shard_results_b64 }}
+          SHARD_CHECKS_RESULT: ${{ needs.autoloop-shard-checks.result }}
+          TRUSTED_SHARD_RESULTS_B64: ${{ needs.autoloop-shard-checks.outputs.trusted_shard_results_b64 }}
         run: |
           set -euo pipefail
+          if [ "${ENROLLED}" = "true" ] && [ "${SHARD_CHECKS_RESULT}" != "success" ]; then
+            echo "ERROR: autoloop-shard-checks did not succeed (${SHARD_CHECKS_RESULT})." >&2
+            exit 3
+          fi
           EXTRA_ARGS=()
           if [ -n "${TRUSTED_SHARD_RESULTS_B64}" ]; then
             EXTRA_ARGS+=(--trusted-shard-results-b64 "${TRUSTED_SHARD_RESULTS_B64}")

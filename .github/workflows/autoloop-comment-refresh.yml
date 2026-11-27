@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, re, urllib.request
+          import json, os, re, time, urllib.error, urllib.request
 
           event_path = os.environ["GITHUB_EVENT_PATH"]
           event = json.load(open(event_path, encoding="utf-8"))
@@ -40,29 +40,31 @@ jobs:
           repo = os.environ["REPO_SLUG"]
           token = os.environ["GH_TOKEN"]
 
-          markers = (
+          pr_markers = (
               "autoloop-contract:v1",
               "autoloop-review:v1",
               "autoloop-rule-edit-approval:v1",
               "autoloop-auto-merge-approval:v1",
               "autoloop-findings:v1",
           )
-          if not any(m in combined_body for m in markers) and not is_pr:
-              print("Ignoring ordinary non-autoloop issue comment.")
+          issue_markers = ("autoloop-contract:v1",)
+          relevant_markers = pr_markers if is_pr else issue_markers
+
+          if not is_pr and not any(m in combined_body for m in issue_markers):
+              print("Ignoring non-contract issue comment.")
               raise SystemExit(0)
-          if action == "created" and not any(m in combined_body for m in markers):
+          if action == "created" and not any(m in combined_body for m in relevant_markers):
               print("Ignoring ordinary non-autoloop PR comment.")
               raise SystemExit(0)
 
           pr_numbers = set()
           if is_pr:
               pr_numbers.add(int(os.environ["ISSUE_NUMBER"]))
-          for m in re.finditer(r"Bound PR:\s*#(\d+)", combined_body):
-              pr_numbers.add(int(m.group(1)))
-          for m in re.finditer(r'"pr_number"\s*:\s*(\d+)', combined_body):
-              pr_numbers.add(int(m.group(1)))
-          for m in re.finditer(r"\bpr=(\d+)\b", combined_body):
-              pr_numbers.add(int(m.group(1)))
+          else:
+              for m in re.finditer(r"Bound PR:\s*#(\d+)", combined_body):
+                  pr_numbers.add(int(m.group(1)))
+              for m in re.finditer(r'"pr_number"\s*:\s*(\d+)', combined_body):
+                  pr_numbers.add(int(m.group(1)))
 
           if not pr_numbers:
               print("No bound PR referenced by comment; nothing to refresh.")
@@ -83,6 +85,24 @@ jobs:
                   body = resp.read().decode("utf-8")
                   return json.loads(body) if body.strip() else {}
 
+          def find_pr_gate_run(pr_num, head_sha):
+              page = 1
+              while page <= 5:
+                  runs_data = api(
+                      f"/repos/{repo}/actions/workflows/autoloop-gate.yml/runs?head_sha={head_sha}&per_page=100&page={page}"
+                  )
+                  runs = runs_data.get("workflow_runs") or []
+                  if not runs:
+                      return None
+                  for run in runs:
+                      prs = run.get("pull_requests") or []
+                      if any(int(p.get("number") or 0) == pr_num for p in prs if isinstance(p, dict)):
+                          return run
+                  if len(runs) < 100:
+                      return None
+                  page += 1
+              return None
+
           for pr_num in sorted(pr_numbers):
               pr = api(f"/repos/{repo}/pulls/{pr_num}")
               if pr.get("state") != "open":
@@ -91,18 +111,22 @@ jobs:
               head_sha = (pr.get("head") or {}).get("sha") or ""
               if not head_sha:
                   continue
-              runs_data = api(
-                  f"/repos/{repo}/actions/workflows/autoloop-gate.yml/runs?head_sha={head_sha}&per_page=5"
-              )
-              runs = runs_data.get("workflow_runs") or []
-              if not runs:
-                  print(f"No Autoloop Gate run found for PR #{pr_num} head {head_sha[:8]}.")
+              target = find_pr_gate_run(pr_num, head_sha)
+              if target is None:
+                  print(f"No Autoloop Gate run matched PR #{pr_num} at head {head_sha[:8]}; refusing ambiguous rerun.")
                   continue
-              latest = runs[0]
-              run_id = latest["id"]
-              if latest.get("status") != "completed":
-                  print(f"Autoloop Gate run {run_id} for PR #{pr_num} is already {latest.get('status')}; skipping rerun.")
-                  continue
+              run_id = target["id"]
+              if target.get("status") != "completed":
+                  print(f"Cancelling active Autoloop Gate run {run_id} for PR #{pr_num} so rerun observes updated comment.")
+                  try:
+                      api(f"/repos/{repo}/actions/runs/{run_id}/cancel", method="POST")
+                  except urllib.error.HTTPError as exc:
+                      print(f"Cancel returned HTTP {exc.code}; waiting for completion.")
+                  for _ in range(15):
+                      time.sleep(2)
+                      refreshed = api(f"/repos/{repo}/actions/runs/{run_id}")
+                      if refreshed.get("status") == "completed":
+                          break
               print(f"Re-running Autoloop Gate run {run_id} for PR #{pr_num} head {head_sha[:8]}.")
               api(f"/repos/{repo}/actions/runs/{run_id}/rerun", method="POST")
           PY

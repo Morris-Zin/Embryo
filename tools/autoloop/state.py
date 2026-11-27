@@ -10,11 +10,14 @@ from typing import Any
 from . import EXIT_ILLEGAL_TRANSITION, SCHEMA_VERSION
 from .failures import normalize_failure
 from .guard import (
+    UnsafeRollbackError,
     assert_clean_worktree_for_rollback,
     assert_safe_local_path,
     compute_code_tree_sha256,
     contract_sha256,
     format_contract_comment,
+    git_current_branch,
+    git_is_ancestor,
     git_restore_to_commit,
     git_rev_parse,
     load_config,
@@ -274,6 +277,8 @@ def init_run(
             "base_branch": base_branch,
             "base_sha": resolved_base_sha,
             "last_integrated_sha": None,
+            "last_integrated_worktree": None,
+            "last_integrated_branch": None,
             "merge_mode": merge_mode,
             "contract_revision": 0,
             "contract_sha256": None,
@@ -557,6 +562,8 @@ def refresh_base(
             raise IllegalTransitionError("cannot refresh-base while contract amendments are pending")
         state["base_sha"] = resolved_base
         state["last_integrated_sha"] = None
+        state["last_integrated_worktree"] = None
+        state["last_integrated_branch"] = None
         for sdata in state["shards"].values():
             sdata["status"] = "locked"
             sdata["worker_strikes"] = 0
@@ -629,6 +636,8 @@ def record_all_shards_pass(
     *,
     code_tree_sha256: str | None = None,
     head_sha: str | None = None,
+    worktree_path: str | None = None,
+    branch_name: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Atomically record the shared integration `code_tree_sha256` across all shards."""
@@ -648,6 +657,11 @@ def record_all_shards_pass(
         eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
         if head_sha:
             state["last_integrated_sha"] = head_sha
+            int_wt = Path(worktree_path).resolve() if worktree_path else repo.resolve()
+            state["last_integrated_worktree"] = str(int_wt)
+            state["last_integrated_branch"] = (
+                branch_name if branch_name is not None else git_current_branch(int_wt)
+            )
         single_shard = len(state["shards"]) == 1
         for sdata in state["shards"].values():
             sdata["status"] = "passed"
@@ -701,13 +715,27 @@ def retry_shard(
         # Determine whether this retry applies to the integrated checkout (e.g. post-review safeguard failure)
         # versus the shard-local worker worktree.
         shard_wt_resolved = Path(shard["worktree_path"]).resolve() if shard.get("worktree_path") else None
+        recorded_int_wt = (
+            Path(state["last_integrated_worktree"]).resolve()
+            if state.get("last_integrated_worktree")
+            else None
+        )
         is_integrated_retry = bool(integrated) or shard.get("retry_scope") == "integrated"
+        if bool(integrated) and not state.get("last_integrated_sha"):
+            raise IllegalTransitionError(
+                "cannot run integrated retry-shard before an integrated check --all-shards pass exists"
+            )
         if not is_integrated_retry and state.get("last_integrated_sha"):
             if worktree is not None:
                 wt_res = worktree.resolve()
-                if shard_wt_resolved is None or wt_res != shard_wt_resolved:
-                    if wt_res == repo.resolve():
-                        is_integrated_retry = True
+                if recorded_int_wt is not None and wt_res == recorded_int_wt and (
+                    shard_wt_resolved is None or wt_res != shard_wt_resolved
+                ):
+                    is_integrated_retry = True
+                elif recorded_int_wt is None and wt_res == repo.resolve() and (
+                    shard_wt_resolved is None or wt_res != shard_wt_resolved
+                ):
+                    is_integrated_retry = True
             elif prev_run_status in ("gate_passed", "safeguard_pending", "ready_to_merge"):
                 is_integrated_retry = True
         if is_integrated_retry:
@@ -731,9 +759,36 @@ def retry_shard(
         rolled_back_to: str | None = None
         rollback_commit: str | None = None
         if needs_rollback:
-            if is_integrated_retry and state.get("last_integrated_sha"):
-                rollback_wt = worktree or repo
+            if is_integrated_retry:
                 target_sha = state.get("last_integrated_sha")
+                if not target_sha:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_sha is missing"
+                    )
+                if worktree is not None:
+                    rollback_wt = worktree.resolve()
+                elif recorded_int_wt is not None:
+                    rollback_wt = recorded_int_wt
+                else:
+                    raise UnsafeRollbackError(
+                        "refusing integrated rollback: last_integrated_worktree is not recorded; pass --worktree"
+                    )
+                if not rollback_wt.is_dir():
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} does not exist"
+                    )
+                expected_branch = state.get("last_integrated_branch")
+                actual_branch = git_current_branch(rollback_wt)
+                if expected_branch is not None and actual_branch != expected_branch:
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} is on branch {actual_branch!r}, "
+                        f"expected {expected_branch!r}"
+                    )
+                if not git_is_ancestor(rollback_wt, target_sha, "HEAD"):
+                    raise UnsafeRollbackError(
+                        f"refusing integrated rollback: worktree {rollback_wt} HEAD does not descend from "
+                        f"last_integrated_sha {target_sha[:8]}"
+                    )
                 rb_allowed = list(state.get("allowed_paths") or [])
                 for sdata in (state.get("shards") or {}).values():
                     rb_allowed.extend(sdata.get("allowed_paths") or [])
@@ -944,6 +999,8 @@ def resolve_contract_change(
                 resolved_base = git_rev_parse(repo, new_base_sha)
                 state["base_sha"] = resolved_base
                 state["last_integrated_sha"] = None
+                state["last_integrated_worktree"] = None
+                state["last_integrated_branch"] = None
                 for sdata in state["shards"].values():
                     sdata["status"] = "locked"
                     sdata["worker_strikes"] = 0

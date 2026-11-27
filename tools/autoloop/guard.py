@@ -72,6 +72,7 @@ class TreeEntry:
     obj_type: str
     sha: str
     path: str
+    size: int | None = None
 
 
 @dataclass(frozen=True)
@@ -398,7 +399,7 @@ def git_diff_tree_entries(repo: Path, base_rev: str, head_rev: str) -> list[Diff
 
 
 def git_ls_tree(repo: Path, tree_ish: str) -> list[TreeEntry]:
-    proc = _run_git(repo, ["ls-tree", "-r", "-z", tree_ish])
+    proc = _run_git(repo, ["ls-tree", "-r", "-l", "-z", tree_ish])
     entries: list[TreeEntry] = []
     for record in proc.stdout.split(b"\0"):
         if not record:
@@ -408,8 +409,14 @@ def git_ls_tree(repo: Path, tree_ish: str) -> list[TreeEntry]:
             continue
         header = record[:tab].decode("utf-8")
         path = record[tab + 1 :].decode("utf-8", errors="surrogateescape")
-        mode, obj_type, sha = header.split(" ", 2)
-        entries.append(TreeEntry(mode=mode, obj_type=obj_type, sha=sha, path=_normalize_posix_path(path)))
+        parts = header.split()
+        if len(parts) < 3:
+            continue
+        mode, obj_type, sha = parts[0], parts[1], parts[2]
+        size: int | None = None
+        if len(parts) >= 4 and parts[3].isdigit():
+            size = int(parts[3])
+        entries.append(TreeEntry(mode=mode, obj_type=obj_type, sha=sha, path=_normalize_posix_path(path), size=size))
     return entries
 
 
@@ -427,34 +434,25 @@ def git_merge_tree(repo: Path, base_sha: str, head_sha: str) -> str:
     return first_line
 
 
-def git_read_tree_blobs(repo: Path, tree_ish: str, max_blob_bytes: int = 10_000_000) -> dict[str, bytes]:
+def git_read_tree_blobs(
+    repo: Path,
+    tree_ish: str,
+    max_blob_bytes: int = 10_000_000,
+    *,
+    tree_entries: list[TreeEntry] | None = None,
+) -> dict[str, bytes]:
     """Read all blobs from a Git tree OID via `git cat-file --batch`, failing closed on oversized blobs."""
-    entries = [e for e in git_ls_tree(repo, tree_ish) if e.obj_type == "blob"]
+    source_entries = tree_entries if tree_entries is not None else git_ls_tree(repo, tree_ish)
+    entries = [e for e in source_entries if e.obj_type == "blob"]
     if not entries:
         return {}
+    # Pre-check blob sizes from `ls-tree -l` before loading payloads into memory so oversized blobs fail closed.
+    for entry in entries:
+        if entry.size is not None and entry.size > max_blob_bytes:
+            raise GuardError(
+                f"blob {entry.path!r} ({entry.size} bytes) exceeds max_blob_bytes ({max_blob_bytes}); cannot skip policy evaluation"
+            )
     batch_input = "".join(f"{e.sha}\n" for e in entries).encode("utf-8")
-
-    # Pre-check blob sizes before loading payloads into memory so oversized blobs fail closed.
-    size_proc = subprocess.Popen(
-        ["git", "-c", f"safe.directory={repo}", "cat-file", "--batch-check"],
-        cwd=repo,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    assert size_proc.stdin is not None and size_proc.stdout is not None and size_proc.stderr is not None
-    check_out, check_err = size_proc.communicate(batch_input)
-    if size_proc.returncode != 0:
-        raise GuardError(f"git cat-file --batch-check failed: {check_err.decode('utf-8', errors='replace')}")
-    check_lines = check_out.decode("utf-8", errors="replace").splitlines()
-    for entry, line in zip(entries, check_lines):
-        parts = line.split()
-        if len(parts) >= 3 and parts[1] != "missing":
-            size = int(parts[2])
-            if size > max_blob_bytes:
-                raise GuardError(
-                    f"blob {entry.path!r} ({size} bytes) exceeds max_blob_bytes ({max_blob_bytes}); cannot skip policy evaluation"
-                )
 
     proc = subprocess.Popen(
         ["git", "-c", f"safe.directory={repo}", "cat-file", "--batch"],
@@ -524,20 +522,56 @@ def compute_code_tree_sha256(repo: Path, tree_ish: str, *, run_id: str | None = 
     return hasher.hexdigest()
 
 
+def git_current_branch(repo: Path) -> str | None:
+    """Return the checked-out short branch name, or None if HEAD is detached."""
+    proc = _run_git(repo, ["symbolic-ref", "--short", "-q", "HEAD"], check=False)
+    if proc.returncode != 0:
+        return None
+    name = proc.stdout.decode("utf-8", errors="replace").strip()
+    return name or None
+
+
+def _find_dirty_worktree_entries(
+    worktree: Path,
+    *,
+    allow_paths: set[str] | None = None,
+    allow_run_id: str | None = None,
+) -> list[str]:
+    """Parse `git status --porcelain=v1 -z` checking BOTH rename/copy endpoints."""
+    proc = _run_git(worktree, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+    ignored = {_normalize_posix_path(p) for p in (allow_paths or set())}
+    dirty_lines: list[str] = []
+    tokens = proc.stdout.decode("utf-8", errors="replace").split("\0")
+    i = 0
+    while i < len(tokens):
+        entry = tokens[i]
+        i += 1
+        if not entry:
+            continue
+        xy = entry[:2]
+        path1 = entry[3:]
+        endpoints = [_normalize_posix_path(path1)]
+        if ("R" in xy or "C" in xy) and i < len(tokens) and tokens[i]:
+            path2 = tokens[i]
+            i += 1
+            endpoints.append(_normalize_posix_path(path2))
+
+        def _is_exempt(p: str) -> bool:
+            if p in ignored:
+                return True
+            if allow_run_id and is_framework_metadata_path(p, allow_run_id):
+                return True
+            return False
+
+        if all(_is_exempt(ep) for ep in endpoints):
+            continue
+        dirty_lines.append(f"{xy} {' -> '.join(reversed(endpoints))}" if len(endpoints) == 2 else f"{xy} {endpoints[0]}")
+    return dirty_lines
+
+
 def assert_clean_worktree_for_check(worktree: Path, *, run_id: str | None = None) -> None:
     """Refuse `check` if `worktree` has dirty or untracked non-metadata edits (ensures HEAD matches tested code)."""
-    proc = _run_git(worktree, ["status", "--porcelain", "--untracked-files=all"])
-    dirty_lines: list[str] = []
-    for raw_line in proc.stdout.decode("utf-8", errors="replace").splitlines():
-        if not raw_line.strip():
-            continue
-        path_part = raw_line[3:].strip().strip('"')
-        if " -> " in path_part:
-            path_part = path_part.split(" -> ", 1)[1].strip().strip('"')
-        norm = _normalize_posix_path(path_part)
-        if run_id and is_framework_metadata_path(norm, run_id):
-            continue
-        dirty_lines.append(raw_line)
+    dirty_lines = _find_dirty_worktree_entries(worktree, allow_run_id=run_id)
     if dirty_lines:
         first_lines = "; ".join(dirty_lines[:5])
         raise GuardError(
@@ -615,26 +649,7 @@ def git_restore_to_commit(
 
 def assert_clean_worktree_for_rollback(worktree: Path, *, allow_paths: set[str] | None = None) -> None:
     """Refuse rollback if ANY dirty/untracked edit exists anywhere in `worktree` (exit 4)."""
-    proc = _run_git(worktree, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
-    ignored = {_normalize_posix_path(p) for p in (allow_paths or set())}
-    dirty_lines: list[str] = []
-    tokens = proc.stdout.decode("utf-8", errors="replace").split("\0")
-    i = 0
-    while i < len(tokens):
-        entry = tokens[i]
-        i += 1
-        if not entry:
-            continue
-        xy = entry[:2]
-        path1 = entry[3:]
-        endpoints = [_normalize_posix_path(path1)]
-        if ("R" in xy or "C" in xy) and i < len(tokens) and tokens[i]:
-            path2 = tokens[i]
-            i += 1
-            endpoints.append(_normalize_posix_path(path2))
-        if all(ep in ignored for ep in endpoints):
-            continue
-        dirty_lines.append(f"{xy} {' -> '.join(reversed(endpoints))}" if len(endpoints) == 2 else f"{xy} {endpoints[0]}")
+    dirty_lines = _find_dirty_worktree_entries(worktree, allow_paths=allow_paths)
     if dirty_lines:
         first_lines = "; ".join(dirty_lines[:5])
         raise UnsafeRollbackError(
@@ -716,9 +731,7 @@ def parse_latest_owner_contract(
     *,
     run_id: str | None = None,
 ) -> dict[str, Any] | None:
-    best: dict[str, Any] | None = None
-    best_rev = 0
-    best_sha: str | None = None
+    by_rev: dict[int, dict[str, dict[str, Any]]] = {}
     for comment in comments:
         if not _is_comment_owner_authentic(comment, trusted_owners):
             continue
@@ -746,15 +759,15 @@ def parse_latest_owner_contract(
             raise GuardError(
                 f"owner contract sha256 mismatch: marker={expected_sha} actual={actual_sha}"
             )
-        if rev > best_rev:
-            best_rev = rev
-            best = contract
-            best_sha = actual_sha
-        elif rev == best_rev and best_sha is not None and actual_sha != best_sha:
-            raise GuardError(
-                f"conflicting owner contracts at contract_revision={rev} for run {contract.get('run_id')!r}"
-            )
-    return best
+        by_rev.setdefault(rev, {})[actual_sha] = contract
+    if not by_rev:
+        return None
+    max_rev = max(by_rev)
+    if len(by_rev[max_rev]) > 1:
+        raise GuardError(
+            f"conflicting owner contracts at contract_revision={max_rev} for run {run_id!r}"
+        )
+    return next(iter(by_rev[max_rev].values()))
 
 
 def load_config(repo: Path) -> dict[str, Any]:
@@ -1325,7 +1338,8 @@ def _verify_safeguard_artifact(
         leaf = artifact.rsplit("/", 1)[-1].lower()
         has_test_ext = any(leaf.endswith(ext) for ext in _EXECUTABLE_TEST_EXTS)
         is_test_location = ("test" in leaf) or ("/tests/" in f"/{artifact}") or ("/test/" in f"/{artifact}")
-        if not (has_test_ext and is_test_location):
+        is_k6_scenario = artifact.startswith("perf-suite/k6/scenarios/") and leaf.endswith(".js")
+        if not ((has_test_ext and is_test_location) or is_k6_scenario):
             raise GuardError(
                 f"finding {fid!r} layer_4_runtime_test safeguard artifact {artifact!r} must reference an executable test file"
             )
@@ -1441,7 +1455,7 @@ def verify_untampered(
             raise GuardError(f"critical policy paths touched without approval: {', '.join(disallowed_policy[:10])}")
 
     # LF/BOM + full-tree static rules
-    file_map = git_read_tree_blobs(target_repo, head_sha)
+    file_map = git_read_tree_blobs(target_repo, head_sha, tree_entries=head_entries)
     lf_errors = check_governed_lf_and_bom(file_map)
     if lf_errors:
         raise GuardError("; ".join(lf_errors[:5]))
@@ -1499,17 +1513,19 @@ def verify_pr_integrity(
     policy_globs = list(config.get("critical_policy_globs") or [])
     max_prose_lines = int((config.get("limits") or {}).get("max_safeguard_prose_lines", 15))
 
-    resolved_base = git_rev_parse(repo, base_sha)
-    resolved_head = git_rev_parse(repo, head_sha)
-    resolved_main = git_rev_parse(repo, main_ref)
+    rev_out = _run_git(repo, ["rev-parse", f"{base_sha}^{{commit}}", f"{head_sha}^{{commit}}", f"{main_ref}^{{commit}}"])
+    rev_lines = [ln.strip() for ln in rev_out.stdout.decode("utf-8").splitlines() if ln.strip()]
+    if len(rev_lines) != 3:
+        raise GuardError(f"failed to resolve base/head/main commits: {rev_lines!r}")
+    resolved_base, resolved_head, resolved_main = rev_lines[0], rev_lines[1], rev_lines[2]
 
     # 3 Git comparisons (Git 2.50+ safe)
     mb_target = git_merge_base(repo, resolved_base, resolved_head)
-    mb_main = git_merge_base(repo, resolved_main, resolved_head)
+    mb_main = mb_target if resolved_base == resolved_main else git_merge_base(repo, resolved_main, resolved_head)
     merge_tree_oid = git_merge_tree(repo, resolved_base, resolved_head)
 
     target_diff = git_diff_tree_entries(repo, mb_target, resolved_head)
-    main_diff = git_diff_tree_entries(repo, mb_main, resolved_head)
+    main_diff = target_diff if mb_main == mb_target else git_diff_tree_entries(repo, mb_main, resolved_head)
     merge_entries = git_ls_tree(repo, merge_tree_oid)
 
     # Mode bans (120000 symlink, 160000 gitlink) across diffs and merge result
@@ -1523,7 +1539,7 @@ def verify_pr_integrity(
         raise GuardError("; ".join(collisions[:5]))
 
     # Load full merge-result file map for LF/BOM + full-tree trusted static rules
-    merge_file_map = git_read_tree_blobs(repo, merge_tree_oid)
+    merge_file_map = git_read_tree_blobs(repo, merge_tree_oid, tree_entries=merge_entries)
     lf_errors = check_governed_lf_and_bom(merge_file_map)
     if lf_errors:
         raise GuardError("; ".join(lf_errors[:5]))
@@ -1565,30 +1581,30 @@ def verify_pr_integrity(
     pr_bound_contract = pr_contracts[0] if pr_contracts else None
 
     # Resolve linked issue comments BEFORE early non-enrolled exit so issue-only enrollment is sticky!
-    incidental_issues = set(
-        _extract_referenced_issue_numbers(
-            repo, mb_target, resolved_head, pr_body, pr_comments, [], trusted_owners
-        )
-    )
-    authoritative_issues: set[int] = set()
-    for run_path in present_run_paths:
-        blob = git_read_blob(repo, resolved_head, run_path)
-        if blob is not None:
-            try:
-                parsed = json.loads(blob.decode("utf-8"))
-                inum = parsed.get("issue_number") if isinstance(parsed, dict) else None
-                if isinstance(inum, int) and inum > 0:
-                    authoritative_issues.add(inum)
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                pass
-    if github_client is not None and hasattr(github_client, "find_contract_issue_numbers"):
-        for inum in github_client.find_contract_issue_numbers(pr_number):
-            if isinstance(inum, int) and inum > 0:
-                authoritative_issues.add(inum)
-    referenced_issues = sorted(incidental_issues | authoritative_issues)
     issue_comments_cache: dict[int, list[dict[str, Any]]] = {}
     issue_bound_contracts: list[dict[str, Any]] = []
-    if github_client is not None and referenced_issues:
+    if github_client is not None:
+        incidental_issues = set(
+            _extract_referenced_issue_numbers(
+                repo, mb_target, resolved_head, pr_body, pr_comments, [], trusted_owners
+            )
+        )
+        authoritative_issues: set[int] = set()
+        for run_path in present_run_paths:
+            blob = git_read_blob(repo, resolved_head, run_path)
+            if blob is not None:
+                try:
+                    parsed = json.loads(blob.decode("utf-8"))
+                    inum = parsed.get("issue_number") if isinstance(parsed, dict) else None
+                    if isinstance(inum, int) and inum > 0:
+                        authoritative_issues.add(inum)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    pass
+        if hasattr(github_client, "find_contract_issue_numbers"):
+            for inum in github_client.find_contract_issue_numbers(pr_number):
+                if isinstance(inum, int) and inum > 0:
+                    authoritative_issues.add(inum)
+        referenced_issues = sorted(incidental_issues | authoritative_issues)
         for inum in referenced_issues:
             if int(inum) == int(pr_number):
                 continue
@@ -1826,41 +1842,19 @@ def verify_pr_integrity(
         }
 
     # --- Finalize Mode: Independent Shard Results, Review & Safeguard Artifacts ---
-    if candidate_checks_result is not None:
-        if candidate_checks_result != "success":
-            raise GuardError(
-                f"enrolled PR requires passing autoloop-candidate-checks (got {candidate_checks_result!r})"
-            )
-        if trusted_shard_results is None:
-            raise GuardError(
-                "enrolled PR finalize requires per-shard trusted_shard_results attestation matching FrozenContractV1"
-            )
-        shard_exec_verified = all(
-            trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
-        )
-        if not shard_exec_verified:
-            raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
-    elif trusted_shard_results is not None:
-        shard_exec_verified = all(
-            trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
-        )
-        if not shard_exec_verified:
-            raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
-    else:
-        if github_client is not None and hasattr(github_client, "get_check_runs"):
-            pr_check_runs = github_client.get_check_runs(resolved_head)
-        shard_exec_verified = any(
-            cr.get("name") == "autoloop-candidate-checks"
-            and cr.get("status") == "completed"
-            and cr.get("conclusion") == "success"
-            and cr.get("app_id") == 15368
-            for cr in pr_check_runs
-        )
-
-    if not shard_exec_verified:
+    if candidate_checks_result is not None and candidate_checks_result != "success":
         raise GuardError(
-            "missing independently authenticated shard execution results (require GitHub Actions autoloop-candidate-checks success)"
+            f"enrolled PR requires passing autoloop-candidate-checks (got {candidate_checks_result!r})"
         )
+    if trusted_shard_results is None:
+        raise GuardError(
+            "enrolled PR finalize requires per-shard trusted_shard_results attestation matching FrozenContractV1"
+        )
+    shard_exec_verified = all(
+        trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
+    )
+    if not shard_exec_verified:
+        raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
 
     for sid, rshard in run_shards.items():
         if rshard.get("status") != "passed":

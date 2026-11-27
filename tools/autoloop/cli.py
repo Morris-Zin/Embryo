@@ -24,6 +24,7 @@ from autoloop.guard import (
     assert_clean_worktree_for_check,
     assert_safe_local_path,
     compute_code_tree_sha256,
+    git_current_branch,
     git_is_ancestor,
     git_rev_parse,
     load_config,
@@ -167,6 +168,7 @@ def cmd_bootstrap_repo(repo: Path, *, repo_slug: str | None = None, dry_run: boo
                     "required_status_checks": [
                         {"context": "autoloop-preflight", "integration_id": 15368},
                         {"context": "autoloop-candidate-checks", "integration_id": 15368},
+                        {"context": "autoloop-shard-checks", "integration_id": 15368},
                         {"context": "autoloop-integrity", "integration_id": 15368},
                     ],
                 },
@@ -688,6 +690,8 @@ def main(argv: list[str] | None = None) -> int:
                     args.run_id,
                     code_tree_sha256=untampered["code_tree_sha256"],
                     head_sha=verified_head,
+                    worktree_path=str(target_wt),
+                    branch_name=git_current_branch(target_wt),
                 )
             else:
                 state = record_shard_pass(

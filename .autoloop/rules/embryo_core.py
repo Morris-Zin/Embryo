@@ -543,10 +543,50 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                 elif isinstance(tgt, (ast.Tuple, ast.List)):
                     _check_target_exprs(list(tgt.elts), sanitized)
 
-        def _update_sanitized_from_assign(targets: list[ast.expr], value: ast.expr, sanitized: set[str]) -> None:
+        def _dirty_mutation_target(expr: ast.AST) -> str | None:
+            """Return mapping name if `expr` mutates a mapping in a way that may insert truthy export_in_background."""
+            if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute)):
+                return None
+            target = _dotted_call_name(expr.func.value)
+            if not target:
+                return None
+            if expr.func.attr == "update":
+                # Safe only if all positional args are provably flag-free dict literals / stripping comprehensions
+                # and no keyword arg sets export_in_background to a non-falsy value.
+                for kw in expr.keywords:
+                    if kw.arg == "export_in_background" and not _is_falsy_const(kw.value):
+                        return target
+                    if kw.arg is None:
+                        return target
+                for arg in expr.args:
+                    if isinstance(arg, ast.Dict) and _dict_known_safe_omits_key(arg, "export_in_background"):
+                        continue
+                    if isinstance(arg, ast.DictComp) and _dict_comp_strips_key(arg, "export_in_background"):
+                        continue
+                    return target
+                return None
+            if expr.func.attr == "setdefault":
+                if expr.args and isinstance(expr.args[0], ast.Constant) and expr.args[0].value == "export_in_background":
+                    if len(expr.args) >= 2 and _is_falsy_const(expr.args[1]):
+                        return None
+                    return target
+                if expr.args and not isinstance(expr.args[0], ast.Constant):
+                    return target
+            return None
+
+        def _update_sanitized_from_assign(
+            targets: list[ast.expr],
+            value: ast.expr,
+            sanitized: set[str],
+            *,
+            emit_violations: bool = True,
+        ) -> None:
             popped = _pop_target(value)
             if popped:
                 sanitized.add(popped)
+            mutated = _dirty_mutation_target(value)
+            if mutated:
+                sanitized.discard(mutated)
             is_safe_comp = isinstance(value, ast.DictComp) and _dict_comp_strips_key(value, "export_in_background")
             is_safe_dict = isinstance(value, ast.Dict) and _dict_known_safe_omits_key(value, "export_in_background")
             is_falsy_val = _is_falsy_const(value)
@@ -558,7 +598,7 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                     and isinstance(tgt.slice, ast.Constant)
                     and tgt.slice.value == "export_in_background"
                 ):
-                    if is_truthy_val:
+                    if is_truthy_val and emit_violations:
                         violations.append(
                             _v(
                                 rule_id,
@@ -616,44 +656,69 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
             *,
             exit_states: list[set[str]] | None = None,
             except_states: list[set[str]] | None = None,
+            emit_violations: bool = True,
         ) -> set[str]:
             cur = set(sanitized)
             for stmt in stmts:
                 if except_states is not None and not _is_pure_sanitizing_stmt(stmt):
                     except_states.append(set(cur))
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    for dec in stmt.decorator_list:
-                        _check_expr(dec, cur)
-                    for default in list(stmt.args.defaults) + [d for d in stmt.args.kw_defaults if d is not None]:
-                        _check_expr(default, cur)
-                    _scan_block(stmt.body, set())
+                    if emit_violations:
+                        for dec in stmt.decorator_list:
+                            _check_expr(dec, cur)
+                        for default in list(stmt.args.defaults) + [d for d in stmt.args.kw_defaults if d is not None]:
+                            _check_expr(default, cur)
+                        _scan_block(stmt.body, set(), emit_violations=True)
                     continue
                 if isinstance(stmt, ast.ClassDef):
-                    for dec in stmt.decorator_list:
-                        _check_expr(dec, cur)
-                    for base in stmt.bases:
-                        _check_expr(base, cur)
-                    _scan_block(stmt.body, set())
+                    if emit_violations:
+                        for dec in stmt.decorator_list:
+                            _check_expr(dec, cur)
+                        for base in stmt.bases:
+                            _check_expr(base, cur)
+                        _scan_block(stmt.body, set(), emit_violations=True)
                     continue
                 if isinstance(stmt, ast.Expr):
-                    _check_expr(stmt.value, cur)
+                    if emit_violations:
+                        _check_expr(stmt.value, cur)
                     popped = _pop_target(stmt.value)
                     if popped:
                         cur.add(popped)
+                    mutated = _dirty_mutation_target(stmt.value)
+                    if mutated:
+                        cur.discard(mutated)
                 elif isinstance(stmt, ast.Assign):
-                    _check_expr(stmt.value, cur)
-                    _check_target_exprs(stmt.targets, cur)
-                    _update_sanitized_from_assign(stmt.targets, stmt.value, cur)
+                    if emit_violations:
+                        _check_expr(stmt.value, cur)
+                        _check_target_exprs(stmt.targets, cur)
+                    _update_sanitized_from_assign(stmt.targets, stmt.value, cur, emit_violations=emit_violations)
                 elif isinstance(stmt, ast.AnnAssign):
                     if stmt.value is not None:
+                        if emit_violations:
+                            _check_expr(stmt.value, cur)
+                            _check_target_exprs([stmt.target], cur)
+                        _update_sanitized_from_assign(
+                            [stmt.target], stmt.value, cur, emit_violations=emit_violations
+                        )
+                    elif emit_violations:
+                        _check_target_exprs([stmt.target], cur)
+                elif isinstance(stmt, ast.AugAssign):
+                    if emit_violations:
                         _check_expr(stmt.value, cur)
                         _check_target_exprs([stmt.target], cur)
-                        _update_sanitized_from_assign([stmt.target], stmt.value, cur)
-                    else:
-                        _check_target_exprs([stmt.target], cur)
+                    if isinstance(stmt.target, (ast.Name, ast.Attribute)):
+                        is_safe_rhs = (
+                            isinstance(stmt.op, ast.BitOr)
+                            and (
+                                (isinstance(stmt.value, ast.Dict) and _dict_known_safe_omits_key(stmt.value, "export_in_background"))
+                                or (isinstance(stmt.value, ast.DictComp) and _dict_comp_strips_key(stmt.value, "export_in_background"))
+                            )
+                        )
+                        if not is_safe_rhs:
+                            cur.discard(_dotted_call_name(stmt.target))
                 elif isinstance(stmt, ast.Delete):
                     for dtgt in stmt.targets:
-                        if isinstance(dtgt, ast.Subscript):
+                        if emit_violations and isinstance(dtgt, ast.Subscript):
                             _check_expr(dtgt.value, cur)
                             _check_expr(dtgt.slice, cur)
                         if (
@@ -665,15 +730,18 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                         elif isinstance(dtgt, (ast.Name, ast.Attribute)):
                             cur.discard(_dotted_call_name(dtgt))
                 elif isinstance(stmt, ast.If):
-                    _check_expr(stmt.test, cur)
+                    if emit_violations:
+                        _check_expr(stmt.test, cur)
                     cond_popped = _cond_pop_target(stmt.test)
                     if cond_popped:
                         cur.add(cond_popped)
                     then_san = _scan_block(
-                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states
+                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states,
+                        emit_violations=emit_violations,
                     )
                     else_san = _scan_block(
-                        stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states
+                        stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states,
+                        emit_violations=emit_violations,
                     )
                     then_exits = _stmt_always_exits(stmt.body)
                     else_exits = _stmt_always_exits(stmt.orelse) if stmt.orelse else False
@@ -684,38 +752,53 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                     else:
                         cur = then_san & else_san
                 elif isinstance(stmt, (ast.For, ast.AsyncFor)):
-                    _check_expr(stmt.iter, cur)
+                    if emit_violations:
+                        _check_expr(stmt.iter, cur)
                     body_san = _scan_block(
-                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states
+                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states,
+                        emit_violations=emit_violations,
                     )
                     else_san = (
-                        _scan_block(stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states)
+                        _scan_block(
+                            stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states,
+                            emit_violations=emit_violations,
+                        )
                         if stmt.orelse
                         else set(cur)
                     )
                     cur = cur & body_san & else_san
                 elif isinstance(stmt, ast.While):
-                    _check_expr(stmt.test, cur)
+                    if emit_violations:
+                        _check_expr(stmt.test, cur)
                     body_san = _scan_block(
-                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states
+                        stmt.body, set(cur), exit_states=exit_states, except_states=except_states,
+                        emit_violations=emit_violations,
                     )
                     else_san = (
-                        _scan_block(stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states)
+                        _scan_block(
+                            stmt.orelse, set(cur), exit_states=exit_states, except_states=except_states,
+                            emit_violations=emit_violations,
+                        )
                         if stmt.orelse
                         else set(cur)
                     )
                     cur = cur & body_san & else_san
                 elif isinstance(stmt, (ast.With, ast.AsyncWith)):
                     for item in stmt.items:
-                        _check_expr(item.context_expr, cur)
+                        if emit_violations:
+                            _check_expr(item.context_expr, cur)
                         if item.optional_vars is not None and isinstance(item.optional_vars, (ast.Name, ast.Attribute)):
                             cur.discard(_dotted_call_name(item.optional_vars))
-                    cur = _scan_block(stmt.body, cur, exit_states=exit_states, except_states=except_states)
+                    cur = _scan_block(
+                        stmt.body, cur, exit_states=exit_states, except_states=except_states,
+                        emit_violations=emit_violations,
+                    )
                 elif isinstance(stmt, ast.Try):
                     try_exits: list[set[str]] = []
                     try_excepts: list[set[str]] = []
                     body_san = _scan_block(
-                        stmt.body, set(cur), exit_states=try_exits, except_states=try_excepts
+                        stmt.body, set(cur), exit_states=try_exits, except_states=try_excepts,
+                        emit_violations=emit_violations,
                     )
                     if not try_excepts:
                         try_excepts.append(set(cur))
@@ -723,7 +806,10 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
 
                     else_exits: list[set[str]] = []
                     else_san = (
-                        _scan_block(stmt.orelse, set(body_san), exit_states=else_exits, except_states=except_states)
+                        _scan_block(
+                            stmt.orelse, set(body_san), exit_states=else_exits, except_states=except_states,
+                            emit_violations=emit_violations,
+                        )
                         if stmt.orelse
                         else body_san
                     )
@@ -738,7 +824,8 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                     for handler in stmt.handlers:
                         h_exits: list[set[str]] = []
                         h_san = _scan_block(
-                            handler.body, set(except_in), exit_states=h_exits, except_states=except_states
+                            handler.body, set(except_in), exit_states=h_exits, except_states=except_states,
+                            emit_violations=emit_violations,
                         )
                         if not _stmt_always_exits(handler.body):
                             fallthrough_paths.append(h_san)
@@ -746,7 +833,6 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                         finally_inputs.extend(h_exits)
 
                     if not stmt.handlers:
-                        # Uncaught exception from try.body can also enter finally
                         finally_inputs.append(except_in)
 
                     if exit_states is not None:
@@ -755,22 +841,26 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
 
                     fallthrough_cur = _intersect_all(fallthrough_paths) if fallthrough_paths else set(cur)
                     if stmt.finalbody:
+                        # Check expressions INSIDE finally using ALL paths that can reach finally
                         fin_in = _intersect_all(finally_inputs) if finally_inputs else fallthrough_cur
-                        fin_out = _scan_block(
-                            stmt.finalbody, fin_in, exit_states=exit_states, except_states=except_states
+                        _scan_block(
+                            stmt.finalbody, fin_in, exit_states=exit_states, except_states=except_states,
+                            emit_violations=emit_violations,
                         )
-                        # After try/finally, only fallthrough paths + finalbody effects reach following statements
-                        cur = fin_out
+                        # Outgoing normal fallthrough after finally only receives normal fallthrough paths!
+                        cur = _scan_block(stmt.finalbody, fallthrough_cur, emit_violations=False)
                     else:
                         cur = fallthrough_cur
                 elif isinstance(stmt, (ast.Return, ast.Raise)):
-                    for child in ast.iter_child_nodes(stmt):
-                        _check_expr(child, cur)
+                    if emit_violations:
+                        for child in ast.iter_child_nodes(stmt):
+                            _check_expr(child, cur)
                     if exit_states is not None:
                         exit_states.append(set(cur))
                 else:
-                    for child in ast.iter_child_nodes(stmt):
-                        _check_expr(child, cur)
+                    if emit_violations:
+                        for child in ast.iter_child_nodes(stmt):
+                            _check_expr(child, cur)
                 if except_states is not None:
                     except_states.append(set(cur))
             return cur
