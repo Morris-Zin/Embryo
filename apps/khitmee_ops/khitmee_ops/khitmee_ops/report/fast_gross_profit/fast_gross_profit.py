@@ -4,6 +4,7 @@
 import importlib
 import inspect
 import json
+import math
 import re
 import sys
 from collections import OrderedDict
@@ -380,8 +381,31 @@ def _voucher_sle_ordering(row):
 	)
 
 
-def process_sales_invoice_sle_rows(rows, requested_keys):
-	"""Process one voucher-scoped SLE batch without materializing unneeded row dicts."""
+# ERPNext rounds each SLE's stock_value independently, so the derived predecessor
+# ``stock_value - stock_value_difference`` can be off from the stored predecessor by
+# ~1e-6.  That never matters except when the buying amount sits on a currency
+# rounding half-way point (1.2125 derived vs 1.212499 stored): then the shortcut
+# flips flt() by one unit.  Such keys fetch the real predecessor row instead.
+ROUNDING_AMBIGUITY_MARGIN = 1e-5
+
+
+def is_rounding_ambiguous(amount, precision) -> bool:
+	"""True when ``amount`` is within the shortcut's error of a half-unit boundary."""
+	if precision is None:
+		return False
+	scale = 10 ** int(precision)
+	scaled = abs(flt(amount)) * scale
+	distance_units = abs(scaled - math.floor(scaled) - 0.5)
+	return distance_units / scale < ROUNDING_AMBIGUITY_MARGIN
+
+
+def process_sales_invoice_sle_rows(rows, requested_keys, currency_precision=None):
+	"""Process one voucher-scoped SLE batch without materializing unneeded row dicts.
+
+	Keys whose derived predecessor is unsafe (near-zero stock value, or a buying
+	amount on a rounding half-way point) are returned in ``near_zero_keys`` /
+	``ambiguous_keys`` for the exact predecessor fetch.
+	"""
 	requested_keys = list(dict.fromkeys(requested_keys))
 	requested_key_set = set(requested_keys)
 	latest_rows = {}
@@ -411,6 +435,7 @@ def process_sales_invoice_sle_rows(rows, requested_keys):
 	matched = {}
 	predecessors = {}
 	near_zero_keys = []
+	ambiguous_keys = []
 	pair_exists = set()
 	for key in requested_keys:
 		row = latest_rows.get(key)
@@ -430,6 +455,9 @@ def process_sales_invoice_sle_rows(rows, requested_keys):
 		if abs(previous_stock_value) < 1e-4:
 			near_zero_keys.append(key)
 			continue
+		if is_rounding_ambiguous(stock_value_difference, currency_precision):
+			ambiguous_keys.append(key)
+			continue
 
 		matched[key] = {"stock_value": stock_value, "qty": actual_qty}
 		predecessors[key] = {"stock_value": round(previous_stock_value, 9)}
@@ -438,9 +466,10 @@ def process_sales_invoice_sle_rows(rows, requested_keys):
 		"matched": matched,
 		"predecessors": predecessors,
 		"near_zero_keys": near_zero_keys,
+		"ambiguous_keys": ambiguous_keys,
 		"tie_pairs": tie_pairs,
 		"pair_exists": pair_exists,
-		"matched_keys": set(matched) | set(near_zero_keys),
+		"matched_keys": set(matched) | set(near_zero_keys) | set(ambiguous_keys),
 		"orderings_by_pair": seen_ordering_by_pair,
 	}
 
@@ -2439,7 +2468,9 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 			sql, params = build_sales_invoice_voucher_sle_query(voucher_chunk, self.filters.company)
 			rows = frappe.db.sql(sql, params, as_dict=False)
-			processed = process_sales_invoice_sle_rows(rows, chunk_keys)
+			processed = process_sales_invoice_sle_rows(
+				rows, chunk_keys, getattr(self, "currency_precision", None)
+			)
 
 			for pair, orderings in processed["orderings_by_pair"].items():
 				seen_orderings = seen_ordering_by_pair.setdefault(pair, set())
@@ -2453,6 +2484,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				pending_predecessors[key] = processed["predecessors"].get(key)
 			pending_pair_exists.update(processed["pair_exists"])
 			near_zero_keys.extend(processed["near_zero_keys"])
+			near_zero_keys.extend(processed["ambiguous_keys"])
 
 		for pair in voucher_tie_pairs:
 			self._tie_pairs.add(pair)

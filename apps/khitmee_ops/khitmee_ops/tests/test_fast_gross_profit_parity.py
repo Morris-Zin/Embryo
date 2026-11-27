@@ -40,6 +40,7 @@ from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	merge_posting_rows_descending,
 	normalize_sle_key,
 	positionalize_named_params,
+	is_rounding_ambiguous,
 	process_sales_invoice_sle_rows,
 	sle_window_tuple_to_dict,
 )
@@ -577,6 +578,30 @@ class TestSingleQueryVoucherSleProcessing(unittest.TestCase):
 
 		self.assertEqual(result["matched"], {})
 		self.assertEqual(result["near_zero_keys"], [key])
+
+	def test_rounding_half_way_difference_is_delegated_to_exact_fallback(self):
+		# Live case ACC-SINV-2026-89530 / KM-00054: stored predecessor 115.901562 and
+		# stock_value 114.689063 give 1.212499 -> 1.212, but the derived difference
+		# 1.2125 rounds to 1.213.  Only the real predecessor row is exact.
+		key = normalize_sle_key("KM-00054", "W1", "Sales Invoice", "SI-1", "ROW-1")
+		row = ("KM-00054", "W1", "Sales Invoice", "SI-1", "ROW-1", 114.689063, -1.2125, -1, "pd", "c1")
+
+		result = process_sales_invoice_sle_rows([row], [key], currency_precision=3)
+
+		self.assertEqual(result["matched"], {})
+		self.assertEqual(result["ambiguous_keys"], [key])
+		self.assertIn(key, result["matched_keys"])
+		# Without a precision the legacy compact path is unchanged.
+		legacy = process_sales_invoice_sle_rows([row], [key])
+		self.assertIn(key, legacy["matched"])
+
+	def test_rounding_ambiguity_only_flags_half_way_points(self):
+		self.assertTrue(is_rounding_ambiguous(1.2125, 3))
+		self.assertTrue(is_rounding_ambiguous(-25.0565, 3))
+		self.assertTrue(is_rounding_ambiguous(1.212499, 3))
+		self.assertFalse(is_rounding_ambiguous(1.2124, 3))
+		self.assertFalse(is_rounding_ambiguous(40.109, 3))
+		self.assertFalse(is_rounding_ambiguous(1.2125, None))
 
 	def test_same_batch_ordering_tie_clears_pair_matches(self):
 		key = normalize_sle_key("ITEM-1", "W1", "Sales Invoice", "SI-1", "ROW-1")
