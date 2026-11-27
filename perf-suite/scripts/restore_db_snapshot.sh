@@ -48,7 +48,24 @@ docker run --rm \
   -v "$VOLUME:/from" \
   -v "$(dirname "$ARCHIVE"):/snapshot:ro" \
   "$IMAGE" \
-  sh -c 'rm -rf /from/* /from/.[!.]* /from/..?* 2>/dev/null || true; cd /from && tar xzf "/snapshot/$SNAPSHOT_NAME"'
+  sh -c '
+    set -e
+    rm -rf /from/.restore-new /from/.restore-old
+    mkdir /from/.restore-new
+    tar xzf "/snapshot/$SNAPSHOT_NAME" -C /from/.restore-new
+    mkdir /from/.restore-old
+    for path in /from/* /from/.[!.]* /from/..?*; do
+      [ -e "$path" ] || continue
+      case "$path" in /from/.restore-new|/from/.restore-old) continue ;; esac
+      mv "$path" /from/.restore-old/
+    done
+    for path in /from/.restore-new/* /from/.restore-new/.[!.]* /from/.restore-new/..?*; do
+      [ -e "$path" ] || continue
+      mv "$path" /from/
+    done
+    rmdir /from/.restore-new
+    rm -rf /from/.restore-old
+  '
 docker start "$CONTAINER" >/dev/null
 DB_STOPPED=0
 
