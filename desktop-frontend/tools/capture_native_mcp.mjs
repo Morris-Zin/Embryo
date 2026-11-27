@@ -55,14 +55,15 @@ function keyText(key) { return specialKeys[key] || key; }
 async function getTree(rootHandle) {
   return structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
 }
+function matchesElement(element, action) {
+  if (action.elementId) return (element.typeNamesAndIds || []).some((entry) => (typeof entry === 'string' ? entry === action.elementId || entry.endsWith(`::${action.elementId}`) : entry.id === action.elementId));
+  if (action.label) return element.accessibleLabel === action.label || element.accessibleValue === action.label;
+  return false;
+}
 async function findTarget(rootHandle, action) {
   const tree = await getTree(rootHandle);
   const elements = tree.elements || [];
-  const found = elements.find((element) => {
-    if (action.elementId) return (element.typeNamesAndIds || []).some((entry) => entry === action.elementId || entry.endsWith(`::${action.elementId}`));
-    if (action.label) return element.accessibleLabel === action.label;
-    return false;
-  });
+  const found = elements.find((element) => matchesElement(element, action));
   if (!found?.handle) throw new Error(`native target not found for action ${JSON.stringify(action)}`);
   return found;
 }
@@ -85,11 +86,34 @@ async function main() {
   const rootHandle = properties.rootElementHandle || properties.root_element_handle || properties.rootElement?.handle;
   if (!rootHandle) throw new Error(`No root element handle in ${JSON.stringify(properties)}`);
   const actionTrace = [];
+  const keyboardResults = {};
   if (actions.length) await callTool('start_event_recording', { windowHandle });
   for (const [index, action] of actions.entries()) {
     actionTrace.push({ index, action });
     if (action.type === 'wait') await new Promise((resolve) => setTimeout(resolve, Number(action.ms || 0)));
     else if (action.type === 'key') await callTool('dispatch_key_event', { windowHandle, text: keyText(action.key), eventType: 'PressAndRelease' });
+    else if (action.type === 'probe-key') {
+      await callTool('dispatch_key_event', { windowHandle, text: keyText(action.key || action.shortcut), eventType: 'PressAndRelease' });
+      await new Promise((resolve) => setTimeout(resolve, Number(action.focusSettleMs ?? 120)));
+      if (action.probeText) {
+        for (const character of String(action.probeText)) {
+          await callTool('dispatch_key_event', { windowHandle, text: character, eventType: 'PressAndRelease' });
+        }
+        await new Promise((resolve) => setTimeout(resolve, Number(action.typingSettleMs ?? 120)));
+      }
+      const probeTree = await getTree(rootHandle);
+      let passed = false;
+      let evidence = {};
+      if (action.targetElementId) {
+        const target = (probeTree.elements || []).find((element) => matchesElement(element, { elementId: action.targetElementId }));
+        evidence = { targetFound: Boolean(target), accessibleValue: target?.accessibleValue ?? null, probeText: action.probeText ?? '' };
+        passed = Boolean(target) && String(target.accessibleValue || '').includes(String(action.probeText || ''));
+      } else if (action.expectText) {
+        evidence = { expectText: action.expectText };
+        passed = JSON.stringify(probeTree).includes(String(action.expectText));
+      }
+      keyboardResults[action.shortcut || action.key] = { passed, evidence };
+    }
     else if (action.type === 'fill') {
       const target = await findTarget(rootHandle, action);
       await callTool('set_element_value', { elementHandle: target.handle, value: String(action.value ?? '') });
@@ -130,6 +154,7 @@ async function main() {
   };
   if (eventRecording) await fs.writeFile(path.join(outDir, 'event-recording.json'), JSON.stringify(eventRecording, null, 2) + String.fromCharCode(10));
   await fs.writeFile(path.join(outDir, 'action-trace.json'), JSON.stringify(actionTrace, null, 2) + String.fromCharCode(10));
+  await fs.writeFile(path.join(outDir, 'keyboard-results.json'), JSON.stringify({ shortcuts: keyboardResults }, null, 2) + String.fromCharCode(10));
   await fs.writeFile(path.join(outDir, 'window.json'), JSON.stringify(properties, null, 2) + '\n');
   await fs.writeFile(path.join(outDir, 'element-tree.json'), JSON.stringify(tree, null, 2) + '\n');
   await fs.writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
