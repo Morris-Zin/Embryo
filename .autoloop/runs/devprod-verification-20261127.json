@@ -46,6 +46,17 @@
       "status": "closed_needs_safeguard",
       "summary": "zizmor inherited GH_TOKEN/GITHUB_TOKEN and could perform online audits, violating the offline fast-check contract in disconnected development",
       "verified_at": "2026-11-27T17:16:24Z"
+    },
+    "deep-test-count-claim": {
+      "finding_id": "deep-test-count-claim",
+      "fix_summary": "Corrected benchmark evidence to distinguish preserved baseline tests from three added regression tests and added the measured repeat/CI samples",
+      "opened_at": "2026-11-27T17:25:41Z",
+      "resolved_at": "2026-11-27T17:26:14Z",
+      "reviewer": "devin-session-deep-audit",
+      "severity": "P2",
+      "stage": "deep",
+      "status": "fixed_pending_review",
+      "summary": "Benchmark and PR evidence say test count is unchanged even though the branch adds regression tests; the accurate claim is that no baseline tests were removed and total discovered tests increased"
     }
   },
   "goal": "Own Developer Productivity, CI/CD Performance and Verification Engineering for Embryo: maximize verified engineering output per hour, increase defect detection, reduce verification latency/token consumption/deployment time, preserve correctness",
@@ -142,6 +153,18 @@
       "stage": "cloud",
       "status": "awaiting_deep_review",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:25:41Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-27T17:26:14Z",
+      "event": "resolve-finding",
+      "finding_id": "deep-test-count-claim"
     }
   ],
   "issue_number": null,
@@ -186,6 +209,13 @@
       "reviewer": "devin-review",
       "stage": "cloud",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:25:41Z",
+      "code_tree_sha256": "4f06c421f1e7f29385653ef3ac7a274fef62f2b3e11a585d50c213b8c5aca0c7",
+      "reviewer": "devin-session-deep-audit",
+      "stage": "deep",
+      "verdict": "reject"
     }
   ],
   "run_id": "devprod-verification-20261127",
@@ -211,15 +241,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "76d1c16560f3546ccd35b6698c9fc09f0cde3086",
-      "passed_code_tree_sha256": "4f06c421f1e7f29385653ef3ac7a274fef62f2b3e11a585d50c213b8c5aca0c7",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "awaiting_deep_review",
+  "status": "in_progress",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:16:24Z"
+  "updated_at": "2026-11-27T17:26:14Z"
 }
