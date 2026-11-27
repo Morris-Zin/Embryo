@@ -37,8 +37,7 @@ class TableSpec:
 
 
 VARCHAR = "VARCHAR"
-DECIMAL_18_6 = "DECIMAL(18,6)"
-DECIMAL_20_6 = "DECIMAL(20,6)"
+DECIMAL_21_9 = "DECIMAL(21,9)"
 
 
 TABLE_SPECS: tuple[TableSpec, ...] = (
@@ -59,11 +58,11 @@ TABLE_SPECS: tuple[TableSpec, ...] = (
             ColumnSpec("update_stock", "TINYINT"),
             ColumnSpec("is_opening", VARCHAR),
             ColumnSpec("is_debit_note", "TINYINT"),
-            ColumnSpec("total_qty", DECIMAL_18_6),
-            ColumnSpec("base_net_total", DECIMAL_20_6),
-            ColumnSpec("base_grand_total", DECIMAL_20_6),
+            ColumnSpec("total_qty", DECIMAL_21_9),
+            ColumnSpec("base_net_total", DECIMAL_21_9),
+            ColumnSpec("base_grand_total", DECIMAL_21_9),
             ColumnSpec("currency", VARCHAR),
-            ColumnSpec("conversion_rate", DECIMAL_18_6),
+            ColumnSpec("conversion_rate", DECIMAL_21_9),
         ),
     ),
     TableSpec(
@@ -78,13 +77,13 @@ TABLE_SPECS: tuple[TableSpec, ...] = (
             ColumnSpec("item_name", VARCHAR),
             ColumnSpec("item_group", VARCHAR),
             ColumnSpec("brand", VARCHAR),
-            ColumnSpec("qty", DECIMAL_18_6),
-            ColumnSpec("stock_qty", DECIMAL_18_6),
-            ColumnSpec("base_net_rate", DECIMAL_20_6),
-            ColumnSpec("base_net_amount", DECIMAL_20_6),
+            ColumnSpec("qty", DECIMAL_21_9),
+            ColumnSpec("stock_qty", DECIMAL_21_9),
+            ColumnSpec("base_net_rate", DECIMAL_21_9),
+            ColumnSpec("base_net_amount", DECIMAL_21_9),
             ColumnSpec("warehouse", VARCHAR),
-            ColumnSpec("incoming_rate", DECIMAL_20_6),
-            ColumnSpec("actual_qty", DECIMAL_18_6),
+            ColumnSpec("incoming_rate", DECIMAL_21_9),
+            ColumnSpec("actual_qty", DECIMAL_21_9),
             ColumnSpec("cost_center", VARCHAR),
             ColumnSpec("docstatus", "TINYINT"),
         ),
@@ -103,13 +102,13 @@ TABLE_SPECS: tuple[TableSpec, ...] = (
             ColumnSpec("voucher_type", VARCHAR),
             ColumnSpec("voucher_no", VARCHAR),
             ColumnSpec("voucher_detail_no", VARCHAR),
-            ColumnSpec("actual_qty", DECIMAL_18_6),
-            ColumnSpec("qty_after_transaction", DECIMAL_18_6),
-            ColumnSpec("incoming_rate", DECIMAL_20_6),
-            ColumnSpec("outgoing_rate", DECIMAL_20_6),
-            ColumnSpec("valuation_rate", DECIMAL_20_6),
-            ColumnSpec("stock_value", DECIMAL_20_6),
-            ColumnSpec("stock_value_difference", DECIMAL_20_6),
+            ColumnSpec("actual_qty", DECIMAL_21_9),
+            ColumnSpec("qty_after_transaction", DECIMAL_21_9),
+            ColumnSpec("incoming_rate", DECIMAL_21_9),
+            ColumnSpec("outgoing_rate", DECIMAL_21_9),
+            ColumnSpec("valuation_rate", DECIMAL_21_9),
+            ColumnSpec("stock_value", DECIMAL_21_9),
+            ColumnSpec("stock_value_difference", DECIMAL_21_9),
             ColumnSpec("company", VARCHAR),
             ColumnSpec("is_cancelled", "TINYINT"),
         ),
@@ -125,8 +124,8 @@ TABLE_SPECS: tuple[TableSpec, ...] = (
             ColumnSpec("parent_item", VARCHAR),
             ColumnSpec("item_code", VARCHAR),
             ColumnSpec("warehouse", VARCHAR),
-            ColumnSpec("qty", DECIMAL_18_6),
-            ColumnSpec("rate", DECIMAL_20_6),
+            ColumnSpec("qty", DECIMAL_21_9),
+            ColumnSpec("rate", DECIMAL_21_9),
             ColumnSpec("parent_detail_docname", VARCHAR),
             ColumnSpec("docstatus", "TINYINT"),
         ),

@@ -30,10 +30,10 @@ CREATE TABLE `{SUMMARY_TABLE}` (
   `warehouse` varchar(140) NOT NULL,
   `invoice_count` bigint NOT NULL DEFAULT 0,
   `line_count` bigint NOT NULL DEFAULT 0,
-  `qty` decimal(18,6) NOT NULL DEFAULT 0,
-  `selling_amount` decimal(20,6) NOT NULL DEFAULT 0,
-  `buying_amount_estimate` decimal(20,6) NOT NULL DEFAULT 0,
-  `gross_profit_estimate` decimal(20,6) NOT NULL DEFAULT 0,
+  `qty` decimal(21,9) NOT NULL DEFAULT 0,
+  `selling_amount` decimal(21,9) NOT NULL DEFAULT 0,
+  `buying_amount_estimate` decimal(21,9) NOT NULL DEFAULT 0,
+  `gross_profit_estimate` decimal(21,9) NOT NULL DEFAULT 0,
   PRIMARY KEY (`posting_date`, `warehouse`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 """

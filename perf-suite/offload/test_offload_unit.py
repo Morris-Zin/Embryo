@@ -17,7 +17,7 @@ class TableSpecTest(unittest.TestCase):
     def test_duckdb_columns_expression_contains_types(self):
         expression = TABLES_BY_KEY["stock_ledger_entry"].duckdb_columns_expression()
         self.assertIn("'posting_date': 'DATE'", expression)
-        self.assertIn("'actual_qty': 'DECIMAL(18,6)'", expression)
+        self.assertIn("'actual_qty': 'DECIMAL(21,9)'", expression)
 
     def test_inventory_uses_only_to_date(self):
         self.assertEqual(query_parameters("inventory_balance", "Company", "2026-01-01", "2026-11-26"), ("Company", "2026-11-26"))

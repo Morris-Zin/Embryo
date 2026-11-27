@@ -154,7 +154,9 @@ Only 152 sales and 63 transfers succeeded because errors and backend recycling r
 
 ### Incremental synchronization after the write load
 
-After that write load, the modified-time delta contained 4,648 rows in 191,575 gzip bytes and exported in 4.1s, versus 2,601,283 rows / 108,327,914 bytes / 135.8s for the initial full extract. That is a 565x reduction in transfer bytes for this workload interval. Canonical-query parity for the incrementally merged DuckDB copy is recorded in `year-incremental-after-load` when the run completes.
+After that write load, the modified-time delta contained 4,648 rows in 191,575 gzip bytes and exported in 4.1s, versus 2,601,283 rows / 108,327,914 bytes / 135.8s for the initial full extract. That is a 565x reduction in transfer bytes for this workload interval.
+
+The first incremental merge **failed exact parity** and correctly stopped the benchmark: ERPNext stores quantity/rate columns as `decimal(21,9)`, while the first prototype mapped them to DuckDB `DECIMAL(18,6)`/`DECIMAL(20,6)`. The resulting differences were small (for example 24,360,169.679991998 versus 24,360,169.680006) but unacceptable under the exact-parity gate. That type mapping is a rejected hypothesis; the schema was corrected to `DECIMAL(21,9)` and the full/delta experiment must be rerun from the immutable snapshot before DuckDB parity is claimed.
 
 ### Binlog and external-service comparison
 
