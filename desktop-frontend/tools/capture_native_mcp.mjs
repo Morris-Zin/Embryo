@@ -114,6 +114,10 @@ async function main() {
       }
       keyboardResults[action.shortcut || action.key] = { passed, evidence };
     }
+    else if (action.type === 'reset') {
+      const target = await findTarget(rootHandle, { label: action.label || 'Clear' });
+      await callTool('click_element', { elementHandle: target.handle });
+    }
     else if (action.type === 'fill') {
       const target = await findTarget(rootHandle, action);
       await callTool('set_element_value', { elementHandle: target.handle, value: String(action.value ?? '') });

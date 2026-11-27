@@ -61,7 +61,7 @@ node desktop-frontend/tools/capture_reference.mjs   --base-url http://127.0.0.1:
 Native captures use the same state name and semantic action sequence, driven through Slint MCP rather than browser automation:
 
 ```bash
-node desktop-frontend/tools/capture_native_mcp.mjs   --port 49272 --screen sales-voucher --state search-results   --actions '[{"type":"fill","label":"Barcode / item search F2","value":"paracetamol"},{"type":"wait","ms":300}]'
+node desktop-frontend/tools/capture_native_mcp.mjs   --port 49272 --screen sales-voucher --state search-results   --actions '[{"type":"reset"},{"type":"fill","elementId":"item-search","value":"paracetamol"},{"type":"wait","ms":300}]'
 ```
 
 The verifier compares exact PNG bytes/pixels, dimensions, differing-pixel ratio and bounds; visible-control identity, role, label/text, accessibility state, geometry, and disabled state; behavioral keyboard outcomes; ERPNext business outcomes; and performance evidence. Exact screenshot matching is the default visual gate. Diagnostic metrics never soften a configured acceptance threshold. Missing evidence, empty structured evidence, unmatched states, mismatched dimensions, or missing behavioral keyboard results are failures.
