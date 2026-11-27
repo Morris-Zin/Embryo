@@ -66,9 +66,9 @@ The full reverse-proxy design was not built. It would have increased cookie/sess
 | Malicious web content calls loopback service | Loopback-only bind, exact-origin CORS, JSON content-type enforcement, size limits, optional token | Browser CORS is not a complete local-machine security boundary. Local malware can call the service directly. |
 | Tauri remote content escalates to native APIs | Empty capability set; no custom Rust commands exposed to web content | OS/WebView vulnerabilities are outside this design. |
 | Catalog scraping by authorized cashier | Minimize synchronized fields; server-side permissions; no cost/supplier/credential fields | An authorized cashier can still enumerate the data they are allowed to see. Encryption does not prevent this realistic extraction risk. |
-| Permission revocation | Permission revision participates in sync state; mismatch causes reset. Submit/search server APIs enforce permissions | Hooks/role-rule changes not represented in the simple revision may require operational testing; financial writes always remain server-side. |
+| Permission revocation | Permission revision participates in sync state; permission-aware deployments receive full replacement resets instead of tombstones, avoiding hidden item-code disclosure. Submit/search server APIs enforce permissions | Permission-aware users trade incremental traffic for confidentiality and correctness. Role-rule changes not represented in the simple revision may still require operational testing; financial writes always remain server-side. |
 | Sync endpoint abuse / forced resets | 20,000-item bound, permission filtering, overlap deltas, incomplete-catalog fallback | An authenticated user can intentionally omit state and repeatedly request resets. Production rollout should rate-limit/monitor this endpoint just like other search APIs. |
-| Stale/deleted item used in sale | Delta tombstones, reset fallback, stale sync failure falls back to server; ERPNext submit validates existence/permission/inventory/price | UI can briefly show stale display data. This is deliberate and labeled; no offline checkout is enabled. |
+| Stale/deleted item used in sale | Delete/rename tombstones plus daily validity-boundary resets, reset fallback, stale sync failure falls back to server; ERPNext submit validates existence/permission/inventory/price | UI can briefly show stale display data. This is deliberate and labeled; no offline checkout is enabled. |
 | Malicious client alters rate/qty | Server ignores client rates by default and resolves authoritative ERPNext pricing; ERPNext validates inventory/financial logic | Users with legitimate price-override permission can override as before; this is not a new desktop privilege. |
 
 ### AI-assisted reverse-engineering assumption
@@ -184,7 +184,7 @@ The exact-barcode fast path intentionally returns the unique barcode row immedia
 - Submission of a nonexistent item returned HTTP 417 and no voucher.
 - Browser regression coverage verifies that synchronized local scans do not call `search_items`, and that an unknown barcode falls back to authoritative server search.
 - Rust unit tests cover ranking/deletion, SQLCipher wrong-key rejection, encrypted round trips, scope validation, and constant-time token comparison.
-- Python unit tests cover sync state parsing, overlap deltas, reset causes, tombstones, and public-field filtering.
+- Python unit tests cover sync state parsing, overlap deltas, reset causes, tombstones, permission-aware resets, date-boundary resets, and public-field filtering.
 
 ## Remaining limitations
 

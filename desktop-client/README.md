@@ -55,7 +55,7 @@ Windows builds should be produced and measured on a real low-end Windows cashier
 
 ## Sync and correctness model
 
-The first sync is a bounded catalog reset. Later syncs pass the previous server-issued state and receive rows changed in `Item`, `Item Barcode`, `Item Price`, or warehouse `Bin` during an overlapping 10-second window. Overlap makes updates idempotent; clients upsert by item code. A schema/scope/permission revision mismatch or a state older than 24 hours forces a reset.
+The first sync is a bounded catalog reset. Later syncs pass the previous server-issued state and receive rows changed in `Item`, `Item Barcode`, `Item Price`, warehouse `Bin`, or the delete/rename tombstone log during an overlapping 10-second window. Overlap makes updates idempotent; clients upsert by item code. A schema/scope/permission revision mismatch, a state older than 24 hours, or crossing a date-based price-validity boundary forces a reset. Permission-aware deployments always use full replacement resets so hidden item codes are not disclosed through deletion markers. Catalog scopes are also bound to the ERP origin.
 
 Rates and quantities are advisory display snapshots only. `submit_sale` already resolves authoritative ERPNext prices server-side unless explicit override permission is used, validates item/warehouse/customer permissions, and validates inventory/financial posting through ERPNext. The client must treat local rows as disposable cache.
 
@@ -63,7 +63,7 @@ Known PoC limits:
 
 - Direct SQL edits that delete rows without touching `modified` can be missed until the 24-hour reset. Normal Frappe writes update the participating rows.
 - Local display prices use the selected price list but not customer-specific pricing in the default bridge scope. The server remains authoritative at submission.
-- Stock and price display can be up to `stale_after_seconds` old; stale sync failure falls back to server search rather than enabling offline checkout.
+- Stock and price display can be up to `stale_after_seconds` old, plus at most one sync interval after a midnight price-validity boundary; stale sync failure falls back to server search rather than enabling offline checkout.
 - The sync endpoint scans `modified` columns. This is intentionally measured before proposing any index or trigger because new write amplification may outweigh the savings.
 
 ## Security summary
