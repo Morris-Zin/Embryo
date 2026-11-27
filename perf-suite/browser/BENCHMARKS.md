@@ -56,4 +56,4 @@ Profiling the first optimized implementation showed that Enter scans still rende
 
 The current first-scan network path is already thin: exact-scan responses are compressed, permission-filtered, and only contain public counter fields. Remaining first-time distinct-scan latency is dominated by the network round trip itself (about 410-470 ms in the 400 ms latency profile) rather than response size or autocomplete rendering. A further step would require a coordinated freshness design for local price/stock snapshots; that should not be improvised in the browser because financial correctness and permission filtering matter more than latency.
 
-Regression evidence: `bash tools/khitmee-dev.sh browser-perf-check` passed 9/9 Playwright assertions, and `bash tools/khitmee-dev.sh fast-check` passed Python, JavaScript, Bash, Compose, and knip gates.
+Regression evidence: `bash tools/khitmee-dev.sh browser-perf-check` passed 10/10 Playwright assertions, and `bash tools/khitmee-dev.sh fast-check` passed Python, JavaScript, Bash, Compose, and knip gates.

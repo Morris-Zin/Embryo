@@ -140,6 +140,21 @@ test.describe("cashier counter performance regressions", () => {
     expect(apiRequests, "Enter must join the in-flight search instead of duplicating it").toHaveLength(1);
   });
 
+
+  test("failed scan searches never add stale autocomplete items", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    await page.locator("#item-search").fill(itemCode(0));
+    await expect(page.locator("#search-results li").first()).toBeVisible();
+    await page.route("**/api/method/khitmee_ops.api.search.search_items*", (route) => route.abort());
+
+    await page.locator("#item-search").fill(itemCode(1));
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#status")).toContainText(/error|failed|fetch/i);
+    await page.waitForTimeout(200);
+
+    await expect(page.locator("#lines-body tr")).toHaveCount(0);
+  });
+
   test("quantity changes update one row without rebuilding unaffected invoice rows", async ({ page }) => {
     await openAuthenticatedCounter(page);
     await measureBarcodeScan(page, itemCode(0), 0);

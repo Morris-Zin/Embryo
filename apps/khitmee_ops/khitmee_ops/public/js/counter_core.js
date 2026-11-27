@@ -577,6 +577,8 @@
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
+			state.searchItems = [];
+			state.activeIndex = -1;
 			hideResults();
 			searchDebouncer.schedule();
 		});
