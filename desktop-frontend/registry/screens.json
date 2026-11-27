@@ -30,7 +30,9 @@
           "id": "invoice-filter",
           "label": "Filter invoice number, customer, status",
           "role": "searchbox",
-          "keyboard": []
+          "keyboard": [
+            "typing"
+          ]
         }
       ],
       "api_contracts": [
@@ -45,13 +47,16 @@
       ],
       "native_component": "InvoiceListPilot",
       "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#invoice-list",
-      "evidence": [],
+      "evidence": [
+        "evidence/journeys/invoice-list-initial.json",
+        "evidence/journeys/invoice-list-filter.json",
+        "experiments/0006-invoice-list-qualification.md"
+      ],
       "failures": [
-        "initial: visual comparison failed or inputs were incomparable",
-        "filtered: visual comparison failed or inputs were incomparable",
-        "filtered: control identity, text/accessibility semantics, geometry, or state comparison failed",
-        "business outcome evidence missing",
-        "performance evidence missing"
+        "pagination/sorting/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
+        "visual/video qualification pending",
+        "large-list scrolling and query latency performance evidence pending",
+        "synchronous pilot network reads need asynchronous hardening"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,

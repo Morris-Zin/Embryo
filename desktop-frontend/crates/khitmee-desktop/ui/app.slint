@@ -583,6 +583,8 @@ component InvoiceGeneratedRow inherits Rectangle {
     in property <InvoiceRow> invoice;
     in property <int> index;
     height: 41px;
+    accessible-role: list-item;
+    accessible-label: invoice.customer + "|" + invoice.status + "|" + invoice.posting-date + "|" + invoice.due-date + "|" + "$ " + invoice.total-text + "|" + invoice.name;
 
     Rectangle {
         x: 311px; y: 190px + index * 41px; width: 14px; height: 14px;
@@ -594,30 +596,42 @@ component InvoiceGeneratedRow inherits Rectangle {
         x: 333px; y: 187.59375px + index * 41px; width: invoice.customer-width; height: 18.796875px;
         accessible-role: button; accessible-label: invoice.customer; accessible-enabled: true;
         background: transparent;
+        Text { width: 100%; height: 100%; text: invoice.customer; color: Design.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+    }
+
+    Rectangle {
+        x: 475px; y: 189.84375px + index * 41px; width: 56px; height: 17px;
+        accessible-role: button; accessible-label: invoice.status; accessible-enabled: true;
+        background: transparent;
+        Text { width: 100%; height: 100%; text: invoice.status; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
         x: 538.421875px; y: 189.84375px + index * 41px; width: 74.765625px; height: 17px;
         accessible-role: button; accessible-label: invoice.posting-date; accessible-enabled: true;
         background: transparent;
+        Text { width: 100%; height: 100%; text: invoice.posting-date; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
         x: 656.125px; y: 189.84375px + index * 41px; width: invoice.due-date == "2026-11-27" ? 74.765625px : 73.046875px; height: 17px;
         accessible-role: button; accessible-label: invoice.due-date; accessible-enabled: true;
         background: transparent;
+        Text { width: 100%; height: 100%; text: invoice.due-date; color: Design.muted; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
         x: 773.84375px; y: 186.5px + index * 41px; width: 102.703125px; height: 21px;
         accessible-role: button; accessible-label: "$ " + invoice.total-text; accessible-enabled: true;
         background: transparent;
+        Text { width: 100%; height: 100%; text: "$ " + invoice.total-text; color: Design.text; font-size: 11px; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
     }
 
     Rectangle {
         x: 891.546875px; y: 187.15625px + index * 41px; width: invoice.name-width; height: 19.6875px;
         accessible-role: button; accessible-label: invoice.name; accessible-enabled: true;
         background: transparent;
+        Text { width: 100%; height: 100%; text: invoice.name; color: Design.focus; font-size: 11px; vertical-alignment: center; overflow: elide; }
     }
 
 }
@@ -625,6 +639,7 @@ component InvoiceGeneratedRow inherits Rectangle {
 component InvoiceScreen inherits Rectangle {
     in property <[InvoiceRow]> invoice-rows;
     in-out property <string> invoice-filter-text;
+    in property <string> invoice-count-text;
     callback invoice-filter-edited(string);
     background: #f4f5f7;
 
@@ -1071,6 +1086,7 @@ component InvoiceScreen inherits Rectangle {
         text <=> root.invoice-filter-text;
         edited => { root.invoice-filter-edited(self.text); }
     }
+    Text { x: 296px; y: 716px; width: 180px; height: 18px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
     for row[index] in root.invoice-rows: InvoiceGeneratedRow {
         x: 0px; y: 0px; width: 1180px; invoice: row; index: index;
     }
@@ -1096,6 +1112,7 @@ export component AppWindow inherits Window {
     in-out property <int> current-screen: 0;
     in-out property <string> fixture-note: "Fixture catalog: deterministic qualification data";
     in-out property <string> invoice-filter-text: "";
+    in-out property <string> invoice-count-text: "";
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
     in-out property <int> active-search-index: 0;
@@ -1177,6 +1194,7 @@ export component AppWindow inherits Window {
         width: 1180px; height: 760px;
         invoice-rows: root.invoice-rows;
         invoice-filter-text <=> root.invoice-filter-text;
+        invoice-count-text: root.invoice-count-text;
         invoice-filter-edited(text) => { root.invoice-filter-edited(text); }
     }
 

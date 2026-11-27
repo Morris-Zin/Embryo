@@ -34,6 +34,7 @@ struct PilotState {
     print_endpoint: String,
     print_token: String,
     runtime_config: Option<ErpRuntimeConfig>,
+    erp_client: Option<ErpClient>,
 }
 
 #[derive(Clone)]
@@ -537,6 +538,62 @@ fn refresh_voucher(app: &AppWindow, state: &PilotState) {
     app.set_subtotal_text(money(subtotal).into());
 }
 
+fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
+    payload
+        .get("values")
+        .and_then(|value| value.as_array())
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|row| {
+                    let columns = row.as_array()?;
+                    Some(InvoiceSeed {
+                        name: columns.first()?.as_str()?.to_owned(),
+                        customer: columns.get(1)?.as_str()?.to_owned(),
+                        status: columns.get(2)?.as_str()?.to_owned(),
+                        posting_date: columns.get(3)?.as_str()?.to_owned(),
+                        due_date: columns.get(4)?.as_str()?.to_owned(),
+                        total: columns.get(5)?.as_f64()?,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
+    let filter = state.invoice_filter.clone();
+    let Some(config) = state.runtime_config.clone() else {
+        app.set_invoice_rows(invoice_model(&state.invoices, &filter));
+        return;
+    };
+    if state.erp_client.is_none() {
+        state.erp_client =
+            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
+    }
+    let Some(client) = state.erp_client.clone() else {
+        app.set_status_text("ERP login failed while loading Sales Invoices".into());
+        return;
+    };
+    match client.sales_invoice_list(&filter, 20) {
+        Ok(payload) => {
+            state.invoices = parse_invoice_rows(&payload);
+            app.set_invoice_rows(invoice_model(&state.invoices, ""));
+            if let Ok(count) = client.sales_invoice_count(&filter) {
+                let total = if count > 1000 {
+                    "1,000+".to_owned()
+                } else {
+                    count.to_string()
+                };
+                app.set_invoice_count_text(format!("{} of {}", state.invoices.len(), total).into());
+            }
+        }
+        Err(error) => {
+            app.set_status_text(format!("Sales Invoice list failed: {error}").into());
+        }
+    }
+}
+
 #[cfg(feature = "encrypted-catalog")]
 fn load_fixture_catalog(
     rows: usize,
@@ -841,6 +898,7 @@ fn main() -> Result<(), slint::PlatformError> {
         print_endpoint,
         print_token,
         runtime_config: runtime_config.clone(),
+        erp_client: None,
     }));
 
     let app = AppWindow::new()?;
@@ -855,7 +913,10 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_customer_options(label_model(&state_ref.customers));
         app.set_payment_options(label_model(&state_ref.payment_modes));
     }
-    app.set_invoice_rows(invoice_model(&state.borrow().invoices, ""));
+    {
+        let mut state_ref = state.borrow_mut();
+        refresh_invoice_rows(&app, &mut state_ref);
+    }
     app.set_search_results(search_model(&state.borrow().catalog, "retail"));
     app.set_current_screen(match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
         Ok("stock-transfer") | Ok("transfer") | Ok("1") => 1,
@@ -1148,11 +1209,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             state.invoice_filter = filter.to_string();
-            app.set_invoice_rows(invoice_model(&state.invoices, &state.invoice_filter));
-            app.set_status_text(SharedString::from(format!(
-                "Invoice fixture filter: {} visible rows",
-                app.get_invoice_rows().row_count()
-            )));
+            refresh_invoice_rows(&app, &mut state);
         }
     });
 

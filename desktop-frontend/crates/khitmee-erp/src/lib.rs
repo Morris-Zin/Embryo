@@ -17,6 +17,7 @@ impl Error for ErpError {}
 
 type ErpResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+#[derive(Clone)]
 pub struct ErpClient {
     base_url: String,
     client: Client,
@@ -114,6 +115,63 @@ impl ErpClient {
                 "customer": customer.unwrap_or(""),
             }),
         )
+    }
+
+    pub fn sales_invoice_list(&self, filter: &str, limit: usize) -> ErpResult<Value> {
+        let filters = if filter.trim().is_empty() {
+            json!([])
+        } else {
+            json!([[
+                "Sales Invoice",
+                "name",
+                "like",
+                format!("%{}%", filter.trim())
+            ]])
+        };
+        self.post_method(
+            "frappe.desk.reportview.get",
+            &json!({
+                "doctype": "Sales Invoice",
+                "fields": [
+                    "`tabSales Invoice`.`name`",
+                    "`tabSales Invoice`.`customer_name`",
+                    "`tabSales Invoice`.`status`",
+                    "`tabSales Invoice`.`posting_date`",
+                    "`tabSales Invoice`.`due_date`",
+                    "`tabSales Invoice`.`grand_total`"
+                ],
+                "filters": filters,
+                "order_by": "posting_date desc, creation desc",
+                "start": 0,
+                "page_length": limit,
+                "view": "List",
+                "with_comment_count": false
+            }),
+        )
+    }
+
+    pub fn sales_invoice_count(&self, filter: &str) -> ErpResult<usize> {
+        let filters = if filter.trim().is_empty() {
+            json!([])
+        } else {
+            json!([[
+                "Sales Invoice",
+                "name",
+                "like",
+                format!("%{}%", filter.trim())
+            ]])
+        };
+        let value = self.post_method(
+            "frappe.desk.reportview.get_count",
+            &json!({
+                "doctype": "Sales Invoice",
+                "filters": filters,
+                "fields": [],
+                "distinct": false,
+                "limit": 1001
+            }),
+        )?;
+        Ok(value.as_u64().unwrap_or_default() as usize)
     }
 
     pub fn print_receipt(endpoint: &str, token: &str, payload: &Value) -> ErpResult<Value> {

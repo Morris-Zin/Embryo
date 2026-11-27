@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": true,
+    "reason": "read-only invoice list journey"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "invoice-filter",
+        "value": "04921"
+      },
+      "web": {
+        "rows": [
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04921"
+          }
+        ],
+        "rowCount": 1,
+        "countText": "1 of 1",
+        "filterValue": "04921"
+      },
+      "native": {
+        "rows": [
+          {
+            "customer": "Khit Customer 0030",
+            "status": "Unpaid",
+            "postingDate": "2026-11-27",
+            "dueDate": "2026-12-11",
+            "total": "$ 36.92",
+            "id": "ACC-SINV-2026-04921"
+          }
+        ],
+        "rowCount": 1,
+        "countText": "1 of 1",
+        "filterValue": "04921"
+      },
+      "differences": []
+    }
+  ]
+}
