@@ -154,11 +154,19 @@ def posting_time_microseconds(value):
 		return 0
 
 
+def posting_time_key_digits(value):
+	"""Encode time of day as sortable HHMMSSffffff digits for first-seen keys."""
+	posting_time_us = posting_time_microseconds(value)
+	hours, remainder = divmod(posting_time_us, 3_600_000_000)
+	minutes, remainder = divmod(remainder, 60_000_000)
+	seconds, microseconds = divmod(remainder, 1_000_000)
+	return f"{hours:02d}{minutes:02d}{seconds:02d}{microseconds:06d}"
+
+
 def first_seen_key_for_row(row, query_phase):
 	"""Build the frozen sortable phase key: ``phase|YYYY-MM-DD|TTTTTTTTTTTT``."""
 	posting_date = posting_date_sort_value(row.get("posting_date"))
-	posting_time_us = posting_time_microseconds(row.get("posting_time"))
-	return f"{int(query_phase)}|{posting_date}|{posting_time_us:012d}"
+	return f"{int(query_phase)}|{posting_date}|{posting_time_key_digits(row.get('posting_time'))}"
 
 
 def invoice_descending_order_key(row):
@@ -1104,9 +1112,35 @@ def _enforce_detail_budget_if_requested(filters, invoice_ids, enforce_budget):
 	except (ImportError, ModuleNotFoundError):
 		return
 
-	preflight = getattr(budget, "preflight_detail_budget", None) or getattr(
-		budget, "enforce_detail_budget", None
-	)
+	enforce = getattr(budget, "enforce_detail_budget", None)
+	if enforce:
+		enforce(filters, invoice_ids=invoice_ids)
+		return
+
+	preflight_rows = getattr(budget, "preflight_detail_input_rows", None)
+	evaluate = getattr(budget, "evaluate_work_budget", None)
+	if preflight_rows and evaluate:
+		detail_input_rows = preflight_rows(filters)
+		counts = {
+			"mode": "detail",
+			"detail_input_rows": detail_input_rows,
+			"clean_work_rows": 0,
+			"dirty_work_rows": 0,
+			"combined_live_rows": 0,
+			"clean_replay_invoices": 0,
+			"largest_replay_family_rows": 0,
+			"estimated_output_rows": detail_input_rows,
+			"dirty_days_count": 0,
+			"missing_days_count": 0,
+			"has_blocking_repost": False,
+		}
+		decision = evaluate(filters, counts)
+		if decision.get("outcome") != "ok":
+			validation_error = getattr(frappe, "ValidationError", Exception)
+			raise validation_error(f"Detail budget exceeded: {decision.get('reason') or decision.get('outcome')}")
+		return
+
+	preflight = getattr(budget, "preflight_detail_budget", None)
 	if preflight:
 		preflight(filters, invoice_ids=invoice_ids)
 

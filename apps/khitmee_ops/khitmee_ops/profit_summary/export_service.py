@@ -510,6 +510,11 @@ def _remove_file_quietly(path):
 		pass
 
 
+def _begin_repeatable_read_snapshot():
+	frappe.db.sql("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	frappe.db.sql("START TRANSACTION")
+
+
 def run_profit_csv_export(export_log_name):
 	_require_frappe()
 	doc = frappe.get_doc(EXPORT_DOCTYPE, export_log_name)
@@ -521,6 +526,7 @@ def run_profit_csv_export(export_log_name):
 	temporary_path = None
 	try:
 		_mark_export_running(export_log_name)
+		_begin_repeatable_read_snapshot()
 		filters = json.loads(_doc_get(doc, "filters_json") or "{}")
 		requested_by = _doc_get(doc, "requested_by")
 		authorize_profit_request(filters, requested_by, require_export=True)

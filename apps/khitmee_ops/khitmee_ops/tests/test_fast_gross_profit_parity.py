@@ -1121,8 +1121,14 @@ class TestFrozenContributionContracts(unittest.TestCase):
 		batch = fast_gross_profit._build_contribution_batch(generator, {"SI-ORIGINAL"})
 
 		self.assertEqual([row["query_phase"] for row in batch["contributions"]], [1, 0])
-		self.assertEqual(batch["contributions"][0]["first_seen_key"], "1|2026-01-02|036000000000")
-		self.assertEqual(batch["contributions"][1]["first_seen_key"], "0|2026-01-03|039600000000")
+		self.assertEqual(batch["contributions"][0]["first_seen_key"], "1|2026-01-02|100000000000")
+		self.assertEqual(batch["contributions"][1]["first_seen_key"], "0|2026-01-03|110000000000")
+		self.assertEqual(
+			first_seen_key_for_row(
+				{"posting_date": "2026-01-02", "posting_time": "10:11:12.123456"}, 1
+			),
+			"1|2026-01-02|101112123456",
+		)
 		self.assertTrue(batch["contributions"][0]["is_precision_safe"])
 		self.assertFalse(batch["contributions"][1]["is_precision_safe"])
 		self.assertEqual(batch["replay_reasons_by_invoice"]["SI-RET"], "linked_return")

@@ -357,6 +357,9 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertIn("`status` = 'Completed'", completion_update)
 		self.assertEqual(completion_params[0], "digest")
 		self.assertEqual(completion_params[1], 2)
+		plain_sql = [call[0] for call in self.fake.db.sql_calls]
+		self.assertIn("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ", plain_sql)
+		self.assertIn("START TRANSACTION", plain_sql)
 
 	def test_cleanup_deletes_artifacts_but_preserves_publish_flag_and_digest(self):
 		path = self.write_artifact()
@@ -448,6 +451,25 @@ class TestDownloadPrecedence(ExportServiceTestCase):
 		self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
 		self.assertTrue(response.direct_passthrough)
 		self.assertEqual(response.get_data(), b"invoice,amount\nSI-1,10\n")
+
+
+class TestDetailBudgetIntegration(ExportServiceTestCase):
+	def test_enforce_budget_preflights_before_generator_construction(self):
+		budget_module = types.ModuleType("khitmee_ops.profit_summary.budget")
+		budget_module.preflight_detail_input_rows = lambda filters: 35001
+		budget_module.evaluate_work_budget = lambda filters, counts: {
+			"outcome": "budget_exceeded",
+			"reason": "detail_input_rows_exceeds_sync_row_budget",
+		}
+		with patch.dict(sys.modules, {"khitmee_ops.profit_summary.budget": budget_module}), patch.object(
+			fast_gross_profit, "standard_gross_profit", object()
+		), patch.object(fast_gross_profit, "validate_date_range", lambda filters: None), patch.object(
+			fast_gross_profit, "frappe", self.fake
+		), patch.object(fast_gross_profit, "FastGrossProfitGenerator") as generator:
+			with self.assertRaises(FakeValidationError) as raised:
+				fast_gross_profit.run_detail_gross_profit({"company": "Company"}, enforce_budget=True)
+		generator.assert_not_called()
+		self.assertIn("detail_input_rows_exceeds_sync_row_budget", str(raised.exception))
 
 
 class TestNativeExportClosureAndCli(ExportServiceTestCase):
