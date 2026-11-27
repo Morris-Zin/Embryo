@@ -73,7 +73,8 @@ jobs:
       - name: Prepare profit summaries
         run: |
           # Same site the stack was provisioned with (up.sh honours SITE_NAME).
-          site="$(sed -n 's/^SITE_NAME=//p' perf-suite/docker/.env | tail -1)"
+          # Source it the way up.sh does, so quoting is resolved identically.
+          site="$(set -a; . perf-suite/docker/.env; printf '%s' "${SITE_NAME:-}")"
           site="${site:-bench-loadtest.localhost}"
           docker exec -w /home/frappe/frappe-bench khitmee-perf-backend-1 \
             bench --site "$site" migrate --skip-search-index

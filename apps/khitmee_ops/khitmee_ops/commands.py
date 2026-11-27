@@ -191,7 +191,9 @@ def khitmee_prepare_profit_summary(context, timeout_seconds=3600):
 			pending = count_pending_summary_work()
 			# A zero-claim tick can mean an empty backlog, lock contention, or days
 			# blocked by a repost / left failed; only the pending count decides.
-			while pending["total"] and time.monotonic() < deadline and idle_ticks < 6:
+			# Allow ~5 minutes without progress: a concurrent scheduler tick can hold the
+			# single-flight lock for its full 120 s budget.
+			while pending["total"] and time.monotonic() < deadline and idle_ticks < 30:
 				processed = process_dirty_slices_scheduled()
 				frappe.db.commit()
 				rebuilt += processed
