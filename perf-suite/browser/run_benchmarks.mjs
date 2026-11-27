@@ -410,7 +410,7 @@ async function main() {
           if (scenarios.includes("repeat-scan")) {
             await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "repeat-scan", true, () => repeatScanScenario(harness.page)));
           }
-          if (scenarios.includes("inflight-scan")) {
+          if (scenarios.includes("inflight-scan") && options.catalogMode === "off") {
             await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "inflight-scan", true, () => inflightScanScenario(harness.page)));
           }
           if (scenarios.includes("keyboard")) {
