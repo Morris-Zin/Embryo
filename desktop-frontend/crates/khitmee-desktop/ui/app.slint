@@ -201,8 +201,10 @@ export component AppWindow inherits Window {
     in-out property <string> subtotal-text: "0.00";
     in-out property <int> current-screen: 0;
     in-out property <string> fixture-note: "Fixture catalog: deterministic qualification data";
+    in-out property <string> invoice-filter-text: "";
 
     callback search-edited(string);
+    callback sales-scan-accepted(string);
     callback choose-item(string);
     callback remove-line(string);
     callback clear-lines();
@@ -303,7 +305,7 @@ export component AppWindow inherits Window {
                             input-type: search;
                             placeholder-text: "Scan barcode or type item name…";
                             edited => { root.search-edited(self.text); }
-                            accepted => { root.search-edited(self.text); }
+                            accepted => { root.sales-scan-accepted(self.text); }
                         }
                         Text {
                             text: "F2 focuses search · exact barcode returns one sellable unit";
@@ -368,6 +370,7 @@ export component AppWindow inherits Window {
                         height: 44px;
                         input-type: search;
                         placeholder-text: "Filter invoice number, customer, status…";
+                        text <=> root.invoice-filter-text;
                         edited => { root.invoice-filter-edited(self.text); }
                     }
                     HorizontalBox {

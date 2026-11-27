@@ -196,6 +196,18 @@ fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
     Rc::new(VecModel::from(rows)).into()
 }
 
+fn add_item_to_draft(state: &mut PilotState, item: CatalogItem) {
+    if let Some(existing) = state
+        .lines
+        .iter_mut()
+        .find(|line| line.item.item_code == item.item_code)
+    {
+        existing.qty += 1.0;
+    } else {
+        state.lines.push(LineState { item, qty: 1.0 });
+    }
+}
+
 fn refresh_voucher(app: &AppWindow, state: &PilotState) {
     app.set_voucher_lines(voucher_model(&state.lines));
     let total_qty: f64 = state.lines.iter().map(|line| line.qty).sum();
@@ -285,6 +297,29 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    app.on_sales_scan_accepted({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |term| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            let matches = state.catalog.search(term.as_str(), 2);
+            if matches.len() == 1 {
+                let item = matches[0].clone();
+                let item_code = item.item_code.clone();
+                add_item_to_draft(&mut state, item);
+                refresh_voucher(&app, &state);
+                app.set_status_text(SharedString::from(format!(
+                    "Scan accepted: {item_code} added to local draft; ERPNext submission still required"
+                )));
+            } else if matches.is_empty() {
+                app.set_status_text("Scan/search matched no item in the local catalog snapshot".into());
+            } else {
+                app.set_status_text("Scan/search is ambiguous; narrow the term or choose a result".into());
+            }
+        }
+    });
+
     app.on_choose_item({
         let app = app.as_weak();
         let state = state.clone();
@@ -292,15 +327,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             if let Some(item) = state.by_code.get(code.as_str()).cloned() {
-                if let Some(existing) = state
-                    .lines
-                    .iter_mut()
-                    .find(|line| line.item.item_code == item.item_code)
-                {
-                    existing.qty += 1.0;
-                } else {
-                    state.lines.push(LineState { item, qty: 1.0 });
-                }
+                add_item_to_draft(&mut state, item);
                 app.set_status_text(
                     "Item added to local draft; ERPNext submission still required".into(),
                 );

@@ -2540,7 +2540,6 @@ name = "khitmee-desktop"
 version = "0.1.0"
 dependencies = [
  "khitmee-catalog",
- "migration-core",
  "serde",
  "serde_json",
  "slint",
