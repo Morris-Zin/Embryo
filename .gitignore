@@ -26,3 +26,9 @@ test-results/
 
 # Local benchmark outputs and ledgers
 perf-suite/results/
+
+# Autonomous loop local runtime state
+.autoloop/tmp/
+.autoloop/locks/
+.autoloop/trusted-contracts/
+
