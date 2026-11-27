@@ -1136,6 +1136,35 @@ class TestFrozenContributionContracts(unittest.TestCase):
 		self.assertEqual(batch["replay_reasons_by_invoice"]["SI-RET"], "linked_return")
 		self.assertEqual(batch["currency_precision"], 2)
 
+	def test_contributions_ignore_stock_in_place_group_fold_on_first_row(self):
+		# Stock get_average_rate_based_on_group_by() mutates the first row of each
+		# group into the group total; contributions must keep the line values.
+		first = AttrDict(
+			parent="SI-1", item_row="ROW-1", posting_date="2026-11-26", posting_time="08:00:00",
+			warehouse="Shop 1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=1.0, base_amount=10.0, buying_amount=6.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		second = AttrDict(
+			parent="SI-2", item_row="ROW-2", posting_date="2026-11-26", posting_time="09:00:00",
+			warehouse="Dist Hub 1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=4.0, base_amount=40.0, buying_amount=30.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		first[fast_gross_profit.LINE_SNAPSHOT_FIELD] = (first.qty, first.base_amount, first.buying_amount)
+		# Simulate the stock fold into the group's first row.
+		first.qty += second.qty
+		first.base_amount += second.base_amount
+		first.buying_amount += second.buying_amount
+		generator = types.SimpleNamespace(si_list=[first, second], currency_precision=3, float_precision=2)
+
+		batch = fast_gross_profit._build_contribution_batch(generator, set())
+
+		by_row = {row["item_row"]: row for row in batch["contributions"]}
+		self.assertEqual((by_row["ROW-1"]["qty"], by_row["ROW-1"]["base_amount"], by_row["ROW-1"]["buying_amount"]), (1.0, 10.0, 6.0))
+		self.assertEqual((by_row["ROW-2"]["qty"], by_row["ROW-2"]["base_amount"]), (4.0, 40.0))
+		self.assertEqual(sum(row["qty"] for row in batch["contributions"]), 5.0)
+
 	def test_collect_scopes_invoice_ids_and_forces_row_preserving_monthly_extraction(self):
 		row = AttrDict(
 			parent="SI-1", item_row="ROW-1", posting_date="2026-01-02", posting_time="00:00:00",

@@ -1307,6 +1307,21 @@ def _replay_reason_for_invoice(invoice, rows, linked_return_originals):
 	return None
 
 
+LINE_SNAPSHOT_FIELD = "_khitmee_line_values"
+
+
+def row_line_values(row):
+	"""Return (qty, base_amount, buying_amount) for the line itself.
+
+	Prefers the snapshot taken before stock group aggregation mutated the
+	group's first row into the group total.
+	"""
+	snapshot = row.get(LINE_SNAPSHOT_FIELD)
+	if snapshot is not None:
+		return snapshot
+	return row.get("qty"), row.get("base_amount"), row.get("buying_amount")
+
+
 def _build_contribution_batch(generator, linked_return_originals):
 	currency_precision = cint(getattr(generator, "currency_precision", 0)) or 3
 	float_precision = cint(getattr(generator, "float_precision", 0)) or 2
@@ -1317,10 +1332,11 @@ def _build_contribution_batch(generator, linked_return_originals):
 		if not row.get("item_row") or not row.get("parent"):
 			continue
 
-		qty = float(row.get("qty") or 0)
-		base_amount = float(row.get("base_amount") or 0)
-		buying_amount = float(row.get("buying_amount") or 0)
-		query_phase = cint(row.get("_khitmee_query_phase")) if row.get("_khitmee_query_phase") is not None else 1
+		line_qty, line_base_amount, line_buying_amount = row_line_values(row)
+		qty = float(line_qty or 0)
+		base_amount = float(line_base_amount or 0)
+		buying_amount = float(line_buying_amount or 0)
+		query_phase =cint(row.get("_khitmee_query_phase")) if row.get("_khitmee_query_phase") is not None else 1
 		valuation_source = _valuation_source_for_row(generator, row)
 		row["_contribution_valuation_source"] = valuation_source
 		posting_date = posting_date_sort_value(row.get("posting_date"))
@@ -1566,7 +1582,16 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				row.gross_profit_percent = 0.0
 
 			if track_grouped_amounts:
-				self.grouped.setdefault(row.get(standard_gross_profit.scrub(self.filters.group_by)), []).append(row)
+				group_key = row.get(standard_gross_profit.scrub(self.filters.group_by))
+				group_rows = self.grouped.get(group_key)
+				if group_rows is None:
+					# Stock get_average_rate_based_on_group_by() folds every row of a
+					# group into the group's first row *in place*.  Snapshot that one
+					# row's line values so line-level consumers (profit contributions)
+					# never read a group total.  One tuple per group, not per row.
+					row[LINE_SNAPSHOT_FIELD] = (row.qty, row.base_amount, row.buying_amount)
+					group_rows = self.grouped[group_key] = []
+				group_rows.append(row)
 				self.invoice_item_amounts[sales_invoice_item] = frappe._dict(
 					base_amount=row.base_amount, buying_amount=row.buying_amount
 				)
