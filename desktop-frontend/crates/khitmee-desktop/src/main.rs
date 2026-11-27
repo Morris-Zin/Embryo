@@ -304,6 +304,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             let matches = state.catalog.search(term.as_str(), 2);
+            app.set_clear_scan_after_accept(matches.len() == 1);
             if matches.len() == 1 {
                 let item = matches[0].clone();
                 let item_code = item.item_code.clone();

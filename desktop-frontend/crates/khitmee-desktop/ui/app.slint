@@ -202,6 +202,7 @@ export component AppWindow inherits Window {
     in-out property <int> current-screen: 0;
     in-out property <string> fixture-note: "Fixture catalog: deterministic qualification data";
     in-out property <string> invoice-filter-text: "";
+    in-out property <bool> clear-scan-after-accept: false;
 
     callback search-edited(string);
     callback sales-scan-accepted(string);
@@ -307,7 +308,7 @@ export component AppWindow inherits Window {
                             edited => { root.search-edited(self.text); }
                             accepted => {
                                 root.sales-scan-accepted(self.text);
-                                self.text = "";
+                                if root.clear-scan-after-accept { self.text = ""; }
                             }
                         }
                         Text {

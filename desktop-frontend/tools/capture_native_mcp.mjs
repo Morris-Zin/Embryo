@@ -10,7 +10,8 @@ function arg(name, fallback = '') {
 }
 
 const port = Number(arg('port', process.env.SLINT_MCP_PORT || '49272'));
-const screenId = arg('screen', 'sales-voucher');
+const screenId = arg('screen', '');
+if (!screenId) throw new Error('--screen is required so evidence cannot be filed under the wrong screen');
 const outDir = path.resolve(arg('out', path.join('desktop-frontend/evidence/native', screenId)));
 const endpoint = `http://127.0.0.1:${port}/mcp`;
 let nextId = 1;
@@ -62,6 +63,10 @@ async function main() {
   const rootHandle = properties.rootElementHandle || properties.root_element_handle || properties.rootElement?.handle;
   if (!rootHandle) throw new Error(`No root element handle in ${JSON.stringify(properties)}`);
   const tree = structured(await callTool('get_element_tree', { elementHandle: rootHandle, maxElements: 1000 }));
+  const expectedTitles = { 'sales-voucher': 'Sales Counter', 'item-search': 'Item Search', 'invoice-list': 'Invoice List' };
+  if (expectedTitles[screenId] && !JSON.stringify(tree).includes(expectedTitles[screenId])) {
+    throw new Error(`native window does not show ${expectedTitles[screenId]}; refusing to file evidence as ${screenId}`);
+  }
   const screenshot = await callTool('take_screenshot', { windowHandle, imageMimeType: 'image/png' });
   const image = screenshot.content?.find((item) => item.type === 'image');
   if (!image?.data) throw new Error(`No PNG image in screenshot response: ${JSON.stringify(screenshot).slice(0, 1000)}`);
