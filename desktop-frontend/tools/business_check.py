@@ -47,6 +47,9 @@ def login_opener(base_url: str, username: str, password: str) -> urllib.request.
         headers={"content-type": "application/json"},
     )
     opener.open(request, timeout=20).read()
+    csrf_token = next((cookie.value for cookie in jar if cookie.name == "csrf_token"), None)
+    if csrf_token:
+        opener.addheaders = [("X-Frappe-CSRF-Token", csrf_token)]
     return opener
 
 

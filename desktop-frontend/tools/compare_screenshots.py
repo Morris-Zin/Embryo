@@ -60,6 +60,7 @@ def main() -> int:
                         maxFailedPixelRatio=args.max_failed_pixel_ratio,
                     )
                     diff_path = Path(args.report).with_suffix(".diff.png")
+                    diff_path.parent.mkdir(parents=True, exist_ok=True)
                     diff.save(diff_path)
                     report["diffImage"] = str(diff_path)
                     report["passed"] = ratio <= args.max_failed_pixel_ratio

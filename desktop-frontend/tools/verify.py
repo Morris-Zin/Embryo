@@ -74,16 +74,17 @@ def evaluate_screen(
     aliases = [reference_id, screen["source_route"].strip("/").replace("_", "-"), screen["id"]]
     existing_reference = next((web_reference / alias for alias in aliases if (web_reference / alias / "reference.png").exists()), reference_dir)
     reference_png = existing_reference / "reference.png"
-    native_png = native_evidence / "native.png"
+    screen_native_evidence = native_evidence / screen["id"]
+    native_png = screen_native_evidence / "native.png"
     reference_dom = load_json(existing_reference / "dom.json", {})
-    native_tree = load_json(native_evidence / "element-tree.json", {})
+    native_tree = load_json(screen_native_evidence / "element-tree.json", {})
 
     required_files = {
         "reference-screenshot": reference_png,
         "native-screenshot": native_png,
         "reference-dom": existing_reference / "dom.json",
         "reference-trace": existing_reference / "trace.json",
-        "native-element-tree": native_evidence / "element-tree.json",
+        "native-element-tree": screen_native_evidence / "element-tree.json",
     }
     for kind, path in required_files.items():
         exists = path.exists()
@@ -102,7 +103,11 @@ def evaluate_screen(
         if not visual_report.get("passed"):
             result["failures"].append("visual comparison failed or inputs were incomparable")
 
-    if reference_dom and native_tree:
+    if not reference_dom or not native_tree:
+        result["checks"]["structured-evidence"] = {"passed": False, "error": "reference DOM or native element tree is empty/missing"}
+        if (existing_reference / "dom.json").exists() or (screen_native_evidence / "element-tree.json").exists():
+            result["failures"].append("structured evidence is empty; text/accessibility/keyboard checks cannot run")
+    else:
         reference_text = flatten_text(reference_dom.get("bodyText", "")) + " " + flatten_text(reference_dom.get("controls", []))
         native_text = flatten_text(native_tree)
         title = reference_dom.get("h1") or reference_dom.get("title") or screen.get("title", "")
@@ -126,10 +131,19 @@ def evaluate_screen(
             result["failures"].append(f"native accessibility roles missing {missing_roles}")
 
         required_shortcuts = sorted({key for control in reference_dom.get("controls", []) for key in control.get("keyboard", [])})
-        shortcut_probe_passed = all(shortcut in native_text for shortcut in required_shortcuts)
-        result["checks"]["keyboard-probe"] = {"passed": shortcut_probe_passed, "requiredShortcuts": required_shortcuts}
+        keyboard_results_path = screen_native_evidence / "keyboard-results.json"
+        keyboard_results = load_json(keyboard_results_path, None)
+        shortcut_results = keyboard_results.get("shortcuts", {}) if isinstance(keyboard_results, dict) else {}
+        missing_shortcut_results = [shortcut for shortcut in required_shortcuts if shortcut_results.get(shortcut, {}).get("passed") is not True]
+        shortcut_probe_passed = bool(required_shortcuts) and not missing_shortcut_results
+        result["checks"]["keyboard-probe"] = {
+            "passed": shortcut_probe_passed,
+            "requiredShortcuts": required_shortcuts,
+            "missingBehavioralResults": missing_shortcut_results,
+            "path": str(keyboard_results_path),
+        }
         if not shortcut_probe_passed:
-            result["failures"].append(f"native evidence does not expose required shortcuts {required_shortcuts}")
+            result["failures"].append(f"native behavioral keyboard evidence missing or failing for {missing_shortcut_results or required_shortcuts}")
 
     if business_report is None or not business_report.exists():
         result["checks"]["business-outcome"] = {"passed": False, "error": "business outcome report missing"}

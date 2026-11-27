@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-27T11:57:30Z",
+  "generatedAt": "2026-11-27T12:07:40Z",
   "passed": false,
   "results": [
     {
@@ -8,10 +8,10 @@
       "passed": false,
       "failures": [
         "missing reference-screenshot: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\reference.png",
-        "missing native-screenshot: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\native.png",
+        "missing native-screenshot: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\native.png",
         "missing reference-dom: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\dom.json",
         "missing reference-trace: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee_sales\\trace.json",
-        "missing native-element-tree: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\element-tree.json",
+        "missing native-element-tree: C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\element-tree.json",
         "business outcome evidence missing",
         "performance evidence missing"
       ],
@@ -22,7 +22,7 @@
         },
         "native-screenshot": {
           "passed": false,
-          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\native.png"
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\native.png"
         },
         "reference-dom": {
           "passed": false,
@@ -34,7 +34,11 @@
         },
         "native-element-tree": {
           "passed": false,
-          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\element-tree.json"
+          "path": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\element-tree.json"
+        },
+        "structured-evidence": {
+          "passed": false,
+          "error": "reference DOM or native element tree is empty/missing"
         },
         "business-outcome": {
           "passed": false,
