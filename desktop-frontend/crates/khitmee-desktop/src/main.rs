@@ -885,6 +885,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let state = state.borrow();
             app.set_search_results(search_model(&state.catalog, term.as_str()));
+            app.set_active_search_index(0);
             app.set_search_open(!term.trim().is_empty());
         }
     });
@@ -898,13 +899,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let matches = state.catalog.search(term.as_str(), 10);
             app.set_clear_scan_after_accept(!matches.is_empty());
             app.set_search_open(false);
-            if let Some(item) = matches.first().cloned() {
+            let active_index = app.get_active_search_index().max(0) as usize;
+            if let Some(item) = matches
+                .get(active_index)
+                .or_else(|| matches.first())
+                .cloned()
+            {
                 add_item_to_draft(&mut state, item);
                 refresh_voucher(&app, &state);
-            } else {
-                app.set_status_text(
-                    "Scan/search matched no item in the local catalog snapshot".into(),
-                );
             }
         }
     });

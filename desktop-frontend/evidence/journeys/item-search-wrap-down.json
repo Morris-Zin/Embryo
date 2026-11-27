@@ -1,0 +1,425 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": false,
+    "reason": "submission voucher number missing"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "search",
+        "value": "Mekong"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 4,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 5,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 6,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 7,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 8,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 9,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 10,
+      "action": {
+        "op": "key",
+        "key": "ArrowDown"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "0",
+        "subtotal": "0.00",
+        "submitDisabled": true,
+        "lineCount": 0,
+        "quantities": [],
+        "searchExpanded": "true",
+        "resultCount": 10,
+        "customer": "Choose customer",
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
+      },
+      "differences": []
+    },
+    {
+      "index": 11,
+      "action": {
+        "op": "key",
+        "key": "Enter"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    }
+  ]
+}

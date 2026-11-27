@@ -197,6 +197,7 @@ component SearchResultRow inherits Rectangle {
             accessible-role: list-item;
             accessible-label: item.item-code + " " + item.item-name + " Stock " + item.quantity-text + " " + (show-rates ? item.rate-text : "—");
             accessible-enabled: true;
+            accessible-item-selected: root.active;
         }
     }
     touch := TouchArea { height: 62.78125px; clicked => { root.chosen(item.item-code); } }
@@ -306,7 +307,8 @@ component CounterScreen inherits FocusScope {
     property <length> lines-height: root.lines-available-height > root.lines-required-height ? root.lines-available-height : root.lines-required-height;
     in property <[CatalogChoice]> search-results;
     in property <[VoucherLine]> voucher-lines;
-    in property <bool> search-open;
+    in-out property <bool> search-open;
+    in-out property <int> active-search-index: 0;
     in property <string> status-text;
     in property <string> total-qty-text;
     in property <string> subtotal-text;
@@ -335,6 +337,16 @@ component CounterScreen inherits FocusScope {
             accept
         } else if event.text == Key.F9 {
             root.submit-print();
+            accept
+        } else if event.text == Key.DownArrow && root.search-open && root.search-results.length > 0 {
+            root.active-search-index = mod(root.active-search-index + 1, root.search-results.length);
+            accept
+        } else if event.text == Key.UpArrow && root.search-open && root.search-results.length > 0 {
+            root.active-search-index = mod(root.active-search-index + root.search-results.length - 1, root.search-results.length);
+            accept
+        } else if event.text == Key.Escape && root.search-open {
+            root.search-open = false;
+            root.active-search-index = 0;
             accept
         } else {
             reject
@@ -440,6 +452,22 @@ component CounterScreen inherits FocusScope {
             font-size: 17px;
             accessible-role: combobox;
             edited => { root.search-edited(self.text); }
+            key-pressed(event) => {
+                if event.text == Key.DownArrow && root.search-open && root.search-results.length > 0 {
+                    root.active-search-index = mod(root.active-search-index + 1, root.search-results.length);
+                    accept
+                } else if event.text == Key.UpArrow && root.search-open && root.search-results.length > 0 {
+                    root.active-search-index = mod(root.active-search-index + root.search-results.length - 1, root.search-results.length);
+                    accept
+                } else if event.text == Key.Escape && root.search-open {
+                    root.search-open = false;
+                    root.active-search-index = 0;
+                    self.text = "";
+                    accept
+                } else {
+                    reject
+                }
+            }
             accepted => {
                 root.sales-scan-accepted(self.text);
                 if root.clear-scan-after-accept { self.text = ""; }
@@ -510,9 +538,9 @@ component CounterScreen inherits FocusScope {
                 x: 0px; y: index * 65.96875px;
                 width: root.content-width - 52px;
                 item: row;
-                active: index == 0;
+                active: index == root.active-search-index;
                 show-rates: root.sales-mode;
-                chosen(code) => { root.choose-item(code); }
+                chosen(code) => { root.choose-item(code); item-search.text = ""; }
             }
         }
     }
@@ -1070,6 +1098,7 @@ export component AppWindow inherits Window {
     in-out property <string> invoice-filter-text: "";
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
+    in-out property <int> active-search-index: 0;
 
     callback warehouse-selected(string);
     callback customer-selected(string);
@@ -1094,7 +1123,8 @@ export component AppWindow inherits Window {
         initial-scroll-offset: current-screen == 4 ? 43px : 0px;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
-        search-open: root.search-open;
+        search-open <=> root.search-open;
+        active-search-index <=> root.active-search-index;
         status-text: root.status-text;
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;
@@ -1122,7 +1152,8 @@ export component AppWindow inherits Window {
         payment-options: root.payment-options;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
-        search-open: root.search-open;
+        search-open <=> root.search-open;
+        active-search-index <=> root.active-search-index;
         status-text: root.status-text;
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;

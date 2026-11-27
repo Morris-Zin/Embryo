@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": false,
+    "reason": "submission voucher number missing"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "1",
+        "subtotal": "18.46",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "1"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "scan",
+        "value": "8850000000010"
+      },
+      "web": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "2",
+        "subtotal": "36.92",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "2"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "native": {
+        "status": "Ready. Scan a barcode or press F2 to search.",
+        "totalQty": "2",
+        "subtotal": "36.92",
+        "submitDisabled": false,
+        "lineCount": 1,
+        "quantities": [
+          "2"
+        ],
+        "searchExpanded": "false",
+        "resultCount": 0,
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
+      },
+      "differences": []
+    }
+  ]
+}

@@ -81,7 +81,11 @@
           "label": "Barcode / item search",
           "role": "combobox",
           "keyboard": [
-            "F2"
+            "F2",
+            "ArrowUp",
+            "ArrowDown",
+            "Enter",
+            "Escape"
           ]
         }
       ],
@@ -109,11 +113,21 @@
       ],
       "native_component": "ItemSearchPilot",
       "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#item-search",
-      "evidence": [],
+      "evidence": [
+        "evidence/journeys/item-search-results.json",
+        "evidence/journeys/item-search-keyboard.json",
+        "evidence/journeys/item-search-wrap-up.json",
+        "evidence/journeys/item-search-wrap-down.json",
+        "evidence/journeys/item-search-escape.json",
+        "evidence/journeys/item-search-click.json",
+        "evidence/journeys/item-search-repeat-scan.json",
+        "evidence/journeys/item-search-no-match.json",
+        "experiments/0005-item-search-qualification.md"
+      ],
       "failures": [
-        "initial: visual comparison failed or inputs were incomparable",
-        "business outcome evidence missing",
-        "performance evidence missing"
+        "full-screen visual qualification pending",
+        "customer-specific pricing/warehouse-switch/stock-exhaustion/Burmese search evidence pending",
+        "dedicated cold-cache performance evidence pending"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
@@ -148,7 +162,7 @@
         {
           "control_type": "input",
           "id": "customer-search",
-          "label": "Filter customers…",
+          "label": "Filter customers\u00e2\u20ac\u00a6",
           "role": "",
           "keyboard": []
         },
@@ -197,7 +211,7 @@
         {
           "control_type": "input",
           "id": "item-search",
-          "label": "Scan barcode or type item name…",
+          "label": "Scan barcode or type item name\u00e2\u20ac\u00a6",
           "role": "combobox",
           "keyboard": [
             "F2"
@@ -348,7 +362,7 @@
         {
           "control_type": "input",
           "id": "item-search",
-          "label": "Scan barcode or type item name…",
+          "label": "Scan barcode or type item name\u00e2\u20ac\u00a6",
           "role": "combobox",
           "keyboard": [
             "F2"

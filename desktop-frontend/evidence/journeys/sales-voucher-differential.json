@@ -1,7 +1,13 @@
 {
   "schemaVersion": 1,
+  "scenario": "validation",
   "passed": true,
   "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": false,
+    "reason": "submission voucher number missing"
+  },
   "steps": [
     {
       "index": 0,
@@ -17,7 +23,10 @@
         "quantities": [],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -28,7 +37,10 @@
         "quantities": [],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -49,7 +61,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -62,7 +77,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -83,7 +101,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -96,7 +117,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -116,7 +140,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -129,7 +156,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -149,7 +179,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -162,7 +195,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -183,7 +219,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -196,7 +235,10 @@
         ],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -214,7 +256,10 @@
         "quantities": [],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -225,7 +270,10 @@
         "quantities": [],
         "searchExpanded": "false",
         "resultCount": 0,
-        "firstResult": ""
+        "customer": "Choose customer",
+        "results": [],
+        "firstResult": "",
+        "searchValue": ""
       },
       "differences": []
     },
@@ -244,7 +292,21 @@
         "quantities": [],
         "searchExpanded": "true",
         "resultCount": 10,
-        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 482 18.46"
+        "customer": "Choose customer",
+        "results": [
+          "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+          "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
+          "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
+          "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
+          "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40",
+          "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26",
+          "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82",
+          "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20",
+          "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
+          "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77"
+        ],
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
       },
       "native": {
         "status": "Add at least one item before submitting.",
@@ -255,7 +317,21 @@
         "quantities": [],
         "searchExpanded": "true",
         "resultCount": 10,
-        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 482 18.46"
+        "customer": "Choose customer",
+        "results": [
+          "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+          "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03",
+          "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34",
+          "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62",
+          "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40",
+          "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26",
+          "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82",
+          "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20",
+          "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88",
+          "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77"
+        ],
+        "firstResult": "KM-00001 Mekong Fresh Beverage 00001 Stock 471 18.46",
+        "searchValue": "Mekong"
       },
       "differences": []
     }
