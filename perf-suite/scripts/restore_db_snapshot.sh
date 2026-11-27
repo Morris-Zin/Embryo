@@ -32,8 +32,17 @@ if [[ "$project" != "$PROJECT" ]]; then
   exit 3
 fi
 
+DB_STOPPED=0
+restart_db() {
+  if [[ "$DB_STOPPED" == "1" ]]; then
+    docker start "$CONTAINER" >/dev/null 2>&1 || true
+  fi
+}
+trap restart_db EXIT
+
 echo "Stopping $CONTAINER and restoring $(basename "$ARCHIVE") into volume $VOLUME"
 docker stop "$CONTAINER" >/dev/null
+DB_STOPPED=1
 docker run --rm \
   -e SNAPSHOT_NAME="$(basename "$ARCHIVE")" \
   -v "$VOLUME:/from" \
@@ -41,8 +50,9 @@ docker run --rm \
   "$IMAGE" \
   sh -c 'rm -rf /from/* /from/.[!.]* /from/..?* 2>/dev/null || true; cd /from && tar xzf "/snapshot/$SNAPSHOT_NAME"'
 docker start "$CONTAINER" >/dev/null
+DB_STOPPED=0
 
-for _ in $(seq 1 60); do
+for _ in $(seq 1 120); do
   status="$(docker inspect --format '{{.Health.Status}}' "$CONTAINER" 2>/dev/null || true)"
   if [[ "$status" == "healthy" ]]; then
     echo "Restored $VOLUME; $CONTAINER is healthy"

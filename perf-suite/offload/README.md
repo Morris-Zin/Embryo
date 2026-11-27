@@ -109,4 +109,53 @@ Outputs stay in ignored `perf-suite/results/offload/<run-id>/` directories:
 
 ## Measurements from the current full-year experiment
 
-Pending final full-year measurements in this session; this section must be updated before review with actual immutable-baseline numbers rather than estimates.
+Dataset: 360,000 sales invoices, 950,000 invoice lines, 1,208,300 stock ledger entries, 14,728 stock items and six warehouses on the 2 GB profile. The immutable MariaDB volume snapshot was captured before any k6 writes.
+
+### Canonical full-year scan/offload comparison
+
+The consistent full export contained 2,601,283 rows in 108,327,914 gzip bytes and took 135.8s to produce. DuckDB loaded it in 28.2s using 53.4 CPU-seconds on two threads; the resulting database was 144,191,488 bytes. Exact row parity passed for every canonical query.
+
+| Query | MariaDB cold/warm | DuckDB cold/warm | Cold speedup | Rows | MariaDB pages read, cold |
+|---|---:|---:|---:|---:|---:|
+| invoice fact scan | 7.877s / 8.693s | 0.412s / 0.189s | 19.1x | 1 | 140,657 |
+| daily invoice summary | 10.165s / 10.256s | 0.220s / 0.214s | 46.3x | 2,190 | 142,568 |
+| monthly item margin | 21.498s / 18.135s | 0.674s / 0.663s | 31.9x | 89,940 | 129,524 |
+| inventory balance | 12.686s / 12.597s | 0.224s / 0.218s | 56.7x | 64,818 | 151,396 |
+
+Across the probe suite MariaDB used 82.9 cgroup CPU-seconds and read 17.9GB from disk in 136s. Warm execution did not materially improve latency because the 320MiB InnoDB buffer pool cannot hold the scanned working set. DuckDB peak process memory stayed below 500MiB with a 512MB memory limit.
+
+### Incrementally maintained MariaDB daily summary PoC
+
+The 2,190-row date/warehouse summary table was only 245,760 bytes. Exact numeric parity passed for the additive canonical aggregate.
+
+| Operation | Cost | Evidence |
+|---|---:|---|
+| one-time summary build | 10.871s | 155,763 InnoDB pages read |
+| raw full-year range query | 10.843s | 143,665 InnoDB pages read, one disk temp table |
+| summary full-year range query | 0.029s | 39 buffer-pool requests, zero InnoDB disk reads |
+| line-upsert maintenance primitive | 0.087ms/line | hot-row trigger-free `INSERT ... ON DUPLICATE KEY UPDATE` microbenchmark |
+
+This is strong evidence for the read-model architecture, but it is not yet production Gross Profit logic. Correct incremental maintenance still needs exact ERPNext valuation/return/bundle semantics, dirty-window invalidation and live fallback.
+
+### Concurrent full-year reporting baseline before offload
+
+`report_stress` used six shop workers, two report managers, the full seeded year and a configured peak of 100 vouchers/minute for three minutes. The baseline failed every strict latency/reliability gate:
+
+- sale/transfer submit p95: 2.652s end-to-end (2.601s server-side), target <1.5s;
+- report p95: 10.463s, target <5s;
+- Fast Gross Profit p95: 10.709s with only two successful samples;
+- Stock Balance p95: 8.299s;
+- HTTP failure rate: 5.25%, mostly 502s during backend OOM recycling;
+- backend cgroup peak: 576.4MiB of its 576MiB limit with 6 OOM kills;
+- db cgroup disk reads: 35.6GB in about three minutes;
+- fleet sum of container memory peaks: 1,483.8MiB; sum of averages: 875.6MiB.
+
+Only 152 sales and 63 transfers succeeded because errors and backend recycling reduced the achieved rate below the configured peak. This is precisely the interference the offload architecture must remove.
+
+### Incremental synchronization after the write load
+
+After that write load, the modified-time delta contained 4,648 rows in 191,575 gzip bytes and exported in 4.1s, versus 2,601,283 rows / 108,327,914 bytes / 135.8s for the initial full extract. That is a 565x reduction in transfer bytes for this workload interval. Canonical-query parity for the incrementally merged DuckDB copy is recorded in `year-incremental-after-load` when the run completes.
+
+### Binlog and external-service comparison
+
+Pending final binlog run; the Compose override is present but measurements must be recorded here before any CDC architecture is ranked above simpler incremental extraction.
