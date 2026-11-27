@@ -44,6 +44,7 @@ WAREHOUSES = ("Shop 1", "Dist Hub 1")
 ALL_SWEEP_WAREHOUSES = ("Dist Hub 1", "Dist Hub 2", "Shop 1", "Shop 2", "Shop 3", "Shop 4")
 DATE_30D_FROM = "2026-10-27"
 DATE_1D_FROM = "2026-11-26"
+DATE_1Y_FROM = "2025-11-27"
 DATE_TO = "2026-11-26"
 GP_NUMERIC_FIELDS = (
     "qty",
@@ -138,8 +139,28 @@ def row_as_dict(columns, row, index):
     return result
 
 
-def is_total_row(row):
-    return row.get("sales_invoice") == "Total" or row.get("item_code") == "Total" or row.get("invoice_or_item") == "Total"
+TOTAL_ROW_FIELDS = (
+    "sales_invoice",
+    "item_code",
+    "invoice_or_item",
+    "warehouse",
+    "monthly",
+    "month",
+    "posting_period",
+)
+COLUMN_METADATA_FIELDS = ("fieldname", "label", "fieldtype", "options", "width")
+ORDER_TIE_FIELDS = ("query_phase", "posting_date", "posting_time")
+
+
+def is_total_row(row, group_field=None):
+    if not isinstance(row, dict):
+        return False
+    if group_field and row.get(group_field) == "Total":
+        return True
+    if any(row.get(field) == "Total" for field in TOTAL_ROW_FIELDS):
+        return True
+    first_key = next((key for key in row if not str(key).startswith("_")), None)
+    return first_key is not None and row.get(first_key) == "Total"
 
 
 def invoice_header_key(row):
@@ -232,11 +253,20 @@ def compare_gp_row_fields(fast_row, upstream_row, tolerance, location):
     fields = sorted((set(fast_row) | set(upstream_row)) - {"_row_index"}, key=lambda field: str(field))
     for field in fields:
         if field in GP_NUMERIC_FIELDS:
-            close, diff = numbers_close(fast_row.get(field), upstream_row.get(field), tolerance)
+            fast_raw = fast_row.get(field)
+            upstream_raw = upstream_row.get(field)
+            if (fast_raw is None) != (upstream_raw is None):
+                mismatches.append({
+                    "kind": "null_numeric", "field": field, "location": location,
+                    "fast": scalar(fast_raw), "upstream": scalar(upstream_raw),
+                    "tolerance": tolerance,
+                })
+                continue
+            close, diff = numbers_close(fast_raw, upstream_raw, tolerance)
             if not close:
                 mismatches.append({
                     "kind": "numeric_field", "field": field, "location": location,
-                    "fast": scalar(fast_row.get(field)), "upstream": scalar(upstream_row.get(field)),
+                    "fast": scalar(fast_raw), "upstream": scalar(upstream_raw),
                     "diff": diff, "tolerance": tolerance,
                 })
             continue
@@ -287,26 +317,373 @@ def invoice_mode_rows(rows):
     return False
 
 
-def compare_gross_profit_rows(fast_columns, fast_data, upstream_columns, upstream_data, tolerance=0.001):
+def compare_column_metadata(fast_columns, upstream_columns):
+    """Compare report column metadata without breaking legacy fieldname-only callers.
+
+    Legacy callers often construct bare ``{"fieldname": ...}`` dictionaries.  A
+    metadata key is therefore compared strictly when at least one side supplies
+    it, while keys omitted by both sides remain compatible.
+    """
+    mismatches = []
+    if not fast_columns or not upstream_columns:
+        return mismatches
+    if len(fast_columns) != len(upstream_columns):
+        mismatches.append({
+            "kind": "column_count",
+            "fast": len(fast_columns),
+            "upstream": len(upstream_columns),
+        })
+    for index, (fast_column, upstream_column) in enumerate(zip(fast_columns, upstream_columns)):
+        fast_column = fast_column if isinstance(fast_column, dict) else {}
+        upstream_column = upstream_column if isinstance(upstream_column, dict) else {}
+        for field in COLUMN_METADATA_FIELDS:
+            if field not in fast_column and field not in upstream_column:
+                continue
+            fast_value = scalar(fast_column.get(field))
+            upstream_value = scalar(upstream_column.get(field))
+            if fast_value != upstream_value:
+                mismatches.append({
+                    "kind": "column_metadata",
+                    "column_index": index,
+                    "field": field,
+                    "fast": fast_value,
+                    "upstream": upstream_value,
+                })
+    return mismatches
+
+
+def normalize_order_key(value):
+    value = scalar(value)
+    if isinstance(value, (list, tuple)):
+        return tuple(normalize_order_key(part) for part in value)
+    if isinstance(value, dict):
+        return tuple(
+            (str(key), normalize_order_key(value[key]))
+            for key in sorted(value, key=lambda item: str(item))
+        )
+    return value
+
+
+def normalize_order_key_sequences(order_keys, fast_rows, upstream_rows):
+    """Normalize optional per-row order annotations.
+
+    ``order_keys`` may be ``{"fast": [...], "upstream": [...]}``, a
+    ``(fast_keys, upstream_keys)`` pair, or one sequence applied to both sides.
+    Sequences are indexed by original body-row positions; a final Total row may
+    be omitted.  Row-carried ``_order_key``/``order_key`` annotations
+    always take precedence, which is the preferred form for offline fixtures.
+    """
+    fast_sequence = None
+    upstream_sequence = None
+    errors = []
+    if order_keys is None:
+        return fast_sequence, upstream_sequence, errors
+
+    if isinstance(order_keys, dict):
+        fast_sequence = order_keys.get("fast")
+        upstream_sequence = order_keys.get("upstream")
+    elif (
+        isinstance(order_keys, (list, tuple))
+        and len(order_keys) == 2
+        and all(isinstance(sequence, (list, tuple)) for sequence in order_keys)
+    ):
+        fast_sequence, upstream_sequence = order_keys
+    else:
+        fast_sequence = upstream_sequence = order_keys
+
+    for side, sequence, rows in (
+        ("fast", fast_sequence, fast_rows),
+        ("upstream", upstream_sequence, upstream_rows),
+    ):
+        required_keys = len(rows) - 1 if rows and is_total_row(rows[-1]) else len(rows)
+        if sequence is not None and len(sequence) < required_keys:
+            errors.append({
+                "kind": "order_keys_length",
+                "side": side,
+                "keys": len(sequence),
+                "rows": required_keys,
+            })
+    return fast_sequence, upstream_sequence, errors
+
+
+def row_order_key(row, explicit_sequence=None):
+    for field in ("_order_key", "order_key", "_order_keys", "order_keys", "_first_seen_key", "first_seen_key", "min_first_seen_key"):
+        if field in row:
+            return normalize_order_key(row.get(field))
+
+    def tie_value(field):
+        if field in row:
+            return row.get(field)
+        return row.get("_" + field)
+
+    tie_fields_present = [field for field in ORDER_TIE_FIELDS if field in row or "_" + field in row]
+    if (
+        "query_phase" in tie_fields_present
+        or "posting_time" in tie_fields_present
+        or len(tie_fields_present) == len(ORDER_TIE_FIELDS)
+    ):
+        return tuple(normalize_order_key(tie_value(field)) for field in ORDER_TIE_FIELDS)
+
+    row_index = row.get("_row_index")
+    if explicit_sequence is not None and isinstance(row_index, int) and row_index < len(explicit_sequence):
+        return normalize_order_key(explicit_sequence[row_index])
+    return ("__position__", row.get("_order_position", row_index))
+
+
+def collapse_rows_by_order_bucket(rows, explicit_sequence=None, side="fast"):
+    buckets = []
+    errors = []
+    seen_keys = set()
+    for row in rows:
+        key = row_order_key(row, explicit_sequence)
+        if buckets and buckets[-1][0] == key:
+            buckets[-1][1].append(row)
+            continue
+        if key in seen_keys:
+            errors.append({
+                "kind": "order_bucket_not_contiguous",
+                "side": side,
+                "bucket": key,
+                "row": row.get("_row_index"),
+            })
+        seen_keys.add(key)
+        buckets.append((key, [row]))
+    return buckets, errors
+
+
+def compare_group_row_bucket(fast_rows, upstream_rows, tolerance, location, group_field=None):
+    mismatches = []
+    fast_sorted = sorted(fast_rows, key=lambda row: canonical_group_sort_key(row, group_field))
+    upstream_sorted = sorted(upstream_rows, key=lambda row: canonical_group_sort_key(row, group_field))
+    if len(fast_sorted) != len(upstream_sorted):
+        mismatches.append({
+            "kind": "group_bucket_row_count",
+            "location": location,
+            "fast": len(fast_sorted),
+            "upstream": len(upstream_sorted),
+        })
+    for index, (fast_row, upstream_row) in enumerate(zip(fast_sorted, upstream_sorted)):
+        mismatches.extend(compare_gp_row_fields(
+            fast_row,
+            upstream_row,
+            tolerance,
+            f"{location}:row:{index}",
+        ))
+    return mismatches
+
+
+def compare_order_sensitive_group_rows(
+    fast_rows,
+    upstream_rows,
+    tolerance,
+    group_field=None,
+    fast_sequence=None,
+    upstream_sequence=None,
+):
+    """Compare exact distinct-bucket order while permitting intra-tie permutations."""
+    mismatches = []
+    fast_buckets, fast_bucket_errors = collapse_rows_by_order_bucket(fast_rows, fast_sequence, "fast")
+    upstream_buckets, upstream_bucket_errors = collapse_rows_by_order_bucket(upstream_rows, upstream_sequence, "upstream")
+    mismatches.extend(fast_bucket_errors)
+    mismatches.extend(upstream_bucket_errors)
+
+    fast_bucket_keys = [key for key, _rows in fast_buckets]
+    upstream_bucket_keys = [key for key, _rows in upstream_buckets]
+    if fast_bucket_keys != upstream_bucket_keys:
+        mismatches.append({
+            "kind": "group_bucket_order",
+            "fast": fast_bucket_keys,
+            "upstream": upstream_bucket_keys,
+        })
+    if len(fast_buckets) != len(upstream_buckets):
+        mismatches.append({
+            "kind": "group_bucket_count",
+            "fast": len(fast_buckets),
+            "upstream": len(upstream_buckets),
+        })
+
+    for bucket_index, ((fast_key, fast_bucket_rows), (upstream_key, upstream_bucket_rows)) in enumerate(
+        zip(fast_buckets, upstream_buckets)
+    ):
+        if fast_key != upstream_key:
+            mismatches.append({
+                "kind": "group_bucket_order_at_position",
+                "position": bucket_index,
+                "fast": fast_key,
+                "upstream": upstream_key,
+            })
+        mismatches.extend(compare_group_row_bucket(
+            fast_bucket_rows,
+            upstream_bucket_rows,
+            tolerance,
+            f"group-bucket:{bucket_index}",
+            group_field,
+        ))
+    return mismatches
+
+
+def invoice_order_rows(invoices, order):
+    rows = []
+    for ordinal, key in enumerate(order):
+        invoice = invoices.get(key)
+        if not invoice:
+            continue
+        row = dict(invoice["header"])
+        row["_order_position"] = ordinal
+        rows.append((key, row))
+    return rows
+
+
+def collapse_invoice_order_buckets(invoices, order, side, explicit_sequence=None):
+    buckets = []
+    errors = []
+    seen_keys = set()
+    for invoice_key, row in invoice_order_rows(invoices, order):
+        bucket_key = row_order_key(row, explicit_sequence)
+        if buckets and buckets[-1][0] == bucket_key:
+            buckets[-1][1].append(invoice_key)
+            continue
+        if bucket_key in seen_keys:
+            errors.append({
+                "kind": "invoice_order_bucket_not_contiguous",
+                "side": side,
+                "bucket": bucket_key,
+                "invoice": scalar(invoice_key),
+            })
+        seen_keys.add(bucket_key)
+        buckets.append((bucket_key, [invoice_key]))
+    return buckets, errors
+
+
+def invoice_key_sort_value(value):
+    return str(scalar(value))
+
+
+def invoice_query_phase(row):
+    for field in ("query_phase", "_query_phase"):
+        if field in row:
+            return normalize_order_key(row.get(field))
+    for field in ("first_seen_key", "_first_seen_key", "min_first_seen_key"):
+        value = row.get(field)
+        if value is not None:
+            parts = str(scalar(value)).split("|", 1)
+            if parts and parts[0] in {"0", "1"}:
+                return int(parts[0])
+    return None
+
+
+def compare_order_sensitive_invoice_order(
+    fast_invoices,
+    fast_order,
+    upstream_invoices,
+    upstream_order,
+    fast_sequence=None,
+    upstream_sequence=None,
+):
+    mismatches = []
+    fast_buckets, fast_errors = collapse_invoice_order_buckets(fast_invoices, fast_order, "fast", fast_sequence)
+    upstream_buckets, upstream_errors = collapse_invoice_order_buckets(upstream_invoices, upstream_order, "upstream", upstream_sequence)
+    mismatches.extend(fast_errors)
+    mismatches.extend(upstream_errors)
+
+    fast_bucket_keys = [key for key, _invoice_keys in fast_buckets]
+    upstream_bucket_keys = [key for key, _invoice_keys in upstream_buckets]
+    if fast_bucket_keys != upstream_bucket_keys:
+        mismatches.append({
+            "kind": "invoice_bucket_order",
+            "fast": fast_bucket_keys,
+            "upstream": upstream_bucket_keys,
+        })
+    if len(fast_buckets) != len(upstream_buckets):
+        mismatches.append({
+            "kind": "invoice_bucket_count",
+            "fast": len(fast_buckets),
+            "upstream": len(upstream_buckets),
+        })
+
+    for position, ((fast_key, fast_invoice_keys), (upstream_key, upstream_invoice_keys)) in enumerate(
+        zip(fast_buckets, upstream_buckets)
+    ):
+        if fast_key != upstream_key:
+            mismatches.append({
+                "kind": "invoice_bucket_order_at_position",
+                "position": position,
+                "fast": fast_key,
+                "upstream": upstream_key,
+            })
+        if sorted(fast_invoice_keys, key=invoice_key_sort_value) != sorted(upstream_invoice_keys, key=invoice_key_sort_value):
+            mismatches.append({
+                "kind": "invoice_order",
+                "position": position,
+                "fast": [scalar(key) for key in fast_invoice_keys],
+                "upstream": [scalar(key) for key in upstream_invoice_keys],
+            })
+    return mismatches
+
+
+def compare_gross_profit_rows(
+    fast_columns,
+    fast_data,
+    upstream_columns,
+    upstream_data,
+    tolerance=0.001,
+    check_column_metadata=True,
+    compare_group_order=False,
+    order_keys=None,
+):
+    """Compare fast and stock Gross Profit rows.
+
+    By default this preserves the historical tie-canonicalizing behavior used
+    by the live perf suite.  With ``compare_group_order=True``, grouped and
+    invoice outputs are compared as an exact sequence of distinct
+    ``(query_phase, posting_date, posting_time)`` buckets; permutations are
+    accepted only within rows explicitly annotated into the same tie bucket.
+    """
     fast_rows = [row_as_dict(fast_columns, row, i) for i, row in enumerate(fast_data or [])]
     upstream_rows = [row_as_dict(upstream_columns, row, i) for i, row in enumerate(upstream_data or [])]
     mismatches = []
 
     fast_fields = column_fieldnames(fast_columns)
     upstream_fields = column_fieldnames(upstream_columns)
+    group_field = fast_fields[0] if fast_fields else None
     if fast_fields != upstream_fields:
         mismatches.append({"kind": "columns", "fast": fast_fields, "upstream": upstream_fields})
+    if check_column_metadata:
+        mismatches.extend(compare_column_metadata(fast_columns, upstream_columns))
     if len(fast_rows) != len(upstream_rows):
         mismatches.append({"kind": "row_count", "fast": len(fast_rows), "upstream": len(upstream_rows)})
 
-    fast_totals = [row for row in fast_rows if is_total_row(row)]
-    upstream_totals = [row for row in upstream_rows if is_total_row(row)]
+    fast_sequence, upstream_sequence, order_key_errors = normalize_order_key_sequences(
+        order_keys,
+        fast_rows,
+        upstream_rows,
+    )
+    mismatches.extend(order_key_errors)
+
+    fast_totals = [row for row in fast_rows if is_total_row(row, group_field)]
+    upstream_totals = [row for row in upstream_rows if is_total_row(row, group_field)]
     if len(fast_totals) != 1 or len(upstream_totals) != 1:
         if fast_rows or upstream_rows:
             mismatches.append({"kind": "total_row_count", "fast": len(fast_totals), "upstream": len(upstream_totals)})
     else:
-        if fast_rows.index(fast_totals[0]) != upstream_rows.index(upstream_totals[0]):
-            mismatches.append({"kind": "total_row_position", "fast": fast_rows.index(fast_totals[0]), "upstream": upstream_rows.index(upstream_totals[0])})
+        fast_total_index = fast_rows.index(fast_totals[0])
+        upstream_total_index = upstream_rows.index(upstream_totals[0])
+        if fast_total_index != len(fast_rows) - 1:
+            mismatches.append({
+                "kind": "total_row_not_final",
+                "side": "fast",
+                "position": fast_total_index,
+                "expected_position": len(fast_rows) - 1,
+            })
+        if upstream_total_index != len(upstream_rows) - 1:
+            mismatches.append({
+                "kind": "total_row_not_final",
+                "side": "upstream",
+                "position": upstream_total_index,
+                "expected_position": len(upstream_rows) - 1,
+            })
+        if fast_total_index != upstream_total_index:
+            mismatches.append({"kind": "total_row_position", "fast": fast_total_index, "upstream": upstream_total_index})
         mismatches.extend(compare_gp_row_fields(fast_totals[0], upstream_totals[0], tolerance, "total"))
 
     invoice_mode = invoice_mode_rows(fast_rows) or invoice_mode_rows(upstream_rows)
@@ -321,6 +698,16 @@ def compare_gross_profit_rows(fast_columns, fast_data, upstream_columns, upstrea
         for key in upstream_duplicates:
             mismatches.append({"kind": "duplicate_invoice_key", "side": "upstream", "invoice": scalar(key)})
 
+        if compare_group_order:
+            mismatches.extend(compare_order_sensitive_invoice_order(
+                fast_invoices,
+                fast_order,
+                upstream_invoices,
+                upstream_order,
+                fast_sequence,
+                upstream_sequence,
+            ))
+
         if set(fast_invoices) != set(upstream_invoices):
             mismatches.append({
                 "kind": "invoice_keys",
@@ -328,15 +715,25 @@ def compare_gross_profit_rows(fast_columns, fast_data, upstream_columns, upstrea
                 "missing_upstream": sorted((str(key) for key in set(fast_invoices) - set(upstream_invoices)))[:10],
             })
 
-        posting_dates = [scalar(fast_invoices[key]["header"].get("posting_date")) for key in fast_order]
-        for index, (previous, current) in enumerate(zip(posting_dates, posting_dates[1:])):
-            if previous is not None and current is not None and str(previous) < str(current):
+        posting_entries = [
+            (
+                scalar(fast_invoices[key]["header"].get("posting_date")),
+                invoice_query_phase(fast_invoices[key]["header"]),
+            )
+            for key in fast_order
+        ]
+        for index, (previous, current) in enumerate(zip(posting_entries, posting_entries[1:])):
+            previous_date, previous_phase = previous
+            current_date, current_phase = current
+            same_phase = previous_phase == current_phase
+            if same_phase and previous_date is not None and current_date is not None and str(previous_date) < str(current_date):
                 mismatches.append({
                     "kind": "invoice_posting_date_order",
                     "side": "fast",
                     "index": index,
-                    "previous": previous,
-                    "current": current,
+                    "previous": previous_date,
+                    "current": current_date,
+                    "query_phase": previous_phase,
                 })
 
         for key in sorted(set(fast_invoices) & set(upstream_invoices), key=str):
@@ -359,13 +756,24 @@ def compare_gross_profit_rows(fast_columns, fast_data, upstream_columns, upstrea
                 ))
         return mismatches
 
-    group_field = fast_fields[0] if fast_fields else None
-    fast_body = sorted((row for row in fast_rows if not is_total_row(row)), key=lambda row: canonical_group_sort_key(row, group_field))
-    upstream_body = sorted((row for row in upstream_rows if not is_total_row(row)), key=lambda row: canonical_group_sort_key(row, group_field))
+    fast_body = [row for row in fast_rows if not is_total_row(row, group_field)]
+    upstream_body = [row for row in upstream_rows if not is_total_row(row, group_field)]
+    if compare_group_order:
+        mismatches.extend(compare_order_sensitive_group_rows(
+            fast_body,
+            upstream_body,
+            tolerance,
+            group_field,
+            fast_sequence,
+            upstream_sequence,
+        ))
+        return mismatches
+
+    fast_body = sorted(fast_body, key=lambda row: canonical_group_sort_key(row, group_field))
+    upstream_body = sorted(upstream_body, key=lambda row: canonical_group_sort_key(row, group_field))
     for index, (fast_row, upstream_row) in enumerate(zip(fast_body, upstream_body)):
         mismatches.extend(compare_gp_row_fields(fast_row, upstream_row, tolerance, f"group-row:{index}"))
     return mismatches
-
 
 def stock_key(row):
     return (row.get("item_code"), row.get("warehouse"))
@@ -725,6 +1133,7 @@ def run_gp_parity(frappe, args):
     mismatches = []
     explain_offenses = []
     cases = []
+    first_company = company_for_warehouse(frappe, resolve_warehouse(frappe, "Shop 1"))
     for window, from_date in (("1d", DATE_1D_FROM), ("30d", DATE_30D_FROM)):
         for logical in WAREHOUSES:
             warehouse = resolve_warehouse(frappe, logical)
@@ -739,7 +1148,23 @@ def run_gp_parity(frappe, args):
                         "group_by": group_by,
                         "include_returned_invoices": include_returned,
                     }))
-    first_company = company_for_warehouse(frappe, resolve_warehouse(frappe, "Shop 1"))
+    grouped_ranges = [("1y", DATE_1Y_FROM, DATE_TO)]
+    custom_from_date = getattr(args, "custom_from_date", None)
+    custom_to_date = getattr(args, "custom_to_date", None)
+    if custom_from_date or custom_to_date:
+        if not custom_from_date or not custom_to_date:
+            raise ParityFailure("custom gross-profit ranges require both --custom-from-date and --custom-to-date")
+        grouped_ranges.append(("custom", custom_from_date, custom_to_date))
+    for window, from_date, to_date in grouped_ranges:
+        for group_by in ("Warehouse", "Monthly"):
+            for include_returned in (0, 1):
+                cases.append((f"{window}-{group_by}-ret{include_returned}", {
+                    "company": first_company,
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "group_by": group_by,
+                    "include_returned_invoices": include_returned,
+                }))
     cases.append(("empty-range", {
         "company": first_company,
         "from_date": "1999-01-01",
@@ -749,6 +1174,8 @@ def run_gp_parity(frappe, args):
         "include_returned_invoices": 0,
     }))
 
+    executed_cases = 0
+    failed_cases = 0
     captured_semijoin = {}
     for label, filters in cases:
         capture_for_explain = label.startswith("30d-") and filters.get("group_by") == "Invoice" and filters.get("include_returned_invoices") == 1
@@ -760,7 +1187,17 @@ def run_gp_parity(frappe, args):
         else:
             fast_columns, fast_data, fast_seconds = run_gross_profit(frappe, "fast", filters)
         upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
-        case_mismatches = compare_gross_profit_rows(fast_columns, fast_data, upstream_columns, upstream_data)
+        case_mismatches = compare_gross_profit_rows(
+            fast_columns,
+            fast_data,
+            upstream_columns,
+            upstream_data,
+            tolerance=1e-7,
+            compare_group_order=filters.get("group_by") in {"Invoice", "Warehouse", "Monthly"},
+        )
+        executed_cases += 1
+        if case_mismatches:
+            failed_cases += 1
         mismatches.extend({**mismatch, "case": label} for mismatch in case_mismatches)
         emit("PARITY_GP_CASE", {
             "case": label,
@@ -802,9 +1239,15 @@ def run_gp_parity(frappe, args):
         ["PARITY-MISSING-VOUCHER", first_company],
         sle_voucher_explain_offenses,
     ))
-    emit("PARITY_GP_SUMMARY", {"mismatches": len(mismatches), "explain_offenses": len(explain_offenses)})
+    stats = {
+        "executed_cases": executed_cases,
+        "skipped_cases": 0,
+        "failed_cases": failed_cases + (1 if explain_offenses else 0),
+    }
+    emit("PARITY_GP_SUMMARY", {"mismatches": len(mismatches), "explain_offenses": len(explain_offenses), **stats})
     if mismatches or explain_offenses:
         raise ParityFailure(f"Fast Gross Profit parity failed: mismatches={len(mismatches)} explain_offenses={len(explain_offenses)}")
+    return stats
 
 
 def run_stock_balance(filters):
@@ -1558,21 +2001,58 @@ def selected_sections(only):
     return sections
 
 
+def merge_case_stats(target, addition):
+    for field in ("executed_cases", "skipped_cases", "failed_cases"):
+        target[field] = target.get(field, 0) + int((addition or {}).get(field, 0))
+    return target
+
+
+def assert_live_bench_db(frappe):
+    if not getattr(frappe, "db", None):
+        raise ParityFailure("--require-db requested but no Frappe database connection is available")
+    rows = frappe.db.sql("SELECT 1")
+    if not rows:
+        raise ParityFailure("--require-db requested but the bench database did not answer SELECT 1")
+    return True
+
+
 def run_inside_backend(args, fresh_connection_hook=None):
     frappe = None
     try:
         frappe, site = connect_frappe(args.site)
         emit("PARITY_START", {"site": site, "profile": args.profile or "unspecified", "seed": args.seed})
+        require_db = bool(getattr(args, "require_db", False))
+        if require_db:
+            assert_live_bench_db(frappe)
         sections = selected_sections(args.only)
+        verification_stats = {"executed_cases": 0, "skipped_cases": 0, "failed_cases": 0}
         before_counts = persisted_table_counts(frappe)
         if "gp" in sections:
-            run_gp_parity(frappe, args)
+            merge_case_stats(verification_stats, run_gp_parity(frappe, args))
         if "sb" in sections:
             run_sb_parity(frappe, args)
+            merge_case_stats(verification_stats, {"executed_cases": 1})
         if "search" in sections:
             run_search_parity(frappe, args)
+            merge_case_stats(verification_stats, {"executed_cases": 1})
         if "voucher" in sections:
             run_voucher_parity(frappe, args)
+            merge_case_stats(verification_stats, {"executed_cases": 1})
+
+        if require_db:
+            require_db_ok = (
+                verification_stats["executed_cases"] > 0
+                and verification_stats["skipped_cases"] == 0
+                and verification_stats["failed_cases"] == 0
+            )
+            emit("PARITY_REQUIRE_DB_CHECK", {**verification_stats, "ok": require_db_ok})
+            if not require_db_ok:
+                raise ParityFailure(
+                    "required live database verification did not execute cleanly: "
+                    f"executed_cases={verification_stats['executed_cases']} "
+                    f"skipped_cases={verification_stats['skipped_cases']} "
+                    f"failed_cases={verification_stats['failed_cases']}"
+                )
 
         frappe.db.rollback()
         frappe.destroy()
@@ -1642,6 +2122,9 @@ def build_parser():
     parser.add_argument("--site", default=None)
     parser.add_argument("--price-list", default="Standard Selling")
     parser.add_argument("--seed", type=int, default=20261126)
+    parser.add_argument("--custom-from-date", "--gp-from-date", dest="custom_from_date", default=None, help="optional custom Gross Profit range start")
+    parser.add_argument("--custom-to-date", "--gp-to-date", dest="custom_to_date", default=None, help="optional custom Gross Profit range end")
+    parser.add_argument("--require-db", action="store_true", help="fail unless the live bench DB executes all verification cases without skips or failures")
     parser.add_argument("--only", action="append", choices=("gp", "sb", "search", "voucher", "all"), help="run one section; repeatable")
     parser.add_argument("--inside-backend", action="store_true", help=argparse.SUPPRESS)
     return parser
