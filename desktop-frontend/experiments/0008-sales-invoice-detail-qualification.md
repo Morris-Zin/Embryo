@@ -14,6 +14,7 @@ Evidence:
 - `desktop-frontend/evidence/journeys/invoice-detail-multi-item.json` — passed with zero differences for a three-item submitted invoice (`ACC-SINV-2026-04936`).
 - `desktop-frontend/evidence/journeys/invoice-detail-return.json` — passed with zero differences for a submitted return invoice (`ACC-SINV-RET-2026-00114`).
 - `desktop-frontend/evidence/journeys/invoice-list-permission-denied.json` — passed non-vacuously: browser and native both expose `not-permitted` for a user without Sales Invoice read permission.
+- `desktop-frontend/evidence/journeys/invoice-detail-draft.json` — passed initial draft-state parity for visible actions and editable-field state (`ACC-SINV-2026-04937`). This is initial-state evidence only, not editing/saving/submission behavior evidence.
 - `desktop-frontend/evidence/visual/invoice-detail-composite-list.png` — maximized browser/native list comparison after responsive and footer repairs.
 - `desktop-frontend/evidence/visual/invoice-detail-composite-detail.png` — browser/native detail comparison after responsive and footer repairs.
 
@@ -40,8 +41,8 @@ The ERP password is read from the isolated environment in the normal qualificati
 
 ## Honest remaining gaps
 
-- Full editable draft Sales Invoice form behavior is not implemented or qualified; current evidence covers a submitted read-only invoice.
+- Full editable draft Sales Invoice interaction behavior is not implemented or qualified; current evidence covers initial draft action/editability state plus submitted read-only details, not editing, validation, saving, submission, or item-grid mutation.
 - Tab interactions (`Payments`, `Address & Contact`, `Terms`, `More Info`, `Connections`) are visually represented but not behaviorally qualified.
 - Cancel, email, assignment, attachment, tag, share, print, and connection actions are not implemented.
-- Paid/overdue statuses, direct detail-route permission denial, keyboard/form-focus behavior, comprehensive visual state coverage, and performance evidence remain open.
+- Paid/overdue statuses, direct detail-route permission denial, keyboard/form-focus behavior, editing/saving/submission journeys, item-grid mutation, comprehensive visual state coverage, and performance evidence remain open.
 - Cross-process memory/frame/network-byte measurements and hardware qualification remain open.

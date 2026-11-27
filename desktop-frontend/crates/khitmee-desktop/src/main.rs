@@ -718,6 +718,11 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                 column,
                 row,
                 emphasized,
+                editable: detail_number(&doc, "docstatus") == 0.0
+                    && matches!(
+                        label,
+                        "Customer" | "Payment Due Date" | "Update Stock" | "Source Warehouse"
+                    ),
             })
             .collect::<Vec<_>>();
             app.set_invoice_detail_fields(Rc::new(VecModel::from(fields)).into());

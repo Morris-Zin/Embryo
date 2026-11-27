@@ -35,6 +35,7 @@ export struct DetailField {
     column: int,
     row: int,
     emphasized: bool,
+    editable: bool,
 }
 
 export struct InvoiceDetailItem {
@@ -1168,6 +1169,7 @@ component DetailFieldBox inherits Rectangle {
     height: 48px;
     accessible-role: text;
     accessible-label: "\{field.label}: \{field.value}";
+    accessible-enabled: field.editable;
 
     Text {
         x: 0px; y: 0px; width: parent.width; height: 16px;
@@ -1236,9 +1238,12 @@ component InvoiceDetailScreen inherits Rectangle {
         Text { width: parent.width; height: parent.height; text: root.detail-status; color: #c01048; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
     }
     Text { x: root.content-x + 91px; y: 66px; width: 190px; height: 22px; text: root.detail-name; color: Design.muted; font-size: 11px; vertical-alignment: center; accessible-label: root.detail-name; }
-    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; }
-    BrowserButton { x: root.content-x + root.content-width - 170px; y: 13px; width: 72px; height: 32px; text: "Create"; }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; }
+    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-status != "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; }
+    BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-status == "Draft"; primary: true; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-status != "Draft"; }
     Rectangle {
         x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
         border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;

@@ -39,7 +39,17 @@
         "itemRows": [
           "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
         ],
-        "itemCount": 1
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Cancel"
+        ],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        }
       },
       "native": {
         "title": "Sales Invoice",
@@ -66,7 +76,17 @@
         "itemRows": [
           "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
         ],
-        "itemCount": 1
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Cancel"
+        ],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        }
       },
       "differences": []
     }

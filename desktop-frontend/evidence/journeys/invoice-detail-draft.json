@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": true,
+    "reason": "read-only invoice journey"
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-27",
+          "Posting Time": "19:30:16",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        }
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-27",
+          "Posting Time": "19:30:16",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        }
+      },
+      "differences": []
+    }
+  ]
+}
