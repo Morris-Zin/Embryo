@@ -1,0 +1,174 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "posting_date",
+  "warehouse",
+  "normal_has_rows",
+  "normal_qty",
+  "normal_base_amount",
+  "normal_buying_amount",
+  "normal_abs_qty_sum",
+  "normal_abs_base_sum",
+  "normal_abs_buying_sum",
+  "normal_first_seen_key",
+  "unlinked_return_has_rows",
+  "unlinked_return_qty",
+  "unlinked_return_base_amount",
+  "unlinked_return_buying_amount",
+  "unlinked_return_abs_qty_sum",
+  "unlinked_return_abs_base_sum",
+  "unlinked_return_abs_buying_sum",
+  "unlinked_return_first_seen_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Data",
+   "label": "Warehouse",
+   "length": 140,
+   "default": "",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "normal_has_rows",
+   "fieldtype": "Check",
+   "label": "Normal Has Rows",
+   "default": "0"
+  },
+  {
+   "fieldname": "normal_qty",
+   "fieldtype": "Float",
+   "label": "Normal Qty",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_base_amount",
+   "fieldtype": "Currency",
+   "label": "Normal Base Amount",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_buying_amount",
+   "fieldtype": "Currency",
+   "label": "Normal Buying Amount",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_abs_qty_sum",
+   "fieldtype": "Float",
+   "label": "Normal Abs Qty Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_abs_base_sum",
+   "fieldtype": "Currency",
+   "label": "Normal Abs Base Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_abs_buying_sum",
+   "fieldtype": "Currency",
+   "label": "Normal Abs Buying Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "normal_first_seen_key",
+   "fieldtype": "Data",
+   "label": "Normal First Seen Key",
+   "length": 96
+  },
+  {
+   "fieldname": "unlinked_return_has_rows",
+   "fieldtype": "Check",
+   "label": "Unlinked Return Has Rows",
+   "default": "0"
+  },
+  {
+   "fieldname": "unlinked_return_qty",
+   "fieldtype": "Float",
+   "label": "Unlinked Return Qty",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_base_amount",
+   "fieldtype": "Currency",
+   "label": "Unlinked Return Base Amount",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_buying_amount",
+   "fieldtype": "Currency",
+   "label": "Unlinked Return Buying Amount",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_abs_qty_sum",
+   "fieldtype": "Float",
+   "label": "Unlinked Return Abs Qty Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_abs_base_sum",
+   "fieldtype": "Currency",
+   "label": "Unlinked Return Abs Base Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_abs_buying_sum",
+   "fieldtype": "Currency",
+   "label": "Unlinked Return Abs Buying Sum",
+   "precision": 6
+  },
+  {
+   "fieldname": "unlinked_return_first_seen_key",
+   "fieldtype": "Data",
+   "label": "Unlinked Return First Seen Key",
+   "length": 96
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Khitmee Ops",
+ "name": "Daily Profit by Shop",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_seen": 1
+}

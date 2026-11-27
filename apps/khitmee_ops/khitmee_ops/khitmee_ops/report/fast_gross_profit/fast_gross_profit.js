@@ -92,6 +92,27 @@ frappe.query_reports["Fast Gross Profit"] = {
 			default: 1,
 		},
 	],
+	onload: function (report) {
+		report.page.add_inner_button(__("Export Profit CSV"), function () {
+			const filters = report.get_values();
+			frappe.call({
+				method: "khitmee_ops.api.profit_export.enqueue_export",
+				args: { filters },
+				callback: function (r) {
+					if (!r.message) {
+						return;
+					}
+					const exportLogName = encodeURIComponent(r.message.export_log_name);
+					const downloadUrl = `/api/method/khitmee_ops.api.profit_export.download_export?export_log_name=${exportLogName}`;
+					frappe.msgprint({
+						title: __("Export Profit CSV"),
+						indicator: "green",
+						message: `${__("Profit CSV export queued.")} <a href="${downloadUrl}">${__("Download when completed")}</a>`,
+					});
+				},
+			});
+		});
+	},
 	tree: true,
 	name_field: "parent",
 	parent_field: "parent_invoice",
