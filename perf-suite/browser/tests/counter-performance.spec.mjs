@@ -64,7 +64,7 @@ test.describe("cashier counter performance regressions", () => {
     const warehouse = await page.locator("#warehouse").inputValue();
     await page.waitForFunction((expectedWarehouse) => {
       const status = window.__khitmeeCatalogStatus;
-      return status && status.state === "ready" && status.scope && status.scope.split("\u001f")[0] === expectedWarehouse;
+      return status && status.state === "ready" && status.scope && status.scope.split("\u001f")[1] === expectedWarehouse;
     }, warehouse, { timeout: 30000 });
     const synced = await page.evaluate(() => window.__khitmeeCatalogStatus.itemCount);
     expect(synced, "browser catalog sync must load benchmark items").toBeGreaterThan(0);

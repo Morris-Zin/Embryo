@@ -93,7 +93,7 @@ async function createHarness(browser, options, profile) {
     const selectedWarehouse = await page.locator("#warehouse").inputValue();
     await page.waitForFunction((warehouse) => {
       const status = window.__khitmeeCatalogStatus;
-      return status && ["ready", "error"].includes(status.state) && status.scope && status.scope.split("\u001f")[0] === warehouse;
+      return status && ["ready", "error"].includes(status.state) && status.scope && status.scope.split("\u001f")[1] === warehouse;
     }, selectedWarehouse, { timeout: 30_000 });
     const catalogStatus = await page.evaluate(() => window.__khitmeeCatalogStatus);
     if (catalogStatus.state !== "ready") {
