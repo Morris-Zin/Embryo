@@ -23,6 +23,28 @@
     }
   ],
   "findings": {
+    "cloud-benchmark-stale-count": {
+      "finding_id": "cloud-benchmark-stale-count",
+      "fix_summary": "Updated benchmark and guardrail evidence to the measured 477 total and 154 tools tests, with five added regression/guardrail tests",
+      "opened_at": "2026-11-27T17:42:58Z",
+      "resolved_at": "2026-11-27T17:43:04Z",
+      "reviewer": "devin-review",
+      "severity": "P2",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "Benchmark evidence still reported 475/152 after the two evidence-safeguard tests increased discovery to 477/154"
+    },
+    "cloud-cache-safeguard-shape": {
+      "finding_id": "cloud-cache-safeguard-shape",
+      "fix_summary": "Strengthened the regression test to count uv bootstrap/cache settings per job and verify every dependency-manifest cache path",
+      "opened_at": "2026-11-27T17:42:58Z",
+      "resolved_at": "2026-11-27T17:43:04Z",
+      "reviewer": "devin-review",
+      "severity": "P2",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "The uv cache safeguard only checked presence of UV_CACHE_DIR and did not verify per-job cache-dependency-path coverage"
+    },
     "cloud-merge-result": {
       "finding_id": "cloud-merge-result",
       "fix_summary": "Restored unconditional ordinary CI execution so pull_request merge results are always exercised; documented that labeled-PR skipping was a rejected optimization",
@@ -247,6 +269,23 @@
       "at": "2026-11-27T17:40:08Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-27T17:42:58Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-27T17:43:04Z",
+      "event": "resolve-finding",
+      "finding_id": "cloud-cache-safeguard-shape"
+    },
+    {
+      "at": "2026-11-27T17:43:04Z",
+      "event": "resolve-finding",
+      "finding_id": "cloud-benchmark-stale-count"
     }
   ],
   "issue_number": null,
@@ -319,6 +358,13 @@
       "reviewer": "devin-session-deep-audit",
       "stage": "deep",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-27T17:42:58Z",
+      "code_tree_sha256": "53cbc7dd68b154db98e317c1d32fa3fc492aca04a3570c1e22e1f0750af3aeda",
+      "reviewer": "devin-review",
+      "stage": "cloud",
+      "verdict": "reject"
     }
   ],
   "run_id": "devprod-verification-20261127",
@@ -344,15 +390,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "2658e515583801b21fc48fab2525969994c906b0",
-      "passed_code_tree_sha256": "53cbc7dd68b154db98e317c1d32fa3fc492aca04a3570c1e22e1f0750af3aeda",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:40:08Z"
+  "updated_at": "2026-11-27T17:43:04Z"
 }
