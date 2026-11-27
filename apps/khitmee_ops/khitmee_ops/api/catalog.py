@@ -247,6 +247,9 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 		or incoming.get("scope") != scope
 		or previous_since is None
 		or _delta_is_stale(previous_since, now)
+		# Item Price validity is date-based. A daily replacement prevents scheduled
+		# prices that start or expire at midnight from remaining locally stale forever.
+		or previous_since.date() != now.date()
 	)
 
 	complete = True

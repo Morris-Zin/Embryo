@@ -84,6 +84,9 @@ class TestCatalogSyncState(unittest.TestCase):
 class TestCatalogEndpoint(unittest.TestCase):
 	def setUp(self):
 		catalog.frappe.session.user = "counter@example.com"
+		restrictions = patch.object(catalog, "_item_permission_restrictions_active", return_value=False)
+		restrictions.start()
+		self.addCleanup(restrictions.stop)
 
 	def test_reset_payload_is_public_and_has_monotonic_state(self):
 		now = datetime(2026, 1, 2, 12, 0, 0, 123456)
@@ -166,6 +169,25 @@ class TestCatalogEndpoint(unittest.TestCase):
 			patch.object(catalog, "_server_now", return_value=catalog._format_datetime(now)),
 			patch.object(catalog, "_permission_version", return_value="hooks:v1"),
 			patch.object(catalog, "_item_permission_restrictions_active", return_value=True),
+			patch.object(catalog, "_all_active_item_codes", return_value=[]),
+			patch.object(catalog, "_active_item_count", return_value=0),
+			patch.object(catalog, "_changed_item_codes") as changed,
+		):
+			result = catalog.sync_catalog("Shop 1", "Retail", state=json.dumps(previous))
+		self.assertTrue(result["reset"])
+		changed.assert_not_called()
+
+	def test_crossing_midnight_forces_price_validity_reset(self):
+		now = datetime(2026, 1, 2, 0, 0, 30)
+		previous = {
+			"schema": 1,
+			"since": catalog._format_datetime(datetime(2026, 1, 1, 23, 59, 0)),
+			"permission": "plain:v1",
+			"scope": {"warehouse": "Shop 1", "price_list": "Retail", "customer": ""},
+		}
+		with (
+			patch.object(catalog, "_server_now", return_value=catalog._format_datetime(now)),
+			patch.object(catalog, "_permission_version", return_value="plain:v1"),
 			patch.object(catalog, "_all_active_item_codes", return_value=[]),
 			patch.object(catalog, "_active_item_count", return_value=0),
 			patch.object(catalog, "_changed_item_codes") as changed,
