@@ -113,16 +113,16 @@ Dataset: 360,000 sales invoices, 950,000 invoice lines, 1,208,300 stock ledger e
 
 ### Canonical full-year scan/offload comparison
 
-The consistent full export contained 2,601,283 rows in 108,327,914 gzip bytes and took 135.8s to produce. DuckDB loaded it in 28.2s using 53.4 CPU-seconds on two threads; the resulting database was 144,191,488 bytes. Exact row parity passed for every canonical query.
+The corrected `DECIMAL(21,9)` full export contained 2,601,283 rows in 108,327,914 gzip bytes and took 144.3s to produce. The resulting DuckDB database was 162,017,280 bytes. Exact row parity passed for every canonical query after numeric normalization.
 
 | Query | MariaDB cold/warm | DuckDB cold/warm | Cold speedup | Rows | MariaDB pages read, cold |
 |---|---:|---:|---:|---:|---:|
-| invoice fact scan | 7.877s / 8.693s | 0.412s / 0.189s | 19.1x | 1 | 140,657 |
-| daily invoice summary | 10.165s / 10.256s | 0.220s / 0.214s | 46.3x | 2,190 | 142,568 |
-| monthly item margin | 21.498s / 18.135s | 0.674s / 0.663s | 31.9x | 89,940 | 129,524 |
-| inventory balance | 12.686s / 12.597s | 0.224s / 0.218s | 56.7x | 64,818 | 151,396 |
+| invoice fact scan | 25.274s / 9.320s | 0.362s / 0.144s | 69.9x | 1 | 422,659 |
+| daily invoice summary | 10.237s / 9.558s | 0.183s / 0.178s | 55.8x | 2,190 | 149,201 |
+| monthly item margin | 19.531s / 17.192s | 0.689s / 0.674s | 28.4x | 89,940 | 132,497 |
+| inventory balance | 13.016s / 12.277s | 0.237s / 0.243s | 55.0x | 64,818 | 75,249 |
 
-Across the probe suite MariaDB used 82.9 cgroup CPU-seconds and read 17.9GB from disk in 136s. Warm execution did not materially improve latency because the 320MiB InnoDB buffer pool cannot hold the scanned working set. DuckDB peak process memory stayed below 500MiB with a 512MB memory limit.
+Across export plus the probe suite, the database container used 87.5 cgroup CPU-seconds and read 23.4GB from disk in 295s; the backend used 148.5 cgroup CPU-seconds while streaming CSV. The 320MiB InnoDB buffer pool cannot hold the scanned working set, so warm execution remained slow. DuckDB peak process memory stayed below the 512MB memory limit.
 
 ### Incrementally maintained MariaDB daily summary PoC
 
@@ -152,17 +152,19 @@ This is strong evidence for the read-model architecture, but it is not yet produ
 
 Only 152 sales and 63 transfers succeeded because errors and backend recycling reduced the achieved rate below the configured peak. This is precisely the interference the offload architecture must remove.
 
+A matched three-minute voucher-only control (`june_sustained`, same six shop workers and configured peak, no report managers) succeeded completely: submit p95 was 1.032s end-to-end / 0.981s server-side, HTTP failure rate was 0%, 167 sales and 89 transfers completed, backend peak was 174.1MiB with zero OOM kills, db CPU fell from 71.6 to 21.0 cgroup CPU-seconds, and db disk reads fell from 35.64GB to 0.19GB. This counterfactual does not implement offload; it proves that full-year reporting is the dominant interference source and that checkout can remain healthy when reporting work is removed.
+
 ### Incremental synchronization after the write load
 
-After that write load, the modified-time delta contained 4,648 rows in 191,575 gzip bytes and exported in 4.1s, versus 2,601,283 rows / 108,327,914 bytes / 135.8s for the initial full extract. That is a 565x reduction in transfer bytes for this workload interval.
+After the corrected control write load, the modified-time delta contained 5,659 rows in 298,516 gzip bytes and exported in 8.1s, versus 2,601,283 rows / 108,327,914 bytes / 144.3s for the initial full extract. That is a 363x reduction in transfer bytes for this workload interval. The delta was merged idempotently into a copy of the full DuckDB database; exact canonical parity passed for the expanded window through 2026-11-27. DuckDB remained subsecond-to-low-second (0.272s–1.159s cold) while MariaDB took 11.081s–20.709s cold.
 
-The first incremental merge **failed exact parity** and correctly stopped the benchmark: ERPNext stores quantity/rate columns as `decimal(21,9)`, while the first prototype mapped them to DuckDB `DECIMAL(18,6)`/`DECIMAL(20,6)`. The resulting differences were small (for example 24,360,169.679991998 versus 24,360,169.680006) but unacceptable under the exact-parity gate. That type mapping is a rejected hypothesis; the schema was corrected to `DECIMAL(21,9)` and the full/delta experiment must be rerun from the immutable snapshot before DuckDB parity is claimed.
+An earlier incremental merge **failed exact parity** and correctly stopped the benchmark: ERPNext stores quantity/rate columns as `decimal(21,9)`, while the first prototype mapped them to narrower DuckDB decimals. The resulting differences were small but unacceptable under the exact-parity gate. That lossy type mapping is a rejected hypothesis; the corrected `DECIMAL(21,9)` schema passed both full and incremental parity.
 
 ### Incremental transfer and bandwidth projection
 
-The measured 191,575 gzip bytes covered 215 successful vouchers in three minutes (152 sales and 63 transfers), roughly 0.9KiB compressed per voucher in batch form. At 5,000 vouchers/day that projects to roughly 4.5MiB/day or 135MiB/month before encryption/TLS overhead. Even a continuous 100-voucher/minute peak would project to roughly 128MiB/day; real peaks are not continuous. By contrast, repeating the compressed full snapshot once per day costs about 103MiB/day or 3.1GiB/month and repeatedly performs central scans. Incremental synchronization is therefore mandatory, but full snapshots remain useful for bootstrap and periodic reconciliation.
+The corrected measured 298,516 gzip bytes covered 256 successful voucher iterations in three minutes (167 sales and 89 transfers), roughly 1.1KiB compressed per voucher iteration in batch form. At 5,000 vouchers/day that projects to roughly 4.5MiB/day or 135MiB/month before encryption/TLS overhead. Even a continuous 100-voucher/minute peak would project to roughly 128MiB/day; real peaks are not continuous. By contrast, repeating the compressed full snapshot once per day costs about 103MiB/day or 3.1GiB/month and repeatedly performs central scans. Incremental synchronization is therefore mandatory, but full snapshots remain useful for bootstrap and periodic reconciliation.
 
-The selected full export was 617,800,601 uncompressed CSV bytes (108,327,914 gzip bytes). That matters for hosted row-store capacity: PostgreSQL/MariaDB storage plus indexes will generally be larger than the CSV facts, while DuckDB's compressed columnar database was only 144,191,488 bytes.
+The selected full export was 617,800,601 uncompressed CSV bytes (108,327,914 gzip bytes). That matters for hosted row-store capacity: PostgreSQL/MariaDB storage plus indexes will generally be larger than the CSV facts, while DuckDB's compressed columnar database was only 162,017,280 bytes.
 
 ## Ranked architecture comparison
 
@@ -171,7 +173,7 @@ Rankings are evidence-backed but bounded by the correctness scope above. “Exac
 | Rank | Architecture | Evidence | Freshness / correctness | Cost and complexity | Decision |
 |---:|---|---|---|---|---|
 | 1 | Incrementally maintained MariaDB summary/read model, with dirty-window invalidation and live ERP fallback | 10.843s raw full-year aggregate fell to 0.029s; 143,665 pages read fell to 39 buffer-pool requests; table only 245,760 bytes; exact numeric parity for canonical aggregate | Best consistency because it remains in authoritative MariaDB. Production correctness still requires exact ERP valuation/return/bundle logic and repost/backdate dirty-range handling | No recurring cost or new database. Adds write amplification; measured primitive was 0.087ms/line on one hot row, but production per-invoice maintenance will be higher | **Primary recommendation** for standard financial/management summaries |
-| 2 | DuckDB read model on existing manager computers, bootstrapped once and incrementally merged | Canonical exact-snapshot queries were 19.1x–56.7x faster than MariaDB; memory stayed below 500MiB; database 144MiB; central scan/aggregation CPU and disk move off the server | Eventual consistency only. The decimal-precision failure proves strict type/oracle reconciliation is mandatory. Sensitive financial data leaves the server and must be encrypted/access-controlled | No recurring hosting cost if manager computers already exist; packaging, key management and reconciliation are real operational costs | **Recommended complement** for heavy historical/ad hoc analytics, not sole authoritative financial reporting |
+| 2 | DuckDB read model on existing manager computers, bootstrapped once and incrementally merged | Canonical exact-snapshot queries were 28.4x–69.9x faster than MariaDB in the corrected decimal run; memory stayed within the 512MiB cap; database 162MiB; central scan/aggregation CPU and disk move off the server | Eventual consistency only. The decimal-precision failure proves strict type/oracle reconciliation is mandatory. Sensitive financial data leaves the server and must be encrypted/access-controlled | No recurring hosting cost if manager computers already exist; packaging, key management and reconciliation are real operational costs | **Recommended complement** for heavy historical/ad hoc analytics, not sole authoritative financial reporting |
 | 3 | Batch-materialized MariaDB snapshots or nightly precomputed tables | Same small-table query cost as rank 1 once built, but one full build cost 10.9s and about 155k InnoDB page reads in warm conditions | Simple snapshot consistency, but stale between builds; repeated intraday rebuilds recreate the central load being removed | Lowest implementation complexity; no new service | Useful bootstrap/nightly fallback, **not sufficient alone** for fresh intraday reporting |
 | 4 | Native MariaDB replica on an existing always-on manager machine, optionally with MaxScale routing | Established exact replication technology; binlog override harness is included for overhead measurement | Replica lag and failover semantics must be handled; checkout remains central so availability is preserved | No cloud fee if hardware exists, but another always-on database must be secured, patched, monitored and stored | Conditional fallback when a suitable machine already exists; not the lightest default |
 | 5 | External MariaDB-compatible free-tier read database | Selected uncompressed facts are already about 618MB before indexes and grow daily; TiDB Starter's 5GiB row-storage quota may fit initially, but network trust, egress, quota and continuity risks remain | Replication lag plus external outage; checkout must never depend on it | “Free” capacity is not assured long-term and migration to paid tiers creates recurring cost | **Rejected as default**; no benefit over already-available manager computers for this scale |
