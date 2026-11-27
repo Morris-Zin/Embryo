@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gate:
+    name: Offline fast-check gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned Python dev tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --group apps/khitmee_ops/pyproject.toml:dev
+
+      - name: Warm knip cache
+        working-directory: apps/khitmee_ops
+        run: npx --yes knip@6.46.1 --version
+
+      - name: Run offline fast-check gate
+        run: python tools/khitmee_dev.py fast-check
+
+  integration-oracle-gate:
+    name: Integration oracle gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # This job is intentionally fail-closed. tools/perf_parity.py --require-db must
+      # exit non-zero when the bench database is unavailable, executed_cases == 0,
+      # skipped_cases > 0, or failed_cases > 0.
+      - name: Run required ERPNext oracle parity suite
+        run: python tools/perf_parity.py --require-db
