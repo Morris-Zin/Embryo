@@ -70,7 +70,10 @@ docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \
   --manifest-output /tmp/khitmee-seed-manifest.json
 
 mkdir -p "$ROOT/perf-suite/results"
-docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \n  -w /home/frappe/frappe-bench/sites \n  "$CONTAINER" \n  /home/frappe/frappe-bench/env/bin/python /tmp/khitmee-seeder/complete_setup.py
+docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \
+  -w /home/frappe/frappe-bench/sites \
+  "$CONTAINER" \
+  /home/frappe/frappe-bench/env/bin/python /tmp/khitmee-seeder/complete_setup.py
 
 docker cp "$CONTAINER:/tmp/khitmee-seed-manifest.json" "$ROOT/perf-suite/results/seed-manifest-$SCALE.json" >/dev/null
 echo "Seed manifest copied to perf-suite/results/seed-manifest-$SCALE.json"
