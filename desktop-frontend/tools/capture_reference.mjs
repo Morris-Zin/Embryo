@@ -81,7 +81,7 @@ async function main() {
   };
 
   for (const route of routes) {
-    const id = route.replace(/^\//, '').replaceAll('/', '-').replaceAll('#', '--') || 'root';
+    const id = route.replace(/^\//, '').replaceAll('/', '-').replaceAll('_', '-').replaceAll('#', '--') || 'root';
     const screenDir = stateName === 'initial' ? path.join(outDir, id) : path.join(outDir, id, stateName);
     await fs.mkdir(screenDir, { recursive: true });
     requests.length = 0;
