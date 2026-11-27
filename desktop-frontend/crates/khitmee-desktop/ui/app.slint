@@ -1046,6 +1046,9 @@ export component AppWindow inherits Window {
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }
         remove-line(code) => { root.remove-line(code); }
+        increase-line(code) => { root.increase-line(code); }
+        decrease-line(code) => { root.decrease-line(code); }
+        line-quantity-edited(code, value) => { root.line-quantity-edited(code, value); }
         clear-lines => { root.clear-lines(); }
         submit-print => { root.submit-print(); }
     }
@@ -1065,6 +1068,9 @@ export component AppWindow inherits Window {
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }
         remove-line(code) => { root.remove-line(code); }
+        increase-line(code) => { root.increase-line(code); }
+        decrease-line(code) => { root.decrease-line(code); }
+        line-quantity-edited(code, value) => { root.line-quantity-edited(code, value); }
         clear-lines => { root.clear-lines(); }
         submit-print => { root.submit-print(); }
     }

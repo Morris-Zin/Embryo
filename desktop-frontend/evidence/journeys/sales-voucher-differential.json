@@ -1,33 +1,7 @@
 {
   "schemaVersion": 1,
-  "passed": false,
-  "failures": [
-    {
-      "step": 2,
-      "op": "increase",
-      "field": "totalQty",
-      "web": "2",
-      "native": "1"
-    },
-    {
-      "step": 2,
-      "op": "increase",
-      "field": "subtotal",
-      "web": "36.92",
-      "native": "18.46"
-    },
-    {
-      "step": 2,
-      "op": "increase",
-      "field": "quantities",
-      "web": [
-        "2"
-      ],
-      "native": [
-        "1"
-      ]
-    }
-  ],
+  "passed": true,
+  "failures": [],
   "steps": [
     {
       "index": 0,
@@ -112,38 +86,18 @@
       },
       "native": {
         "status": "Add at least one item before submitting.",
-        "totalQty": "1",
-        "subtotal": "18.46",
+        "totalQty": "2",
+        "subtotal": "36.92",
         "submitDisabled": false,
         "lineCount": 1,
         "quantities": [
-          "1"
+          "2"
         ],
         "searchExpanded": "false",
         "resultCount": 0,
         "firstResult": ""
       },
-      "differences": [
-        {
-          "field": "totalQty",
-          "web": "2",
-          "native": "1"
-        },
-        {
-          "field": "subtotal",
-          "web": "36.92",
-          "native": "18.46"
-        },
-        {
-          "field": "quantities",
-          "web": [
-            "2"
-          ],
-          "native": [
-            "1"
-          ]
-        }
-      ]
+      "differences": []
     },
     {
       "index": 3,
