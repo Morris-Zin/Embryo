@@ -1,0 +1,154 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "requested_by",
+  "filters_json",
+  "filters_hash",
+  "source",
+  "status",
+  "active_dedupe_key",
+  "export_uuid",
+  "permission_fingerprint",
+  "artifact_published",
+  "exported_invoice_sha256",
+  "row_count",
+  "expires_at",
+  "error"
+ ],
+ "fields": [
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Requested By",
+   "options": "User",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "filters_json",
+   "fieldtype": "Long Text",
+   "label": "Filters JSON",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "filters_hash",
+   "fieldtype": "Data",
+   "label": "Filters Hash",
+   "length": 64,
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "ui\ncli",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Queued\nRunning\nCompleted\nFailed\nExpired",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "active_dedupe_key",
+   "fieldtype": "Data",
+   "label": "Active Dedupe Key",
+   "length": 256,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "export_uuid",
+   "fieldtype": "Data",
+   "label": "Export UUID",
+   "length": 36,
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "permission_fingerprint",
+   "fieldtype": "Data",
+   "label": "Permission Fingerprint",
+   "length": 64,
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "artifact_published",
+   "fieldtype": "Check",
+   "label": "Artifact Published",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exported_invoice_sha256",
+   "fieldtype": "Data",
+   "label": "Exported Invoice SHA256",
+   "length": 64,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "row_count",
+   "fieldtype": "Int",
+   "label": "Row Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Expires At",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "error",
+   "fieldtype": "Text",
+   "label": "Error",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Khitmee Ops",
+ "name": "Khitmee Profit Export Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_seen": 1
+}

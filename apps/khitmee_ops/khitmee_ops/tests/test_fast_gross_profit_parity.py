@@ -3,6 +3,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
@@ -28,7 +29,9 @@ from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	buying_amount_from_sle_pair,
 	choose_fallback_boundary_row,
 	choose_live_boundary_row,
+	collect_profit_contributions,
 	extract_stock_ledger_key,
+	first_seen_key_for_row,
 	format_invoice_rows_inplace,
 	inject_sii_force_index,
 	inject_warehouse_covering_drive,
@@ -978,6 +981,9 @@ class FakeCriterion:
 	def __and__(self, other):
 		return FakeCriterion("and", (self, other))
 
+	def __or__(self, other):
+		return FakeCriterion("or", (self, other))
+
 
 class FakeQBField:
 	def __init__(self, name):
@@ -988,6 +994,15 @@ class FakeQBField:
 
 	def isin(self, values):
 		return FakeCriterion("isin", (self.name, list(values)))
+
+	def notin(self, values):
+		return FakeCriterion("notin", (self.name, list(values)))
+
+	def isnull(self):
+		return FakeCriterion("isnull", self.name)
+
+	def isnotnull(self):
+		return FakeCriterion("isnotnull", self.name)
 
 	def as_(self, alias):
 		return (self.name, alias)
@@ -1077,6 +1092,208 @@ class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
 		self.assertEqual(queries[0].force_indexes, [SI_IDX])
 		self.assertEqual(queries[0].wheres[1].kind, "isin")
 		self.assertEqual(queries[0].wheres[1].value, ("return_against", ["SI-1", "SI-2"]))
+
+
+class TestFrozenContributionContracts(unittest.TestCase):
+	def test_empty_invoice_scope_short_circuits_without_database_or_bench_access(self):
+		batch = collect_profit_contributions({"company": "Company"}, invoice_ids=[])
+
+		self.assertEqual(batch["contributions"], [])
+		self.assertEqual(batch["replay_reasons_by_invoice"], {})
+		self.assertEqual(batch["currency_precision"], 3)
+		self.assertEqual(batch["float_precision"], 2)
+
+	def test_contributions_expose_phases_keys_precision_and_replay_reasons(self):
+		main = AttrDict(
+			parent="SI-MAIN", item_row="ROW-1", posting_date="2026-01-02", posting_time="10:00:00",
+			warehouse="W1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=2.0, base_amount=100.0, buying_amount=60.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		ret = AttrDict(
+			parent="SI-RET", item_row="ROW-R", posting_date="2026-01-03", posting_time="11:00:00",
+			warehouse="W1", is_return=1, return_against="SI-ORIGINAL", update_stock=1,
+			delivered_by_supplier=0, qty=-1.234, base_amount=-50.0, buying_amount=-30.0,
+			_khitmee_query_phase=0, _khitmee_valuation_source="average_rate",
+		)
+		generator = types.SimpleNamespace(si_list=[main, ret], currency_precision=2, float_precision=1)
+
+		batch = fast_gross_profit._build_contribution_batch(generator, {"SI-ORIGINAL"})
+
+		self.assertEqual([row["query_phase"] for row in batch["contributions"]], [1, 0])
+		self.assertEqual(batch["contributions"][0]["first_seen_key"], "1|2026-01-02|100000000000")
+		self.assertEqual(batch["contributions"][1]["first_seen_key"], "0|2026-01-03|110000000000")
+		self.assertEqual(
+			first_seen_key_for_row(
+				{"posting_date": "2026-01-02", "posting_time": "10:11:12.123456"}, 1
+			),
+			"1|2026-01-02|101112123456",
+		)
+		self.assertTrue(batch["contributions"][0]["is_precision_safe"])
+		self.assertFalse(batch["contributions"][1]["is_precision_safe"])
+		self.assertEqual(batch["replay_reasons_by_invoice"]["SI-RET"], "linked_return")
+		self.assertEqual(batch["currency_precision"], 2)
+
+	def test_collect_scopes_invoice_ids_and_forces_row_preserving_monthly_extraction(self):
+		row = AttrDict(
+			parent="SI-1", item_row="ROW-1", posting_date="2026-01-02", posting_time="00:00:00",
+			warehouse="", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=1.0, base_amount=10.0, buying_amount=5.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		captured = {}
+
+		class FakeGenerator:
+			def __init__(self, filters, invoice_ids=None):
+				captured["filters"] = filters
+				captured["invoice_ids"] = invoice_ids
+				self.si_list = [row]
+				self.currency_precision = 2
+				self.float_precision = 2
+
+		with patch.object(fast_gross_profit, "standard_gross_profit", object()), patch.object(
+			fast_gross_profit, "FastGrossProfitGenerator", FakeGenerator
+		), patch.object(fast_gross_profit, "_fetch_linked_return_originals", return_value=set()):
+			batch = collect_profit_contributions(
+				{"company": "Company", "group_by": "Invoice"}, invoice_ids=["SI-1", "SI-1"]
+			)
+
+		self.assertEqual(captured["filters"].group_by, "Monthly")
+		self.assertEqual(captured["invoice_ids"], ("SI-1",))
+		self.assertEqual(len(batch["contributions"]), 1)
+
+	def test_valuation_source_classification_covers_sle_fallbacks_and_special_branches(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator._valuation_source_by_row_id = {}
+		generator._tie_pairs = set()
+		generator._matched_sles = {}
+		generator._sle_predecessors = {}
+		generator._last_purchase_rate_cache = {}
+		generator.non_stock_items = set()
+		generator.delivery_notes = {}
+		generator.get_stock_ledger_entries = lambda item, warehouse: [True]
+		generator.calculate_buying_amount_from_sle = lambda *args: 40
+		generator.get_average_buying_rate = lambda row, item: 7
+		generator.get_drop_ship_buying_amount = lambda row: None
+		generator.get_buying_amount_from_so_dn = lambda *args: 0
+		row = AttrDict(
+			parenttype="Sales Invoice", parent="SI-1", item_row="ROW-1", warehouse="W1",
+			update_stock=1, dn_detail=None, qty=2, delivered_by_supplier=0,
+		)
+		key = normalize_sle_key("ITEM", "W1", "Sales Invoice", "SI-1", "ROW-1")
+		generator._matched_sles[key] = {"stock_value": 80, "qty": -2}
+		generator._sle_predecessors[key] = {"stock_value": 100}
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "sle")
+
+		generator._sle_predecessors[key] = {"stock_value": 0}
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "average_rate")
+
+		generator._matched_sles[key] = None
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "missing_detail_zero")
+
+		dropship = AttrDict(row, delivered_by_supplier=1)
+		generator.get_drop_ship_buying_amount = lambda current: 20
+		generator.get_buying_amount(dropship, "ITEM")
+		self.assertEqual(dropship["_khitmee_valuation_source"], "dropship")
+
+		non_stock = AttrDict(row, delivered_by_supplier=0, project="P1", cost_center=None)
+		generator.non_stock_items = {"ITEM"}
+		generator.get_stock_ledger_entries = lambda item, warehouse: []
+		generator._fetch_last_purchase_rate = lambda item, current: 11
+		generator.get_buying_amount(non_stock, "ITEM")
+		self.assertEqual(non_stock["_khitmee_valuation_source"], "last_purchase_rate")
+
+		dn_row = AttrDict(row, project=None, delivery_notes=None)
+		generator.non_stock_items = set()
+		generator.delivery_notes = {"ROW-1": AttrDict(total_qty=2, total_incoming_value=30)}
+		generator.get_buying_amount(dn_row, "ITEM")
+		self.assertEqual(dn_row["_khitmee_valuation_source"], "dn_valuation")
+
+
+class TestTwoPhaseInvoiceOrdering(unittest.TestCase):
+	def test_main_rows_are_forward_before_unabsorbed_linked_returns(self):
+		queries = []
+
+		class InvoiceQuery:
+			def where(self, criterion):
+				queries.append(criterion)
+				return self
+
+		def doc_type(name):
+			return FakeQBTable(name)
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(include_returned_invoices=1)
+		prepare_calls = []
+
+		def prepare_invoice_query():
+			prepare_calls.append(1)
+			return InvoiceQuery()
+
+		generator.prepare_invoice_query = prepare_invoice_query
+
+		def run_query(query, semijoin_kind=None):
+			if semijoin_kind == "normal":
+				return [AttrDict(parent="SI-A", posting_date="2026-01-01", posting_time="10:00:00")]
+			if semijoin_kind == "unlinked_return":
+				return [AttrDict(parent="SI-Z", posting_date="2026-01-01", posting_time="10:00:00")]
+			return [AttrDict(parent="SI-RET", posting_date="2026-01-04", posting_time="10:00:00")]
+
+		generator._run_invoice_query = run_query
+		old_frappe = fast_gross_profit.frappe
+		fast_gross_profit.frappe = types.SimpleNamespace(qb=types.SimpleNamespace(DocType=doc_type))
+		try:
+			generator.load_invoice_items()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+
+		self.assertEqual(len(prepare_calls), 3)
+		self.assertEqual([row.parent for row in generator.si_list], ["SI-Z", "SI-A", "SI-RET"])
+		self.assertEqual([row._khitmee_query_phase for row in generator.si_list], [1, 1, 0])
+		self.assertTrue(all(row._khitmee_first_seen_key.startswith(f"{row._khitmee_query_phase}|") for row in generator.si_list))
+
+
+class TestReturnedInvoiceContractFixes(unittest.TestCase):
+	def test_returned_invoice_parents_are_fetched_in_chunks_of_one_thousand(self):
+		queries = []
+
+		def doc_type(name):
+			return FakeQBTable(name)
+
+		def from_(table):
+			query = FakeQBQuery(table)
+			queries.append(query)
+			return query
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.si_list = [AttrDict(parent=f"SI-{index:04d}") for index in range(1001)]
+		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
+		generator._hints_enabled = lambda: False
+		generator._run_invoice_query = lambda query: []
+
+		old_frappe = fast_gross_profit.frappe
+		old_standard = fast_gross_profit.standard_gross_profit
+		fast_gross_profit.frappe = types.SimpleNamespace(
+			_dict=AttrDict,
+			qb=types.SimpleNamespace(DocType=doc_type, from_=from_),
+		)
+		fast_gross_profit.standard_gross_profit = types.SimpleNamespace(
+			build_match_conditions=lambda doctype: (_ for _ in ()).throw(
+				AssertionError("in-date return detail lookup must omit match conditions")
+			)
+		)
+		try:
+			generator.get_returned_invoice_items()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+			fast_gross_profit.standard_gross_profit = old_standard
+
+		self.assertEqual(len(queries), 2)
+		self.assertEqual(len(queries[0].wheres[1].value[1]), 1000)
+		self.assertEqual(len(queries[1].wheres[1].value[1]), 1)
 
 
 class TestPass3ChunkedVoucherSleProcessing(unittest.TestCase):
