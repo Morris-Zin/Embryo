@@ -1510,15 +1510,17 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		super().__init__(filters)
 
 	def process(self):
+		# Resolve precisions before the SLE preload: it needs currency_precision to
+		# route rounding-ambiguous derived predecessors to the exact fetch.
+		self.currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
+		self.float_precision = cint(frappe.db.get_default("float_precision")) or 2
+
 		self._preload_delivery_note_item_quantities()
 		self._preload_stock_ledger_data()
 
 		self.grouped = {}
 		self.grouped_data = []
 		self.invoice_item_amounts = {}
-
-		self.currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
-		self.float_precision = cint(frappe.db.get_default("float_precision")) or 2
 
 		grouped_by_invoice = self.filters.get("group_by") == "Invoice"
 		track_grouped_amounts = not grouped_by_invoice

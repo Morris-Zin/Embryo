@@ -595,6 +595,31 @@ class TestSingleQueryVoucherSleProcessing(unittest.TestCase):
 		legacy = process_sales_invoice_sle_rows([row], [key])
 		self.assertIn(key, legacy["matched"])
 
+	def test_process_resolves_currency_precision_before_sle_preload(self):
+		# The ambiguity routing silently disables itself without a precision, so
+		# process() must set it before the SLE preload runs (live miss on 2026-04-06).
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		seen = []
+		generator._preload_delivery_note_item_quantities = lambda: None
+
+		def preload():
+			seen.append(getattr(generator, "currency_precision", None))
+			raise StopIteration
+
+		generator._preload_stock_ledger_data = preload
+		old_frappe = fast_gross_profit.frappe
+		fast_gross_profit.frappe = types.SimpleNamespace(
+			_dict=AttrDict,
+			db=types.SimpleNamespace(get_default=lambda key: 3),
+		)
+		try:
+			with self.assertRaises(StopIteration):
+				generator.process()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+
+		self.assertEqual(seen, [3])
+
 	def test_rounding_ambiguity_only_flags_half_way_points(self):
 		self.assertTrue(is_rounding_ambiguous(1.2125, 3))
 		self.assertTrue(is_rounding_ambiguous(-25.0565, 3))
