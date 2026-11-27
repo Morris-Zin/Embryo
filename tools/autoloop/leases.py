@@ -8,6 +8,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
+import errno
 import hashlib
 import json
 import os
@@ -19,6 +20,11 @@ import sys
 import tempfile
 import time
 from typing import Any, Iterator
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 from . import EXIT_LEASE_CONFLICT
 
@@ -243,61 +249,6 @@ def _read_json_or_none(path: Path) -> tuple[dict[str, Any] | None, bool]:
     return parsed, False
 
 
-def _is_mutex_stale(
-    mutex_path: Path,
-    now: float,
-    stale_after_s: float,
-    empty_grace_s: float,
-    *,
-    _win_api: Any = None,
-) -> bool:
-    try:
-        st = mutex_path.stat()
-    except FileNotFoundError:
-        return False
-    except OSError:
-        return False
-
-    age = now - st.st_mtime
-    # Fresh non-empty mutexes are actively held; avoid opening them on Windows to prevent unlink sharing contention.
-    if st.st_size > 0 and age < min(0.2, stale_after_s):
-        return False
-    if st.st_size == 0:
-        return age >= empty_grace_s
-
-    data, corrupt = _read_json_or_none(mutex_path)
-    if corrupt:
-        return age >= empty_grace_s
-    if data is None:
-        return False
-
-    created_at = data.get("created_at")
-    if isinstance(created_at, (int, float)) and (now - float(created_at)) >= stale_after_s:
-        return True
-
-    pid = data.get("pid")
-    host = data.get("host")
-    start_ns = data.get("process_start_ns")
-    if isinstance(pid, int) and isinstance(host, str):
-        alive = is_pid_alive(pid, host, start_ns if isinstance(start_ns, int) else None, _win_api=_win_api)
-        if alive is False:
-            return True
-    return False
-
-
-def _unlink_with_retry(path: Path, attempts: int = 25) -> None:
-    for attempt in range(attempts):
-        try:
-            path.unlink(missing_ok=True)
-            return
-        except PermissionError:
-            if attempt + 1 >= attempts:
-                return
-            time.sleep(0.005 * (attempt + 1))
-        except OSError:
-            return
-
-
 @contextmanager
 def acquire_mutex(
     mutex_path: Path,
@@ -307,49 +258,60 @@ def acquire_mutex(
     empty_grace_s: float = 0.25,
     _win_api: Any = None,
 ) -> Iterator[None]:
-    """Acquire an exclusive crash-recoverable lock file via O_CREAT | O_EXCL."""
+    """Cross-platform crash-safe OS kernel mutex (Windows msvcrt.locking / POSIX fcntl.flock).
+
+    Never unlinks `mutex_path`, eliminating stale-lock unlink races. The OS kernel
+    automatically releases the lock upon handle closure or process termination.
+    """
+    _ = (stale_after_s, empty_grace_s, _win_api)
     mutex_path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + timeout_s
-    acquired = False
-    token = secrets.token_hex(8)
-    payload = {
-        "pid": os.getpid(),
-        "host": socket.gethostname(),
-        "process_start_ns": get_process_start_ns(_win_api=_win_api),
-        "created_at": time.time(),
-        "token": token,
-    }
-    encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
+    deadline = time.monotonic() + max(0.05, float(timeout_s))
+    fd: int | None = None
 
     while True:
+        cand_fd = os.open(str(mutex_path), os.O_CREAT | os.O_RDWR, 0o600)
+        locked = False
         try:
-            fd = os.open(str(mutex_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            try:
-                os.write(fd, encoded)
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-            acquired = True
+            if sys.platform == "win32":
+                os.lseek(cand_fd, 0, os.SEEK_SET)
+                msvcrt.locking(cand_fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(cand_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+            fd = cand_fd
             break
-        except (FileExistsError, PermissionError):
-            now = time.time()
-            if _is_mutex_stale(mutex_path, now, stale_after_s, empty_grace_s, _win_api=_win_api):
+        except (OSError, PermissionError, BlockingIOError) as exc:
+            err_no = getattr(exc, "errno", None)
+            if sys.platform != "win32" and err_no not in (errno.EAGAIN, errno.EACCES, None):
+                raise
+        finally:
+            if not locked:
                 try:
-                    mutex_path.unlink()
-                    continue
-                except FileNotFoundError:
-                    continue
+                    os.close(cand_fd)
                 except OSError:
                     pass
-            if time.monotonic() >= deadline:
-                raise MutexTimeoutError(f"timed out waiting for mutex {mutex_path.name}")
-            time.sleep(random.uniform(0.005, 0.025))
+
+        if time.monotonic() >= deadline:
+            raise MutexTimeoutError(f"timed out waiting for mutex {mutex_path.name}")
+        time.sleep(random.uniform(0.005, 0.025))
 
     try:
         yield
     finally:
-        if acquired:
-            _unlink_with_retry(mutex_path)
+        if fd is not None:
+            try:
+                if sys.platform == "win32":
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            finally:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
 
 
 def _lease_paths(resource: str, lock_dir: Path | None = None) -> tuple[Path, Path]:
@@ -388,6 +350,7 @@ def acquire_lease(
     owner: str,
     *,
     ttl_s: float = 300.0,
+    holder_pid: int | None = None,
     lock_dir: Path | None = None,
     timeout_s: float = 10.0,
     stale_mutex_s: float = 30.0,
@@ -398,6 +361,17 @@ def acquire_lease(
         raise LeaseError("resource and owner must be non-empty")
     if ttl_s <= 0:
         raise LeaseError("ttl_s must be positive")
+    host = socket.gethostname()
+    recorded_pid: int | None = None
+    recorded_start_ns: int | None = None
+    if holder_pid is not None:
+        recorded_pid = int(holder_pid)
+        if recorded_pid <= 0:
+            raise LeaseError("holder_pid must be a positive integer")
+        if is_pid_alive(recorded_pid, host, _win_api=_win_api) is False:
+            raise LeaseError(f"holder_pid {recorded_pid} is not alive")
+        recorded_start_ns = get_process_start_ns(recorded_pid, _win_api=_win_api)
+
     lease_path, mutex_path = _lease_paths(resource, lock_dir)
     with acquire_mutex(
         mutex_path,
@@ -417,11 +391,12 @@ def acquire_lease(
             if _is_lease_reclaimable(existing, now, _win_api=_win_api):
                 reclaimed = True
             elif (
-                existing.get("owner") == owner
-                and existing.get("pid") == os.getpid()
-                and existing.get("host") == socket.gethostname()
+                recorded_pid is not None
+                and existing.get("owner") == owner
+                and existing.get("pid") == recorded_pid
+                and existing.get("host") == host
             ):
-                # Idempotent re-acquire by the same live owner process.
+                # Idempotent re-acquire by the same bound live worker process.
                 existing["renewed_at"] = now
                 existing["expires_at"] = now + float(ttl_s)
                 atomic_write_json(lease_path, existing)
@@ -436,9 +411,9 @@ def acquire_lease(
             "resource": resource,
             "resource_hash": resource_key_hash(resource),
             "owner": owner,
-            "pid": os.getpid(),
-            "host": socket.gethostname(),
-            "process_start_ns": get_process_start_ns(_win_api=_win_api),
+            "pid": recorded_pid,
+            "host": host,
+            "process_start_ns": recorded_start_ns,
             "acquired_at": now,
             "renewed_at": now,
             "expires_at": now + float(ttl_s),
@@ -466,18 +441,17 @@ def renew_lease(
         existing, corrupt = _read_json_or_none(lease_path)
         if corrupt or existing is None:
             raise LeaseConflictError(f"no active lease exists for {resource!r}")
+        now = time.time()
+        if _is_lease_reclaimable(existing, now, _win_api=_win_api):
+            raise LeaseConflictError(f"lease for {resource!r} is expired or bound holder exited")
         if existing.get("owner") != owner:
             raise LeaseConflictError(
                 f"cannot renew lease for {resource!r}: owned by {existing.get('owner')!r}, not {owner!r}"
             )
-        if token is not None and existing.get("token") != token:
-            raise LeaseConflictError(f"lease token mismatch for {resource!r}")
-        now = time.time()
+        if not token or existing.get("token") != token:
+            raise LeaseConflictError(f"lease token mismatch or missing token for {resource!r}")
         existing["renewed_at"] = now
         existing["expires_at"] = now + float(ttl_s)
-        existing["pid"] = os.getpid()
-        existing["host"] = socket.gethostname()
-        existing["process_start_ns"] = get_process_start_ns(_win_api=_win_api)
         atomic_write_json(lease_path, existing)
         return existing
 
@@ -503,7 +477,7 @@ def release_lease(
             raise LeaseConflictError(
                 f"cannot release lease for {resource!r}: owned by {existing.get('owner')!r}, not {owner!r}"
             )
-        if token is not None and existing.get("token") != token:
-            raise LeaseConflictError(f"lease token mismatch for {resource!r}")
+        if not token or existing.get("token") != token:
+            raise LeaseConflictError(f"lease token mismatch or missing token for {resource!r}")
         lease_path.unlink(missing_ok=True)
         return True

@@ -10,10 +10,19 @@ on:
       - edited
       - labeled
       - unlabeled
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  autoloop-integrity:
-    name: autoloop-integrity
+  autoloop-preflight:
+    name: autoloop-preflight
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,6 +30,9 @@ jobs:
       issues: read
     outputs:
       enrolled: ${{ steps.gate.outputs.enrolled }}
+      bootstrap: ${{ steps.gate.outputs.bootstrap }}
+      run_id: ${{ steps.gate.outputs.run_id }}
+      shard_checks_b64: ${{ steps.gate.outputs.shard_checks_b64 }}
     steps:
       - name: Checkout trusted default branch
         uses: actions/checkout@v4
@@ -56,7 +68,7 @@ jobs:
           git cat-file -e "${BASE_SHA}^{commit}"
           git cat-file -e "${HEAD_SHA}^{commit}"
 
-      - name: Run trusted integrity gate
+      - name: Run trusted preflight verifier
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,20 +85,23 @@ jobs:
               exit 3
             fi
             TMP_CANDIDATE="$(mktemp -d)"
-            trap 'rm -rf "${TMP_CANDIDATE}"' EXIT
-            git worktree add --detach "${TMP_CANDIDATE}" "${HEAD_SHA}"
             trap 'git worktree remove --force "${TMP_CANDIDATE}" >/dev/null 2>&1 || rm -rf "${TMP_CANDIDATE}"' EXIT
+            git worktree add --detach "${TMP_CANDIDATE}" "${HEAD_SHA}"
             (
               cd "${TMP_CANDIDATE}"
               python -B -m unittest discover -s tools -p "test_*.py"
               python tools/autoloop/cli.py lint
             )
             echo "enrolled=false" >> "$GITHUB_OUTPUT"
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            echo "shard_checks_b64=W10=" >> "$GITHUB_OUTPUT"
             echo "verdict=bootstrap-rollout"
             exit 0
           fi
 
           python -B tools/autoloop/cli.py verify-pr-integrity \
+            --mode preflight \
             --event-path "${GITHUB_EVENT_PATH}" \
             --repo-slug "${{ github.repository }}" \
             --main-ref "origin/${DEFAULT_BRANCH}" \
@@ -94,8 +109,8 @@ jobs:
 
   autoloop-candidate-checks:
     name: autoloop-candidate-checks
-    needs: autoloop-integrity
-    if: needs.autoloop-integrity.outputs.enrolled == 'true'
+    needs: autoloop-preflight
+    if: needs.autoloop-preflight.outputs.enrolled == 'true'
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -118,7 +133,93 @@ jobs:
       - name: Warm pinned Knip cache
         run: npx --yes knip@6.46.1 --version
 
-      - name: Run candidate fast-check
+      - name: Run candidate fast-check and trusted FrozenContractV1 shard checks
         env:
           AUTOLOOP_PINNED_KNIP: "6.46.1"
-        run: python -B tools/khitmee_dev.py fast-check
+          SHARD_CHECKS_B64: ${{ needs.autoloop-preflight.outputs.shard_checks_b64 }}
+        run: |
+          set -euo pipefail
+          python -B tools/khitmee_dev.py fast-check
+          python - <<'PY'
+          import base64, json, os, subprocess
+          payload = json.loads(base64.b64decode(os.environ.get("SHARD_CHECKS_B64") or "W10=").decode("utf-8"))
+          for item in payload:
+              sid = item.get("shard_id")
+              for cmd in item.get("checks") or []:
+                  print(f"Running frozen shard check [{sid}]: {cmd}")
+                  subprocess.run(cmd, shell=True, check=True)
+          PY
+
+  autoloop-integrity:
+    name: autoloop-integrity
+    needs:
+      - autoloop-preflight
+      - autoloop-candidate-checks
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Require preflight success
+        env:
+          PREFLIGHT_RESULT: ${{ needs.autoloop-preflight.result }}
+        run: |
+          if [ "${PREFLIGHT_RESULT}" != "success" ]; then
+            echo "ERROR: autoloop-preflight did not succeed (${PREFLIGHT_RESULT})." >&2
+            exit 3
+          fi
+
+      - name: Checkout trusted default branch
+        if: needs.autoloop-preflight.outputs.bootstrap != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        if: needs.autoloop-preflight.outputs.bootstrap != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch PR base, main, and PR head ref
+        if: needs.autoloop-preflight.outputs.bootstrap != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.https://github.com/.extraheader=${AUTH_HEADER}" fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            "${BASE_SHA}" \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}-head"
+          ACTUAL_HEAD="$(git rev-parse "refs/remotes/origin/pr-${PR_NUMBER}-head")"
+          if [ "${ACTUAL_HEAD}" != "${HEAD_SHA}" ]; then
+            echo "ERROR: refs/pull/${PR_NUMBER}/head (${ACTUAL_HEAD}) != event head.sha (${HEAD_SHA})" >&2
+            exit 3
+          fi
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Finalize trusted integrity verification
+        if: needs.autoloop-preflight.outputs.bootstrap != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CANDIDATE_CHECKS_RESULT: ${{ needs.autoloop-candidate-checks.result }}
+        run: |
+          set -euo pipefail
+          python -B tools/autoloop/cli.py verify-pr-integrity \
+            --mode finalize \
+            --candidate-checks-result "${CANDIDATE_CHECKS_RESULT}" \
+            --event-path "${GITHUB_EVENT_PATH}" \
+            --repo-slug "${{ github.repository }}" \
+            --main-ref "origin/${DEFAULT_BRANCH}"

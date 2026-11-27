@@ -73,8 +73,10 @@ def evaluate_file_map(rules_dir: Path, file_map: dict[str, bytes]) -> list[RuleV
     return violations
 
 
-def load_working_tree_file_map(repo: Path, max_blob_bytes: int = 2_000_000) -> dict[str, bytes]:
+def load_working_tree_file_map(repo: Path, max_blob_bytes: int = 10_000_000) -> dict[str, bytes]:
     """Build a full repository file map from git tracked + untracked non-ignored files."""
+    from .guard import GuardError
+
     raw = subprocess.check_output(
         [
             "git",
@@ -98,10 +100,14 @@ def load_working_tree_file_map(repo: Path, max_blob_bytes: int = 2_000_000) -> d
                 continue
             stat = full_path.stat()
             if stat.st_size > max_blob_bytes:
-                continue
+                raise GuardError(
+                    f"file {posix_rel!r} ({stat.st_size} bytes) exceeds max_blob_bytes ({max_blob_bytes}); cannot skip static lint"
+                )
             file_map[posix_rel] = full_path.read_bytes()
-        except OSError:
-            continue
+        except GuardError:
+            raise
+        except OSError as exc:
+            raise GuardError(f"failed to read {posix_rel!r} for static lint: {exc}") from exc
     return file_map
 
 

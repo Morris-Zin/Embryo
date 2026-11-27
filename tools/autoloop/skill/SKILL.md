@@ -27,25 +27,32 @@ Before locking any contract or writing implementation code:
 1. Initialize the run (`draft`):
    `python tools/autoloop/cli.py init --run-id <id> --goal "<goal>" --issue <N>`
 2. Record interview decisions and non-overlapping shard `allowed_paths` (`grilled`):
-   `python tools/autoloop/cli.py complete-grill --run-id <id> --summary "<summary>" --shard shard_a=<globs>`
+   `python tools/autoloop/cli.py complete-grill --run-id <id> --summary "<summary>" --shard shard_a=<globs> [--shard-check shard_a="<cmd>"] [--allow-policy-path <glob>]`
 3. Freeze `FrozenContractV1` (`locked`):
-   `python tools/autoloop/cli.py lock --run-id <id>`
-4. Publish the owner-authenticated contract comment to the GitHub Issue:
+   `python tools/autoloop/cli.py lock --run-id <id> [--pr <N>]`
+4. Bind a PR explicitly before opening/finalizing (or after PR creation):
+   `python tools/autoloop/cli.py bind-pr --run-id <id> --pr <N>`
+5. Publish the owner-authenticated contract comment to the GitHub Issue (or PR):
    `python tools/autoloop/cli.py publish-contract --run-id <id>`
 
 ## Phase 3: Serialized Multi-Shard Execution & Bounded Retries
 
-1. Acquire resource leases before touching shared resources:
-   `python tools/autoloop/cli.py lease acquire --resource <key> --owner <worker>`
+1. Acquire resource leases before touching shared resources (use `--holder-pid <pid>` to bind to a long-lived worker PID, or rely on TTL + secret `--token`; `--token` is mandatory on `renew` and `release`):
+   `python tools/autoloop/cli.py lease acquire --resource <key> --owner <worker> [--holder-pid <pid>]`
+   `python tools/autoloop/cli.py lease release --resource <key> --owner <worker> --token <lease_token>`
 2. Start each shard (`start-shard` supports concurrent multi-shard execution while `run.status` is `locked` or `in_progress`):
    `python tools/autoloop/cli.py start-shard --run-id <id> --shard <shard_id> --worktree <path>`
-3. After edits, verify boundaries, static rules, and tests:
+3. Commit changes cleanly inside the shard worktree, then verify shard-local boundaries, static rules, and tests (`check` inspects the clean registered shard worktree automatically and refuses dirty/mismatched checkouts):
    `python tools/autoloop/cli.py check --run-id <id> --shard <shard_id>`
-4. On gate failure:
-   - Record the failure via `retry-shard` (deterministic signature normalization; max 3 worker strikes, max 1 replan, max 8 total attempts).
+4. For multi-shard runs (and after adding post-review safeguard tests/code), merge shard branches into the integration branch and record the shared integrated `code_tree_sha256`:
+   `python tools/autoloop/cli.py check --run-id <id> --all-shards`
+5. If the base branch (`main`) advances, reopen shards for fresh checks before resubmitting:
+   `python tools/autoloop/cli.py refresh-base --run-id <id> --new-base-sha <sha>`
+6. On gate failure:
+   - Record the failure via `retry-shard` (deterministic signature normalization; max 3 worker strikes, max 1 replan, max 8 total attempts; safe rollback restores `last_green_sha` when worktree is clean and inside shard scope).
    - Log each dead-end hypothesis via `log-dead-end` before retrying.
    - Safe rollback refuses (`exit 4`) whenever the worktree has uncommitted or untracked edits anywhere (inside or outside `allowed_paths`).
-   - If scope must change, call `request-contract-change` and wait for owner `resolve-contract-change` (monotonic `contract_revision`).
+   - If scope must change (including from `gate_passed`/`safeguard_pending`/`ready_to_merge`), call `request-contract-change` and wait for owner `resolve-contract-change` (monotonic `contract_revision`).
    - If strikes reach `needs_replan`, run `apply-replan`; if `blocked_human`, pause for `human-resolve`.
 
 ## Phase 4: Independent Review & Layered Safeguards
@@ -61,7 +68,8 @@ Before locking any contract or writing implementation code:
    2. `layer_2_type` (compile/schema/type boundary)
    3. `layer_3_static_lint` (AST/config static rule in `.autoloop/rules/`)
    4. `layer_4_runtime_test` (requires non-empty `--why-not-static` justification; 15-line prose cap)
-4. Once `status == ready_to_merge`, verify with `verify-untampered` before opening/updating the PR.
+4. If a safeguard commit modifies code after review, run `check --run-id <id> --all-shards`, re-submit (`submit-for-review`), and re-record review on the new `code_tree_sha256` (existing finding/safeguard records are preserved).
+5. Once `status == ready_to_merge`, verify with `verify-untampered` before opening/updating the PR. CI verifies `autoloop-preflight` -> `autoloop-candidate-checks` -> `autoloop-integrity --mode finalize`.
 
 ## Cross-Agent Skill Sync
 

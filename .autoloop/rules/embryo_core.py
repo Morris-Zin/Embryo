@@ -135,21 +135,94 @@ def _is_fatal_signal_call(node: ast.Call) -> bool:
     return sig_name in ("signal.SIGTERM", "signal.SIGKILL", "SIGTERM", "SIGKILL")
 
 
-def _has_multi_worker_guard(func_node: ast.AST) -> bool:
-    """Return True if function explicitly checks `workers >= 2` or `workers > 1`."""
-    for sub in ast.walk(func_node):
-        if isinstance(sub, ast.Compare) and len(sub.ops) == 1 and len(sub.comparators) == 1:
-            left_text = _dotted_call_name(sub.left).lower()
-            if "worker" not in left_text:
-                continue
-            op = sub.ops[0]
-            comp = sub.comparators[0]
-            if isinstance(comp, ast.Constant) and isinstance(comp.value, (int, float)):
-                if isinstance(op, ast.GtE) and comp.value >= 2:
-                    return True
-                if isinstance(op, ast.Gt) and comp.value >= 1:
-                    return True
+def _is_multi_worker_expr(node: ast.AST) -> bool:
+    """Return True iff `node` checks `workers >= 2` or `workers > 1` (or an AND-conjunction with it)."""
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and len(node.comparators) == 1:
+        left_text = _dotted_call_name(node.left).lower()
+        if "worker" not in left_text:
+            return False
+        op = node.ops[0]
+        comp = node.comparators[0]
+        if isinstance(comp, ast.Constant) and isinstance(comp.value, (int, float)):
+            if isinstance(op, ast.GtE) and comp.value >= 2:
+                return True
+            if isinstance(op, ast.Gt) and comp.value >= 1:
+                return True
+        return False
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        return any(_is_multi_worker_expr(v) for v in node.values)
     return False
+
+
+def _is_single_worker_guard_expr(node: ast.AST) -> bool:
+    """Return True iff `node` checks single-worker mode (`workers < 2`, `workers <= 1`, `workers == 1`, `not (workers >= 2)`)."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return _is_multi_worker_expr(node.operand)
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and len(node.comparators) == 1:
+        left_text = _dotted_call_name(node.left).lower()
+        if "worker" not in left_text:
+            return False
+        op = node.ops[0]
+        comp = node.comparators[0]
+        if isinstance(comp, ast.Constant) and isinstance(comp.value, (int, float)):
+            if isinstance(op, ast.Lt) and comp.value <= 2:
+                return True
+            if isinstance(op, (ast.LtE, ast.Eq)) and comp.value <= 1:
+                return True
+        return False
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        return any(_is_single_worker_guard_expr(v) for v in node.values)
+    return False
+
+
+def _always_exits_block(stmts: list[ast.stmt]) -> bool:
+    return any(isinstance(s, (ast.Return, ast.Raise)) for s in stmts)
+
+
+def _find_unguarded_fatal_signals(nodes: list[ast.stmt], *, guarded: bool = False) -> list[ast.Call]:
+    """Walk statements respecting enclosing `workers >= 2` and early-return `if workers < 2: return` guards."""
+    hits: list[ast.Call] = []
+    currently_guarded = guarded
+
+    def _collect_expr_signals(expr: ast.AST) -> None:
+        if currently_guarded:
+            return
+        for sub in ast.walk(expr):
+            if isinstance(sub, ast.Call) and _is_fatal_signal_call(sub):
+                hits.append(sub)
+
+    for stmt in nodes:
+        if isinstance(stmt, ast.If):
+            _collect_expr_signals(stmt.test)
+            is_mw = _is_multi_worker_expr(stmt.test)
+            is_sw = _is_single_worker_guard_expr(stmt.test)
+            hits.extend(_find_unguarded_fatal_signals(stmt.body, guarded=(currently_guarded or is_mw)))
+            hits.extend(_find_unguarded_fatal_signals(stmt.orelse, guarded=(currently_guarded or is_sw)))
+            if not currently_guarded and is_sw and _always_exits_block(stmt.body):
+                currently_guarded = True
+            if not currently_guarded and is_mw and _always_exits_block(stmt.orelse) and stmt.orelse:
+                currently_guarded = True
+        elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            hits.extend(_find_unguarded_fatal_signals(stmt.body, guarded=currently_guarded))
+        elif isinstance(stmt, (ast.For, ast.AsyncFor, ast.While)):
+            _collect_expr_signals(stmt.iter if hasattr(stmt, "iter") else stmt.test)
+            hits.extend(_find_unguarded_fatal_signals(stmt.body, guarded=currently_guarded))
+            hits.extend(_find_unguarded_fatal_signals(stmt.orelse, guarded=currently_guarded))
+        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+            for item in stmt.items:
+                _collect_expr_signals(item.context_expr)
+            hits.extend(_find_unguarded_fatal_signals(stmt.body, guarded=currently_guarded))
+        elif isinstance(stmt, ast.Try):
+            hits.extend(_find_unguarded_fatal_signals(stmt.body, guarded=currently_guarded))
+            for handler in stmt.handlers:
+                hits.extend(_find_unguarded_fatal_signals(handler.body, guarded=currently_guarded))
+            hits.extend(_find_unguarded_fatal_signals(stmt.orelse, guarded=currently_guarded))
+            hits.extend(_find_unguarded_fatal_signals(stmt.finalbody, guarded=currently_guarded))
+        elif not currently_guarded:
+            for sub in ast.walk(stmt):
+                if isinstance(sub, ast.Call) and _is_fatal_signal_call(sub):
+                    hits.append(sub)
+    return hits
 
 
 def _extract_hook_functions(file_map: FileMap) -> set[tuple[str, str]]:
@@ -238,18 +311,15 @@ def rule_no_self_sigterm_single_worker(file_map: FileMap) -> list[Violation]:
 
         for fname in sorted(reachable):
             fnode = funcs[fname]
-            if _has_multi_worker_guard(fnode):
-                continue
-            for sub in ast.walk(fnode):
-                if isinstance(sub, ast.Call) and _is_fatal_signal_call(sub):
-                    violations.append(
-                        _v(
-                            rule_id,
-                            path,
-                            getattr(sub, "lineno", fnode.lineno),
-                            f"fatal signal call in request/after_response hook {fname}() without workers >= 2 guard",
-                        )
+            for sub in _find_unguarded_fatal_signals(fnode.body, guarded=False):
+                violations.append(
+                    _v(
+                        rule_id,
+                        path,
+                        getattr(sub, "lineno", fnode.lineno),
+                        f"fatal signal call in request/after_response hook {fname}() without workers >= 2 guard",
                     )
+                )
     return violations
 
 
@@ -261,6 +331,16 @@ def _is_truthy_const(node: ast.AST) -> bool:
             return node.value != 0
         if isinstance(node.value, str):
             return node.value.strip().lower() in ("1", "true", "yes")
+    return False
+
+
+def _dict_comp_strips_key(node: ast.DictComp, key_name: str) -> bool:
+    for gen in node.generators:
+        for cond in gen.ifs:
+            if isinstance(cond, ast.Compare) and len(cond.ops) == 1 and len(cond.comparators) == 1:
+                if isinstance(cond.ops[0], ast.NotEq) and isinstance(cond.comparators[0], ast.Constant):
+                    if cond.comparators[0].value == key_name:
+                        return True
     return False
 
 
@@ -283,6 +363,45 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
         if not is_report_handler:
             continue
 
+        # Collect stripped variable names per function scope (e.g. kwargs.pop("export_in_background", None))
+        stripped_in_funcs: list[tuple[ast.AST, set[str]]] = []
+        for fn in ast.walk(tree):
+            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                stripped: set[str] = set()
+                for sub in ast.walk(fn):
+                    if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) and sub.func.attr == "pop":
+                        if sub.args and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == "export_in_background":
+                            stripped.add(_dotted_call_name(sub.func.value))
+                    elif isinstance(sub, ast.Delete):
+                        for dtgt in sub.targets:
+                            if (
+                                isinstance(dtgt, ast.Subscript)
+                                and isinstance(dtgt.slice, ast.Constant)
+                                and dtgt.slice.value == "export_in_background"
+                            ):
+                                stripped.add(_dotted_call_name(dtgt.value))
+                    elif isinstance(sub, ast.Assign) and not _is_truthy_const(sub.value):
+                        for atgt in sub.targets:
+                            if (
+                                isinstance(atgt, ast.Subscript)
+                                and isinstance(atgt.slice, ast.Constant)
+                                and atgt.slice.value == "export_in_background"
+                            ):
+                                stripped.add(_dotted_call_name(atgt.value))
+                    elif isinstance(sub, ast.Assign) and isinstance(sub.value, ast.DictComp) and _dict_comp_strips_key(
+                        sub.value, "export_in_background"
+                    ):
+                        for atgt in sub.targets:
+                            if isinstance(atgt, ast.Name):
+                                stripped.add(atgt.id)
+                stripped_in_funcs.append((fn, stripped))
+
+        def _is_stripped_for_node(call_node: ast.Call, var_name: str) -> bool:
+            for fn, stripped_vars in stripped_in_funcs:
+                if call_node in ast.walk(fn) and var_name in stripped_vars:
+                    return True
+            return False
+
         for node in ast.walk(tree):
             # Direct keyword arg: export_in_background=True / 1
             if isinstance(node, ast.Call):
@@ -301,8 +420,25 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
                 if call_leaf in export_call_names:
                     for kw in node.keywords:
                         if kw.arg is None:
+                            if isinstance(kw.value, ast.DictComp) and _dict_comp_strips_key(
+                                kw.value, "export_in_background"
+                            ):
+                                continue
+                            if isinstance(kw.value, ast.Dict):
+                                dict_safe = False
+                                for dk, dv in zip(kw.value.keys, kw.value.values):
+                                    if (
+                                        isinstance(dk, ast.Constant)
+                                        and dk.value == "export_in_background"
+                                        and not _is_truthy_const(dv)
+                                    ):
+                                        dict_safe = True
+                                if dict_safe:
+                                    continue
                             forwarded = _dotted_call_name(kw.value)
-                            if forwarded in ("frappe.form_dict", "form_dict", "kwargs"):
+                            if forwarded in ("frappe.form_dict", "form_dict", "kwargs") and not _is_stripped_for_node(
+                                node, forwarded
+                            ):
                                 violations.append(
                                     _v(
                                         rule_id,
@@ -343,7 +479,28 @@ def rule_no_background_email_export(file_map: FileMap) -> list[Violation]:
     return violations
 
 
+_CLIENT_CODE_EXTS = (
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".svelte",
+    ".html",
+    ".htm",
+    ".py",
+    ".rs",
+    ".slint",
+    ".json",
+)
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/|<!--.*?-->", re.DOTALL)
+
+
 def _is_client_override_scope(path: str) -> bool:
+    if not path.lower().endswith(_CLIENT_CODE_EXTS):
+        return False
     if path.startswith("desktop-client/") or path.startswith("desktop-frontend/"):
         return True
     if path.startswith("apps/khitmee_ops/") and ("/public/js/" in path or "/www/" in path):
@@ -351,16 +508,57 @@ def _is_client_override_scope(path: str) -> bool:
     return False
 
 
+def _strip_single_line_comment(line: str, is_python: bool) -> str:
+    if is_python:
+        # Strip # comments outside quotes
+        in_sq = in_dq = escaped = False
+        for idx, ch in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\":
+                escaped = True
+            elif ch == "'" and not in_dq:
+                in_sq = not in_sq
+            elif ch == '"' and not in_sq:
+                in_dq = not in_dq
+            elif ch == "#" and not in_sq and not in_dq:
+                return line[:idx]
+        return line
+    # Strip // comments outside quotes
+    in_sq = in_dq = in_bt = escaped = False
+    for idx in range(len(line)):
+        ch = line[idx]
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+        elif ch == "'" and not in_dq and not in_bt:
+            in_sq = not in_sq
+        elif ch == '"' and not in_sq and not in_bt:
+            in_dq = not in_dq
+        elif ch == "`" and not in_sq and not in_dq:
+            in_bt = not in_bt
+        elif ch == "/" and not in_sq and not in_dq and not in_bt and idx + 1 < len(line) and line[idx + 1] == "/":
+            return line[:idx]
+    return line
+
+
 def rule_no_client_override_rate(file_map: FileMap) -> list[Violation]:
-    """Rule 4: Ban client UI/desktop payloads from sending `override_rate`."""
+    """Rule 4: Ban client UI/desktop payloads from sending `override_rate` (ignores docs/comments)."""
     rule_id = "no-client-override-rate"
     violations: list[Violation] = []
     for path in sorted(file_map):
         if not _is_client_override_scope(path):
             continue
-        text = file_map[path].decode("utf-8", errors="replace")
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if _OVERRIDE_RATE_RE.search(line):
+        raw_text = file_map[path].decode("utf-8", errors="replace")
+        # Preserve line numbers by replacing block comment contents with equivalent newlines
+        cleaned_text = _BLOCK_COMMENT_RE.sub(lambda m: "\n" * m.group(0).count("\n"), raw_text)
+        is_python = path.lower().endswith(".py")
+        for lineno, line in enumerate(cleaned_text.splitlines(), start=1):
+            code_part = _strip_single_line_comment(line, is_python)
+            if _OVERRIDE_RATE_RE.search(code_part):
                 violations.append(
                     _v(
                         rule_id,
@@ -564,6 +762,8 @@ def rule_autoloop_skill_parity_and_optin(file_map: FileMap) -> list[Violation]:
     src_raw = file_map.get(src_path)
     dst_raw = file_map.get(dst_path)
 
+    if src_raw is None and dst_raw is None:
+        return violations
     if src_raw is None:
         violations.append(_v(rule_id, src_path, 1, "missing canonical tools/autoloop/skill/SKILL.md"))
     if dst_raw is None:

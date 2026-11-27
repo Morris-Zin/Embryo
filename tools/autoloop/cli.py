@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -19,8 +20,10 @@ from autoloop import EXIT_ERROR, EXIT_OK
 from autoloop.guard import (
     GitHubAPIClient,
     GuardError,
+    assert_clean_worktree_for_check,
     assert_safe_local_path,
     compute_code_tree_sha256,
+    git_is_ancestor,
     git_rev_parse,
     load_config,
     verify_pr_integrity,
@@ -30,15 +33,19 @@ from autoloop.leases import LeaseError, acquire_lease, release_lease, renew_leas
 from autoloop.state import (
     IllegalTransitionError,
     apply_replan,
+    bind_pr,
     complete_grill,
     human_resolve,
     init_run,
+    load_run,
     lock_run,
     log_dead_end,
     publish_contract,
+    record_all_shards_pass,
     record_review,
     record_safeguard,
     record_shard_pass,
+    refresh_base,
     request_contract_change,
     resolve_contract_change,
     resolve_finding,
@@ -71,6 +78,21 @@ def _parse_shard_specs(specs: list[str]) -> dict[str, list[str]]:
             raise IllegalTransitionError(f"invalid --shard spec {raw!r}")
         shards[sid] = globs
     return shards
+
+
+def _parse_shard_checks(specs: list[str]) -> dict[str, list[str]]:
+    """Parse `--shard-check shard_id=command` specs."""
+    checks: dict[str, list[str]] = {}
+    for raw in specs:
+        if "=" not in raw:
+            raise IllegalTransitionError(f"invalid --shard-check spec {raw!r}; expected shard_id=command")
+        sid, cmd = raw.split("=", 1)
+        sid = sid.strip()
+        cmd = cmd.strip()
+        if not sid or not cmd:
+            raise IllegalTransitionError(f"invalid --shard-check spec {raw!r}")
+        checks.setdefault(sid, []).append(cmd)
+    return checks
 
 
 def _skill_destinations(repo: Path, home: Path | None = None) -> list[tuple[Path, Path]]:
@@ -134,7 +156,7 @@ def cmd_bootstrap_repo(repo: Path, *, repo_slug: str | None = None, dry_run: boo
                     "required_approving_review_count": 0,
                     "dismiss_stale_reviews_on_push": True,
                     "require_last_push_approval": False,
-                    "required_review_thread_resolution": False,
+                    "required_review_thread_resolution": True,
                 },
             },
             {
@@ -142,8 +164,9 @@ def cmd_bootstrap_repo(repo: Path, *, repo_slug: str | None = None, dry_run: boo
                 "parameters": {
                     "strict_required_status_checks_policy": True,
                     "required_status_checks": [
-                        {"context": "autoloop-integrity"},
-                        {"context": "autoloop-candidate-checks"},
+                        {"context": "autoloop-preflight", "integration_id": 15368},
+                        {"context": "autoloop-candidate-checks", "integration_id": 15368},
+                        {"context": "autoloop-integrity", "integration_id": 15368},
                     ],
                 },
             },
@@ -226,6 +249,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_grill.add_argument("--summary", required=True)
     p_grill.add_argument("--shard", action="append", required=True, help="shard_id=glob1,glob2")
     p_grill.add_argument("--allowed-path", action="append", default=[])
+    p_grill.add_argument("--allow-policy-path", action="append", default=[])
+    p_grill.add_argument("--shard-check", action="append", default=[], help="shard_id=command")
     p_grill.add_argument("--models-json", default=None)
     p_grill.add_argument("--no-cloud-review", action="store_true")
     p_grill.add_argument("--no-deep-review", action="store_true")
@@ -235,6 +260,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lock.add_argument("--run-id", required=True)
     p_lock.add_argument("--base-sha", default=None)
     p_lock.add_argument("--pr", type=int, default=None)
+
+    # bind-pr
+    p_bind = sub.add_parser("bind-pr", help="Bind PR number into FrozenContractV1 and bump contract_revision")
+    p_bind.add_argument("--run-id", required=True)
+    p_bind.add_argument("--pr", type=int, required=True)
+
+    # refresh-base
+    p_rbase = sub.add_parser("refresh-base", help="Rebind run to an advanced base SHA and reopen shards for recheck")
+    p_rbase.add_argument("--run-id", required=True)
+    p_rbase.add_argument("--new-base-sha", required=True)
 
     # publish-contract
     p_pub = sub.add_parser("publish-contract", help="Emit FrozenContractV1 markdown comment for GitHub Issue")
@@ -262,6 +297,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vu.add_argument("--base-ref", default=None)
     p_vu.add_argument("--head-ref", default="HEAD")
     p_vu.add_argument("--main-ref", default="origin/main")
+    p_vu.add_argument("--worktree", type=Path, default=None)
 
     # verify-pr-integrity
     p_vpi = sub.add_parser("verify-pr-integrity", help="CI trusted PR integrity check (read-only over Git blobs)")
@@ -271,8 +307,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vpi.add_argument("--head-sha", default=None)
     p_vpi.add_argument("--pr-number", type=int, default=None)
     p_vpi.add_argument("--pr-author", default=None)
+    p_vpi.add_argument("--pr-body", default=None)
     p_vpi.add_argument("--label", action="append", default=[])
     p_vpi.add_argument("--main-ref", default="origin/main")
+    p_vpi.add_argument("--mode", choices=("preflight", "finalize"), default="finalize")
+    p_vpi.add_argument("--candidate-checks-result", default=None)
     p_vpi.add_argument("--github-output", type=Path, default=None)
     p_vpi.add_argument("--offline", action="store_true")
 
@@ -282,6 +321,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lease.add_argument("--resource", required=True)
     p_lease.add_argument("--owner", required=True)
     p_lease.add_argument("--ttl", type=float, default=300.0)
+    p_lease.add_argument("--holder-pid", type=int, default=None)
     p_lease.add_argument("--token", default=None)
 
     # lint
@@ -291,9 +331,11 @@ def _build_parser() -> argparse.ArgumentParser:
     # check
     p_check = sub.add_parser("check", help="Run local lint + untampered verification and record shard pass")
     p_check.add_argument("--run-id", required=True)
-    p_check.add_argument("--shard", required=True)
+    p_check.add_argument("--shard", default=None)
+    p_check.add_argument("--all-shards", action="store_true")
     p_check.add_argument("--base-ref", default=None)
     p_check.add_argument("--head-ref", default="HEAD")
+    p_check.add_argument("--worktree", type=Path, default=None)
     p_check.add_argument("--skip-fast-check", action="store_true")
 
     # log-dead-end
@@ -322,6 +364,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_res_cc.add_argument("--run-id", required=True)
     p_res_cc.add_argument("--decision", choices=("approve", "reject"), required=True)
     p_res_cc.add_argument("--add-shard-paths", action="append", default=[], help="shard_id=glob1,glob2")
+    p_res_cc.add_argument("--allow-policy-path", action="append", default=[])
+    p_res_cc.add_argument("--shard-check", action="append", default=[], help="shard_id=command")
     p_res_cc.add_argument("--new-base-sha", default=None)
 
     # human-resolve
@@ -405,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit(res)
         elif cmd == "complete-grill":
             shards = _parse_shard_specs(args.shard)
+            shard_checks = _parse_shard_checks(args.shard_check) if args.shard_check else None
             models = json.loads(args.models_json) if args.models_json is not None else None
             res = complete_grill(
                 repo,
@@ -412,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
                 summary=args.summary,
                 shards=shards,
                 allowed_paths=args.allowed_path,
+                allow_policy_paths=args.allow_policy_path,
+                shard_checks=shard_checks,
                 models=models,
                 cloud_review=False if args.no_cloud_review else None,
                 deep_review=False if args.no_deep_review else None,
@@ -419,6 +466,10 @@ def main(argv: list[str] | None = None) -> int:
             _emit(res)
         elif cmd == "lock":
             _emit(lock_run(repo, args.run_id, base_sha=args.base_sha, pr_number=args.pr))
+        elif cmd == "bind-pr":
+            _emit(bind_pr(repo, args.run_id, pr_number=args.pr))
+        elif cmd == "refresh-base":
+            _emit(refresh_base(repo, args.run_id, new_base_sha=args.new_base_sha))
         elif cmd == "publish-contract":
             _emit(publish_contract(repo, args.run_id))
         elif cmd == "start-shard":
@@ -443,6 +494,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif cmd == "verify-untampered":
+            target_wt = args.worktree.resolve() if args.worktree is not None else None
+            if target_wt is None and args.shard:
+                run_data = load_run(repo, args.run_id)
+                wt_str = ((run_data.get("shards") or {}).get(args.shard) or {}).get("worktree_path")
+                if wt_str:
+                    target_wt = Path(wt_str).resolve()
             _emit(
                 verify_untampered(
                     repo,
@@ -451,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
                     base_ref=args.base_ref,
                     head_ref=args.head_ref,
                     main_ref=args.main_ref,
+                    git_repo=target_wt,
                 )
             )
         elif cmd == "verify-pr-integrity":
@@ -458,6 +516,7 @@ def main(argv: list[str] | None = None) -> int:
             head_sha = args.head_sha
             pr_number = args.pr_number
             pr_author = args.pr_author
+            pr_body = args.pr_body
             labels = list(args.label or [])
             repo_slug = args.repo_slug
 
@@ -468,6 +527,8 @@ def main(argv: list[str] | None = None) -> int:
                 head_sha = head_sha or (pr.get("head") or {}).get("sha")
                 pr_number = pr_number or pr.get("number")
                 pr_author = pr_author or (pr.get("user") or {}).get("login")
+                if pr_body is None:
+                    pr_body = pr.get("body") or ""
                 if not labels:
                     labels = [lb["name"] for lb in (pr.get("labels") or []) if isinstance(lb, dict) and lb.get("name")]
                 repo_slug = repo_slug or (event.get("repository") or {}).get("full_name")
@@ -489,17 +550,30 @@ def main(argv: list[str] | None = None) -> int:
                 main_ref=args.main_ref,
                 github_client=client,
                 trusted_contracts_dir=(repo / ".autoloop/trusted-contracts") if args.offline else None,
+                mode=args.mode,
+                candidate_checks_result=args.candidate_checks_result,
+                pr_body=str(pr_body or ""),
             )
             if args.github_output is not None:
+                shard_b64 = base64.b64encode(
+                    json.dumps(result.get("shard_checks") or []).encode("utf-8")
+                ).decode("ascii")
                 with args.github_output.open("a", encoding="utf-8", newline="\n") as handle:
                     handle.write(f"enrolled={'true' if result['enrolled'] else 'false'}\n")
+                    handle.write("bootstrap=false\n")
+                    handle.write(f"run_id={result.get('run_id') or ''}\n")
+                    handle.write(f"shard_checks_b64={shard_b64}\n")
             _emit(result)
         elif cmd == "lease":
             if args.action == "acquire":
-                _emit(acquire_lease(args.resource, args.owner, ttl_s=args.ttl))
+                _emit(acquire_lease(args.resource, args.owner, ttl_s=args.ttl, holder_pid=args.holder_pid))
             elif args.action == "renew":
+                if not args.token:
+                    raise LeaseError("lease renew requires --token")
                 _emit(renew_lease(args.resource, args.owner, ttl_s=args.ttl, token=args.token))
             elif args.action == "release":
+                if not args.token:
+                    raise LeaseError("lease release requires --token")
                 _emit({"released": release_lease(args.resource, args.owner, token=args.token)})
         elif cmd == "lint":
             violations = lint_repo(repo, tree_ish=args.tree)
@@ -509,29 +583,95 @@ def main(argv: list[str] | None = None) -> int:
                 return 3
             _emit({"ok": True, "violations": 0})
         elif cmd == "check":
+            if bool(args.shard) == bool(args.all_shards):
+                raise IllegalTransitionError("check requires exactly one of --shard <id> or --all-shards")
+            run_data = load_run(repo, args.run_id)
+            run_shards = run_data.get("shards") or {}
+            if args.worktree is not None:
+                target_wt = args.worktree.resolve()
+            elif args.shard and (run_shards.get(args.shard) or {}).get("worktree_path"):
+                target_wt = Path(run_shards[args.shard]["worktree_path"]).resolve()
+            else:
+                target_wt = repo
+            if not target_wt.is_dir():
+                raise GuardError(f"target worktree {target_wt} does not exist")
+
+            head_actual = git_rev_parse(target_wt, "HEAD")
+            head_requested = git_rev_parse(target_wt, args.head_ref)
+            if head_actual != head_requested:
+                raise GuardError(
+                    f"refusing check: target checkout HEAD ({head_actual}) != --head-ref ({head_requested})"
+                )
+            assert_clean_worktree_for_check(target_wt, run_id=args.run_id)
+
             untampered = verify_untampered(
                 repo,
                 args.run_id,
-                shard_id=args.shard,
+                shard_id=None if args.all_shards else args.shard,
                 base_ref=args.base_ref,
-                head_ref=args.head_ref,
+                head_ref=head_requested,
+                git_repo=target_wt,
             )
+            verified_head = untampered["head_sha"]
+
+            if args.all_shards and len(run_shards) > 1:
+                for sid, sdata in sorted(run_shards.items()):
+                    if sdata.get("status") not in ("in_progress", "retrying", "passed"):
+                        raise IllegalTransitionError(
+                            f"check --all-shards requires shard {sid!r} to be started first "
+                            f"(current status={sdata.get('status')!r})"
+                        )
+                    if not (sdata.get("status") == "passed" or sdata.get("has_passed_individually")):
+                        raise IllegalTransitionError(
+                            f"check --all-shards requires shard {sid!r} to pass individually first "
+                            f"(current status={sdata.get('status')!r})"
+                        )
+                    lg = sdata.get("last_green_sha")
+                    if lg and not git_is_ancestor(target_wt, lg, verified_head):
+                        raise GuardError(
+                            f"shard {sid!r} last_green_sha {lg[:8]} is not an ancestor of integration HEAD {verified_head[:8]}"
+                        )
+
             if not args.skip_fast_check:
-                proc = subprocess.run(
-                    [sys.executable, "-B", str(repo / "tools/fast_check.py")],
-                    cwd=repo,
+                fast_check_path = target_wt / "tools/fast_check.py"
+                if fast_check_path.is_file():
+                    proc = subprocess.run(
+                        [sys.executable, "-B", str(fast_check_path)],
+                        cwd=target_wt,
+                    )
+                    if proc.returncode != 0:
+                        raise GuardError(f"fast_check.py failed with exit {proc.returncode}")
+                check_shards = sorted(run_shards) if args.all_shards else [args.shard]
+                for sid in check_shards:
+                    for cmd_str in (run_shards.get(sid) or {}).get("checks") or []:
+                        proc = subprocess.run(cmd_str, shell=True, cwd=target_wt)
+                        if proc.returncode != 0:
+                            raise GuardError(f"shard {sid!r} check {cmd_str!r} failed with exit {proc.returncode}")
+
+            if args.all_shards:
+                state = record_all_shards_pass(
+                    repo,
+                    args.run_id,
+                    code_tree_sha256=untampered["code_tree_sha256"],
+                    head_sha=verified_head,
                 )
-                if proc.returncode != 0:
-                    raise GuardError(f"fast_check.py failed with exit {proc.returncode}")
-            head_sha = git_rev_parse(repo, args.head_ref)
-            state = record_shard_pass(
-                repo,
-                args.run_id,
-                args.shard,
-                code_tree_sha256=untampered["code_tree_sha256"],
-                head_sha=head_sha,
+            else:
+                state = record_shard_pass(
+                    repo,
+                    args.run_id,
+                    args.shard,
+                    code_tree_sha256=untampered["code_tree_sha256"],
+                    head_sha=verified_head,
+                )
+            _emit(
+                {
+                    "ok": True,
+                    "status": state["status"],
+                    "code_tree_sha256": untampered["code_tree_sha256"],
+                    "head_sha": verified_head,
+                    "worktree": str(target_wt),
+                }
             )
-            _emit({"ok": True, "status": state["status"], "code_tree_sha256": untampered["code_tree_sha256"]})
         elif cmd == "log-dead-end":
             _emit(
                 log_dead_end(
@@ -557,12 +697,15 @@ def main(argv: list[str] | None = None) -> int:
             _emit(apply_replan(repo, args.run_id, plan_summary=args.plan_summary, shard_id=args.shard))
         elif cmd == "resolve-contract-change":
             add_paths = _parse_shard_specs(args.add_shard_paths) if args.add_shard_paths else None
+            shard_checks = _parse_shard_checks(args.shard_check) if args.shard_check else None
             _emit(
                 resolve_contract_change(
                     repo,
                     args.run_id,
                     decision=args.decision,
                     add_paths=add_paths,
+                    allow_policy_paths=args.allow_policy_path or None,
+                    shard_checks=shard_checks,
                     new_base_sha=args.new_base_sha,
                 )
             )

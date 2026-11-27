@@ -25,7 +25,7 @@ from autoloop import (  # noqa: E402
     EXIT_POLICY_OR_INTEGRITY,
     EXIT_UNSAFE_ROLLBACK,
 )
-from autoloop.cli import cmd_sync_skill, main as cli_main  # noqa: E402
+from autoloop.cli import cmd_bootstrap_repo, cmd_sync_skill, main as cli_main  # noqa: E402
 from autoloop.failures import normalize_failure  # noqa: E402
 from autoloop.guard import (  # noqa: E402
     GuardError,
@@ -37,13 +37,16 @@ from autoloop.guard import (  # noqa: E402
     compute_code_tree_sha256,
     detect_case_collisions,
     format_contract_comment,
+    git_read_tree_blobs,
     git_rev_parse,
     glob_match,
+    is_framework_metadata_path,
     verify_pr_integrity,
     verify_untampered,
 )
 from autoloop.leases import (  # noqa: E402
     LeaseConflictError,
+    LeaseError,
     WIN_ERROR_ACCESS_DENIED,
     WIN_WAIT_TIMEOUT,
     acquire_lease,
@@ -57,6 +60,7 @@ from autoloop.leases import (  # noqa: E402
 from autoloop.state import (  # noqa: E402
     IllegalTransitionError,
     apply_replan,
+    bind_pr,
     complete_grill,
     human_resolve,
     init_run,
@@ -64,9 +68,11 @@ from autoloop.state import (  # noqa: E402
     lock_run,
     log_dead_end,
     publish_contract,
+    record_all_shards_pass,
     record_review,
     record_safeguard,
     record_shard_pass,
+    refresh_base,
     request_contract_change,
     resolve_contract_change,
     resolve_finding,
@@ -75,7 +81,7 @@ from autoloop.state import (  # noqa: E402
     start_shard,
     submit_for_review,
 )
-from autoloop.static_rules import evaluate_file_map, lint_repo  # noqa: E402
+from autoloop.static_rules import evaluate_file_map, lint_repo, load_working_tree_file_map  # noqa: E402
 
 
 def _git(repo: Path, *args: str, env_extra: dict[str, str] | None = None) -> str:
@@ -115,11 +121,17 @@ class FakeGitHubClient:
         comments_by_number: dict[int, list[dict]] | None = None,
         pr_reviews: list[dict] | None = None,
         pr_commits: list[dict] | None = None,
+        commit_lookup: dict[str, dict] | None = None,
+        review_threads: list[dict] | None = None,
+        check_runs: dict[str, list[dict]] | None = None,
     ) -> None:
         self._events = list(pr_events or [])
         self._comments = {k: list(v) for k, v in (comments_by_number or {}).items()}
         self._reviews = list(pr_reviews or [])
         self._commits = list(pr_commits or [])
+        self._commit_lookup = dict(commit_lookup or {})
+        self._review_threads = list(review_threads or [])
+        self._check_runs = dict(check_runs or {})
 
     def get_pr_events(self, pr_number: int) -> list[dict]:
         return list(self._events)
@@ -132,6 +144,20 @@ class FakeGitHubClient:
 
     def get_pr_commits(self, pr_number: int) -> list[dict]:
         return list(self._commits)
+
+    def get_commit(self, sha: str) -> dict | None:
+        if sha in self._commit_lookup:
+            return self._commit_lookup[sha]
+        for c in self._commits:
+            if c.get("sha") == sha:
+                return c
+        return None
+
+    def get_pr_review_threads(self, pr_number: int) -> list[dict]:
+        return list(self._review_threads)
+
+    def get_check_runs(self, ref: str) -> list[dict]:
+        return list(self._check_runs.get(ref, []))
 
 
 def _create_temp_repo(tmp_dir: Path) -> Path:
@@ -382,7 +408,7 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
         untampered = verify_untampered(self.repo, run_id, head_ref=checkpoint_head)
         self.assertTrue(untampered["ok"])
 
-        # Enrolled CI integrity verification passes with authentic owner contract + review comment
+        # Enrolled CI integrity verification fails without independent candidate check evidence, and passes with it
         _git(self.repo, "checkout", "main")
         gh_client = FakeGitHubClient(
             pr_events=[{"event": "labeled", "label": "autoloop", "actor": "Morris-Zin"}],
@@ -397,6 +423,11 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
                     }
                 ],
             },
+            check_runs={
+                checkpoint_head: [
+                    {"name": "autoloop-candidate-checks", "status": "completed", "conclusion": "success"}
+                ]
+            },
         )
         verdict = verify_pr_integrity(
             self.repo,
@@ -406,9 +437,23 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
             pr_author="devin-worker",
             pr_labels=["autoloop"],
             github_client=gh_client,
+            candidate_checks_result="success",
         )
         self.assertEqual(verdict["verdict"], "enrolled-pass")
         self.assertTrue(verdict["enrolled"])
+
+        # Candidate checks failure/skip must fail finalize even if checkpoint claims all shards passed
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=checkpoint_head,
+                pr_number=55,
+                pr_author="devin-worker",
+                pr_labels=["autoloop"],
+                github_client=gh_client,
+                candidate_checks_result="failure",
+            )
 
         # Removing owner-applied autoloop label fails closed (enrollment stickiness)
         with self.assertRaises(GuardError):
@@ -420,6 +465,7 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
                 pr_author="devin-worker",
                 pr_labels=[],
                 github_client=gh_client,
+                candidate_checks_result="success",
             )
 
         # Code edit invalidates prior shard/review evidence
@@ -439,6 +485,7 @@ class TestScenario2MultiShardCodeTreeAndStickiness(unittest.TestCase):
                 pr_author="devin-worker",
                 pr_labels=["autoloop"],
                 github_client=gh_client,
+                candidate_checks_result="success",
             )
 
         # Checkpoint deletion in a later push fails closed (stickiness)
@@ -1129,6 +1176,576 @@ class TestScenario6AllSevenEmbryoCoreRules(unittest.TestCase):
             },
         )
         self.assertTrue(any(v.rule_id == "autoloop-skill-parity-and-optin" for v in pos_crlf))
+
+    def test_cli_smoke_lint_and_dry_run_sync(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "lint"]), 0)
+            self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "sync-skill", "--dry-run"]), 0)
+            self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "bootstrap-repo", "--dry-run"]), 0)
+
+
+class TestScenario7ReviewFixRegressions(unittest.TestCase):
+    """Regression suite covering all 13 Astra findings & 15 PR review threads."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self._tmp.name)
+        self.repo = _create_temp_repo(self.tmp_path)
+        self.main_sha = _git(self.repo, "rev-parse", "main")
+        self.lock_dir = self.tmp_path / "locks"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_bootstrap_ruleset_binds_github_actions_and_thread_resolution(self) -> None:
+        boot = cmd_bootstrap_repo(self.repo, repo_slug="Morris-Zin/Embryo", dry_run=True)
+        rules = boot["ruleset"]["rules"]
+        pr_rule = next(r for r in rules if r["type"] == "pull_request")["parameters"]
+        self.assertTrue(pr_rule["required_review_thread_resolution"])
+        checks = next(r for r in rules if r["type"] == "required_status_checks")["parameters"]["required_status_checks"]
+        contexts = {c["context"]: c.get("integration_id") for c in checks}
+        self.assertEqual(
+            contexts,
+            {
+                "autoloop-preflight": 15368,
+                "autoloop-candidate-checks": 15368,
+                "autoloop-integrity": 15368,
+            },
+        )
+
+    def test_issue_only_enrollment_sticky_and_contract_requires_pr_number(self) -> None:
+        # Owner creates contract bound to PR #55 on Issue #10, without pr label or .autoloop/runs file on branch.
+        run_id = "run-issue-sticky"
+        init_run(self.repo, run_id, "Issue bound", issue_number=10, pr_number=55, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(self.repo, run_id, summary="g", shards={"s1": ["docs/guide.md"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, base_sha=self.main_sha, pr_number=55, lock_dir=self.lock_dir)
+        pub = publish_contract(self.repo, run_id, lock_dir=self.lock_dir)
+
+        _git(self.repo, "checkout", "-b", "evade-gate")
+        _write_lf(self.repo / "docs/guide.md", "edited without run checkpoint\n")
+        _git(self.repo, "add", "docs/guide.md")
+        _git(self.repo, "commit", "-m", "work for #10")
+        head_sha = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        gh = FakeGitHubClient(
+            comments_by_number={
+                10: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
+            }
+        )
+        # Must NOT return non-enrolled-pass: issue #10 binds PR #55 -> fails because run checkpoint absent!
+        with self.assertRaises(GuardError) as ctx:
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=head_sha,
+                pr_number=55,
+                pr_author="contributor",
+                pr_labels=[],
+                github_client=gh,
+                pr_body="Part of #10",
+            )
+        self.assertIn("active run checkpoint", str(ctx.exception))
+
+        # Owner contract omitting pr_number cannot borrow candidate checkpoint pr_number!
+        init_run(self.repo, "run-no-pr", "No PR in contract", issue_number=12, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(
+            self.repo,
+            "run-no-pr",
+            summary="g",
+            shards={"s1": ["docs/guide.md"]},
+            cloud_review=False,
+            deep_review=False,
+            lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, "run-no-pr", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        pub_nopr = publish_contract(self.repo, "run-no-pr", lock_dir=self.lock_dir)
+        start_shard(self.repo, "run-no-pr", "s1", lock_dir=self.lock_dir)
+
+        # Candidate sets pr_number in checkpoint JSON, commits & passes locally
+        _git(self.repo, "checkout", "-b", "nopr-branch")
+        _write_lf(self.repo / "docs/guide.md", "cand\n")
+        _git(self.repo, "add", "docs/guide.md")
+        _git(self.repo, "commit", "-m", "docs")
+        h2 = compute_code_tree_sha256(self.repo, "HEAD", run_id="run-no-pr")
+        record_shard_pass(self.repo, "run-no-pr", "s1", code_tree_sha256=h2, head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        submit_for_review(self.repo, "run-no-pr", lock_dir=self.lock_dir)
+        run_json = load_run(self.repo, "run-no-pr")
+        run_json["pr_number"] = 99
+        _write_lf(self.repo / ".autoloop/runs/run-no-pr.json", json.dumps(run_json, indent=2) + "\n")
+        _git(self.repo, "add", ".autoloop/runs/run-no-pr.json")
+        _git(self.repo, "commit", "-m", "checkpoint")
+        nopr_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        gh_nopr = FakeGitHubClient(
+            comments_by_number={
+                12: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_nopr["comment_markdown"]}]
+            }
+        )
+        with self.assertRaises(GuardError) as ctx_nopr:
+            verify_pr_integrity(
+                self.repo,
+                base_sha=self.main_sha,
+                head_sha=nopr_head,
+                pr_number=99,
+                pr_author="contributor",
+                pr_labels=[],
+                github_client=gh_nopr,
+                candidate_checks_result="success",
+            )
+        self.assertIn("missing required pr_number", str(ctx_nopr.exception))
+
+        # bind_pr on branch bumps contract_revision and produces valid PR-bound contract that passes CI
+        _git(self.repo, "checkout", "nopr-branch")
+        st_bound = bind_pr(self.repo, "run-no-pr", pr_number=99, lock_dir=self.lock_dir)
+        self.assertEqual(st_bound["pr_number"], 99)
+        self.assertGreaterEqual(st_bound["contract_revision"], 2)
+        pub_bound = publish_contract(self.repo, "run-no-pr", lock_dir=self.lock_dir)
+        _git(self.repo, "add", ".autoloop/runs/run-no-pr.json")
+        _git(self.repo, "commit", "-m", "bind pr 99")
+        bound_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+        gh_bound = FakeGitHubClient(
+            comments_by_number={
+                12: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub_bound["comment_markdown"]}]
+            }
+        )
+        res_bound = verify_pr_integrity(
+            self.repo,
+            base_sha=self.main_sha,
+            head_sha=bound_head,
+            pr_number=99,
+            pr_author="contributor",
+            pr_labels=[],
+            github_client=gh_bound,
+            candidate_checks_result="success",
+        )
+        self.assertEqual(res_bound["verdict"], "enrolled-pass")
+
+    def test_superseded_approval_unresolved_threads_and_safeguard_artifact_verified(self) -> None:
+        run_id = "run-superseded"
+        init_run(
+            self.repo,
+            run_id,
+            "Review & safeguard checks",
+            issue_number=20,
+            pr_number=21,
+            base_sha=self.main_sha,
+            lock_dir=self.lock_dir,
+        )
+        complete_grill(
+            self.repo,
+            run_id,
+            summary="g",
+            shards={"s1": ["src/a.py", "tools/test_f1_guard.py"]},
+            shard_checks={"s1": ["python -c \"print('ok')\""]},
+            lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, run_id, base_sha=self.main_sha, pr_number=21, lock_dir=self.lock_dir)
+        pub = publish_contract(self.repo, run_id, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+
+        _git(self.repo, "checkout", "-b", "feat/sg")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 42\n")
+        _write_lf(self.repo / "tools/test_f1_guard.py", "import unittest\n")
+        _git(self.repo, "add", "src/a.py", "tools/test_f1_guard.py")
+        _git(self.repo, "commit", "-m", "fix + test")
+        h = compute_code_tree_sha256(self.repo, "HEAD", run_id=run_id)
+        record_shard_pass(self.repo, run_id, "s1", code_tree_sha256=h, head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        record_review(
+            self.repo, run_id, stage="cloud", verdict="reject", reviewer="alice", code_tree_sha256=h,
+            findings=[{"finding_id": "F1", "summary": "Add guard"}], lock_dir=self.lock_dir,
+        )
+        resolve_finding(self.repo, run_id, "F1", fix_summary="fixed", lock_dir=self.lock_dir)
+        record_shard_pass(self.repo, run_id, "s1", code_tree_sha256=h, head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h, lock_dir=self.lock_dir)
+        record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h, lock_dir=self.lock_dir)
+        record_safeguard(
+            self.repo,
+            run_id,
+            "F1",
+            layer="layer_4_runtime_test",
+            artifact="tools/test_f1_guard.py",
+            summary="Added test_f1_guard.py",
+            why_not_static="Runtime contract check",
+            lock_dir=self.lock_dir,
+        )
+        _git(self.repo, "add", f".autoloop/runs/{run_id}.json")
+        _git(self.repo, "commit", "-m", "checkpoint")
+        pr_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        # Superseded approval (APPROVED then CHANGES_REQUESTED by same reviewer) MUST fail!
+        gh_superseded = FakeGitHubClient(
+            comments_by_number={
+                20: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
+            },
+            pr_reviews=[
+                {"id": 1, "user": "alice", "state": "APPROVED", "commit_id": pr_head},
+                {"id": 2, "user": "alice", "state": "CHANGES_REQUESTED", "commit_id": pr_head},
+            ],
+        )
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
+                pr_labels=[], github_client=gh_superseded, candidate_checks_result="success",
+            )
+
+        # Unresolved review thread MUST fail even with approval!
+        gh_unresolved = FakeGitHubClient(
+            comments_by_number={
+                20: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
+            },
+            pr_reviews=[{"id": 3, "user": "alice", "state": "APPROVED", "commit_id": pr_head}],
+            review_threads=[{"id": "PRRT_1", "isResolved": False, "comments": [{"author": "alice", "body": "Fix"}]}],
+        )
+        with self.assertRaises(GuardError) as ctx_th:
+            verify_pr_integrity(
+                self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
+                pr_labels=[], github_client=gh_unresolved, candidate_checks_result="success",
+            )
+        self.assertIn("unresolved review thread", str(ctx_th.exception))
+
+        # Preflight returns frozen shard checks; Finalize passes when thread resolved & approval clean
+        gh_ok = FakeGitHubClient(
+            comments_by_number={
+                20: [{"author": "Morris-Zin", "editor": None, "lastEditedAt": None, "body": pub["comment_markdown"]}]
+            },
+            pr_reviews=[{"id": 3, "user": "alice", "state": "APPROVED", "commit_id": pr_head}],
+            review_threads=[{"id": "PRRT_1", "isResolved": True, "comments": [{"author": "alice", "body": "Fix"}]}],
+        )
+        pre = verify_pr_integrity(
+            self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
+            pr_labels=[], github_client=gh_ok, mode="preflight",
+        )
+        self.assertEqual(pre["verdict"], "enrolled-preflight")
+        self.assertEqual(pre["shard_checks"][0]["shard_id"], "s1")
+        fin = verify_pr_integrity(
+            self.repo, base_sha=self.main_sha, head_sha=pr_head, pr_number=21, pr_author="devin-worker",
+            pr_labels=[], github_client=gh_ok, mode="finalize", candidate_checks_result="success",
+        )
+        self.assertEqual(fin["verdict"], "enrolled-pass")
+
+    def test_unattributed_stacked_commit_rejected_on_policy_exception(self) -> None:
+        _git(self.repo, "checkout", "-b", "stack-base")
+        _write_lf(self.repo / "AGENTS.md", "## Edited in unattributed commit\n")
+        _git(self.repo, "add", "AGENTS.md")
+        _git(self.repo, "commit", "-m", "base edit")
+        base_sha = _git(self.repo, "rev-parse", "HEAD")
+
+        _git(self.repo, "checkout", "-b", "stack-child")
+        _write_lf(self.repo / "docs/guide.md", "child edit\n")
+        _git(self.repo, "add", "docs/guide.md")
+        _git(self.repo, "commit", "-m", "child")
+        child_head = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "main")
+
+        # Missing commit provenance in both pr_commits and get_commit must REJECT even for pr_author=Morris-Zin!
+        gh_missing = FakeGitHubClient(
+            pr_commits=[
+                {
+                    "sha": child_head,
+                    "author_login": "Morris-Zin",
+                    "committer_login": "Morris-Zin",
+                    "author_type": "User",
+                    "committer_type": "User",
+                }
+            ]
+        )
+        with self.assertRaises(GuardError):
+            verify_pr_integrity(
+                self.repo, base_sha=base_sha, head_sha=child_head, pr_number=31,
+                pr_author="Morris-Zin", pr_labels=[], github_client=gh_missing,
+            )
+
+    def test_cli_multi_shard_worktree_clean_check_all_shards_safeguard_and_refresh_base(self) -> None:
+        wt_a = self.tmp_path / "wt_a"
+        wt_b = self.tmp_path / "wt_b"
+        _git(self.repo, "worktree", "add", "-b", "feat/shard-a", str(wt_a), self.main_sha)
+        _git(self.repo, "worktree", "add", "-b", "feat/shard-b", str(wt_b), self.main_sha)
+        try:
+            run_id = "run-wt-multi"
+            init_run(self.repo, run_id, "WT Multi", pr_number=44, base_sha=self.main_sha, lock_dir=self.lock_dir)
+            complete_grill(
+                self.repo,
+                run_id,
+                summary="Two shards",
+                shards={"shard_a": ["src/a.py"], "shard_b": ["src/b.py", "tools/test_f1.py"]},
+                lock_dir=self.lock_dir,
+            )
+            lock_run(self.repo, run_id, base_sha=self.main_sha, pr_number=44, lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "shard_a", worktree_path=str(wt_a), lock_dir=self.lock_dir)
+            start_shard(self.repo, run_id, "shard_b", worktree_path=str(wt_b), lock_dir=self.lock_dir)
+
+            # Dirty worktree must refuse `cli check`
+            _write_lf(wt_a / "src/a.py", "def a():\n    return 11\n")
+            self.assertNotEqual(cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_a", "--skip-fast-check"]), 0)
+
+            _git(wt_a, "add", "src/a.py")
+            _git(wt_a, "commit", "-m", "shard a work")
+            # Mismatched --head-ref vs HEAD must refuse `cli check`
+            self.assertNotEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_a", "--head-ref", self.main_sha, "--skip-fast-check"]),
+                0,
+            )
+
+            # Clean `cli check --shard shard_a` uses registered `wt_a` automatically
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_a", "--skip-fast-check"]),
+                0,
+            )
+            _write_lf(wt_b / "src/b.py", "def b():\n    return 22\n")
+            _git(wt_b, "add", "src/b.py")
+            _git(wt_b, "commit", "-m", "shard b work")
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--shard", "shard_b", "--skip-fast-check"]),
+                0,
+            )
+
+            # Integrate both shard branches into coordinator checkout and run `--all-shards`
+            _git(self.repo, "checkout", "-b", "feat/integrated", self.main_sha)
+            _git(self.repo, "merge", "--no-ff", "-m", "merge a", "feat/shard-a")
+            _git(self.repo, "merge", "--no-ff", "-m", "merge b", "feat/shard-b")
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
+                0,
+            )
+            st = load_run(self.repo, run_id)
+            self.assertEqual(st["status"], "gate_passed")
+
+            # Review -> reject F1 -> fix + pass -> safeguard_pending -> add safeguard test -> recheck via `--all-shards` -> re-review
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+            h1 = st["shards"]["shard_a"]["passed_code_tree_sha256"]
+            record_review(
+                self.repo, run_id, stage="cloud", verdict="reject", reviewer="alice", code_tree_sha256=h1,
+                findings=[{"finding_id": "F1", "summary": "Add test"}], lock_dir=self.lock_dir,
+            )
+            resolve_finding(self.repo, run_id, "F1", fix_summary="fixed", lock_dir=self.lock_dir)
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
+                0,
+            )
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h1, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h1, lock_dir=self.lock_dir)
+            self.assertEqual(load_run(self.repo, run_id)["status"], "safeguard_pending")
+
+            # Add regression test committed under shard_b scope -> re-run `--all-shards` -> transitions to gate_passed!
+            _write_lf(self.repo / "tools/test_f1.py", "def test_ok():\n    pass\n")
+            _git(self.repo, "add", "tools/test_f1.py")
+            _git(self.repo, "commit", "-m", "add safeguard test")
+            self.assertEqual(
+                cli_main(["--repo", str(self.repo), "check", "--run-id", run_id, "--all-shards", "--skip-fast-check"]),
+                0,
+            )
+            st_recheck = load_run(self.repo, run_id)
+            self.assertEqual(st_recheck["status"], "gate_passed")
+            h2 = st_recheck["shards"]["shard_a"]["passed_code_tree_sha256"]
+            self.assertNotEqual(h2, h1)
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="cloud", verdict="pass", reviewer="alice", code_tree_sha256=h2, lock_dir=self.lock_dir)
+            record_review(self.repo, run_id, stage="deep", verdict="pass", reviewer="bob", code_tree_sha256=h2, lock_dir=self.lock_dir)
+            record_safeguard(
+                self.repo, run_id, "F1", layer="layer_4_runtime_test", artifact="tools/test_f1.py",
+                summary="Added test_f1", why_not_static="Runtime check", lock_dir=self.lock_dir,
+            )
+            self.assertEqual(load_run(self.repo, run_id)["status"], "ready_to_merge")
+
+            # Base refresh & post-ready contract amendment work cleanly
+            st_req = request_contract_change(self.repo, run_id, "shard_a", reason="Expand", proposed_paths=["README.md"], lock_dir=self.lock_dir)
+            self.assertEqual(st_req["status"], "needs_contract_amendment")
+            resolve_contract_change(self.repo, run_id, decision="approve", add_paths={"shard_a": ["README.md"]}, lock_dir=self.lock_dir)
+            st_ref = refresh_base(self.repo, run_id, new_base_sha=self.main_sha, lock_dir=self.lock_dir)
+            self.assertEqual(st_ref["status"], "locked")
+        finally:
+            _git(self.repo, "checkout", "main")
+            _git(self.repo, "worktree", "remove", "--force", str(wt_a))
+            _git(self.repo, "worktree", "remove", "--force", str(wt_b))
+
+    def test_local_allow_policy_paths_and_rollback_restore_and_oversized_blobs(self) -> None:
+        # Local allow_policy_paths authorization
+        run_id = "run-pol-rb"
+        _git(self.repo, "checkout", "-b", "feat/pol")
+        init_run(self.repo, run_id, "Policy & Rollback", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(
+            self.repo, run_id, summary="p", shards={"s1": ["src/a.py", "AGENTS.md"]},
+            allow_policy_paths=["AGENTS.md"], lock_dir=self.lock_dir,
+        )
+        lock_run(self.repo, run_id, base_sha=self.main_sha, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+
+        _write_lf(self.repo / "AGENTS.md", "## Authorized local policy edit\n")
+        _git(self.repo, "add", "AGENTS.md")
+        _git(self.repo, "commit", "-m", "edit AGENTS.md")
+        self.assertTrue(verify_untampered(self.repo, run_id, shard_id="s1")["ok"])
+
+        # Real rollback restores src/a.py and removes added src/extra.py back to last_green_sha (in isolated clean repo)
+        rb_parent = self.tmp_path / "rb_repo"
+        rb_parent.mkdir(parents=True)
+        rb_repo = _create_temp_repo(rb_parent)
+        rb_main = _git(rb_repo, "rev-parse", "main")
+        run2 = "run-rb-real"
+        _git(rb_repo, "checkout", "-b", "feat/rb-real")
+        init_run(rb_repo, run2, "Real rollback", base_sha=rb_main, lock_dir=self.lock_dir)
+        complete_grill(rb_repo, run2, summary="rb", shards={"s1": ["src/*.py"]}, lock_dir=self.lock_dir)
+        lock_run(rb_repo, run2, base_sha=rb_main, lock_dir=self.lock_dir)
+        start_shard(rb_repo, run2, "s1", lock_dir=self.lock_dir)
+        orig_hash = compute_code_tree_sha256(rb_repo, rb_main, run_id=run2)
+
+        _write_lf(rb_repo / "src/a.py", "def a():\n    return -999\n")
+        _write_lf(rb_repo / "src/extra_temp.py", "x = 1\n")
+        _git(rb_repo, "add", "src/a.py", "src/extra_temp.py")
+        _git(rb_repo, "commit", "-m", "broken commit")
+        for _ in range(3):
+            st_rb = retry_shard(rb_repo, run2, "s1", check_name="t", error_output="AssertionError", lock_dir=self.lock_dir)
+        self.assertEqual(st_rb["status"], "needs_replan")
+        self.assertEqual((rb_repo / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 1\n")
+        self.assertFalse((rb_repo / "src/extra_temp.py").exists())
+        self.assertEqual(compute_code_tree_sha256(rb_repo, "HEAD", run_id=run2), orig_hash)
+
+        # Oversized blobs fail closed instead of silent omission
+        with self.assertRaises(GuardError):
+            git_read_tree_blobs(rb_repo, "HEAD", max_blob_bytes=10)
+        with self.assertRaises(GuardError):
+            load_working_tree_file_map(rb_repo, max_blob_bytes=10)
+
+        # Metadata hash & scope parity: invalid slug `.md` MUST NOT be excluded from code_tree_sha256
+        _write_lf(rb_repo / f".autoloop/experiments/{run2}-BAD_CAPS.md", "ignored?\n")
+        _git(rb_repo, "add", f".autoloop/experiments/{run2}-BAD_CAPS.md")
+        _git(rb_repo, "commit", "-m", "invalid exp filename")
+        self.assertFalse(is_framework_metadata_path(f".autoloop/experiments/{run2}-BAD_CAPS.md", run2))
+        self.assertNotEqual(compute_code_tree_sha256(rb_repo, "HEAD", run_id=run2), orig_hash)
+
+    def test_kernel_mutex_recovers_instantly_on_process_kill(self) -> None:
+        mpath = self.lock_dir / "proc_kill.mutex"
+        flag_file = self.tmp_path / "held.txt"
+        holder_code = "\n".join(
+            [
+                "import pathlib, sys, time",
+                f"sys.path.insert(0, {str(TOOLS_DIR)!r})",
+                "from autoloop.leases import acquire_mutex",
+                f"with acquire_mutex(pathlib.Path({str(mpath)!r}), timeout_s=5.0):",
+                f"    pathlib.Path({str(flag_file)!r}).write_text('locked')",
+                "    time.sleep(30)",
+            ]
+        )
+        proc = subprocess.Popen([sys.executable, "-B", "-c", holder_code])
+        try:
+            deadline = time.monotonic() + 5.0
+            while not flag_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(flag_file.exists())
+            with self.assertRaises(Exception):
+                with acquire_mutex(mpath, timeout_s=0.25):
+                    pass
+            proc.kill()
+            proc.wait(timeout=5)
+            # Kernel releases lock immediately on kill without stale unlinking
+            entered = False
+            with acquire_mutex(mpath, timeout_s=2.0):
+                entered = True
+            self.assertTrue(entered)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_cli_lease_persistence_mandatory_token_and_metadata_containment(self) -> None:
+        # Cross-invocation lease without holder_pid stays locked across CLI processes until TTL/release
+        r_key = "cli:persist:res"
+        lease_a = acquire_lease(r_key, "worker-a", ttl_s=120.0, lock_dir=self.lock_dir)
+        self.assertIsNone(lease_a["pid"])
+        with self.assertRaises(LeaseConflictError):
+            acquire_lease(r_key, "worker-b", ttl_s=120.0, lock_dir=self.lock_dir)
+        with self.assertRaises(LeaseConflictError):
+            renew_lease(r_key, "worker-a", ttl_s=120.0, lock_dir=self.lock_dir, token=None)
+        with self.assertRaises(LeaseConflictError):
+            release_lease(r_key, "worker-a", lock_dir=self.lock_dir, token=None)
+        renewed = renew_lease(r_key, "worker-a", ttl_s=240.0, lock_dir=self.lock_dir, token=lease_a["token"])
+        self.assertIsNone(renewed["pid"])
+        self.assertTrue(release_lease(r_key, "worker-a", lock_dir=self.lock_dir, token=lease_a["token"]))
+
+        # Reparse-point rejection applies to trusted-contracts dir too
+        with mock.patch("autoloop.guard.is_windows_reparse_point", side_effect=lambda p: p.name == "trusted-contracts"):
+            with self.assertRaises(GuardError):
+                init_run(self.repo, "run-reparse", "Test", lock_dir=self.lock_dir)
+                complete_grill(self.repo, "run-reparse", summary="s", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+                lock_run(self.repo, "run-reparse", lock_dir=self.lock_dir)
+
+    def test_refined_static_rules_2_3_4_and_7(self) -> None:
+        rules_dir = REPO_ROOT / ".autoloop/rules"
+        base_skills = {
+            "tools/autoloop/skill/SKILL.md": (REPO_ROOT / "tools/autoloop/skill/SKILL.md").read_bytes(),
+            ".devin/skills/autoloop/SKILL.md": (REPO_ROOT / ".devin/skills/autoloop/SKILL.md").read_bytes(),
+        }
+        # Rule 2: unrelated workers >= 2 does NOT exempt unguarded os.kill; early return DOES guard it
+        v2_bad = evaluate_file_map(
+            rules_dir,
+            {
+                **base_skills,
+                "apps/khitmee_ops/khitmee_ops/hooks.py": b'after_request = ["khitmee_ops.api.m.bad"]\n',
+                "apps/khitmee_ops/khitmee_ops/api/m.py": (
+                    b"import os, signal\n"
+                    b"def bad(workers=1):\n"
+                    b"    if workers >= 2:\n        pass\n"
+                    b"    os.kill(os.getpid(), signal.SIGTERM)\n"
+                ),
+            },
+        )
+        self.assertTrue(any(v.rule_id == "no-self-sigterm-single-worker" for v in v2_bad))
+
+        v2_early = evaluate_file_map(
+            rules_dir,
+            {
+                **base_skills,
+                "apps/khitmee_ops/khitmee_ops/hooks.py": b'after_request = ["khitmee_ops.api.m.ok"]\n',
+                "apps/khitmee_ops/khitmee_ops/api/m.py": (
+                    b"import os, signal\n"
+                    b"def ok(workers=1):\n"
+                    b"    if workers < 2:\n        return\n"
+                    b"    os.kill(os.getpid(), signal.SIGTERM)\n"
+                ),
+            },
+        )
+        self.assertFalse(any(v.rule_id == "no-self-sigterm-single-worker" for v in v2_early))
+
+        # Rule 3: explicitly stripped kwargs before export_query(**kwargs) is allowed
+        v3_ok = evaluate_file_map(
+            rules_dir,
+            {
+                **base_skills,
+                "apps/khitmee_ops/khitmee_ops/api/rep.py": (
+                    b'def run(**kwargs):\n    kwargs.pop("export_in_background", None)\n    return export_query(**kwargs)\n'
+                ),
+            },
+        )
+        self.assertFalse(any(v.rule_id == "no-background-email-export" for v in v3_ok))
+
+        # Rule 4: README / comments ignored, code still caught
+        v4 = evaluate_file_map(
+            rules_dir,
+            {
+                **base_skills,
+                "desktop-client/README.md": b"Never send override_rate from client\n",
+                "apps/khitmee_ops/khitmee_ops/public/js/ok.js": b"// Do not pass override_rate here\nconst x = 1;\n",
+                "apps/khitmee_ops/khitmee_ops/public/js/bad.js": b"const payload = { override_rate: true };\n",
+            },
+        )
+        r4_hits = [v.path for v in v4 if v.rule_id == "no-client-override-rate"]
+        self.assertEqual(r4_hits, ["apps/khitmee_ops/khitmee_ops/public/js/bad.js"])
+
+        # Rule 7: neither skill present (pre-rollout main) -> 0 violations; one missing -> violation
+        v7_empty = evaluate_file_map(rules_dir, {})
+        self.assertFalse(any(v.rule_id == "autoloop-skill-parity-and-optin" for v in v7_empty))
+        v7_one = evaluate_file_map(rules_dir, {"tools/autoloop/skill/SKILL.md": base_skills["tools/autoloop/skill/SKILL.md"]})
+        self.assertTrue(any(v.rule_id == "autoloop-skill-parity-and-optin" for v in v7_one))
 
     def test_cli_smoke_lint_and_dry_run_sync(self) -> None:
         import io
