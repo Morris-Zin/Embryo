@@ -65,7 +65,7 @@ if [[ -z "$OUTPUT_FILE" ]]; then
 fi
 
 if [[ ! -f "$OUTPUT_FILE" ]]; then
-  printf 'timestamp,container,container_id,pid,rss_kb,pss_kb,private_dirty_kb,cgroup_memory_current_bytes,cgroup_memory_max_bytes,cgroup_oom_kill,docker_oom_killed,restart_count,cgroup_memory_peak_bytes,cgroup_oom_events,cgroup_swap_current_bytes,cgroup_memory_anon_bytes,cgroup_memory_file_bytes,cgroup_memory_kernel_bytes,cgroup_memory_slab_bytes,cgroup_cpu_usage_usec,cgroup_cpu_nr_throttled,cgroup_cpu_throttled_usec\n' > "$OUTPUT_FILE"
+  printf 'timestamp,container,container_id,pid,rss_kb,pss_kb,private_dirty_kb,cgroup_memory_current_bytes,cgroup_memory_max_bytes,cgroup_oom_kill,docker_oom_killed,restart_count,cgroup_memory_peak_bytes,cgroup_oom_events,cgroup_swap_current_bytes,cgroup_memory_anon_bytes,cgroup_memory_file_bytes,cgroup_memory_kernel_bytes,cgroup_memory_slab_bytes,cgroup_cpu_usage_usec,cgroup_cpu_nr_throttled,cgroup_cpu_throttled_usec,cgroup_io_read_bytes,cgroup_io_write_bytes,cgroup_io_read_ops,cgroup_io_write_ops\n' > "$OUTPUT_FILE"
 fi
 
 echo "Writing memory samples to $OUTPUT_FILE (every ${INTERVAL_SECONDS}s; Ctrl+C to stop)"
@@ -231,6 +231,27 @@ read_stat_value() {
   fi
 }
 
+read_io_stat_value() {
+  local cgroup_path="$1"
+  local key="$2"
+  if [[ -n "$cgroup_path" && -r "$cgroup_path/io.stat" ]]; then
+    awk -v wanted="$key" '
+      {
+        for (field = 2; field <= NF; field++) {
+          split($field, parts, "=")
+          if (parts[1] == wanted) {
+            total += parts[2]
+            found = 1
+          }
+        }
+      }
+      END { if (found) print total + 0; else print "NA" }
+    ' "$cgroup_path/io.stat" 2>/dev/null || printf 'NA\n'
+  else
+    printf 'NA\n'
+  fi
+}
+
 read_memory_stat_value() {
   read_stat_value "$1" "memory.stat" "$2"
 }
@@ -243,6 +264,7 @@ collect_once() {
   local timestamp container_id container_name pid smaps_values rss_kb pss_kb private_dirty_kb
   local cgroup_path memory_current memory_max oom_kill memory_peak oom_events swap_current
   local memory_anon memory_file memory_kernel memory_slab cpu_usage_usec cpu_nr_throttled cpu_throttled_usec
+  local io_read_bytes io_write_bytes io_read_ops io_write_ops
   local docker_state docker_oom_killed restart_count
 
   timestamp="$(date --iso-8601=seconds)"
@@ -280,8 +302,12 @@ collect_once() {
     cpu_usage_usec="$(read_cpu_stat_value "$cgroup_path" usage_usec)"
     cpu_nr_throttled="$(read_cpu_stat_value "$cgroup_path" nr_throttled)"
     cpu_throttled_usec="$(read_cpu_stat_value "$cgroup_path" throttled_usec)"
+    io_read_bytes="$(read_io_stat_value "$cgroup_path" rbytes)"
+    io_write_bytes="$(read_io_stat_value "$cgroup_path" wbytes)"
+    io_read_ops="$(read_io_stat_value "$cgroup_path" rios)"
+    io_write_ops="$(read_io_stat_value "$cgroup_path" wios)"
 
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
       "$timestamp" \
       "$container_name" \
       "$container_id" \
@@ -303,7 +329,11 @@ collect_once() {
       "$memory_slab" \
       "$cpu_usage_usec" \
       "$cpu_nr_throttled" \
-      "$cpu_throttled_usec" >> "$OUTPUT_FILE"
+      "$cpu_throttled_usec" \
+      "$io_read_bytes" \
+      "$io_write_bytes" \
+      "$io_read_ops" \
+      "$io_write_ops" >> "$OUTPUT_FILE"
   done < <(docker ps --no-trunc --filter "label=com.docker.compose.project=$PROJECT_NAME" --format '{{.ID}} {{.Names}}' | awk '$2 !~ /-run-/' | LC_ALL=C sort -k2)
 }
 
