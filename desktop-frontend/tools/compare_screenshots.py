@@ -54,10 +54,10 @@ def main() -> int:
                 else:
                     diff = ImageChops.difference(left, right)
                     pixels = list(diff.getdata())
-                    failed = sum(1 for pixel in pixels if pixel[:3] != (0, 0, 0))
+                    failed = sum(1 for pixel in pixels if pixel != (0, 0, 0, 0))
                     total = left.size[0] * left.size[1]
-                    channel_deltas = [max(pixel[:3]) for pixel in pixels]
-                    nonzero = [(index % left.size[0], index // left.size[0]) for index, pixel in enumerate(pixels) if pixel[:3] != (0, 0, 0)]
+                    channel_deltas = [max(pixel) for pixel in pixels]
+                    nonzero = [(index % left.size[0], index // left.size[0]) for index, pixel in enumerate(pixels) if pixel != (0, 0, 0, 0)]
                     ratio = failed / total if total else 1.0
                     exact_or_near = {}
                     for tolerance in (1, 2, 5, 10, 25):
