@@ -96,10 +96,26 @@ jobs:
       # Fail-closed: tools/perf_parity.py --require-db exits non-zero when the bench
       # database is unavailable, executed_cases == 0, skipped_cases > 0, or
       # failed_cases > 0.
+      # Re-check right before the 1.5 GiB oracle sidecar starts: the stack is up
+      # now and production shares the same VM memory.
+      - name: Check memory for the oracle sidecar
+        run: |
+          avail_mib="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
+          echo "MemAvailable: ${avail_mib} MiB"
+          if [ "$avail_mib" -lt 1800 ]; then
+            echo "Not enough free memory for the 1.5 GiB oracle sidecar" >&2
+            exit 2
+          fi
+
       - name: Run required ERPNext oracle parity suite
         run: python3 tools/perf_parity.py --require-db --profile 2gb --gp-1y "$GP_1Y"
 
       # Free the shared WSL VM's memory again; keeps the seeded volumes.
       - name: Stop the perf stack
         if: always()
-        run: bash perf-suite/scripts/down.sh
+        run: |
+          # The oracle sidecar is a standalone `docker run`, outside Compose;
+          # remove any left behind by a cancelled or failed run first.
+          sidecars="$(docker ps -aq --filter label=khitmee.perf.parity-sidecar=1)"
+          if [ -n "$sidecars" ]; then docker rm -f $sidecars; fi
+          bash perf-suite/scripts/down.sh

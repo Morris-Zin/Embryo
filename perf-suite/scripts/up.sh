@@ -139,8 +139,8 @@ export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
 : "${ADMIN_PASSWORD:?ADMIN_PASSWORD is missing in $ENV_FILE}"
 SITE_NAME="${SITE_NAME:-$DEFAULT_SITE_NAME}"
 PERF_HTTP_PORT="${PERF_HTTP_PORT:-18086}"
-if [[ ! "$PERF_HTTP_PORT" =~ ^[0-9]+$ ]]; then
-  echo "PERF_HTTP_PORT must be numeric" >&2
+if [[ ! "$PERF_HTTP_PORT" =~ ^[0-9]+$ ]] || (( PERF_HTTP_PORT < 1024 || PERF_HTTP_PORT > 65535 )); then
+  echo "PERF_HTTP_PORT must be a port between 1024 and 65535" >&2
   exit 2
 fi
 site_name_lower="${SITE_NAME,,}"
