@@ -2,18 +2,30 @@
   "schemaVersion": 1,
   "screenId": "sales-voucher",
   "state": "initial",
-  "actions": [],
-  "capturedAt": "2026-11-27T13:32:01.206Z",
+  "actions": [
+    {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    },
+    {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "Add at least one item before submitting."
+    }
+  ],
+  "capturedAt": "2026-11-27T14:09:33.633Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "26b9c6642752f5c70e697015a069740df6523a64fbc662a7776f4677d8ce89ef",
+  "screenshotSha256": "1ac5d42889ca815e6e57d4ed9f614256153662f58c2f6e958b280868eefc12f9",
   "window": {
     "position": {
-      "x": 260,
-      "y": 260
+      "x": 104,
+      "y": 104
     },
     "rootElementHandle": {
       "generation": "1",
@@ -25,7 +37,7 @@
       "width": 1180
     }
   },
-  "elementCount": 112,
+  "elementCount": 115,
   "toolNames": [
     "list_windows",
     "get_window_properties",

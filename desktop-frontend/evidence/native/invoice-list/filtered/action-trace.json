@@ -1,0 +1,17 @@
+[
+  {
+    "index": 0,
+    "action": {
+      "type": "fill",
+      "elementId": "invoice-filter",
+      "value": "04921"
+    }
+  },
+  {
+    "index": 1,
+    "action": {
+      "type": "wait",
+      "ms": 500
+    }
+  }
+]

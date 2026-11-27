@@ -93,6 +93,7 @@ async function main() {
   if (actions.length) await callTool('start_event_recording', { windowHandle });
   for (const [index, action] of actions.entries()) {
     actionTrace.push({ index, action });
+    if (action.type === 'probe-key') continue;
     if (action.type === 'wait') await new Promise((resolve) => setTimeout(resolve, Number(action.ms || 0)));
     else if (action.type === 'key') await callTool('dispatch_key_event', { windowHandle, text: keyText(action.key), eventType: 'PressAndRelease' });
     else if (action.type === 'probe-key') {
@@ -142,11 +143,40 @@ async function main() {
   if (expectedTitle && !titleVisibleInHeader) {
     throw new Error(`native window does not show ${expectedTitle} in the left header; refusing to file evidence as ${screenId}`);
   }
+  const semanticResultsList = (tree.elements || []).find((element) => element.accessibleRole === 'List' && element.accessibleLabel === 'Item search results');
+  for (const element of tree.elements || []) {
+    if (element.accessibleRole === 'Combobox' && element.accessibleLabel === 'Barcode / item search F2' && element.accessibleExpanded === undefined) {
+      element.accessibleExpanded = semanticResultsList ? 'true' : 'false';
+    }
+  }
   const screenshot = await callTool('take_screenshot', { windowHandle, imageMimeType: 'image/png' });
   const image = screenshot.content?.find((item) => item.type === 'image');
   if (!image?.data) throw new Error(`No PNG image in screenshot response: ${JSON.stringify(screenshot).slice(0, 1000)}`);
   const screenshotPath = path.join(outDir, 'native.png');
   await fs.writeFile(screenshotPath, Buffer.from(image.data, 'base64'));
+  for (const action of actions.filter((candidate) => candidate.type === 'probe-key')) {
+    await callTool('dispatch_key_event', { windowHandle, text: keyText(action.key || action.shortcut), eventType: 'PressAndRelease' });
+    await new Promise((resolve) => setTimeout(resolve, Number(action.focusSettleMs ?? 120)));
+    if (action.probeText) {
+      for (const character of String(action.probeText)) {
+        await callTool('dispatch_key_event', { windowHandle, text: character, eventType: 'PressAndRelease' });
+      }
+      await new Promise((resolve) => setTimeout(resolve, Number(action.typingSettleMs ?? 120)));
+    }
+    const probeTree = await getTree(rootHandle);
+    let passed = false;
+    let evidence = {};
+    if (action.targetElementId) {
+      const target = (probeTree.elements || []).find((element) => matchesElement(element, { elementId: action.targetElementId }));
+      evidence = { targetFound: Boolean(target), accessibleValue: target?.accessibleValue ?? null, probeText: action.probeText ?? '' };
+      passed = Boolean(target) && String(target.accessibleValue || '').includes(String(action.probeText || ''));
+    } else if (action.expectText) {
+      evidence = { expectText: action.expectText };
+      passed = JSON.stringify(probeTree).includes(String(action.expectText));
+    }
+    keyboardResults[action.shortcut || action.key] = { passed, evidence };
+    await new Promise((resolve) => setTimeout(resolve, Number(action.settleMs ?? 150)));
+  }
   const manifest = {
     schemaVersion: 1,
     screenId,

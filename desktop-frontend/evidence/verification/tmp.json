@@ -1,0 +1,31 @@
+{
+  "reference": "desktop-frontend\\evidence\\web-reference\\khitmee-transfer\\draft-line\\reference.png",
+  "native": "desktop-frontend\\evidence\\native\\stock-transfer\\draft-line\\native.png",
+  "referenceSha256": "867f87585313e50ade1176ea0598ea99979c384423b89f25273d2340a470a775",
+  "nativeSha256": "ff6b2805964d9818924e6c3359f08c3989b926cbc13758b1f30fd9b79125d19b",
+  "passed": false,
+  "referenceSize": [
+    1180,
+    760
+  ],
+  "nativeSize": [
+    1180,
+    760
+  ],
+  "byteIdentical": false,
+  "dimensionsMatch": true,
+  "pixelsExactlyEqual": false,
+  "totalPixels": 896800,
+  "failedPixels": 203898,
+  "failedPixelRatio": 0.22736173059768064,
+  "maxFailedPixelRatio": 0.0,
+  "meanMaxChannelDelta": 6.65107047279215,
+  "maxChannelDelta": 255,
+  "diffBounds": {
+    "left": 0,
+    "top": 0,
+    "right": 1180,
+    "bottom": 760
+  },
+  "diffImage": "desktop-frontend\\evidence\\verification\\tmp.diff.png"
+}

@@ -10,7 +10,7 @@
     },
     {
       "type": "wait",
-      "ms": 300
+      "ms": 500
     },
     {
       "type": "key",
@@ -18,20 +18,31 @@
     },
     {
       "type": "wait",
-      "ms": 400
+      "ms": 500
+    },
+    {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    },
+    {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "BLOCKED: authoritative ERPNext submission"
     }
   ],
-  "capturedAt": "2026-11-27T13:37:31.565Z",
+  "capturedAt": "2026-11-27T14:09:39.579Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "0197e28092ce5806de519a7978470001b3cfb3a9f95f323290b3ee9581821090",
+  "screenshotSha256": "d316e184a897df74957033d00ae34e0ce7d161c82fad36a242f85c35cfbe3652",
   "window": {
     "position": {
-      "x": 234,
-      "y": 234
+      "x": 156,
+      "y": 156
     },
     "rootElementHandle": {
       "generation": "1",
@@ -43,7 +54,7 @@
       "width": 1180
     }
   },
-  "elementCount": 125,
+  "elementCount": 141,
   "toolNames": [
     "list_windows",
     "get_window_properties",

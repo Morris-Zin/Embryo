@@ -11,7 +11,7 @@
     "index": 1,
     "action": {
       "type": "wait",
-      "ms": 300
+      "ms": 500
     }
   },
   {
@@ -25,7 +25,24 @@
     "index": 3,
     "action": {
       "type": "wait",
-      "ms": 400
+      "ms": 500
+    }
+  },
+  {
+    "index": 4,
+    "action": {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    }
+  },
+  {
+    "index": 5,
+    "action": {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "BLOCKED: authoritative ERPNext submission"
     }
   }
 ]

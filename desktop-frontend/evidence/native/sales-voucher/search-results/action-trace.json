@@ -11,7 +11,24 @@
     "index": 1,
     "action": {
       "type": "wait",
-      "ms": 400
+      "ms": 500
+    }
+  },
+  {
+    "index": 2,
+    "action": {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    }
+  },
+  {
+    "index": 3,
+    "action": {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "Add at least one item before submitting."
     }
   }
 ]

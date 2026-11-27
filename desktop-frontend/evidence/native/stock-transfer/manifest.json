@@ -6,19 +6,30 @@
     {
       "type": "click",
       "label": "Transfer"
+    },
+    {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    },
+    {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "Add at least one item before submitting."
     }
   ],
-  "capturedAt": "2026-11-27T13:32:02.165Z",
+  "capturedAt": "2026-11-27T14:09:43.304Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "cd4bbafd42653dae281e46b38ac108a86404f44c03ee8c570893c1d08d4b5f54",
+  "screenshotSha256": "05535c4d49b4220d456f6454b15ed4f92ca3a30b856e04157089537c77a0039f",
   "window": {
     "position": {
-      "x": 260,
-      "y": 260
+      "x": 208,
+      "y": 208
     },
     "rootElementHandle": {
       "generation": "1",
@@ -30,7 +41,7 @@
       "width": 1180
     }
   },
-  "elementCount": 110,
+  "elementCount": 113,
   "toolNames": [
     "list_windows",
     "get_window_properties",

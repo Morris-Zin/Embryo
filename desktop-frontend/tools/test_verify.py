@@ -46,6 +46,7 @@ class VerifyHarnessTest(unittest.TestCase):
         element = {
             "accessibleRole": "Button",
             "accessibleLabel": "Save",
+            "accessibleEnabled": True,
             "absolutePosition": {"x": 1, "y": 2},
             "size": {"width": 5, "height": 4},
             "computedOpacity": 1,

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "screenId": "invoice-list",
+  "state": "filtered",
+  "actions": [
+    {
+      "type": "fill",
+      "elementId": "invoice-filter",
+      "value": "04921"
+    },
+    {
+      "type": "wait",
+      "ms": 500
+    }
+  ],
+  "capturedAt": "2026-11-27T14:09:53.553Z",
+  "server": {
+    "name": "slint-mcp-embedded",
+    "version": "0.1.0"
+  },
+  "screenshot": "native.png",
+  "screenshotSha256": "d2e28daf9d661cfec3fd7ac3be12609ff53c8f2e751205fb21a071dd476acdd0",
+  "window": {
+    "position": {
+      "x": 52,
+      "y": 52
+    },
+    "rootElementHandle": {
+      "generation": "1",
+      "index": "1"
+    },
+    "scaleFactor": 1,
+    "size": {
+      "height": 760,
+      "width": 1180
+    }
+  },
+  "elementCount": 139,
+  "toolNames": [
+    "list_windows",
+    "get_window_properties",
+    "get_element_tree",
+    "get_element_properties",
+    "find_elements_by_id",
+    "query_element_descendants",
+    "take_screenshot",
+    "click_element",
+    "drag_element",
+    "hover_element",
+    "move_pointer",
+    "scroll_element",
+    "dispatch_pointer_scroll",
+    "invoke_accessibility_action",
+    "set_element_value",
+    "dispatch_key_event",
+    "start_event_recording",
+    "stop_event_recording"
+  ]
+}

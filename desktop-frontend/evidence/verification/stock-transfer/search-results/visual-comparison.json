@@ -1,0 +1,31 @@
+{
+  "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-transfer\\search-results\\reference.png",
+  "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\stock-transfer\\search-results\\native.png",
+  "referenceSha256": "6f7dd175f424407483fc457bedeeeb408a9672994f44a90679e33cd1b40db3f9",
+  "nativeSha256": "448f6fb312672157bcf3c428e08f1baeb3d1651e1f12ff6cdf8f38a6f8fb5794",
+  "passed": false,
+  "referenceSize": [
+    1180,
+    760
+  ],
+  "nativeSize": [
+    1180,
+    760
+  ],
+  "byteIdentical": false,
+  "dimensionsMatch": true,
+  "pixelsExactlyEqual": false,
+  "totalPixels": 896800,
+  "failedPixels": 239212,
+  "failedPixelRatio": 0.2667395182872435,
+  "maxFailedPixelRatio": 0.0,
+  "meanMaxChannelDelta": 7.629495985727029,
+  "maxChannelDelta": 255,
+  "diffBounds": {
+    "left": 0,
+    "top": 0,
+    "right": 1180,
+    "bottom": 760
+  },
+  "diffImage": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\verification\\stock-transfer\\search-results\\visual-comparison.diff.png"
+}

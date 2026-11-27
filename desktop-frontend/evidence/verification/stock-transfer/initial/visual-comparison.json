@@ -2,7 +2,7 @@
   "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-transfer\\reference.png",
   "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\stock-transfer\\native.png",
   "referenceSha256": "ab56fa217b116e81a5622500f928745c49a72990ef8aec24cb8b8d985a176e77",
-  "nativeSha256": "cd4bbafd42653dae281e46b38ac108a86404f44c03ee8c570893c1d08d4b5f54",
+  "nativeSha256": "05535c4d49b4220d456f6454b15ed4f92ca3a30b856e04157089537c77a0039f",
   "passed": false,
   "referenceSize": [
     1180,
@@ -16,10 +16,10 @@
   "dimensionsMatch": true,
   "pixelsExactlyEqual": false,
   "totalPixels": 896800,
-  "failedPixels": 208018,
-  "failedPixelRatio": 0.23195584299732383,
+  "failedPixels": 207314,
+  "failedPixelRatio": 0.23117082961641391,
   "maxFailedPixelRatio": 0.0,
-  "meanMaxChannelDelta": 6.728219223907225,
+  "meanMaxChannelDelta": 6.666177520071365,
   "maxChannelDelta": 255,
   "diffBounds": {
     "left": 0,

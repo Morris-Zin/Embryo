@@ -8,7 +8,7 @@
     {
       "type": "console",
       "level": "warning",
-      "text": "WebSocket connection to 'ws://127.0.0.1:18086/socket.io/?EIO=4&transport=websocket&sid=f6PCTXDmxUcEkfPpAAAN' failed: WebSocket is closed before the connection is established."
+      "text": "WebSocket connection to 'ws://127.0.0.1:18086/socket.io/?EIO=4&transport=websocket&sid=jHtrHya4t30AuLvJAAA-' failed: WebSocket is closed before the connection is established."
     },
     {
       "type": "console",
@@ -19,6 +19,22 @@
       "type": "console",
       "level": "error",
       "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "type": "capture-action",
+      "index": 0,
+      "action": {
+        "type": "click-if-exists",
+        "selector": ".filter-x-button"
+      }
+    },
+    {
+      "type": "capture-action",
+      "index": 1,
+      "action": {
+        "type": "wait",
+        "ms": 1000
+      }
     }
   ],
   "requests": [
@@ -135,16 +151,16 @@
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/assets/frappe/icons/lucide/icons.svg?v=1795430389.0",
+      "url": "http://127.0.0.1:18086/assets/frappe/css/fonts/inter/InterVariable.woff2",
       "method": "GET",
-      "resourceType": "other",
+      "resourceType": "font",
       "status": 200,
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/assets/frappe/css/fonts/inter/InterVariable.woff2",
+      "url": "http://127.0.0.1:18086/assets/frappe/icons/lucide/icons.svg?v=1795430389.0",
       "method": "GET",
-      "resourceType": "font",
+      "resourceType": "other",
       "status": 200,
       "postData": null
     },
@@ -268,7 +284,7 @@
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=07917w1k",
+      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=1wkqk9ya",
       "method": "GET",
       "resourceType": "xhr",
       "status": 200,
@@ -282,58 +298,44 @@
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=079226rx&sid=f6PCTXDmxUcEkfPpAAAN",
+      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=1wkr8nyw&sid=jHtrHya4t30AuLvJAAA-",
       "method": "POST",
       "resourceType": "xhr",
       "status": 200,
       "postData": "40/bench-loadtest.localhost,"
     },
     {
-      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=079242yb&sid=f6PCTXDmxUcEkfPpAAAN",
+      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=1wkr93qd&sid=jHtrHya4t30AuLvJAAA-",
       "method": "GET",
       "resourceType": "xhr",
       "status": 200,
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=0792ht4a&sid=f6PCTXDmxUcEkfPpAAAN",
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.form.load.getdoctype?doctype=Sales%20Invoice&with_parent=1&_=1795788160441",
+      "method": "GET",
+      "resourceType": "xhr",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=1wkrnuow&sid=jHtrHya4t30AuLvJAAA-",
       "method": "GET",
       "resourceType": "xhr",
       "status": 400,
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=0792h575&sid=f6PCTXDmxUcEkfPpAAAN",
+      "url": "http://127.0.0.1:18086/socket.io/?EIO=4&transport=polling&t=1wkrnaxm&sid=jHtrHya4t30AuLvJAAA-",
       "method": "POST",
       "resourceType": "xhr",
       "status": 200,
       "postData": "1"
     },
     {
-      "url": "http://127.0.0.1:18086/api/method/frappe.desk.form.load.getdoctype?doctype=Sales%20Invoice&with_parent=1&_=1795785299267",
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.doctype.notification_log.notification_log.get_notification_logs?limit=20&_=1795788160442",
       "method": "GET",
       "resourceType": "xhr",
-      "status": 200,
-      "postData": null
-    },
-    {
-      "url": "http://127.0.0.1:18086/api/method/frappe.desk.doctype.notification_log.notification_log.get_notification_logs?limit=20&_=1795785299268",
-      "method": "GET",
-      "resourceType": "xhr",
-      "status": 200,
-      "postData": null
-    },
-    {
-      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
-      "method": "GET",
-      "resourceType": "other",
-      "status": 200,
-      "postData": null
-    },
-    {
-      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
-      "method": "GET",
-      "resourceType": "other",
       "status": 200,
       "postData": null
     },
@@ -346,6 +348,13 @@
     },
     {
       "url": "http://127.0.0.1:18086/assets/frappe/dist/flow/frappe.island.C9jOT2gw.css",
+      "method": "GET",
+      "resourceType": "other",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
       "method": "GET",
       "resourceType": "other",
       "status": 200,
@@ -373,7 +382,42 @@
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get_list?fields=%5B%22name%22%2C%22filter_name%22%2C%22for_user%22%2C%22is_standard%22%2C%22filters%22%2C%22columns%22%2C%22sort_field%22%2C%22sort_order%22%2C%22route_signature%22%5D&filters=%7B%22reference_doctype%22%3A%22Sales%20Invoice%22%7D&or_filters=%5B%5B%22for_user%22%2C%22%3D%22%2C%22Administrator%22%5D%2C%5B%22for_user%22%2C%22%3D%22%2C%22%22%5D%5D&order_by=is_standard%20desc%2C%20layout_order%20asc%2C%20filter_name%20asc&limit=200&doctype=List%20Filter&_=1795785299269",
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get_list?fields=%5B%22name%22%2C%22filter_name%22%2C%22for_user%22%2C%22is_standard%22%2C%22filters%22%2C%22columns%22%2C%22sort_field%22%2C%22sort_order%22%2C%22route_signature%22%5D&filters=%7B%22reference_doctype%22%3A%22Sales%20Invoice%22%7D&or_filters=%5B%5B%22for_user%22%2C%22%3D%22%2C%22Administrator%22%5D%2C%5B%22for_user%22%2C%22%3D%22%2C%22%22%5D%5D&order_by=is_standard%20desc%2C%20layout_order%20asc%2C%20filter_name%20asc&limit=200&doctype=List%20Filter&_=1795788160443",
+      "method": "GET",
+      "resourceType": "xhr",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get",
+      "method": "POST",
+      "resourceType": "xhr",
+      "status": 200,
+      "postData": "doctype=Sales+Invoice&fields=%5B%22%60tabSales+Invoice%60.%60name%60%22%2C%22%60tabSales+Invoice%60.%60owner%60%22%2C%22%60tabSales+Invoice%60.%60creation%60%22%2C%22%60tabSales+Invoice%60.%60modified%60%22%2C%22%60tabSales+Invoice%60.%60modified_by%60%22%2C%22%60tabSales+Invoice%60.%60_user_tags%60%22%2C%22%60tabSales+Invoice%60.%60_assign%60%22%2C%22%60tabSales+Invoice%60.%60_liked_by%60%22%2C%22%60tabSales+Invoice%60.%60docstatus%60%22%2C%22%60tabSales+Invoice%60.%60idx%60%22%2C%22%60tabSales"
+    },
+    {
+      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
+      "method": "GET",
+      "resourceType": "other",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get_count?doctype=Sales%20Invoice&filters=%5B%5B%22Sales%20Invoice%22%2C%22name%22%2C%22like%22%2C%22%2504921%25%22%5D%5D&fields=%5B%5D&distinct=false&limit=1001",
+      "method": "GET",
+      "resourceType": "xhr",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
+      "method": "GET",
+      "resourceType": "other",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get_count?doctype=Sales%20Invoice&filters=%5B%5B%22Sales%20Invoice%22%2C%22name%22%2C%22like%22%2C%22%2504921%25%22%5D%5D&fields=%5B%5D&distinct=false&limit=1001",
       "method": "GET",
       "resourceType": "xhr",
       "status": 200,
@@ -391,19 +435,26 @@
       "method": "POST",
       "resourceType": "xhr",
       "status": 200,
-      "postData": "doctype=Sales+Invoice&user_settings=%7B%22updated_on%22%3A%22Fri+Nov+27+2026+13%3A14%3A59+GMT%2B0000%22%2C%22last_view%22%3A%22List%22%7D"
+      "postData": "doctype=Sales+Invoice&user_settings=%7B%22updated_on%22%3A%22Fri+Nov+27+2026+14%3A02%3A40+GMT%2B0000%22%2C%22last_view%22%3A%22List%22%2C%22List%22%3A%7B%22filters%22%3A%5B%5D%2C%22sort_by%22%3A%22creation%22%2C%22sort_order%22%3A%22desc%22%7D%7D"
     },
     {
-      "url": "http://127.0.0.1:18086/api/method/frappe.model.utils.user_settings.save",
-      "method": "POST",
-      "resourceType": "xhr",
+      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
+      "method": "GET",
+      "resourceType": "other",
       "status": 200,
-      "postData": "doctype=Sales+Invoice&user_settings=%7B%22updated_on%22%3A%22Fri+Nov+27+2026+13%3A14%3A59+GMT%2B0000%22%2C%22List%22%3A%7B%22filters%22%3A%5B%5D%2C%22sort_by%22%3A%22creation%22%2C%22sort_order%22%3A%22desc%22%7D%7D"
+      "postData": null
     },
     {
       "url": "http://127.0.0.1:18086/api/method/frappe.desk.reportview.get_count?doctype=Sales%20Invoice&filters=%5B%5D&fields=%5B%5D&distinct=false&limit=1001",
       "method": "GET",
       "resourceType": "xhr",
+      "status": 200,
+      "postData": null
+    },
+    {
+      "url": "http://127.0.0.1:18086/assets/erpnext/images/erpnext-favicon.svg",
+      "method": "GET",
+      "resourceType": "other",
       "status": 200,
       "postData": null
     }

@@ -2,7 +2,7 @@
   "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\khitmee-sales\\search-results\\reference.png",
   "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\sales-voucher\\search-results\\native.png",
   "referenceSha256": "8e4a168e0d7d50503013bd32903b6ec20803d291600e883bea0efe5f7355414a",
-  "nativeSha256": "66f31e6db042fe389afe0af2757d92c21b8762d4c0ec818d6d365922b54f257e",
+  "nativeSha256": "52ac75da8c892fa57e6a54ac5fd84c18f7612211cbb20de0d9d2b77095f0e14e",
   "passed": false,
   "referenceSize": [
     1180,
@@ -16,10 +16,10 @@
   "dimensionsMatch": true,
   "pixelsExactlyEqual": false,
   "totalPixels": 896800,
-  "failedPixels": 219622,
-  "failedPixelRatio": 0.24489518287243534,
+  "failedPixels": 196135,
+  "failedPixelRatio": 0.21870539696699376,
   "maxFailedPixelRatio": 0.0,
-  "meanMaxChannelDelta": 7.362552408563782,
+  "meanMaxChannelDelta": 6.69050401427297,
   "maxChannelDelta": 255,
   "diffBounds": {
     "left": 0,

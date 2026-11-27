@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "screenId": "stock-transfer",
+  "state": "search-results",
+  "actions": [
+    {
+      "type": "click",
+      "label": "Transfer"
+    },
+    {
+      "type": "fill",
+      "elementId": "item-search",
+      "value": "Mekong"
+    },
+    {
+      "type": "wait",
+      "ms": 500
+    },
+    {
+      "type": "probe-key",
+      "key": "F2",
+      "probeText": "KM",
+      "targetElementId": "item-search"
+    },
+    {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "Add at least one item before submitting."
+    }
+  ],
+  "capturedAt": "2026-11-27T14:09:46.438Z",
+  "server": {
+    "name": "slint-mcp-embedded",
+    "version": "0.1.0"
+  },
+  "screenshot": "native.png",
+  "screenshotSha256": "448f6fb312672157bcf3c428e08f1baeb3d1651e1f12ff6cdf8f38a6f8fb5794",
+  "window": {
+    "position": {
+      "x": 234,
+      "y": 234
+    },
+    "rootElementHandle": {
+      "generation": "1",
+      "index": "1"
+    },
+    "scaleFactor": 1,
+    "size": {
+      "height": 760,
+      "width": 1180
+    }
+  },
+  "elementCount": 319,
+  "toolNames": [
+    "list_windows",
+    "get_window_properties",
+    "get_element_tree",
+    "get_element_properties",
+    "find_elements_by_id",
+    "query_element_descendants",
+    "take_screenshot",
+    "click_element",
+    "drag_element",
+    "hover_element",
+    "move_pointer",
+    "scroll_element",
+    "dispatch_pointer_scroll",
+    "invoke_accessibility_action",
+    "set_element_value",
+    "dispatch_key_event",
+    "start_event_recording",
+    "stop_event_recording"
+  ]
+}

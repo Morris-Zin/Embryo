@@ -796,6 +796,7 @@
         "x": 758,
         "y": 10
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "☰  List View  ⌄",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -883,6 +884,7 @@
         "x": 884,
         "y": 10
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "⟳",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -970,6 +972,7 @@
         "x": 924,
         "y": 10
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "⋯",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -1367,7 +1370,7 @@
         "x": 576,
         "y": 60
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -1438,7 +1441,7 @@
         "x": 708,
         "y": 60
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -1957,7 +1960,7 @@
         "x": 708,
         "y": 97
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {

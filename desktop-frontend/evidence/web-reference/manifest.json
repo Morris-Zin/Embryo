@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-11-27T13:35:04.536Z",
+  "capturedAt": "2026-11-27T14:04:13.307Z",
   "baseUrl": "http://127.0.0.1:18086",
   "viewport": {
     "width": 1180,
@@ -9,33 +9,32 @@
   },
   "routes": [
     {
-      "route": "/khitmee_sales",
-      "id": "khitmee-sales",
+      "route": "/app/sales-invoice",
+      "id": "app-sales-invoice",
       "httpStatus": 200,
-      "screenshot": "khitmee-sales/draft-line/reference.png",
-      "screenshotSha256": "a4eb9d65571560f84dc8bd2b7a04b0be201e71ebc6ab1f5b48018fd9ffa63513",
-      "controls": 20,
-      "title": "Khitmee Sales Counter",
-      "h1": "Sales Counter",
-      "state": "draft-line",
+      "screenshot": "app-sales-invoice/filtered/reference.png",
+      "screenshotSha256": "2ed2c0c816559070a917f7f7016da365e25f29fd4e071702585f7da275fb56e3",
+      "controls": 145,
+      "title": "Sales Invoice",
+      "h1": "",
+      "state": "filtered",
       "actions": [
         {
+          "type": "click-if-exists",
+          "selector": ".filter-x-button"
+        },
+        {
+          "type": "wait",
+          "ms": 500
+        },
+        {
           "type": "fill",
-          "selector": "#item-search",
-          "value": "8850000000010"
+          "selector": "input[placeholder=\"ID\"]",
+          "value": "04921"
         },
         {
           "type": "wait",
-          "ms": 500
-        },
-        {
-          "type": "press",
-          "selector": "#item-search",
-          "key": "Enter"
-        },
-        {
-          "type": "wait",
-          "ms": 500
+          "ms": 1000
         }
       ]
     }

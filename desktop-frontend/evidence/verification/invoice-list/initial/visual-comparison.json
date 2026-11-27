@@ -1,7 +1,7 @@
 {
   "reference": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\web-reference\\app-sales-invoice\\reference.png",
   "native": "C:\\Users\\Administrator\\repos\\Embryo\\desktop-frontend\\evidence\\native\\invoice-list\\native.png",
-  "referenceSha256": "f3f0d28d6de196aa6420aba0ccdaf55576db359bd8fe4290177d2f816849c53d",
+  "referenceSha256": "02f0c55eb44d77d9dd1933d4fc3af36cdc3b00deaf11554eb51a9f102c2d1d90",
   "nativeSha256": "a83973f8792fc970b3cea9a9a72118b52e838de14109945eb786befdd0199aea",
   "passed": false,
   "referenceSize": [
@@ -19,7 +19,7 @@
   "failedPixels": 449449,
   "failedPixelRatio": 0.5011697145405888,
   "maxFailedPixelRatio": 0.0,
-  "meanMaxChannelDelta": 14.537167707404103,
+  "meanMaxChannelDelta": 14.548022970561998,
   "maxChannelDelta": 255,
   "diffBounds": {
     "left": 0,

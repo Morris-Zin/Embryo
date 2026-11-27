@@ -122,9 +122,10 @@
     },
     {
       "absolutePosition": {
-        "x": 973,
-        "y": 26
+        "x": 973.140625,
+        "y": 25.5
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "Sales",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -134,7 +135,7 @@
       },
       "size": {
         "height": 40,
-        "width": 70
+        "width": 69.828125
       },
       "typeNamesAndIds": [
         {
@@ -148,8 +149,8 @@
     },
     {
       "absolutePosition": {
-        "x": 973,
-        "y": 26
+        "x": 973.140625,
+        "y": 25.5
       },
       "computedOpacity": 1,
       "handle": {
@@ -158,7 +159,7 @@
       },
       "size": {
         "height": 40,
-        "width": 70
+        "width": 69.828125
       },
       "typeNamesAndIds": [
         {
@@ -169,8 +170,8 @@
     },
     {
       "absolutePosition": {
-        "x": 991,
-        "y": 36.5
+        "x": 991.0546875,
+        "y": 36
       },
       "accessibleLabel": "Sales",
       "accessibleRole": "Text",
@@ -191,9 +192,10 @@
     },
     {
       "absolutePosition": {
-        "x": 1051,
-        "y": 26
+        "x": 1050.96875,
+        "y": 25.5
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "Transfer",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -203,7 +205,7 @@
       },
       "size": {
         "height": 40,
-        "width": 93
+        "width": 93.03125
       },
       "typeNamesAndIds": [
         {
@@ -217,8 +219,8 @@
     },
     {
       "absolutePosition": {
-        "x": 1051,
-        "y": 26
+        "x": 1050.96875,
+        "y": 25.5
       },
       "computedOpacity": 1,
       "handle": {
@@ -227,7 +229,7 @@
       },
       "size": {
         "height": 40,
-        "width": 93
+        "width": 93.03125
       },
       "typeNamesAndIds": [
         {
@@ -238,8 +240,8 @@
     },
     {
       "absolutePosition": {
-        "x": 1070.5,
-        "y": 36.5
+        "x": 1070.484375,
+        "y": 36
       },
       "accessibleLabel": "Transfer",
       "accessibleRole": "Text",
@@ -347,10 +349,10 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 186
+        "y": 185.59375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "Dist Hub 1",
+      "accessibleLabel": "Shop warehouse",
       "accessibleRole": "Combobox",
       "computedOpacity": 1,
       "handle": {
@@ -359,7 +361,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -374,7 +376,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 186
+        "y": 185.59375
       },
       "accessibleLabel": "Dist Hub 1",
       "accessibleRole": "Text",
@@ -385,7 +387,7 @@
       },
       "size": {
         "height": 40,
-        "width": 362
+        "width": 362.421875
       },
       "typeNamesAndIds": [
         {
@@ -395,10 +397,10 @@
     },
     {
       "absolutePosition": {
-        "x": 421,
-        "y": 186
+        "x": 421.421875,
+        "y": 185.59375
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -470,9 +472,10 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 263
+        "y": 262.78125
       },
       "accessibleEnabled": true,
+      "accessibleLabel": "Customer Choose customer Load more customers",
       "accessiblePlaceholderText": "Filter customers…",
       "accessibleRole": "TextInput",
       "computedOpacity": 1,
@@ -482,7 +485,7 @@
       },
       "size": {
         "height": 48,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -493,7 +496,7 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -502,7 +505,7 @@
       },
       "size": {
         "height": 48,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -514,7 +517,7 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -524,7 +527,7 @@
       "layoutKind": "HorizontalLayout",
       "size": {
         "height": 48,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -536,7 +539,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -545,7 +548,7 @@
       },
       "size": {
         "height": 48,
-        "width": 372
+        "width": 372.421875
       },
       "typeNamesAndIds": [
         {
@@ -561,7 +564,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -570,7 +573,7 @@
       },
       "size": {
         "height": 48,
-        "width": 372
+        "width": 372.421875
       },
       "typeNamesAndIds": [
         {}
@@ -579,7 +582,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -588,7 +591,7 @@
       },
       "size": {
         "height": 48,
-        "width": 372
+        "width": 372.421875
       },
       "typeNamesAndIds": [
         {
@@ -600,7 +603,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -609,7 +612,7 @@
       },
       "size": {
         "height": 48,
-        "width": 372
+        "width": 372.421875
       },
       "typeNamesAndIds": [
         {
@@ -620,7 +623,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 263
+        "y": 262.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -629,7 +632,7 @@
       },
       "size": {
         "height": 48,
-        "width": 371
+        "width": 371.421875
       },
       "typeNamesAndIds": [
         {
@@ -641,7 +644,7 @@
     {
       "absolutePosition": {
         "x": 53,
-        "y": 309
+        "y": 308.78125
       },
       "computedOpacity": 1,
       "handle": {
@@ -650,7 +653,7 @@
       },
       "size": {
         "height": 2,
-        "width": 388
+        "width": 388.421875
       },
       "typeNamesAndIds": [
         {
@@ -677,10 +680,9 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 316
+        "y": 316.375
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "Choose customer",
       "accessibleRole": "Combobox",
       "computedOpacity": 1,
       "handle": {
@@ -689,7 +691,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -704,7 +706,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 316
+        "y": 316.375
       },
       "accessibleLabel": "Choose customer",
       "accessibleRole": "Text",
@@ -715,7 +717,7 @@
       },
       "size": {
         "height": 40,
-        "width": 362
+        "width": 362.421875
       },
       "typeNamesAndIds": [
         {
@@ -725,10 +727,10 @@
     },
     {
       "absolutePosition": {
-        "x": 421,
-        "y": 316
+        "x": 421.421875,
+        "y": 316.375
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -748,7 +750,7 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 362
+        "y": 361.96875
       },
       "computedOpacity": 1,
       "handle": {
@@ -757,7 +759,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {}
@@ -766,7 +768,7 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 362
+        "y": 361.96875
       },
       "computedOpacity": 1,
       "handle": {
@@ -781,8 +783,9 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 362
+        "y": 361.96875
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "Load more customers",
       "accessibleRole": "Button",
       "computedOpacity": 1,
@@ -792,7 +795,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -807,7 +810,7 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 362
+        "y": 361.96875
       },
       "computedOpacity": 1,
       "handle": {
@@ -816,7 +819,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -827,8 +830,8 @@
     },
     {
       "absolutePosition": {
-        "x": 176,
-        "y": 372.5
+        "x": 176.2109375,
+        "y": 372.46875
       },
       "accessibleLabel": "Load more customers",
       "accessibleRole": "Text",
@@ -902,10 +905,10 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 439
+        "y": 439.15625
       },
       "accessibleEnabled": true,
-      "accessibleLabel": "No payment / credit",
+      "accessibleLabel": "Payment mode",
       "accessibleRole": "Combobox",
       "computedOpacity": 1,
       "handle": {
@@ -914,7 +917,7 @@
       },
       "size": {
         "height": 40,
-        "width": 396
+        "width": 396.421875
       },
       "typeNamesAndIds": [
         {
@@ -929,7 +932,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 439
+        "y": 439.15625
       },
       "accessibleLabel": "No payment / credit",
       "accessibleRole": "Text",
@@ -940,7 +943,7 @@
       },
       "size": {
         "height": 40,
-        "width": 362
+        "width": 362.421875
       },
       "typeNamesAndIds": [
         {
@@ -950,10 +953,10 @@
     },
     {
       "absolutePosition": {
-        "x": 421,
-        "y": 439
+        "x": 421.421875,
+        "y": 439.15625
       },
-      "accessibleLabel": "⌄",
+      "accessibleLabel": "▾",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
@@ -1025,10 +1028,8 @@
     {
       "absolutePosition": {
         "x": 49,
-        "y": 517
+        "y": 516.34375
       },
-      "accessibleLabel": "Voucher 80mm",
-      "accessibleRole": "RadioButton",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
@@ -1036,7 +1037,7 @@
       },
       "size": {
         "height": 42,
-        "width": 143
+        "width": 143.0625
       },
       "typeNamesAndIds": [
         {
@@ -1051,7 +1052,7 @@
     {
       "absolutePosition": {
         "x": 61,
-        "y": 530
+        "y": 529.34375
       },
       "computedOpacity": 1,
       "handle": {
@@ -1070,13 +1071,36 @@
     },
     {
       "absolutePosition": {
-        "x": 64,
-        "y": 533
+        "x": 62,
+        "y": 517.34375
       },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Voucher 80mm",
+      "accessibleRole": "RadioButton",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
         "index": "52"
+      },
+      "size": {
+        "height": 40,
+        "width": 13
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 64,
+        "y": 532.34375
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "53"
       },
       "size": {
         "height": 8,
@@ -1091,18 +1115,18 @@
     {
       "absolutePosition": {
         "x": 81,
-        "y": 517
+        "y": 516.34375
       },
       "accessibleLabel": "Voucher 80mm",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "53"
+        "index": "54"
       },
       "size": {
         "height": 42,
-        "width": 103
+        "width": 103.0625
       },
       "typeNamesAndIds": [
         {
@@ -1118,7 +1142,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "54"
+        "index": "55"
       },
       "size": {},
       "typeNamesAndIds": [
@@ -1127,19 +1151,17 @@
     },
     {
       "absolutePosition": {
-        "x": 202,
-        "y": 516
+        "x": 202.453125,
+        "y": 516.34375
       },
-      "accessibleLabel": "Canon A4",
-      "accessibleRole": "RadioButton",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "55"
+        "index": "56"
       },
       "size": {
         "height": 42,
-        "width": 108
+        "width": 107.828125
       },
       "typeNamesAndIds": [
         {
@@ -1153,13 +1175,13 @@
     },
     {
       "absolutePosition": {
-        "x": 214,
-        "y": 529
+        "x": 214.453125,
+        "y": 529.34375
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "56"
+        "index": "57"
       },
       "size": {
         "height": 14,
@@ -1173,13 +1195,36 @@
     },
     {
       "absolutePosition": {
-        "x": 217,
-        "y": 532
+        "x": 215.453125,
+        "y": 517.34375
+      },
+      "accessibleEnabled": true,
+      "accessibleLabel": "Canon A4",
+      "accessibleRole": "RadioButton",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "58"
+      },
+      "size": {
+        "height": 40,
+        "width": 13
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 217.453125,
+        "y": 532.34375
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "57"
+        "index": "59"
       },
       "size": {
         "height": 8,
@@ -1193,54 +1238,24 @@
     },
     {
       "absolutePosition": {
-        "x": 234,
-        "y": 516
+        "x": 234.453125,
+        "y": 516.34375
       },
       "accessibleLabel": "Canon A4",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "58"
+        "index": "60"
       },
       "size": {
         "height": 42,
-        "width": 68
+        "width": 67.828125
       },
       "typeNamesAndIds": [
         {
           "typeName": "Text"
         }
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 28,
-        "y": 95
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "59"
-      },
-      "size": {},
-      "typeNamesAndIds": [
-        {}
-      ]
-    },
-    {
-      "absolutePosition": {
-        "x": 28,
-        "y": 95
-      },
-      "computedOpacity": 1,
-      "handle": {
-        "generation": "1",
-        "index": "60"
-      },
-      "size": {},
-      "typeNamesAndIds": [
-        {}
       ]
     },
     {
@@ -1350,13 +1365,43 @@
     },
     {
       "absolutePosition": {
-        "x": 476,
+        "x": 28,
         "y": 95
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
         "index": "68"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 28,
+        "y": 95
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "69"
+      },
+      "size": {},
+      "typeNamesAndIds": [
+        {}
+      ]
+    },
+    {
+      "absolutePosition": {
+        "x": 476,
+        "y": 95
+      },
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "70"
       },
       "size": {
         "height": 481,
@@ -1380,7 +1425,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "69"
+        "index": "71"
       },
       "size": {
         "height": 481,
@@ -1400,7 +1445,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "70"
+        "index": "72"
       },
       "size": {
         "height": 22,
@@ -1422,7 +1467,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "71"
+        "index": "73"
       },
       "size": {
         "height": 18,
@@ -1442,7 +1487,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "72"
+        "index": "74"
       },
       "size": {
         "height": 17,
@@ -1464,7 +1509,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "73"
+        "index": "75"
       },
       "size": {
         "height": 14,
@@ -1478,41 +1523,43 @@
     },
     {
       "absolutePosition": {
-        "x": 495,
-        "y": 207
+        "x": 495.421875,
+        "y": 207.171875
       },
       "accessibleEnabled": true,
+      "accessibleLabel": "Barcode / item search F2",
       "accessiblePlaceholderText": "Scan barcode or type item name…",
       "accessibleRole": "Combobox",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "74"
+        "index": "76"
       },
       "size": {
         "height": 48,
-        "width": 636
+        "width": 635.5625
       },
       "typeNamesAndIds": [
         {
           "id": "CounterScreen::item-search",
           "typeName": "LineEdit"
         }
-      ]
+      ],
+      "accessibleExpanded": "false"
     },
     {
       "absolutePosition": {
-        "x": 495,
-        "y": 207
+        "x": 495.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "75"
+        "index": "77"
       },
       "size": {
         "height": 48,
-        "width": 636
+        "width": 635.5625
       },
       "typeNamesAndIds": [
         {
@@ -1523,18 +1570,18 @@
     },
     {
       "absolutePosition": {
-        "x": 495,
-        "y": 207
+        "x": 495.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "76"
+        "index": "78"
       },
       "layoutKind": "HorizontalLayout",
       "size": {
         "height": 48,
-        "width": 636
+        "width": 635.5625
       },
       "typeNamesAndIds": [
         {
@@ -1545,17 +1592,17 @@
     },
     {
       "absolutePosition": {
-        "x": 507,
-        "y": 207
+        "x": 507.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "77"
+        "index": "79"
       },
       "size": {
         "height": 48,
-        "width": 612
+        "width": 611.5625
       },
       "typeNamesAndIds": [
         {
@@ -1570,17 +1617,17 @@
     },
     {
       "absolutePosition": {
-        "x": 507,
-        "y": 207
+        "x": 507.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "78"
+        "index": "80"
       },
       "size": {
         "height": 48,
-        "width": 612
+        "width": 611.5625
       },
       "typeNamesAndIds": [
         {}
@@ -1588,17 +1635,17 @@
     },
     {
       "absolutePosition": {
-        "x": 507,
-        "y": 207
+        "x": 507.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "79"
+        "index": "81"
       },
       "size": {
         "height": 48,
-        "width": 612
+        "width": 611.5625
       },
       "typeNamesAndIds": [
         {
@@ -1609,17 +1656,17 @@
     },
     {
       "absolutePosition": {
-        "x": 507,
-        "y": 207
+        "x": 507.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "80"
+        "index": "82"
       },
       "size": {
         "height": 48,
-        "width": 612
+        "width": 611.5625
       },
       "typeNamesAndIds": [
         {
@@ -1629,17 +1676,17 @@
     },
     {
       "absolutePosition": {
-        "x": 507,
-        "y": 207
+        "x": 507.421875,
+        "y": 207.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "81"
+        "index": "83"
       },
       "size": {
         "height": 48,
-        "width": 611
+        "width": 610.5625
       },
       "typeNamesAndIds": [
         {
@@ -1650,17 +1697,17 @@
     },
     {
       "absolutePosition": {
-        "x": 499,
-        "y": 253
+        "x": 499.421875,
+        "y": 253.171875
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "82"
+        "index": "84"
       },
       "size": {
         "height": 2,
-        "width": 628
+        "width": 627.5625
       },
       "typeNamesAndIds": [
         {
@@ -1677,7 +1724,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "83"
+        "index": "85"
       },
       "size": {},
       "typeNamesAndIds": [
@@ -1692,7 +1739,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "84"
+        "index": "86"
       },
       "size": {
         "height": 56,
@@ -1712,7 +1759,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "85"
+        "index": "87"
       },
       "size": {
         "height": 96,
@@ -1736,7 +1783,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "86"
+        "index": "88"
       },
       "size": {
         "height": 96,
@@ -1754,7 +1801,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "87"
+        "index": "89"
       },
       "size": {
         "height": 72,
@@ -1776,7 +1823,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "88"
+        "index": "90"
       },
       "size": {
         "height": 22,
@@ -1790,17 +1837,17 @@
     },
     {
       "absolutePosition": {
-        "x": 1064,
-        "y": 605
+        "x": 1064.34375,
+        "y": 605.140625
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "89"
+        "index": "91"
       },
       "size": {
         "height": 40,
-        "width": 67
+        "width": 66.640625
       },
       "typeNamesAndIds": [
         {}
@@ -1808,19 +1855,20 @@
     },
     {
       "absolutePosition": {
-        "x": 1064,
-        "y": 605
+        "x": 1064.34375,
+        "y": 605.140625
       },
+      "accessibleEnabled": true,
       "accessibleLabel": "Clear",
       "accessibleRole": "Button",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "90"
+        "index": "92"
       },
       "size": {
         "height": 40,
-        "width": 67
+        "width": 66.640625
       },
       "typeNamesAndIds": [
         {
@@ -1834,17 +1882,17 @@
     },
     {
       "absolutePosition": {
-        "x": 1064,
-        "y": 605
+        "x": 1064.34375,
+        "y": 605.140625
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "91"
+        "index": "93"
       },
       "size": {
         "height": 40,
-        "width": 67
+        "width": 66.640625
       },
       "typeNamesAndIds": [
         {
@@ -1855,15 +1903,15 @@
     },
     {
       "absolutePosition": {
-        "x": 1080.5,
-        "y": 615.5
+        "x": 1080.6640625,
+        "y": 615.640625
       },
       "accessibleLabel": "Clear",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "92"
+        "index": "94"
       },
       "size": {
         "height": 19,
@@ -1877,13 +1925,35 @@
     },
     {
       "absolutePosition": {
+        "x": 33,
+        "y": 658.9375
+      },
+      "accessibleLabel": "Sale lines",
+      "accessibleRole": "Region",
+      "computedOpacity": 1,
+      "handle": {
+        "generation": "1",
+        "index": "95"
+      },
+      "size": {
+        "height": 34.59375,
+        "width": 1113.984375
+      },
+      "typeNamesAndIds": [
+        {
+          "typeName": "Rectangle"
+        }
+      ]
+    },
+    {
+      "absolutePosition": {
         "x": 28,
         "y": 658
       },
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "93"
+        "index": "96"
       },
       "size": {
         "height": 36,
@@ -1905,7 +1975,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "94"
+        "index": "97"
       },
       "size": {
         "height": 16,
@@ -1927,7 +1997,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "95"
+        "index": "98"
       },
       "size": {
         "height": 16,
@@ -1949,7 +2019,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "96"
+        "index": "99"
       },
       "size": {
         "height": 16,
@@ -1971,7 +2041,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "97"
+        "index": "100"
       },
       "size": {
         "height": 16,
@@ -1993,7 +2063,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "98"
+        "index": "101"
       },
       "size": {
         "height": 16,
@@ -2015,7 +2085,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "99"
+        "index": "102"
       },
       "size": {
         "width": 1124
@@ -2038,7 +2108,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "100"
+        "index": "103"
       },
       "size": {
         "width": 1124
@@ -2058,7 +2128,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "101"
+        "index": "104"
       },
       "size": {},
       "typeNamesAndIds": [
@@ -2073,7 +2143,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "102"
+        "index": "105"
       },
       "size": {},
       "typeNamesAndIds": [
@@ -2087,7 +2157,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "103"
+        "index": "106"
       },
       "size": {
         "height": 72,
@@ -2109,7 +2179,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "104"
+        "index": "107"
       },
       "size": {
         "height": 19,
@@ -2131,7 +2201,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "105"
+        "index": "108"
       },
       "size": {
         "height": 28,
@@ -2153,7 +2223,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "106"
+        "index": "109"
       },
       "size": {
         "height": 19,
@@ -2175,7 +2245,7 @@
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "107"
+        "index": "110"
       },
       "size": {
         "height": 28,
@@ -2189,19 +2259,20 @@
     },
     {
       "absolutePosition": {
-        "x": 330,
+        "x": 241.953125,
         "y": 714
       },
       "accessibleLabel": "Ready. Scan a barcode or press F2 to search.",
+      "accessibleLiveRegion": "Polite",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {
         "generation": "1",
-        "index": "108"
+        "index": "111"
       },
       "size": {
-        "height": 19,
-        "width": 620
+        "height": 20,
+        "width": 703.234375
       },
       "typeNamesAndIds": [
         {
@@ -2211,17 +2282,17 @@
     },
     {
       "absolutePosition": {
-        "x": 961,
+        "x": 961.1875,
         "y": 700
       },
       "computedOpacity": 0.550000011920929,
       "handle": {
         "generation": "1",
-        "index": "109"
+        "index": "112"
       },
       "size": {
         "height": 48,
-        "width": 187
+        "width": 186.8125
       },
       "typeNamesAndIds": [
         {}
@@ -2229,7 +2300,7 @@
     },
     {
       "absolutePosition": {
-        "x": 961,
+        "x": 961.1875,
         "y": 700
       },
       "accessibleLabel": "Submit & Print  F9",
@@ -2237,11 +2308,11 @@
       "computedOpacity": 0.550000011920929,
       "handle": {
         "generation": "1",
-        "index": "110"
+        "index": "113"
       },
       "size": {
         "height": 48,
-        "width": 187
+        "width": 186.8125
       },
       "typeNamesAndIds": [
         {
@@ -2255,17 +2326,17 @@
     },
     {
       "absolutePosition": {
-        "x": 961,
+        "x": 961.1875,
         "y": 700
       },
       "computedOpacity": 0.550000011920929,
       "handle": {
         "generation": "1",
-        "index": "111"
+        "index": "114"
       },
       "size": {
         "height": 48,
-        "width": 187
+        "width": 186.8125
       },
       "typeNamesAndIds": [
         {
@@ -2276,7 +2347,7 @@
     },
     {
       "absolutePosition": {
-        "x": 991.5,
+        "x": 991.59375,
         "y": 714.5
       },
       "accessibleLabel": "Submit & Print  F9",
@@ -2284,7 +2355,7 @@
       "computedOpacity": 0.550000011920929,
       "handle": {
         "generation": "1",
-        "index": "112"
+        "index": "115"
       },
       "size": {
         "height": 19,
@@ -2297,6 +2368,6 @@
       ]
     }
   ],
-  "totalCount": 112,
+  "totalCount": 115,
   "truncated": false
 }

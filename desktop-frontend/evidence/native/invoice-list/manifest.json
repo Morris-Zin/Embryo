@@ -3,7 +3,7 @@
   "screenId": "invoice-list",
   "state": "initial",
   "actions": [],
-  "capturedAt": "2026-11-27T13:33:14.362Z",
+  "capturedAt": "2026-11-27T14:09:51.493Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
@@ -12,8 +12,8 @@
   "screenshotSha256": "a83973f8792fc970b3cea9a9a72118b52e838de14109945eb786befdd0199aea",
   "window": {
     "position": {
-      "x": 78,
-      "y": 78
+      "x": 26,
+      "y": 26
     },
     "rootElementHandle": {
       "generation": "1",

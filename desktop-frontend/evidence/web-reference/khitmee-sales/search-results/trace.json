@@ -32,6 +32,13 @@
       "postData": null
     },
     {
+      "url": "http://127.0.0.1:18086/assets/khitmee_ops/js/catalog_bridge.js?v=1795781267",
+      "method": "GET",
+      "resourceType": "script",
+      "status": 200,
+      "postData": null
+    },
+    {
       "url": "http://127.0.0.1:18086/khitmee_sales",
       "method": "GET",
       "resourceType": "document",
@@ -39,7 +46,7 @@
       "postData": null
     },
     {
-      "url": "http://127.0.0.1:18086/assets/khitmee_ops/js/catalog_bridge.js?v=1795781267",
+      "url": "http://127.0.0.1:18086/assets/khitmee_ops/js/counter_core.js?v=1795778138",
       "method": "GET",
       "resourceType": "script",
       "status": 200,
@@ -54,13 +61,6 @@
     },
     {
       "url": "http://127.0.0.1:18086/assets/khitmee_ops/js/sales_counter.js?v=1795778041",
-      "method": "GET",
-      "resourceType": "script",
-      "status": 200,
-      "postData": null
-    },
-    {
-      "url": "http://127.0.0.1:18086/assets/khitmee_ops/js/counter_core.js?v=1795778138",
       "method": "GET",
       "resourceType": "script",
       "status": 200,

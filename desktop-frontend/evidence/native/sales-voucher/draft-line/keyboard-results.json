@@ -1,3 +1,18 @@
 {
-  "shortcuts": {}
+  "shortcuts": {
+    "F2": {
+      "passed": true,
+      "evidence": {
+        "targetFound": true,
+        "accessibleValue": "KM",
+        "probeText": "KM"
+      }
+    },
+    "F9": {
+      "passed": true,
+      "evidence": {
+        "expectText": "BLOCKED: authoritative ERPNext submission"
+      }
+    }
+  }
 }

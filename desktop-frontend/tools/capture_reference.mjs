@@ -96,6 +96,7 @@ async function main() {
       const target = action.selector ? page.locator(action.selector).first() : null;
       trace.push({ type: 'capture-action', index, action });
       if (action.type === 'fill') await target.fill(String(action.value ?? ''));
+      else if (action.type === 'click-if-exists') { if (await target.count() && await target.isVisible().catch(() => false)) await target.click(); }
       else if (action.type === 'click') await target.click();
       else if (action.type === 'press') await target.press(action.key);
       else if (action.type === 'key') await page.keyboard.press(action.key);
@@ -119,6 +120,30 @@ async function main() {
           role: element.getAttribute('role') || '',
           text: (element.innerText || element.value || element.getAttribute('aria-label') || '').trim(),
           ariaLabel: element.getAttribute('aria-label') || '',
+          accessibilityName: (() => {
+            const explicit = element.getAttribute('aria-label');
+            if (explicit) return explicit.trim();
+            const labelledBy = element.getAttribute('aria-labelledby');
+            if (labelledBy) return labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.innerText || '').join(' ').trim();
+            const label = element.closest('label');
+            if (!label || label.control !== element) return '';
+            const clone = label.cloneNode(true);
+            const sourceSelects = [...label.querySelectorAll('select')];
+            [...clone.querySelectorAll('select')].forEach((copy, index) => {
+              const source = sourceSelects[index];
+              if (source === element) copy.remove();
+              else {
+                const selected = source.options[source.selectedIndex >= 0 ? source.selectedIndex : 0];
+                copy.replaceWith(document.createTextNode(selected ? selected.textContent : ''));
+              }
+            });
+            const sourceInputs = [...label.querySelectorAll('input,textarea')];
+            [...clone.querySelectorAll('input,textarea')].forEach((copy, index) => {
+              if (sourceInputs[index] === element) copy.remove();
+            });
+            return (clone.innerText || '').trim();
+          })(),
+          hasAccessibilityName: Boolean(element.getAttribute('aria-label') || element.getAttribute('aria-labelledby') || (element.closest('label') && (element.closest('label').control === element || element.tagName === 'SELECT'))),
           ariaExpanded: element.getAttribute('aria-expanded') || '',
           keyboard: [...element.querySelectorAll('kbd')].map((kbd) => kbd.textContent.trim()).filter(Boolean),
           inputType: element.getAttribute('type') || '',

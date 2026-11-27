@@ -196,7 +196,7 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
 
 fn search_model(index: &CatalogIndex, term: &str) -> ModelRc<CatalogChoice> {
     let rows = index
-        .search(term, 25)
+        .search(term, 10)
         .into_iter()
         .map(|item| CatalogChoice {
             item_code: item.item_code.clone().into(),
@@ -385,9 +385,6 @@ fn main() -> Result<(), slint::PlatformError> {
                 let item_code = item.item_code.clone();
                 add_item_to_draft(&mut state, item);
                 refresh_voucher(&app, &state);
-                app.set_status_text(SharedString::from(format!(
-                    "Scan accepted: {item_code} added to local draft; ERPNext submission still required"
-                )));
             } else if matches.is_empty() {
                 app.set_status_text("Scan/search matched no item in the local catalog snapshot".into());
             } else {
@@ -405,9 +402,6 @@ fn main() -> Result<(), slint::PlatformError> {
             app.set_search_open(false);
             if let Some(item) = state.by_code.get(code.as_str()).cloned() {
                 add_item_to_draft(&mut state, item);
-                app.set_status_text(
-                    "Item added to local draft; ERPNext submission still required".into(),
-                );
             } else {
                 app.set_status_text("Item no longer exists in the local catalog snapshot".into());
             }
@@ -425,7 +419,56 @@ fn main() -> Result<(), slint::PlatformError> {
                 .lines
                 .retain(|line| line.item.item_code != code.as_str());
             refresh_voucher(&app, &state);
-            app.set_status_text("Line removed from local draft".into());
+        }
+    });
+
+
+    app.on_increase_line({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |code| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            if let Some(line) = state.lines.iter_mut().find(|line| line.item.item_code == code.as_str()) {
+                line.qty = ((line.qty + 1.0) * 1000.0).round() / 1000.0;
+            }
+            refresh_voucher(&app, &state);
+        }
+    });
+
+    app.on_decrease_line({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |code| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            if let Some(position) = state.lines.iter().position(|line| line.item.item_code == code.as_str()) {
+                let next = ((state.lines[position].qty - 1.0) * 1000.0).round() / 1000.0;
+                if next <= 0.0 {
+                    state.lines.remove(position);
+                } else {
+                    state.lines[position].qty = next;
+                }
+            }
+            refresh_voucher(&app, &state);
+        }
+    });
+
+    app.on_line_quantity_edited({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |code, value| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            if let Some(position) = state.lines.iter().position(|line| line.item.item_code == code.as_str()) {
+                let next = value.parse::<f64>().unwrap_or(0.0).max(0.0);
+                if next == 0.0 {
+                    state.lines.remove(position);
+                } else {
+                    state.lines[position].qty = next;
+                }
+            }
+            refresh_voucher(&app, &state);
         }
     });
 
@@ -437,18 +480,22 @@ fn main() -> Result<(), slint::PlatformError> {
             let mut state = state.borrow_mut();
             state.lines.clear();
             refresh_voucher(&app, &state);
-            app.set_status_text("Local draft cleared".into());
         }
     });
 
     app.on_submit_print({
         let app = app.as_weak();
+        let state = state.clone();
         move || {
             let app = app.unwrap();
-            app.set_status_text(
-                "BLOCKED: authoritative ERPNext submission and printer adapter are not configured; no sale was fabricated"
-                    .into(),
-            );
+            if state.borrow().lines.is_empty() {
+                app.set_status_text("Add at least one item before submitting.".into());
+            } else {
+                app.set_status_text(
+                    "BLOCKED: authoritative ERPNext submission and printer adapter are not configured; no sale was fabricated"
+                        .into(),
+                );
+            }
         }
     });
 

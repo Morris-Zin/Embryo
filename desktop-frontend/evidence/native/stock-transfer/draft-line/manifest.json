@@ -1,26 +1,52 @@
 {
   "schemaVersion": 1,
-  "screenId": "item-search",
-  "state": "keyboard-probe",
+  "screenId": "stock-transfer",
+  "state": "draft-line",
   "actions": [
+    {
+      "type": "click",
+      "label": "Transfer"
+    },
+    {
+      "type": "fill",
+      "elementId": "item-search",
+      "value": "8850000000010"
+    },
+    {
+      "type": "wait",
+      "ms": 500
+    },
+    {
+      "type": "key",
+      "key": "Enter"
+    },
+    {
+      "type": "wait",
+      "ms": 500
+    },
     {
       "type": "probe-key",
       "key": "F2",
-      "probeText": "Mekong",
+      "probeText": "KM",
       "targetElementId": "item-search"
+    },
+    {
+      "type": "probe-key",
+      "key": "F9",
+      "expectText": "BLOCKED: authoritative ERPNext submission"
     }
   ],
-  "capturedAt": "2026-11-27T13:43:57.764Z",
+  "capturedAt": "2026-11-27T14:09:50.020Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "860b8f20d529636c97160c41141e2bb9d01d330a53cdf601d9ff79d6baf71ebd",
+  "screenshotSha256": "dba8aa3aa3214c48e885ac33472cb605f9c1a5c5e4d5a8f2ea5d7e65b0a875d0",
   "window": {
     "position": {
-      "x": 182,
-      "y": 182
+      "x": 260,
+      "y": 260
     },
     "rootElementHandle": {
       "generation": "1",
@@ -32,7 +58,7 @@
       "width": 1180
     }
   },
-  "elementCount": 174,
+  "elementCount": 139,
   "toolNames": [
     "list_windows",
     "get_window_properties",

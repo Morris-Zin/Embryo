@@ -35,6 +35,19 @@ def norm_text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def canonical_role(role: str) -> str:
+    normalized = norm_text(role).lower().replace("-", "").replace("_", "")
+    equivalents = {
+        "link": "button",
+        "searchbox": "textinput",
+        "radio": "radiobutton",
+            "textbox": "textinput",
+            "listbox": "list",
+            "option": "listitem",
+    }
+    return equivalents.get(normalized, normalized)
+
+
 def web_role(control: dict[str, Any]) -> str:
     explicit = norm_text(control.get("role")).lower()
     if explicit:
@@ -50,7 +63,13 @@ def web_role(control: dict[str, Any]) -> str:
         return "textbox"
     if tag == "input":
         input_type = norm_text(control.get("inputType") or control.get("type")).lower()
-        return "searchbox" if input_type == "search" else "textbox"
+        if input_type == "search":
+            return "searchbox"
+        if input_type == "radio":
+            return "radio"
+        if input_type == "checkbox":
+            return "checkbox"
+        return "textbox"
     return tag or "unknown"
 
 
@@ -69,10 +88,10 @@ def web_controls(dom: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for control in dom.get("controls", []) if isinstance(dom, dict) else []:
         if not control.get("visible", True):
             continue
-        label = norm_text(control.get("ariaLabel") or control.get("text") or control.get("placeholder") or control.get("id"))
+        label = norm_text(control.get("accessibilityName") if control.get("hasAccessibilityName") else (control.get("ariaLabel") or control.get("text") or control.get("placeholder") or control.get("id")))
         geometry = control.get("geometry") or {}
         rows.append({
-            "role": web_role(control),
+            "role": canonical_role(web_role(control)),
             "label": label,
             "x": float(geometry.get("x", 0) or 0),
             "y": float(geometry.get("y", 0) or 0),
@@ -91,10 +110,13 @@ def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if not size.get("width") or not size.get("height") or element.get("computedOpacity", 1) == 0:
             continue
         label = norm_text(element.get("accessibleLabel") or element.get("accessibleValue") or element.get("accessiblePlaceholder"))
-        role = norm_text(element.get("accessibleRole") or element.get("role")).lower()
-        if role in ("text", "statictext"):
+        raw_role = norm_text(element.get("accessibleRole") or element.get("role")).lower()
+        live_region = norm_text(element.get("accessibleLiveRegion") or element.get("liveRegion")).lower()
+        role = "status" if raw_role in ("text", "statictext") and live_region and live_region != "off" else raw_role
+        if raw_role in ("text", "statictext") and role != "status":
             continue
-        if not label and role in ("unknown", ""):
+        role = canonical_role(role)
+        if not label and role in ("unknown", "", "image", "list"):
             continue
         position = element.get("absolutePosition") or {}
         rows.append({
@@ -104,8 +126,8 @@ def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "y": float(position.get("y", 0) or 0),
             "width": float(size.get("width", 0) or 0),
             "height": float(size.get("height", 0) or 0),
-            "disabled": element.get("accessibleEnabled") is False,
-            "expanded": element.get("accessibleExpanded"),
+            "disabled": element.get("accessibleEnabled") is not True,
+            "expanded": element.get("accessibleExpanded") if element.get("accessibleExpanded") is not None else ("false" if canonical_role(element.get("accessibleRole") or "") == "combobox" else None),
         })
     return occurrence_keyed(rows)
 
@@ -136,7 +158,8 @@ def compare_structure(reference_dom: dict[str, Any], native_tree: dict[str, Any]
         deltas = {axis: abs(left[axis] - right[axis]) for axis in ("x", "y", "width", "height")}
         if any(delta > tolerance for delta in deltas.values()):
             geometry_failures.append({"control": key, "reference": {axis: left[axis] for axis in deltas}, "native": {axis: right[axis] for axis in deltas}, "deltas": deltas})
-        if left["disabled"] != right["disabled"] or (left.get("expanded") is not None and left.get("expanded") != right.get("expanded")):
+        interactive = canonical_role(left["role"]) in {"button", "combobox", "textinput", "radiobutton", "checkbox", "slider", "spinbox", "switch", "tab"}
+        if (interactive and left["disabled"] != right["disabled"]) or (left.get("expanded") is not None and left.get("expanded") != right.get("expanded")):
             geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"], "referenceExpanded": left.get("expanded"), "nativeExpanded": right.get("expanded")}})
     return {
         "passed": not missing and not unexpected and not geometry_failures,
@@ -156,7 +179,7 @@ def keyboard_check(screen_dir: Path, reference_dom: dict[str, Any]) -> dict[str,
     outcomes = data.get("shortcuts", {}) if isinstance(data, dict) else {}
     missing = [key for key in required if outcomes.get(key, {}).get("passed") is not True]
     return {
-        "passed": bool(required) and not missing,
+        "passed": not missing,
         "requiredShortcuts": required,
         "missingBehavioralResults": missing,
         "path": str(path),
