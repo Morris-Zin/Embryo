@@ -60,6 +60,25 @@ if docker inspect --format '{{.Config.Labels.com.docker.compose.project}}' "$CON
   exit 1
 fi
 
+ORIGINAL_BACKEND_MEMORY=""
+ORIGINAL_BACKEND_SWAP=""
+RESTORE_BACKEND_MEMORY=0
+if [[ "$SCALE" == "year" ]]; then
+  ORIGINAL_BACKEND_MEMORY="$(docker inspect --format '{{.HostConfig.Memory}}' "$CONTAINER")"
+  ORIGINAL_BACKEND_SWAP="$(docker inspect --format '{{.HostConfig.MemorySwap}}' "$CONTAINER")"
+  if [[ "$ORIGINAL_BACKEND_MEMORY" =~ ^[0-9]+$ ]] && (( ORIGINAL_BACKEND_MEMORY > 0 && ORIGINAL_BACKEND_MEMORY < 2147483648 )); then
+    echo "Temporarily raising the isolated backend memory cap for one-time year seed generation"
+    docker update --memory 2147483648 --memory-swap 2147483648 "$CONTAINER" >/dev/null
+    RESTORE_BACKEND_MEMORY=1
+  fi
+fi
+restore_backend_memory() {
+  if [[ "$RESTORE_BACKEND_MEMORY" == "1" ]]; then
+    docker update --memory "$ORIGINAL_BACKEND_MEMORY" --memory-swap "$ORIGINAL_BACKEND_SWAP" "$CONTAINER" >/dev/null 2>&1 || true
+  fi
+}
+trap restore_backend_memory EXIT
+
 docker exec "$CONTAINER" rm -rf /tmp/khitmee-seeder /tmp/khitmee-seed-manifest.json
 docker cp "$SEEDER_DIR" "$CONTAINER:/tmp/khitmee-seeder"
 docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \

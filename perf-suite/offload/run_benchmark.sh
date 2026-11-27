@@ -23,6 +23,7 @@ Options:
   --duckdb-python PATH       Python with duckdb installed (default python3)
   --threads N                DuckDB threads (default 2)
   --memory-limit LIMIT       DuckDB memory limit (default 512MB)
+  --database PATH            DuckDB database path (default <run-dir>/offload.duckdb)
   -h, --help                 Show this help
 EOF_USAGE
 }
@@ -38,6 +39,7 @@ SKIP_MARIADB_PROBE=0
 DUCKDB_PYTHON="python3"
 THREADS=2
 MEMORY_LIMIT="512MB"
+DUCKDB_DATABASE=""
 
 while (($#)); do
   case "$1" in
@@ -61,6 +63,8 @@ while (($#)); do
     --threads=*) THREADS="${1#--threads=}"; shift ;;
     --memory-limit) MEMORY_LIMIT="${2:?missing --memory-limit value}"; shift 2 ;;
     --memory-limit=*) MEMORY_LIMIT="${1#--memory-limit=}"; shift ;;
+    --database) DUCKDB_DATABASE="${2:?missing --database value}"; shift 2 ;;
+    --database=*) DUCKDB_DATABASE="${1#--database=}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -145,10 +149,14 @@ if [[ ! -f "$MARIADB_JSON" ]]; then
   exit 4
 fi
 
+if [[ -z "$DUCKDB_DATABASE" ]]; then
+  DUCKDB_DATABASE="$RUN_DIR/offload.duckdb"
+fi
+
 echo "Loading extract and running canonical queries in DuckDB..."
 "$DUCKDB_PYTHON" "$SCRIPT_DIR/duckdb_benchmark.py" \
   --extract-dir "$EXTRACT_DIR" \
-  --database "$RUN_DIR/offload.duckdb" \
+  --database "$DUCKDB_DATABASE" \
   --company "$COMPANY" \
   --from-date "$FROM_DATE" \
   --to-date "$TO_DATE" \
