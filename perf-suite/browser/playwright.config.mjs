@@ -10,7 +10,6 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1360, height: 850 },
-    ignoreHTTPSErrors: true,
     launchOptions: {
       executablePath: process.env.CHROME_PATH || "/home/ubuntu/.local/bin/google-chrome",
       args: ["--disable-dev-shm-usage", "--js-flags=--expose-gc"],

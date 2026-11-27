@@ -75,7 +75,6 @@ function artifactName(label, profile, scenario, extension) {
 async function createHarness(browser, options, profile) {
   const context = await browser.newContext({
     viewport: { width: 1360, height: 850 },
-    ignoreHTTPSErrors: true,
   });
   await loginContext(context, options.baseUrl, options.user, options.password);
   const page = await context.newPage();
