@@ -68,7 +68,7 @@ Run the central/offloaded comparison:
 
 ```bash
 bash perf-suite/offload/run_benchmark.sh \
-  --run-id year-full-baseline \
+  --run-id year-full-decimal9 \
   --company 'Khit Me Distribution' \
   --from-date 2025-11-27 \
   --to-date 2026-11-26 \
@@ -89,15 +89,15 @@ bash perf-suite/offload/run_summary_benchmark.sh \
 Measure an incremental transfer after new writes by passing the lower bound captured before those writes. Copy the original DuckDB database first if it must remain unchanged, then merge into that copy with `--database`:
 
 ```bash
-cp perf-suite/results/offload/year-full-baseline/offload.duckdb /tmp/offload-incremental.duckdb
+cp perf-suite/results/offload/year-full-decimal9/offload.duckdb /tmp/offload-incremental.duckdb
 bash perf-suite/offload/run_benchmark.sh \
-  --run-id year-incremental-after-load \
+  --run-id year-delta-decimal9 \
   --mode delta \
-  --modified-after '2026-11-27 08:00:00' \
+  --modified-after '2026-11-27 09:15:36' \
   --database /tmp/offload-incremental.duckdb \
   --company 'Khit Me Distribution' \
   --from-date 2025-11-27 \
-  --to-date 2026-11-26
+  --to-date 2026-11-27
 ```
 
 Outputs stay in ignored `perf-suite/results/offload/<run-id>/` directories:
@@ -148,11 +148,11 @@ This is strong evidence for the read-model architecture, but it is not yet produ
 - HTTP failure rate: 5.25%, mostly 502s during backend OOM recycling;
 - backend cgroup peak: 576.4MiB of its 576MiB limit with 6 OOM kills;
 - db cgroup disk reads: 35.6GB in about three minutes;
-- fleet sum of container memory peaks: 1,483.8MiB; sum of averages: 875.6MiB.
+- fleet sum of cgroup memory-current peaks: 1,347.9MiB; sum of averages: 875.6MiB.
 
 Only 152 sales and 63 transfers succeeded because errors and backend recycling reduced the achieved rate below the configured peak. This is precisely the interference the offload architecture must remove.
 
-A matched three-minute voucher-only control (`june_sustained`, same six shop workers and configured peak, no report managers) succeeded completely: submit p95 was 1.032s end-to-end / 0.981s server-side, HTTP failure rate was 0%, 167 sales and 89 transfers completed, backend peak was 174.1MiB with zero OOM kills, db CPU fell from 71.6 to 21.0 cgroup CPU-seconds, and db disk reads fell from 35.64GB to 0.19GB. This counterfactual does not implement offload; it proves that full-year reporting is the dominant interference source and that checkout can remain healthy when reporting work is removed.
+A matched three-minute voucher-only control (`june_sustained`, same six shop workers and configured peak, no report managers) succeeded completely: submit p95 was 1.032s end-to-end / 0.981s server-side, HTTP failure rate was 0%, 167 sales and 89 transfers completed, backend peak was 174.1MiB with zero OOM kills, fleet peak sum was 893.4MiB, db CPU fell from 71.6 to 21.0 cgroup CPU-seconds, and db disk reads fell from 35.64GB to 0.19GB. This counterfactual does not implement offload; it proves that full-year reporting is the dominant interference source and that checkout can remain healthy when reporting work is removed.
 
 ### Incremental synchronization after the write load
 
@@ -175,7 +175,7 @@ Rankings are evidence-backed but bounded by the correctness scope above. “Exac
 | 1 | Incrementally maintained MariaDB summary/read model, with dirty-window invalidation and live ERP fallback | 10.843s raw full-year aggregate fell to 0.029s; 143,665 pages read fell to 39 buffer-pool requests; table only 245,760 bytes; exact numeric parity for canonical aggregate | Best consistency because it remains in authoritative MariaDB. Production correctness still requires exact ERP valuation/return/bundle logic and repost/backdate dirty-range handling | No recurring cost or new database. Adds write amplification; measured primitive was 0.087ms/line on one hot row, but production per-invoice maintenance will be higher | **Primary recommendation** for standard financial/management summaries |
 | 2 | DuckDB read model on existing manager computers, bootstrapped once and incrementally merged | Canonical exact-snapshot queries were 28.4x–69.9x faster than MariaDB in the corrected decimal run; memory stayed within the 512MiB cap; database 162MiB; central scan/aggregation CPU and disk move off the server | Eventual consistency only. The decimal-precision failure proves strict type/oracle reconciliation is mandatory. Sensitive financial data leaves the server and must be encrypted/access-controlled | No recurring hosting cost if manager computers already exist; packaging, key management and reconciliation are real operational costs | **Recommended complement** for heavy historical/ad hoc analytics, not sole authoritative financial reporting |
 | 3 | Batch-materialized MariaDB snapshots or nightly precomputed tables | Same small-table query cost as rank 1 once built, but one full build cost 10.9s and about 155k InnoDB page reads in warm conditions | Simple snapshot consistency, but stale between builds; repeated intraday rebuilds recreate the central load being removed | Lowest implementation complexity; no new service | Useful bootstrap/nightly fallback, **not sufficient alone** for fresh intraday reporting |
-| 4 | Native MariaDB replica on an existing always-on manager machine, optionally with MaxScale routing | Established exact replication technology; binlog override harness is included for overhead measurement | Replica lag and failover semantics must be handled; checkout remains central so availability is preserved | No cloud fee if hardware exists, but another always-on database must be secured, patched, monitored and stored | Conditional fallback when a suitable machine already exists; not the lightest default |
+| 4 | Native MariaDB replica on an existing always-on manager machine, optionally with MaxScale routing | Established exact replication technology; measured ROW binlog overhead was mainly sequential write amplification, not a latency regression | Replica lag and failover semantics must be handled; checkout remains central so availability is preserved | No cloud fee if hardware exists, but another always-on database must be secured, patched, monitored and stored | Conditional fallback when a suitable machine already exists; not the lightest default |
 | 5 | External MariaDB-compatible free-tier read database | Selected uncompressed facts are already about 618MB before indexes and grow daily; TiDB Starter's 5GiB row-storage quota may fit initially, but network trust, egress, quota and continuity risks remain | Replication lag plus external outage; checkout must never depend on it | “Free” capacity is not assured long-term and migration to paid tiers creates recurring cost | **Rejected as default**; no benefit over already-available manager computers for this scale |
 | 6 | Debezium/Kafka, Airbyte, PeerDB/ClickHouse or similar CDC platforms | Established CDC systems, but they introduce Kafka/Temporal/Java workers/ClickHouse-class services to move the same rows that the measured 0.9KiB/voucher delta exporter already moves | Strong event fidelity, including deletes, when configured correctly; MariaDB CDC caveats and at-least-once handling remain | Disproportionate operational complexity for six shops and a 2GB ERP server | **Rejected for this deployment** unless a broader analytics platform is independently justified |
 | 7 | Supabase/Postgres free tier | Free database capacity is 500MB while the selected uncompressed fact extract is already about 618MB before indexes; free projects also have strict egress/inactivity limits | Postgres migration and ERPNext semantic parity add risk | Recurring cost appears quickly after free limits | **Rejected** for the full replicated dataset |
@@ -193,4 +193,4 @@ Rankings are evidence-backed but bounded by the correctness scope above. “Exac
 
 ### Binlog note
 
-`compose.binlog.yaml` is corrected and available for 2gb ROW-binlog overhead measurement. It was not needed to establish the main bandwidth result: modified-time delta extraction already reduced the measured transfer by 565x. Binlog CDC remains the better primitive for exact delete capture and low-latency replication, but only justifies its write/operational overhead if a replica or CDC platform from ranks 4–6 is actually adopted.
+ROW binlogging was measured under the matched voucher-only workload. With `binlog_format=ROW` and `binlog_row_image=FULL`, submit p95 was 1.005s versus 1.032s without binlog (within run noise), db CPU was 19.35 versus 20.96 cgroup CPU-seconds, db cgroup writes were 157.1MB versus 126.6MB, and the binlog itself grew by about 34.7MB in three minutes. Thus the observable overhead was primarily about 30.5MB of extra sequential write I/O (~119KiB per voucher iteration), not a latency or CPU regression in this run. Binlog CDC remains the better primitive for exact delete capture and low-latency replication, but only justifies its storage/retention and operational overhead if a replica or CDC platform from ranks 4–6 is actually adopted. Modified-time delta extraction already achieved the required transfer reduction without that extra write amplification.
