@@ -124,7 +124,10 @@ def fleet_by_timestamp(rows):
     points = []
     for ts, group in grouped.items():
         def total(key, converter):
-            return sum(converter(parse_float(row.get(key))) or 0.0 for row in group)
+            values = [converter(parse_float(row.get(key))) for row in group]
+            if any(value is None for value in values):
+                return None
+            return sum(values)
         points.append({
             "ts": ts,
             "pss_mib": total("pss_kb", mib_from_kb),

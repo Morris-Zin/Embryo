@@ -68,6 +68,19 @@ class MemorySummaryTests(unittest.TestCase):
         self.assertEqual(result["fleet"]["pss_mib_peak"], 150.0)
         self.assertEqual(result["fleet"]["cpu_percent_avg"], 200.0)
 
+    def test_missing_process_memory_does_not_become_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "stats.csv"
+            missing = row("2026-01-01T00:00:00+00:00", "backend", 102400, 51200, 1)
+            missing["pss_kb"] = "NA"
+            with path.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=FIELDS)
+                writer.writeheader()
+                writer.writerow(missing)
+            result = summarize(path)
+        self.assertIsNone(result["fleet"]["pss_mib_avg"])
+        self.assertEqual(result["fleet"]["rss_mib_avg"], 100.0)
+
     def test_window_filters_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "stats.csv"
