@@ -20,10 +20,10 @@ const envFile = readEnvFile(path.join(repoRoot, "perf-suite/docker/.env"));
 const baseUrl = process.env.BENCH_URL || DEFAULT_BASE_URL;
 const password = process.env.BENCH_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || envFile.ADMIN_PASSWORD;
 
-async function openAuthenticatedCounter(page) {
+async function openAuthenticatedCounter(page, counterPath = "/khitmee_sales") {
   test.skip(!password, "BENCH_ADMIN_PASSWORD or perf-suite/docker/.env is required");
   await loginContext(page.context(), baseUrl, process.env.BENCH_ADMIN_USER || "Administrator", password);
-  await openCounter(page, baseUrl);
+  await openCounter(page, baseUrl, counterPath);
   await installProbe(page);
 }
 
@@ -67,6 +67,30 @@ test.describe("cashier counter performance regressions", () => {
     await expect(page.locator("#lines-body tr")).toHaveCount(1);
     await expect(page.locator('#lines-body tr[data-index="0"] input[data-action="qty"]')).toHaveValue("2");
     expect(apiRequests, "an immediate repeat scan of the same barcode should not repeat the item-search API call").toHaveLength(1);
+  });
+
+
+  test("transfer item search uses explicit no-rate mode and adds a row without a price list", async ({ page }) => {
+    await openAuthenticatedCounter(page, "/khitmee_transfer");
+    const sourceValue = await page.locator("#warehouse").inputValue();
+    const targetValues = await page.locator("#target-warehouse option").evaluateAll((options) =>
+      options.map((node) => node.value).filter(Boolean),
+    );
+    const targetValue = targetValues.find((value) => value !== sourceValue);
+    expect(targetValue, "seed data must provide a distinct target warehouse").toBeTruthy();
+    await page.selectOption("#target-warehouse", targetValue);
+
+    const apiRequests = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/method/khitmee_ops.api.search.search_items")) apiRequests.push(request.url());
+    });
+    await measureBarcodeScan(page, itemCode(0), 0);
+
+    await expect(page.locator("#lines-body tr")).toHaveCount(1);
+    expect(apiRequests).toHaveLength(1);
+    expect(apiRequests[0]).toContain("include_rates=0");
+    expect(apiRequests[0]).not.toContain("price_list=");
+    await expect(page.locator('#lines-body tr[data-index="0"] strong')).toHaveText(itemCode(0));
   });
 
   test("quantity changes update one row without rebuilding unaffected invoice rows", async ({ page }) => {

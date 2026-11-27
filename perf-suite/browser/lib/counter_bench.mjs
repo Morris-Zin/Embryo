@@ -77,8 +77,8 @@ export async function loginContext(context, baseUrl, user, password) {
   }
 }
 
-export async function openCounter(page, baseUrl) {
-  await page.goto(`${baseUrl}/khitmee_sales`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+export async function openCounter(page, baseUrl, counterPath = "/khitmee_sales") {
+  await page.goto(`${baseUrl}${counterPath}`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   await expect(page.locator("#warehouse option").first()).toBeAttached({ timeout: 15_000 });
   await expect(page.locator("#status")).toContainText(/Ready|error/i, { timeout: 15_000 });
 
@@ -89,10 +89,12 @@ export async function openCounter(page, baseUrl) {
     await page.selectOption("#warehouse", value);
   }
 
-  const customerValues = await page.locator("#customer option").evaluateAll((options) =>
-    options.map((node) => node.value).filter(Boolean),
-  );
-  if (customerValues.length) await page.selectOption("#customer", customerValues[0]);
+  if (await page.locator("#customer").count()) {
+    const customerValues = await page.locator("#customer option").evaluateAll((options) =>
+      options.map((node) => node.value).filter(Boolean),
+    );
+    if (customerValues.length) await page.selectOption("#customer", customerValues[0]);
+  }
   await page.locator("#item-search").focus();
 }
 

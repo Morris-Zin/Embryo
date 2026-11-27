@@ -305,7 +305,7 @@
 			}
 			const customer = els.customer && els.customer.value ? els.customer.value : "";
 			const priceList = els.priceList && els.priceList.value ? els.priceList.value : state.context.default_price_list;
-			const searchKey = [term, searchWarehouse(), priceList, customer].join("\u001f");
+			const searchKey = [term, searchWarehouse(), priceList, customer, config.showRates ? "rates" : "no-rates"].join("\u001f");
 			if (state.searchKey === searchKey && state.searchItems.length) return;
 			const useCache = !!(options && options.cache);
 			if (useCache) {
@@ -328,6 +328,7 @@
 					price_list: priceList,
 					customer: customer || null,
 					limit: 10,
+					include_rates: config.showRates ? 1 : 0,
 				});
 				if (requestId !== state.searchRequestId || els.search.value.trim() !== term) return;
 				state.searchKey = searchKey;
