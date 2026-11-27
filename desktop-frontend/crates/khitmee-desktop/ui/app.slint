@@ -248,18 +248,19 @@ component VoucherLineRow inherits Rectangle {
     callback decrease(string);
     callback quantity-edited(string, string);
     height: 48px;
+    property <length> qty-x: root.width * 0.28;
 
-    Text { x: 14px; width: 300px; height: 48px; text: line.item-name; color: Design.text; font-size: 14px; font-weight: 700; vertical-alignment: center; overflow: elide; }
+    Text { x: 14px; width: root.qty-x - 20px; height: 48px; text: line.item-name; color: Design.text; font-size: 14px; font-weight: 700; vertical-alignment: center; overflow: elide; }
     Text { x: 14px; y: 28px; width: 300px; text: line.item-code; color: Design.muted; font-size: 11px; overflow: elide; }
     Rectangle {
-        x: 313.71875px; y: 9.578125px; width: 40px; height: 40px;
+        x: root.qty-x; y: 9.578125px; width: 40px; height: 40px;
         border-radius: 10px; border-color: Design.line; border-width: 1px; background: #ffffff;
         accessible-role: button; accessible-label: "Decrease quantity"; accessible-enabled: true;
         Text { text: "−"; color: Design.text; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
         TouchArea { clicked => { root.decrease(line.item-code); } }
     }
     LineEdit {
-        x: 353.71875px; y: 9.578125px; width: 72px; height: 40px;
+        x: root.qty-x + 40px; y: 9.578125px; width: 72px; height: 40px;
         text: line.qty-text;
         accessible-role: text-input;
         accessible-label: "Quantity";
@@ -267,17 +268,17 @@ component VoucherLineRow inherits Rectangle {
         accepted => { root.quantity-edited(line.item-code, self.text); }
     }
     Rectangle {
-        x: 425.71875px; y: 9.578125px; width: 40px; height: 40px;
+        x: root.qty-x + 112px; y: 9.578125px; width: 40px; height: 40px;
         border-radius: 10px; border-color: Design.line; border-width: 1px; background: #ffffff;
         accessible-role: button; accessible-label: "Increase quantity"; accessible-enabled: true;
         Text { text: "+"; color: Design.text; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
         TouchArea { clicked => { root.increase(line.item-code); } }
     }
-    Text { x: 660px; width: 70px; height: 48px; text: line.uom; color: Design.muted; font-size: 14px; vertical-alignment: center; }
-    Text { x: 730px; width: 130px; height: 48px; text: line.rate-text; color: Design.text; font-size: 14px; horizontal-alignment: right; vertical-alignment: center; }
-    Text { x: 860px; width: 175px; height: 48px; text: line.amount-text; color: Design.text; font-size: 14px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: root.width * 0.58; width: 70px; height: 48px; text: line.uom; color: Design.muted; font-size: 14px; vertical-alignment: center; }
+    Text { x: root.width * 0.65; width: root.width * 0.11; height: 48px; text: line.rate-text; color: Design.text; font-size: 14px; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: root.width * 0.76; width: root.width * 0.14; height: 48px; text: line.amount-text; color: Design.text; font-size: 14px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
     Rectangle {
-        x: 1017.046875px; y: 9.578125px; width: 40px; height: 40px;
+        x: root.width - 107px; y: 9.578125px; width: 40px; height: 40px;
         border-radius: 10px; border-color: Design.line; border-width: 1px; background: #ffffff;
         accessible-role: button; accessible-label: "Remove line"; accessible-enabled: true;
         Text { text: "×"; color: Design.danger; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
@@ -292,6 +293,17 @@ component CounterScreen inherits FocusScope {
     in property <[string]> payment-options;
     in property <length> initial-scroll-offset: 0px;
     in-out property <length> content-y: 0px;
+    property <length> side-width: (root.width - 72px) * 0.39;
+    property <length> field-width: (root.side-width - 54px) / 2;
+    property <length> field-right-x: 21px + root.field-width + 12px;
+    property <length> gutter: 16px;
+    property <length> content-x: 28px + root.side-width + root.gutter;
+    property <length> content-width: root.width - root.content-x - 28px;
+    property <length> lines-width: root.width - 56px;
+    property <length> lines-top: root.sales-mode ? 501px : 592px;
+    property <length> lines-required-height: 96px + root.voucher-lines.length * 48px;
+    property <length> lines-available-height: root.height - 72px - root.lines-top - 16px;
+    property <length> lines-height: root.lines-available-height > root.lines-required-height ? root.lines-available-height : root.lines-required-height;
     in property <[CatalogChoice]> search-results;
     in property <[VoucherLine]> voucher-lines;
     in property <bool> search-open;
@@ -330,20 +342,20 @@ component CounterScreen inherits FocusScope {
     }
 
     page-scroll := Flickable {
-        x: 0px; y: 0px; width: 1180px; height: 760px;
-        content-width: 1180px;
-        content-height: (root.sales-mode ? 592px : 570px) + 96px + root.voucher-lines.length * 48px + 92px;
+        x: 0px; y: 0px; width: root.width; height: root.height;
+        content-width: root.width;
+        content-height: root.lines-top + root.lines-height + 92px;
         content-y <=> root.content-y;
 
     Rectangle {
-        x: 0px; y: 0px; width: 1180px; height: 80px;
+        x: 0px; y: 0px; width: root.width; height: 80px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
         Text { x: 32px; y: 12px; width: 220px; text: "KHITMEE OPS"; color: Design.accent; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
         Text { x: 32px; y: 31px; width: 350px; text: root.sales-mode ? "Sales Counter" : "Stock Transfer"; color: Design.text; font-size: 29px; font-weight: 750; }
         Rectangle {
-            x: 964px; y: 18px; width: 188px; height: 48px;
+            x: root.width - 216px; y: 18px; width: 188px; height: 48px;
             border-radius: 24px;
             background: #e9eef3;
             NavPill { x: 9.140625px; y: 7.5px; width: 69.828125px; height: 40px; text: "Sales"; active: root.sales-mode; clicked => { root.navigate(0); } }
@@ -352,21 +364,21 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 28px; y: 95px; width: 432px; height: root.sales-mode ? 481px : 457px;
+        x: 28px; y: 95px; width: root.side-width; height: root.sales-mode ? 390px : 481px;
         Text { x: 21px; y: 30px; text: root.sales-mode ? "Sale details" : "Transfer details"; color: Design.text; font-size: 16px; font-weight: 700; }
 
         Text { x: 21px; y: 67px; text: root.sales-mode ? "Shop warehouse" : "Source warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
         ComboBox {
-            x: 21px; y: 90.59375px; width: 396.421875px; height: 40px;
+            x: 21px; y: 90.59375px; width: root.sales-mode ? root.field-width : root.side-width - 42px; height: 40px;
             model: root.warehouse-options;
             accessible-label: root.sales-mode ? "Shop warehouse" : "Source warehouse";
             selected(value) => { root.warehouse-selected(value); }
         }
 
-        Text { visible: root.sales-mode; x: 21px; y: 144px; text: "Customer"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        Text { visible: root.sales-mode; x: root.field-right-x; y: 67px; text: "Customer"; color: Design.muted; font-size: 13px; font-weight: 700; }
         LineEdit {
             visible: root.sales-mode;
-            x: 21px; y: 167.78125px; width: 396.421875px; height: 48px;
+            x: root.field-right-x; y: 90.59375px; width: root.field-width; height: 40px;
             input-type: search;
             placeholder-text: "Filter customers…";
             accessible-label: "Customer Choose customer Load more customers";
@@ -374,32 +386,32 @@ component CounterScreen inherits FocusScope {
         }
         ComboBox {
             visible: root.sales-mode;
-            x: 21px; y: 221.375px; width: 396.421875px; height: 40px;
+            x: root.field-right-x; y: 138px; width: root.field-width; height: 40px;
             model: root.customer-options;
             accessible-label: "";
             selected(value) => { root.customer-selected(value); }
         }
-        BrowserButton { visible: root.sales-mode; x: 21px; y: 266.96875px; width: 396.421875px; height: 40px; text: "Load more customers"; }
-        Text { visible: root.sales-mode; x: 21px; y: 320px; text: "Payment mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        BrowserButton { visible: root.sales-mode; x: root.field-right-x; y: 182px; width: root.field-width; height: 40px; text: "Load more customers"; }
+        Text { visible: root.sales-mode; x: 21px; y: 234px; text: "Payment mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
         ComboBox {
             visible: root.sales-mode;
-            x: 21px; y: 344.15625px; width: 396.421875px; height: 40px;
+            x: 21px; y: 258px; width: root.field-width; height: 40px;
             model: root.payment-options;
             accessible-label: "Payment mode";
             selected(value) => { root.payment-selected(value); }
         }
-        Text { visible: root.sales-mode; x: 21px; y: 397px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        PrintRadio { visible: root.sales-mode; x: 21px; y: 421.34375px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
-        PrintRadio { visible: root.sales-mode; x: 174.453125px; y: 421.34375px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
+        Text { visible: root.sales-mode; x: root.field-right-x; y: 234px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
+        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 258px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
+        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 304px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
 
         Text { visible: !root.sales-mode; x: 21px; y: 144px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 167.78125px; width: 396.421875px; height: 40px; value: "Choose target warehouse"; label-text: "Target warehouse"; use-label-text: true; }
+        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 167.78125px; width: root.side-width - 42px; height: 40px; value: "Choose target warehouse"; label-text: "Target warehouse"; use-label-text: true; }
         Text { visible: !root.sales-mode; x: 21px; y: 221px; text: "Transfer mode"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 244.96875px; width: 396.421875px; height: 40px; value: "Direct transfer"; label-text: "Transfer mode"; use-label-text: true; }
+        BrowserSelect { visible: !root.sales-mode; x: 21px; y: 244.96875px; width: root.side-width - 42px; height: 40px; value: "Direct transfer"; label-text: "Transfer mode"; use-label-text: true; }
         Text { visible: !root.sales-mode; x: 21px; y: 298px; text: "Outgoing stock entry"; color: Design.muted; font-size: 13px; font-weight: 700; }
         LineEdit {
             visible: !root.sales-mode;
-            x: 21px; y: 322.15625px; width: 396.421875px; height: 40px;
+            x: 21px; y: 322.15625px; width: root.side-width - 42px; height: 40px;
             enabled: false;
             placeholder-text: "Required in receive mode";
             accessible-role: text-input;
@@ -411,7 +423,7 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 476px; y: 95px; width: 676px; height: root.sales-mode ? 481px : 457px;
+        x: root.content-x; y: 95px; width: root.content-width; height: root.sales-mode ? 390px : 481px;
         Text { x: 19px; y: 30px; text: "Scan or search"; color: Design.text; font-size: 16px; font-weight: 700; }
         Text { x: 19px; y: 64px; text: "Barcode / item search"; color: Design.muted; font-size: 13px; font-weight: 700; }
         Rectangle {
@@ -420,7 +432,7 @@ component CounterScreen inherits FocusScope {
             Text { text: "F2"; color: Design.muted; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
         }
         item-search := LineEdit {
-            x: 19.421875px; y: 112.171875px; width: 635.5625px; height: 48px;
+            x: 19.421875px; y: 112.171875px; width: root.content-width - 40px; height: 48px;
             input-type: search;
             placeholder-text: "Scan barcode or type item name…";
             accessible-label: "Barcode / item search F2";
@@ -435,7 +447,7 @@ component CounterScreen inherits FocusScope {
         }
         Rectangle {
             visible: item-search.has-focus;
-            x: 15px; y: 108px; width: 644px; height: 56px;
+            x: 15px; y: 108px; width: root.content-width - 31px; height: 56px;
             border-radius: 14px;
             border-width: 3px;
             border-color: #86b7fe;
@@ -444,26 +456,27 @@ component CounterScreen inherits FocusScope {
     }
 
     PanelBox {
-        x: 28px; y: root.sales-mode ? 592px : 570px; width: 1124px; height: 96px + root.voucher-lines.length * 48px;
+        x: 28px; y: root.lines-top; width: root.lines-width; height: root.lines-height;
         border-radius: 14px;
-        Rectangle { x: 0px; y: 0px; width: 1124px; height: 72px; border-color: Design.line; border-width: 1px; }
+        Rectangle { x: 0px; y: 0px; width: root.lines-width; height: 72px; border-color: Design.line; border-width: 1px; }
         Text { x: 21px; y: 22px; text: "Lines"; color: Design.text; font-size: 16px; font-weight: 700; }
-        BrowserButton { x: 1036.34375px; y: 13.140625px; width: 66.640625px; height: 40px; text: "Clear"; clicked => { root.clear-lines(); } }
+        BrowserButton { x: root.lines-width - 87.65625px; y: 13.140625px; width: 66.640625px; height: 40px; text: "Clear"; clicked => { root.clear-lines(); } }
         Rectangle {
-            x: 5px; y: 66.9375px; width: 1113.984375px;
+            x: 5px; y: 66.9375px; width: root.lines-width - 10px;
             accessible-role: region;
             accessible-label: root.sales-mode ? "Sale lines" : "Transfer lines";
             height: 34.59375px + root.voucher-lines.length * 61.09375px;
         }
-        Rectangle { x: 0px; y: 66px; width: 1124px; height: 36px; background: #f8fafc; }
+        Rectangle { x: 0px; y: 66px; width: root.lines-width; height: 36px; background: #f8fafc; }
         Text { x: 15px; y: 75px; width: 300px; text: "ITEM"; color: Design.muted; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
-        Text { x: 320px; y: 75px; width: 325px; text: "QTY"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: center; letter-spacing: 0.5px; }
-        Text { x: 660px; y: 75px; width: 70px; text: "UOM"; color: Design.muted; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
-        Text { x: 730px; y: 75px; width: 130px; text: "RATE"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: right; letter-spacing: 0.5px; }
-        Text { x: 860px; y: 75px; width: 175px; text: "AMOUNT"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: right; letter-spacing: 0.5px; }
+        Text { x: root.lines-width * 0.28; y: 75px; width: root.lines-width * 0.18; text: "QTY"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: center; letter-spacing: 0.5px; }
+        Text { x: root.lines-width * 0.58; y: 75px; width: 70px; text: "UOM"; color: Design.muted; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+        Text { x: root.lines-width * 0.65; y: 75px; width: root.lines-width * 0.11; text: "RATE"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: right; letter-spacing: 0.5px; }
+        Text { x: root.lines-width * 0.76; y: 75px; width: root.lines-width * 0.14; text: "AMOUNT"; color: Design.muted; font-size: 12px; font-weight: 700; horizontal-alignment: right; letter-spacing: 0.5px; }
         ListView {
-            x: 0px; y: 102px; width: 1124px; height: root.voucher-lines.length * 48px;
+            x: 0px; y: 102px; width: root.lines-width; height: root.voucher-lines.length * 48px;
             for row in root.voucher-lines: VoucherLineRow {
+                width: parent.width;
                 line: row;
                 remove(code) => { root.remove-line(code); }
                 increase(code) => { root.increase-line(code); }
@@ -474,28 +487,28 @@ component CounterScreen inherits FocusScope {
     }
 
     if root.voucher-lines.length > 0: Rectangle {
-        x: 28px; y: 687px; width: 1124px; height: 0px;
+        x: 28px; y: 687px; width: root.lines-width; height: 0px;
     }
 
     }
 
     if root.search-open: Rectangle {
-        x: 492px; y: (root.sales-mode ? 566px : 544px) + root.content-y; width: 644px; height: 384px;
+        x: root.content-x + 16px; y: (root.sales-mode ? 473px : 566px) + root.content-y; width: root.content-width - 32px; height: 384px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
         border-radius: 14px;
         Rectangle {
-            x: 3.421875px; y: -2.0625px; width: 635.5625px; height: 384px;
+            x: 3.421875px; y: -2.0625px; width: root.content-width - 40px; height: 384px;
             accessible-role: list;
             accessible-label: "Item search results";
             accessible-enabled: true;
         }
         Rectangle {
-            x: 10.015625px; y: 4.53125px; width: 607.375px; height: 660px;
+            x: 10.015625px; y: 4.53125px; width: root.content-width - 52px; height: 660px;
             for row[index] in root.search-results: SearchResultRow {
                 x: 0px; y: index * 65.96875px;
-                width: 607.375px;
+                width: root.content-width - 52px;
                 item: row;
                 active: index == 0;
                 show-rates: root.sales-mode;
@@ -507,7 +520,7 @@ component CounterScreen inherits FocusScope {
 
 
     Rectangle {
-        x: 0px; y: 688px; width: 1180px; height: 72px;
+        x: 0px; y: root.height - 72px; width: root.width; height: 72px;
         background: #ffffff;
         border-color: Design.line;
         border-width: 1px;
@@ -516,7 +529,7 @@ component CounterScreen inherits FocusScope {
         Text { x: 150px; y: 24px; width: 70px; text: root.sales-mode ? "Subtotal" : "Total"; color: Design.text; font-size: 14px; vertical-alignment: center; }
         Text { x: 224px; y: 19px; width: 70px; text: root.subtotal-text; color: Design.text; font-size: 20px; font-weight: 800; vertical-alignment: center; }
         Text {
-            x: root.sales-mode ? (root.subtotal-text == "0.00" ? 241.953125px : 253px) : 189.09375px; y: 26px; width: root.sales-mode ? (root.subtotal-text == "0.00" ? 703.234375px : 692.1875px) : 756.09375px; height: 20px;
+            x: root.sales-mode ? (root.subtotal-text == "0.00" ? 241.953125px : 253px) : 189.09375px; y: 26px; width: root.width - 488px; height: 20px;
             text: root.status-text;
             color: Design.muted;
             font-size: 14px;
@@ -525,7 +538,7 @@ component CounterScreen inherits FocusScope {
             overflow: elide;
             accessible-live-region: polite;
         }
-        BrowserButton { x: 961.1875px; y: 12px; width: 186.8125px; height: 48px; text: "Submit & Print  F9"; primary: true; enabled: root.voucher-lines.length > 0; clicked => { root.submit-print(); } }
+        BrowserButton { x: root.width - 218.8125px; y: 12px; width: 186.8125px; height: 48px; text: "Submit & Print  F9"; primary: true; enabled: root.voucher-lines.length > 0; clicked => { root.submit-print(); } }
     }
 }
 
@@ -1073,7 +1086,7 @@ export component AppWindow inherits Window {
     callback invoice-filter-edited(string);
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
-        width: 1180px; height: 760px;
+        width: parent.width; height: parent.height;
         sales-mode: true;
         warehouse-options: root.warehouse-options;
         customer-options: root.customer-options;

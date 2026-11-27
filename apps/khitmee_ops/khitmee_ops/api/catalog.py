@@ -177,6 +177,33 @@ def _changed_item_codes(since, warehouse):
 	return [row[0] for row in rows]
 
 
+def _price_deletion_item_codes(since):
+	"""Return item codes whose selling prices were deleted since the overlapping checkpoint."""
+	cutoff = _format_datetime(since - timedelta(seconds=SYNC_OVERLAP_SECONDS))
+	rows = frappe.db.sql(
+		"""
+		SELECT data
+		FROM `tabDeleted Document`
+		WHERE deleted_doctype = 'Item Price' AND modified >= %s
+		ORDER BY modified
+		""",
+		(cutoff,),
+		as_dict=False,
+	)
+	codes = []
+	for row in rows:
+		try:
+			doc = json.loads(row[0] or "{}")
+			if isinstance(doc, str):
+				doc = json.loads(doc)
+		except (TypeError, ValueError):
+			continue
+		item_code = str(doc.get("item_code") or "").strip() if isinstance(doc, dict) else ""
+		if item_code and item_code not in codes:
+			codes.append(item_code)
+	return codes
+
+
 def _tombstoned_item_codes(since):
 	cutoff = _format_datetime(since - timedelta(seconds=SYNC_OVERLAP_SECONDS))
 	rows = frappe.db.sql(
@@ -291,6 +318,9 @@ def sync_catalog(warehouse, price_list, state=None, customer=None):
 		changed_codes = _all_active_item_codes()
 	else:
 		changed_codes = _changed_item_codes(previous_since, warehouse)
+		for price_deleted_code in _price_deletion_item_codes(previous_since):
+			if price_deleted_code not in changed_codes:
+				changed_codes.append(price_deleted_code)
 		tombstoned_codes = _tombstoned_item_codes(previous_since)
 
 	metadata = _fetch_catalog_rows(changed_codes)

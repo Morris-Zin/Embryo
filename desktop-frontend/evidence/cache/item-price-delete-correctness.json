@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "steps": [
+    {
+      "step": "initial-reset",
+      "reset": true,
+      "baselineRate": 18.46,
+      "itemCount": 512
+    },
+    {
+      "step": "after-price-create",
+      "reset": false,
+      "rate": 99.01,
+      "present": true,
+      "tempPrice": "357lc5hheq"
+    },
+    {
+      "step": "after-price-delete",
+      "reset": false,
+      "rate": 18.46,
+      "present": true
+    }
+  ],
+  "conclusion": "Item Price delete produced a delta refresh restoring the prior authoritative rate"
+}

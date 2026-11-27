@@ -85,6 +85,21 @@ class TestCatalogSyncState(unittest.TestCase):
 		self.assertEqual(params[0][3], "Shop 1")
 		self.assertEqual(params[0][0], "2026-01-02 11:59:50.000000")
 
+	def test_item_price_deletion_is_refreshed_from_deleted_document_data(self):
+		queries = []
+
+		def sql(query, values=None, **kwargs):
+			queries.append(query)
+			if "`tabDeleted Document`" in query:
+				return [(json.dumps({"item_code": "ITEM-1"}),)]
+			return []
+
+		catalog.frappe.db.sql = sql
+		since = datetime(2026, 1, 2, 12, 0, 0)
+		self.assertEqual(catalog._price_deletion_item_codes(since), ["ITEM-1"])
+		self.assertEqual(catalog._price_deletion_item_codes(since), ["ITEM-1"])
+		self.assertIn("deleted_doctype = 'Item Price'", queries[0])
+
 	def test_stale_delta_older_than_one_day_requires_reset(self):
 		now = datetime(2026, 1, 2, 12, 0, 0)
 		self.assertTrue(catalog._delta_is_stale(now - timedelta(hours=24, seconds=1), now))

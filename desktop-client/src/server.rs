@@ -273,7 +273,7 @@ fn valid_scoped_request(scope: &str, origin: Option<&str>) -> bool {
 
 fn authorized(request: &Request, config: &ServiceConfig) -> bool {
     match config.token.as_deref() {
-        None | Some("") => true,
+        None | Some("") => false,
         Some(expected) => {
             let supplied = header_value(request.headers(), "X-Khitmee-Desktop-Token").unwrap_or("");
             constant_time_eq(supplied.as_bytes(), expected.as_bytes())
