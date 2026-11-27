@@ -3,6 +3,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
@@ -17,9 +18,11 @@ from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	assemble_sle_window,
 	assemble_sle_window_tuples,
 	append_tiebreaker_orderby,
+	build_last_valuation_rate_batch_query,
 	build_matched_sle_query,
 	build_pair_exists_query,
 	build_predecessor_query,
+	build_previous_sle_batch_query,
 	build_sales_invoice_voucher_sle_query,
 	build_sle_boundary_max_query,
 	build_sle_window_query,
@@ -28,13 +31,16 @@ from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	buying_amount_from_sle_pair,
 	choose_fallback_boundary_row,
 	choose_live_boundary_row,
+	collect_profit_contributions,
 	extract_stock_ledger_key,
+	first_seen_key_for_row,
 	format_invoice_rows_inplace,
 	inject_sii_force_index,
 	inject_warehouse_covering_drive,
 	merge_posting_rows_descending,
 	normalize_sle_key,
 	positionalize_named_params,
+	is_rounding_ambiguous,
 	process_sales_invoice_sle_rows,
 	sle_window_tuple_to_dict,
 )
@@ -573,6 +579,55 @@ class TestSingleQueryVoucherSleProcessing(unittest.TestCase):
 		self.assertEqual(result["matched"], {})
 		self.assertEqual(result["near_zero_keys"], [key])
 
+	def test_rounding_half_way_difference_is_delegated_to_exact_fallback(self):
+		# Live case ACC-SINV-2026-89530 / KM-00054: stored predecessor 115.901562 and
+		# stock_value 114.689063 give 1.212499 -> 1.212, but the derived difference
+		# 1.2125 rounds to 1.213.  Only the real predecessor row is exact.
+		key = normalize_sle_key("KM-00054", "W1", "Sales Invoice", "SI-1", "ROW-1")
+		row = ("KM-00054", "W1", "Sales Invoice", "SI-1", "ROW-1", 114.689063, -1.2125, -1, "pd", "c1")
+
+		result = process_sales_invoice_sle_rows([row], [key], currency_precision=3)
+
+		self.assertEqual(result["matched"], {})
+		self.assertEqual(result["ambiguous_keys"], [key])
+		self.assertIn(key, result["matched_keys"])
+		# Without a precision the legacy compact path is unchanged.
+		legacy = process_sales_invoice_sle_rows([row], [key])
+		self.assertIn(key, legacy["matched"])
+
+	def test_process_resolves_currency_precision_before_sle_preload(self):
+		# The ambiguity routing silently disables itself without a precision, so
+		# process() must set it before the SLE preload runs (live miss on 2026-04-06).
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		seen = []
+		generator._preload_delivery_note_item_quantities = lambda: None
+
+		def preload():
+			seen.append(getattr(generator, "currency_precision", None))
+			raise StopIteration
+
+		generator._preload_stock_ledger_data = preload
+		old_frappe = fast_gross_profit.frappe
+		fast_gross_profit.frappe = types.SimpleNamespace(
+			_dict=AttrDict,
+			db=types.SimpleNamespace(get_default=lambda key: 3),
+		)
+		try:
+			with self.assertRaises(StopIteration):
+				generator.process()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+
+		self.assertEqual(seen, [3])
+
+	def test_rounding_ambiguity_only_flags_half_way_points(self):
+		self.assertTrue(is_rounding_ambiguous(1.2125, 3))
+		self.assertTrue(is_rounding_ambiguous(-25.0565, 3))
+		self.assertTrue(is_rounding_ambiguous(1.212499, 3))
+		self.assertFalse(is_rounding_ambiguous(1.2124, 3))
+		self.assertFalse(is_rounding_ambiguous(40.109, 3))
+		self.assertFalse(is_rounding_ambiguous(1.2125, None))
+
 	def test_same_batch_ordering_tie_clears_pair_matches(self):
 		key = normalize_sle_key("ITEM-1", "W1", "Sales Invoice", "SI-1", "ROW-1")
 		rows = [
@@ -978,6 +1033,9 @@ class FakeCriterion:
 	def __and__(self, other):
 		return FakeCriterion("and", (self, other))
 
+	def __or__(self, other):
+		return FakeCriterion("or", (self, other))
+
 
 class FakeQBField:
 	def __init__(self, name):
@@ -988,6 +1046,15 @@ class FakeQBField:
 
 	def isin(self, values):
 		return FakeCriterion("isin", (self.name, list(values)))
+
+	def notin(self, values):
+		return FakeCriterion("notin", (self.name, list(values)))
+
+	def isnull(self):
+		return FakeCriterion("isnull", self.name)
+
+	def isnotnull(self):
+		return FakeCriterion("isnotnull", self.name)
 
 	def as_(self, alias):
 		return (self.name, alias)
@@ -1079,6 +1146,237 @@ class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
 		self.assertEqual(queries[0].wheres[1].value, ("return_against", ["SI-1", "SI-2"]))
 
 
+class TestFrozenContributionContracts(unittest.TestCase):
+	def test_empty_invoice_scope_short_circuits_without_database_or_bench_access(self):
+		batch = collect_profit_contributions({"company": "Company"}, invoice_ids=[])
+
+		self.assertEqual(batch["contributions"], [])
+		self.assertEqual(batch["replay_reasons_by_invoice"], {})
+		self.assertEqual(batch["currency_precision"], 3)
+		self.assertEqual(batch["float_precision"], 2)
+
+	def test_contributions_expose_phases_keys_precision_and_replay_reasons(self):
+		main = AttrDict(
+			parent="SI-MAIN", item_row="ROW-1", posting_date="2026-01-02", posting_time="10:00:00",
+			warehouse="W1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=2.0, base_amount=100.0, buying_amount=60.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		ret = AttrDict(
+			parent="SI-RET", item_row="ROW-R", posting_date="2026-01-03", posting_time="11:00:00",
+			warehouse="W1", is_return=1, return_against="SI-ORIGINAL", update_stock=1,
+			delivered_by_supplier=0, qty=-1.234, base_amount=-50.0, buying_amount=-30.0,
+			_khitmee_query_phase=0, _khitmee_valuation_source="average_rate",
+		)
+		generator = types.SimpleNamespace(si_list=[main, ret], currency_precision=2, float_precision=1)
+
+		batch = fast_gross_profit._build_contribution_batch(generator, {"SI-ORIGINAL"})
+
+		self.assertEqual([row["query_phase"] for row in batch["contributions"]], [1, 0])
+		self.assertEqual(batch["contributions"][0]["first_seen_key"], "1|2026-01-02|100000000000")
+		self.assertEqual(batch["contributions"][1]["first_seen_key"], "0|2026-01-03|110000000000")
+		self.assertEqual(
+			first_seen_key_for_row(
+				{"posting_date": "2026-01-02", "posting_time": "10:11:12.123456"}, 1
+			),
+			"1|2026-01-02|101112123456",
+		)
+		self.assertTrue(batch["contributions"][0]["is_precision_safe"])
+		self.assertFalse(batch["contributions"][1]["is_precision_safe"])
+		self.assertEqual(batch["replay_reasons_by_invoice"]["SI-RET"], "linked_return")
+		self.assertEqual(batch["currency_precision"], 2)
+
+	def test_contributions_ignore_stock_in_place_group_fold_on_first_row(self):
+		# Stock get_average_rate_based_on_group_by() mutates the first row of each
+		# group into the group total; contributions must keep the line values.
+		first = AttrDict(
+			parent="SI-1", item_row="ROW-1", posting_date="2026-11-26", posting_time="08:00:00",
+			warehouse="Shop 1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=1.0, base_amount=10.0, buying_amount=6.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		second = AttrDict(
+			parent="SI-2", item_row="ROW-2", posting_date="2026-11-26", posting_time="09:00:00",
+			warehouse="Dist Hub 1", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=4.0, base_amount=40.0, buying_amount=30.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		first[fast_gross_profit.LINE_SNAPSHOT_FIELD] = (first.qty, first.base_amount, first.buying_amount)
+		# Simulate the stock fold into the group's first row.
+		first.qty += second.qty
+		first.base_amount += second.base_amount
+		first.buying_amount += second.buying_amount
+		generator = types.SimpleNamespace(si_list=[first, second], currency_precision=3, float_precision=2)
+
+		batch = fast_gross_profit._build_contribution_batch(generator, set())
+
+		by_row = {row["item_row"]: row for row in batch["contributions"]}
+		self.assertEqual((by_row["ROW-1"]["qty"], by_row["ROW-1"]["base_amount"], by_row["ROW-1"]["buying_amount"]), (1.0, 10.0, 6.0))
+		self.assertEqual((by_row["ROW-2"]["qty"], by_row["ROW-2"]["base_amount"]), (4.0, 40.0))
+		self.assertEqual(sum(row["qty"] for row in batch["contributions"]), 5.0)
+
+	def test_collect_scopes_invoice_ids_and_forces_row_preserving_monthly_extraction(self):
+		row = AttrDict(
+			parent="SI-1", item_row="ROW-1", posting_date="2026-01-02", posting_time="00:00:00",
+			warehouse="", is_return=0, return_against=None, update_stock=1, delivered_by_supplier=0,
+			qty=1.0, base_amount=10.0, buying_amount=5.0,
+			_khitmee_query_phase=1, _khitmee_valuation_source="sle",
+		)
+		captured = {}
+
+		class FakeGenerator:
+			def __init__(self, filters, invoice_ids=None):
+				captured["filters"] = filters
+				captured["invoice_ids"] = invoice_ids
+				self.si_list = [row]
+				self.currency_precision = 2
+				self.float_precision = 2
+
+		with patch.object(fast_gross_profit, "standard_gross_profit", object()), patch.object(
+			fast_gross_profit, "FastGrossProfitGenerator", FakeGenerator
+		), patch.object(fast_gross_profit, "_fetch_linked_return_originals", return_value=set()):
+			batch = collect_profit_contributions(
+				{"company": "Company", "group_by": "Invoice"}, invoice_ids=["SI-1", "SI-1"]
+			)
+
+		self.assertEqual(captured["filters"].group_by, "Monthly")
+		self.assertEqual(captured["invoice_ids"], ("SI-1",))
+		self.assertEqual(len(batch["contributions"]), 1)
+
+	def test_valuation_source_classification_covers_sle_fallbacks_and_special_branches(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator._valuation_source_by_row_id = {}
+		generator._tie_pairs = set()
+		generator._matched_sles = {}
+		generator._sle_predecessors = {}
+		generator._last_purchase_rate_cache = {}
+		generator.non_stock_items = set()
+		generator.delivery_notes = {}
+		generator.get_stock_ledger_entries = lambda item, warehouse: [True]
+		generator.calculate_buying_amount_from_sle = lambda *args: 40
+		generator.get_average_buying_rate = lambda row, item: 7
+		generator.get_drop_ship_buying_amount = lambda row: None
+		generator.get_buying_amount_from_so_dn = lambda *args: 0
+		row = AttrDict(
+			parenttype="Sales Invoice", parent="SI-1", item_row="ROW-1", warehouse="W1",
+			update_stock=1, dn_detail=None, qty=2, delivered_by_supplier=0,
+		)
+		key = normalize_sle_key("ITEM", "W1", "Sales Invoice", "SI-1", "ROW-1")
+		generator._matched_sles[key] = {"stock_value": 80, "qty": -2}
+		generator._sle_predecessors[key] = {"stock_value": 100}
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "sle")
+
+		generator._sle_predecessors[key] = {"stock_value": 0}
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "average_rate")
+
+		generator._matched_sles[key] = None
+		generator.get_buying_amount(row, "ITEM")
+		self.assertEqual(row["_khitmee_valuation_source"], "missing_detail_zero")
+
+		dropship = AttrDict(row, delivered_by_supplier=1)
+		generator.get_drop_ship_buying_amount = lambda current: 20
+		generator.get_buying_amount(dropship, "ITEM")
+		self.assertEqual(dropship["_khitmee_valuation_source"], "dropship")
+
+		non_stock = AttrDict(row, delivered_by_supplier=0, project="P1", cost_center=None)
+		generator.non_stock_items = {"ITEM"}
+		generator.get_stock_ledger_entries = lambda item, warehouse: []
+		generator._fetch_last_purchase_rate = lambda item, current: 11
+		generator.get_buying_amount(non_stock, "ITEM")
+		self.assertEqual(non_stock["_khitmee_valuation_source"], "last_purchase_rate")
+
+		dn_row = AttrDict(row, project=None, delivery_notes=None)
+		generator.non_stock_items = set()
+		generator.delivery_notes = {"ROW-1": AttrDict(total_qty=2, total_incoming_value=30)}
+		generator.get_buying_amount(dn_row, "ITEM")
+		self.assertEqual(dn_row["_khitmee_valuation_source"], "dn_valuation")
+
+
+class TestTwoPhaseInvoiceOrdering(unittest.TestCase):
+	def test_main_rows_are_forward_before_unabsorbed_linked_returns(self):
+		queries = []
+
+		class InvoiceQuery:
+			def where(self, criterion):
+				queries.append(criterion)
+				return self
+
+		def doc_type(name):
+			return FakeQBTable(name)
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(include_returned_invoices=1)
+		prepare_calls = []
+
+		def prepare_invoice_query():
+			prepare_calls.append(1)
+			return InvoiceQuery()
+
+		generator.prepare_invoice_query = prepare_invoice_query
+
+		def run_query(query, semijoin_kind=None):
+			if semijoin_kind == "normal":
+				return [AttrDict(parent="SI-A", posting_date="2026-01-01", posting_time="10:00:00")]
+			if semijoin_kind == "unlinked_return":
+				return [AttrDict(parent="SI-Z", posting_date="2026-01-01", posting_time="10:00:00")]
+			return [AttrDict(parent="SI-RET", posting_date="2026-01-04", posting_time="10:00:00")]
+
+		generator._run_invoice_query = run_query
+		old_frappe = fast_gross_profit.frappe
+		fast_gross_profit.frappe = types.SimpleNamespace(qb=types.SimpleNamespace(DocType=doc_type))
+		try:
+			generator.load_invoice_items()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+
+		self.assertEqual(len(prepare_calls), 3)
+		self.assertEqual([row.parent for row in generator.si_list], ["SI-Z", "SI-A", "SI-RET"])
+		self.assertEqual([row._khitmee_query_phase for row in generator.si_list], [1, 1, 0])
+		self.assertTrue(all(row._khitmee_first_seen_key.startswith(f"{row._khitmee_query_phase}|") for row in generator.si_list))
+
+
+class TestReturnedInvoiceContractFixes(unittest.TestCase):
+	def test_returned_invoice_parents_are_fetched_in_chunks_of_one_thousand(self):
+		queries = []
+
+		def doc_type(name):
+			return FakeQBTable(name)
+
+		def from_(table):
+			query = FakeQBQuery(table)
+			queries.append(query)
+			return query
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.si_list = [AttrDict(parent=f"SI-{index:04d}") for index in range(1001)]
+		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
+		generator._hints_enabled = lambda: False
+		generator._run_invoice_query = lambda query: []
+
+		old_frappe = fast_gross_profit.frappe
+		old_standard = fast_gross_profit.standard_gross_profit
+		fast_gross_profit.frappe = types.SimpleNamespace(
+			_dict=AttrDict,
+			qb=types.SimpleNamespace(DocType=doc_type, from_=from_),
+		)
+		fast_gross_profit.standard_gross_profit = types.SimpleNamespace(
+			build_match_conditions=lambda doctype: (_ for _ in ()).throw(
+				AssertionError("in-date return detail lookup must omit match conditions")
+			)
+		)
+		try:
+			generator.get_returned_invoice_items()
+		finally:
+			fast_gross_profit.frappe = old_frappe
+			fast_gross_profit.standard_gross_profit = old_standard
+
+		self.assertEqual(len(queries), 2)
+		self.assertEqual(len(queries[0].wheres[1].value[1]), 1000)
+		self.assertEqual(len(queries[1].wheres[1].value[1]), 1)
+
+
 class TestPass3ChunkedVoucherSleProcessing(unittest.TestCase):
 	def test_cross_chunk_ordering_tie_matches_all_keys_processing_and_drops_partial_matches(self):
 		voucher_count = 1001
@@ -1154,6 +1452,146 @@ class TestPass3ChunkedVoucherSleProcessing(unittest.TestCase):
 
 		self.assertEqual(result["matched"][key], {"stock_value": 80, "qty": -2})
 		self.assertEqual(result["predecessors"][key], {"stock_value": 100})
+
+
+class TestReplayIndexAndAverageRatePreload(unittest.TestCase):
+	def test_prepare_invoice_query_omits_si_force_index_when_invoice_ids_scoped(self):
+		class FakeQuery:
+			def __init__(self):
+				self.indexes = []
+
+			def select(self, *args):
+				return self
+
+			def force_index(self, name):
+				self.indexes.append(name)
+				return self
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(company="Company", warehouse="W1")
+		generator._upstream_prepare_invoice_query = lambda: FakeQuery()
+
+		generator._scoped_invoice_ids = ("SI-1",)
+		self.assertFalse(generator._hints_enabled())
+		scoped_query = generator.prepare_invoice_query()
+		self.assertFalse(generator._warehouse_semijoin_enabled())
+		self.assertEqual(scoped_query.indexes, [])
+
+		generator._scoped_invoice_ids = None
+		generator.filters["warehouse"] = None
+		self.assertTrue(generator._hints_enabled())
+		full_query = generator.prepare_invoice_query()
+		self.assertEqual(full_query.indexes, [SI_IDX])
+
+	def test_previous_sle_and_last_valuation_rate_batch_queries_use_bounded_union_shape(self):
+		candidates = [
+			{
+				"item_code": "ITEM-1",
+				"warehouse": "W1",
+				"posting_datetime": "2026-01-05 10:00:00",
+				"voucher_no": "SI-1",
+				"voucher_type": "Sales Invoice",
+			},
+			{
+				"item_code": "ITEM-2",
+				"warehouse": "W2",
+				"posting_datetime": "2026-01-06 11:00:00",
+				"voucher_no": "SI-2",
+				"voucher_type": "Sales Invoice",
+			},
+		]
+		prev_sql, prev_params = build_previous_sle_batch_query(candidates)
+		self.assertEqual(prev_sql.count("UNION ALL"), 1)
+		self.assertIn("ORDER BY `posting_datetime` DESC, `creation` DESC", prev_sql)
+		self.assertEqual(
+			prev_params,
+			["ITEM-1", "W1", "2026-01-05 10:00:00", "ITEM-2", "W2", "2026-01-06 11:00:00"],
+		)
+
+		vr_sql, vr_params = build_last_valuation_rate_batch_query(candidates)
+		self.assertEqual(vr_sql.count("UNION ALL"), 1)
+		self.assertIn("NOT (`voucher_no` = %s AND `voucher_type` = %s)", vr_sql)
+		self.assertEqual(
+			vr_params,
+			[
+				"ITEM-1", "W1", "SI-1", "Sales Invoice", "2026-01-05 10:00:00",
+				"ITEM-2", "W2", "SI-2", "Sales Invoice", "2026-01-06 11:00:00",
+			],
+		)
+
+	def test_preload_average_buying_rates_handles_fifo_moving_avg_item_fallback_and_skips_serial_batch(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(company="Company")
+		generator.average_buying_rate = {}
+		generator.non_stock_items = set()
+		generator.delivery_notes = {}
+		generator.product_bundles = {}
+		generator.bundle_deliveries = {}
+		generator._tie_pairs = set()
+		generator._matched_sles = {
+			normalize_sle_key("ITEM-FIFO", "W1", "Sales Invoice", "SI-1", "R1"): {"stock_value": 10},
+			normalize_sle_key("ITEM-MA", "W1", "Sales Invoice", "SI-2", "R2"): {"stock_value": 10},
+			normalize_sle_key("ITEM-FALLBACK", "W1", "Sales Invoice", "SI-3", "R3"): {"stock_value": 10},
+			normalize_sle_key("ITEM-SERIAL", "W1", "Sales Invoice", "SI-4", "R4"): {"stock_value": 10},
+		}
+		generator._sle_predecessors = {}
+		generator._sle_pair_exists = {
+			("ITEM-FIFO", "W1"): True,
+			("ITEM-MA", "W1"): True,
+			("ITEM-FALLBACK", "W1"): True,
+			("ITEM-SERIAL", "W1"): True,
+		}
+		generator.si_list = [
+			AttrDict(parenttype="Sales Invoice", parent="SI-4", item_row="R4", item_code="ITEM-SERIAL", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-04", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-3", item_row="R3", item_code="ITEM-FALLBACK", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-03", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-2", item_row="R2", item_code="ITEM-MA", warehouse="W1", update_stock=1, qty=-1, posting_date="2026-01-02", posting_time="10:00:00"),
+			AttrDict(parenttype="Sales Invoice", parent="SI-1", item_row="R1", item_code="ITEM-FIFO", warehouse="W1", update_stock=1, qty=-2, posting_date="2026-01-01", posting_time="10:00:00"),
+		]
+
+		class FakeDB:
+			def get_single_value(self, doctype, field):
+				return "FIFO"
+
+			def sql(self, sql, params=None, as_dict=False):
+				if "FROM `tabItem`" in sql:
+					return [
+						AttrDict(name="ITEM-FIFO", has_serial_no=0, has_batch_no=0, valuation_method="FIFO", valuation_rate=5.0, standard_rate=0),
+						AttrDict(name="ITEM-MA", has_serial_no=0, has_batch_no=0, valuation_method="Moving Average", valuation_rate=7.0, standard_rate=0),
+						AttrDict(name="ITEM-FALLBACK", has_serial_no=0, has_batch_no=0, valuation_method="FIFO", valuation_rate=19.5, standard_rate=0),
+						AttrDict(name="ITEM-SERIAL", has_serial_no=1, has_batch_no=0, valuation_method="FIFO", valuation_rate=30.0, standard_rate=0),
+					]
+				if "`stock_queue`" in sql:
+					return [
+						AttrDict(khitmee_idx=0, stock_queue="[[4, 12.5]]", valuation_rate=12.5),
+						AttrDict(khitmee_idx=1, stock_queue="[]", valuation_rate=14.25),
+						AttrDict(khitmee_idx=2, stock_queue="[]", valuation_rate=99.0),
+					]
+				if "`valuation_rate` >=" in sql:
+					return []
+				return []
+
+		stock_utils = types.ModuleType("erpnext.stock.utils")
+		stock_utils._get_fifo_lifo_rate = lambda q, qty, method: float(q[0][1])
+		stock_utils.get_combine_datetime = lambda d, t: f"{d} {t}"
+		stock_pkg = types.ModuleType("erpnext.stock")
+		stock_pkg.utils = stock_utils
+		erpnext_pkg = types.ModuleType("erpnext")
+		erpnext_pkg.stock = stock_pkg
+
+		with patch.object(fast_gross_profit, "standard_gross_profit", object()), patch.object(
+			fast_gross_profit,
+			"frappe",
+			types.SimpleNamespace(db=FakeDB(), _dict=AttrDict, get_cached_value=lambda *a, **k: None),
+		), patch.dict(
+			sys.modules,
+			{"erpnext": erpnext_pkg, "erpnext.stock": stock_pkg, "erpnext.stock.utils": stock_utils},
+		):
+			generator._preload_average_buying_rates()
+
+		self.assertEqual(generator.average_buying_rate[("ITEM-FIFO", "W1", "2026-01-01", "10:00:00", None)], 12.5)
+		self.assertEqual(generator.average_buying_rate[("ITEM-MA", "W1", "2026-01-02", "10:00:00", None)], 14.25)
+		self.assertEqual(generator.average_buying_rate[("ITEM-FALLBACK", "W1", "2026-01-03", "10:00:00", None)], 19.5)
+		self.assertNotIn(("ITEM-SERIAL", "W1", "2026-01-04", "10:00:00", None), generator.average_buying_rate)
 
 
 try:

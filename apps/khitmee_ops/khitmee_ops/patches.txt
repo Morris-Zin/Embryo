@@ -1,2 +1,2 @@
-
+khitmee_ops.setup.indexes
 khitmee_ops.patches.v0_1.create_catalog_tombstone_table

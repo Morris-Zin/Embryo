@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "from_date",
+  "cursor_date",
+  "processed",
+  "source_doctype",
+  "source_docname"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cursor_date",
+   "fieldtype": "Date",
+   "label": "Cursor Date"
+  },
+  {
+   "fieldname": "processed",
+   "fieldtype": "Check",
+   "label": "Processed",
+   "default": "0",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Data",
+   "label": "Source DocType",
+   "length": 64
+  },
+  {
+   "fieldname": "source_docname",
+   "fieldtype": "Data",
+   "label": "Source Docname",
+   "length": 140
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Khitmee Ops",
+ "name": "Khitmee Profit Dirty Range",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_seen": 1
+}
