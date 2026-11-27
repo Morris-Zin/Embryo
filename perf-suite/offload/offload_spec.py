@@ -250,7 +250,7 @@ SELECT
         "Monthly item-level margin scan",
         """
 SELECT
-  DATE_FORMAT(si.posting_date, '%Y-%m') AS month,
+  DATE_FORMAT(si.posting_date, '%%Y-%%m') AS month,
   sii.item_code,
   SUM(sii.stock_qty) AS qty,
   SUM(sii.base_net_amount) AS selling_amount,
@@ -258,7 +258,7 @@ SELECT
   SUM(sii.base_net_amount - (sii.stock_qty * sii.incoming_rate)) AS gross_profit_estimate
 """
         + _INVOICE_JOIN_MARIADB
-        + "GROUP BY DATE_FORMAT(si.posting_date, '%Y-%m'), sii.item_code\nORDER BY month, sii.item_code",
+        + "GROUP BY DATE_FORMAT(si.posting_date, '%%Y-%%m'), sii.item_code\nORDER BY month, sii.item_code",
         """
 SELECT
   strftime(si.posting_date, '%Y-%m') AS month,

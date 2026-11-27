@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
 from typing import Any
@@ -126,14 +127,37 @@ def execute_timed(cursor, sql: str, params: tuple[Any, ...] = (), fetch: bool = 
     }
 
 
+def numeric_value(value):
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        try:
+            return Decimal(value)
+        except InvalidOperation:
+            return None
+    return None
+
+
+def values_match(left, right) -> bool:
+    if left is None or right is None:
+        return left is right
+    left_num = numeric_value(left)
+    right_num = numeric_value(right)
+    if left_num is not None and right_num is not None:
+        return left_num == right_num
+    return str(left) == str(right)
+
+
 def compare_rows(left, right) -> dict[str, Any]:
     mismatches = []
     if len(left) != len(right):
         mismatches.append({"kind": "row_count", "raw": len(left), "summary": len(right)})
     for index, (lrow, rrow) in enumerate(zip(left, right)):
-        ltuple = tuple(str(value) for value in lrow)
-        rtuple = tuple(str(value) for value in rrow)
-        if ltuple != rtuple:
+        if len(lrow) != len(rrow) or not all(values_match(lval, rval) for lval, rval in zip(lrow, rrow)):
+            ltuple = tuple(str(value) for value in lrow)
+            rtuple = tuple(str(value) for value in rrow)
             mismatches.append({"kind": "value", "row": index, "raw": ltuple, "summary": rtuple})
             break
     return {"passed": not mismatches, "mismatches": mismatches[:5]}
@@ -198,7 +222,7 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     site, conn = connect_for_site(Path(args.sites_path))
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(pymysql.cursors.Cursor)
         cursor.execute(f"DROP TABLE IF EXISTS `{SUMMARY_TABLE}`")
         cursor.execute(CREATE_SUMMARY_SQL)
         build = execute_timed(cursor, BUILD_SUMMARY_SQL, (args.company, args.from_date, args.to_date))
@@ -206,8 +230,10 @@ def main(argv=None) -> int:
         raw = execute_timed(cursor, RAW_RANGE_SQL, (args.company, args.from_date, args.to_date), fetch=True)
         summary = execute_timed(cursor, SUMMARY_RANGE_SQL, (args.from_date, args.to_date), fetch=True)
         parity = compare_rows(raw["rows"], summary["rows"])
+        conn.autocommit(False)
         maintenance = benchmark_maintenance_upserts(cursor, args.maintenance_rows)
         conn.rollback()  # maintenance microbenchmark must not mutate the immutable baseline
+        conn.autocommit(True)
         size = table_size(cursor)
         if not args.keep_table:
             cursor.execute(f"DROP TABLE IF EXISTS `{SUMMARY_TABLE}`")

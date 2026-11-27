@@ -61,7 +61,28 @@ if [[ "$project" != "$PROJECT_NAME" ]]; then
 fi
 
 RUN_DIR="$RESULT_ROOT/$RUN_ID"
+STATS_OUTPUT="$RUN_DIR/container-stats.csv"
+STATS_SUMMARY="$RUN_DIR/container-stats-summary.json"
+STATS_LOG="$RUN_DIR/container-stats.log"
+STATS_PID=""
+start_stats_collector() {
+  rm -f "$STATS_OUTPUT"
+  bash "$REPO_ROOT/perf-suite/scripts/stats-collector.sh" --output "$STATS_OUTPUT" --interval 1 > /dev/null 2> "$STATS_LOG" &
+  STATS_PID=$!
+}
+stop_stats_collector() {
+  if [[ -n "$STATS_PID" ]]; then
+    kill "$STATS_PID" 2>/dev/null || true
+    wait "$STATS_PID" 2>/dev/null || true
+    STATS_PID=""
+  fi
+  if [[ -f "$STATS_OUTPUT" ]]; then
+    python3 "$REPO_ROOT/perf-suite/scripts/summarize_container_stats.py" "$STATS_OUTPUT" --json-out "$STATS_SUMMARY" > /dev/null 2>&1 || true
+  fi
+}
+trap stop_stats_collector EXIT
 mkdir -p "$RUN_DIR"
+start_stats_collector
 REMOTE_JSON="/tmp/khitmee-summary-benchmark.json"
 
 docker exec "$BACKEND_CONTAINER" mkdir -p /tmp/khitmee-offload-src
@@ -69,11 +90,16 @@ for file in offload_spec.py export_snapshot.py probe_mariadb.py summary_benchmar
   docker cp "$SCRIPT_DIR/$file" "$BACKEND_CONTAINER:/tmp/khitmee-offload-src/$file" >/dev/null
 done
 
+set +e
 docker exec -i -e PYTHONDONTWRITEBYTECODE=1 -w /tmp/khitmee-offload-src "$BACKEND_CONTAINER" \
   /home/frappe/frappe-bench/env/bin/python /tmp/khitmee-offload-src/summary_benchmark.py \
   --company "$COMPANY" --from-date "$FROM_DATE" --to-date "$TO_DATE" \
   --maintenance-rows "$MAINTENANCE_ROWS" --json-out "$REMOTE_JSON" | tee "$RUN_DIR/summary-summary.json"
+BENCH_STATUS="${PIPESTATUS[0]}"
+set -e
 
 docker cp "$BACKEND_CONTAINER:$REMOTE_JSON" "$RUN_DIR/summary-report.json" >/dev/null
 docker exec "$BACKEND_CONTAINER" rm -f "$REMOTE_JSON"
+stop_stats_collector
 echo "Summary benchmark complete: $RUN_DIR/summary-report.json"
+exit "$BENCH_STATUS"

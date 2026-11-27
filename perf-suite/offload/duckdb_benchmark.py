@@ -39,6 +39,15 @@ def proc_memory() -> dict[str, float | None]:
     return result
 
 
+def proc_cpu_seconds() -> float:
+    times = os.times()
+    return float(times.user + times.system)
+
+
+def cpu_delta(before: float, after: float) -> float:
+    return round(after - before, 6)
+
+
 def memory_delta(before: dict[str, float | None], after: dict[str, float | None]) -> dict[str, float | None]:
     rss_before = before.get("vmrss_mib")
     rss_after = after.get("vmrss_mib")
@@ -64,14 +73,17 @@ def load_full(conn, extract_dir: Path, tables: list[str]) -> dict[str, Any]:
     for table_key in tables:
         csv_path = extract_dir / f"{table_key}.csv.gz"
         before = proc_memory()
+        cpu_before = proc_cpu_seconds()
         start = time.perf_counter()
         conn.execute(csv_load_sql(table_key, csv_path, f"CREATE OR REPLACE TABLE {table_key}"))
         elapsed_ms = (time.perf_counter() - start) * 1000.0
         rows = conn.execute(f"SELECT COUNT(*) FROM {table_key}").fetchone()[0]
         after = proc_memory()
+        cpu_after = proc_cpu_seconds()
         stats[table_key] = {
             "rows": rows,
             "load_ms": round(elapsed_ms, 3),
+            "cpu_seconds": cpu_delta(cpu_before, cpu_after),
             "input_bytes": csv_path.stat().st_size,
             "memory": memory_delta(before, after),
         }
@@ -84,6 +96,7 @@ def apply_delta(conn, extract_dir: Path, tables: list[str]) -> dict[str, Any]:
         csv_path = extract_dir / f"{table_key}.csv.gz"
         temp = f"delta_{table_key}"
         before = proc_memory()
+        cpu_before = proc_cpu_seconds()
         start = time.perf_counter()
         conn.execute(csv_load_sql(table_key, csv_path, f"CREATE OR REPLACE TEMP TABLE {temp}"))
         table_exists = conn.execute(
@@ -99,10 +112,12 @@ def apply_delta(conn, extract_dir: Path, tables: list[str]) -> dict[str, Any]:
         rows_total = conn.execute(f"SELECT COUNT(*) FROM {table_key}").fetchone()[0]
         elapsed_ms = (time.perf_counter() - start) * 1000.0
         after = proc_memory()
+        cpu_after = proc_cpu_seconds()
         stats[table_key] = {
             "rows_changed": rows_changed,
             "rows_total": rows_total,
             "apply_ms": round(elapsed_ms, 3),
+            "cpu_seconds": cpu_delta(cpu_before, cpu_after),
             "input_bytes": csv_path.stat().st_size,
             "memory": memory_delta(before, after),
         }
@@ -118,15 +133,19 @@ def run_duckdb_queries(conn, company: str, from_date: str, to_date: str, query_k
         rows = None
         columns = None
         memory_rows = []
+        cpu_rows = []
         for _ in range(2):
             before = proc_memory()
+            cpu_before = proc_cpu_seconds()
             start = time.perf_counter()
             cursor = conn.execute(query.duckdb_sql, params)
             rows = cursor.fetchall()
             elapsed_ms = (time.perf_counter() - start) * 1000.0
             after = proc_memory()
+            cpu_after = proc_cpu_seconds()
             timings.append(elapsed_ms)
             memory_rows.append(memory_delta(before, after))
+            cpu_rows.append(cpu_delta(cpu_before, cpu_after))
             columns = [column[0] for column in cursor.description]
         results[query.key] = {
             "columns": columns,
@@ -136,6 +155,8 @@ def run_duckdb_queries(conn, company: str, from_date: str, to_date: str, query_k
             "warm_ms": round(timings[1], 3),
             "memory_cold": memory_rows[0],
             "memory_warm": memory_rows[1],
+            "cpu_cold_seconds": cpu_rows[0],
+            "cpu_warm_seconds": cpu_rows[1],
             "params": params,
         }
     return results

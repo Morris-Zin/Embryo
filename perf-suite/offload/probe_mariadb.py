@@ -17,6 +17,9 @@ from export_snapshot import discover_site
 from offload_spec import CANONICAL_QUERIES, QUERIES_BY_KEY, json_default, query_parameters
 
 STATUS_KEYS = (
+    "Cpu_time",
+    "Busy_time",
+    "Query_time",
     "Innodb_rows_read",
     "Innodb_data_reads",
     "Innodb_pages_read",
@@ -29,7 +32,7 @@ STATUS_KEYS = (
 )
 
 
-def status_snapshot(cursor) -> dict[str, int]:
+def status_snapshot(cursor) -> dict[str, float]:
     try:
         cursor.execute("SHOW SESSION STATUS")
         rows = cursor.fetchall()
@@ -39,14 +42,14 @@ def status_snapshot(cursor) -> dict[str, int]:
     for key, value in rows:
         if key in STATUS_KEYS:
             try:
-                result[key] = int(value)
+                result[key] = float(value)
             except (TypeError, ValueError):
                 pass
     return result
 
 
-def status_delta(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
-    return {key: after.get(key, 0) - before.get(key, 0) for key in STATUS_KEYS if key in before or key in after}
+def status_delta(before: dict[str, float], after: dict[str, float]) -> dict[str, float]:
+    return {key: round(after.get(key, 0.0) - before.get(key, 0.0), 6) for key in STATUS_KEYS if key in before or key in after}
 
 
 def connect_for_site(sites_path: Path):

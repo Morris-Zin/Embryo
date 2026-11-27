@@ -99,8 +99,29 @@ fi
 
 RUN_DIR="$RESULT_ROOT/$RUN_ID"
 EXTRACT_DIR="$RUN_DIR/extract"
+STATS_OUTPUT="$RUN_DIR/container-stats.csv"
+STATS_SUMMARY="$RUN_DIR/container-stats-summary.json"
+STATS_LOG="$RUN_DIR/container-stats.log"
+STATS_PID=""
+start_stats_collector() {
+  rm -f "$STATS_OUTPUT"
+  bash "$REPO_ROOT/perf-suite/scripts/stats-collector.sh" --output "$STATS_OUTPUT" --interval 1 > /dev/null 2> "$STATS_LOG" &
+  STATS_PID=$!
+}
+stop_stats_collector() {
+  if [[ -n "$STATS_PID" ]]; then
+    kill "$STATS_PID" 2>/dev/null || true
+    wait "$STATS_PID" 2>/dev/null || true
+    STATS_PID=""
+  fi
+  if [[ -f "$STATS_OUTPUT" ]]; then
+    python3 "$REPO_ROOT/perf-suite/scripts/summarize_container_stats.py" "$STATS_OUTPUT" --json-out "$STATS_SUMMARY" > /dev/null 2>&1 || true
+  fi
+}
+trap stop_stats_collector EXIT
 REMOTE_DIR="/tmp/khitmee-offload-$RUN_ID"
 mkdir -p "$RUN_DIR" "$EXTRACT_DIR"
+start_stats_collector
 
 if [[ "$SKIP_EXPORT" == "0" ]]; then
   echo "Exporting consistent MariaDB snapshot in mode $MODE..."
@@ -166,4 +187,5 @@ echo "Loading extract and running canonical queries in DuckDB..."
   --json-out "$RUN_DIR/duckdb-report.json" \
   --markdown-out "$RUN_DIR/offload-report.md" | tee "$RUN_DIR/duckdb-summary.json"
 
+stop_stats_collector
 echo "Offload benchmark complete: $RUN_DIR/offload-report.md"
