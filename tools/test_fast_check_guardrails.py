@@ -1,5 +1,7 @@
+import re
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -371,6 +373,28 @@ class TestParallelUnittestSelection(unittest.TestCase):
 			"perf-suite/k6",
 			"perf-suite/offload",
 		))
+
+
+class TestVerificationEvidenceSafeguards(unittest.TestCase):
+	def test_uv_bootstrap_pin_stays_in_dependency_manifest_for_cache_key_rotation(self):
+		root = TOOLS_DIR.parent
+		data = tomllib.loads((root / "apps/khitmee_ops/pyproject.toml").read_text(encoding="utf-8"))
+		dev_deps = data["dependency-groups"]["dev"]
+		uv_deps = [dep for dep in dev_deps if dep.startswith("uv==")]
+		self.assertEqual(len(uv_deps), 1)
+
+		for workflow in ("ci.yml", "autoloop-gate.yml"):
+			text = (root / ".github/workflows" / workflow).read_text(encoding="utf-8")
+			bootstrap_pins = set(re.findall(r"python -m pip install (uv==[^\s]+)", text))
+			self.assertEqual(bootstrap_pins, {uv_deps[0]})
+			self.assertIn('UV_CACHE_DIR="$HOME/.cache/pip/uv"', text)
+
+	def test_benchmark_evidence_reports_exact_test_count_change(self):
+		text = (TOOLS_DIR.parent / ".autoloop/experiments/devprod-verification-20261127-benchmarks.md").read_text(encoding="utf-8")
+
+		self.assertIn("472 total; tools suite 149", text)
+		self.assertIn("475 total; tools suite 152", text)
+		self.assertIn("no baseline tests removed; 3 regression tests added", text)
 
 
 if __name__ == "__main__":
