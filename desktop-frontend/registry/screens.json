@@ -484,6 +484,77 @@
         "max_idle_memory_bytes": 268435456,
         "max_p95_input_latency_ms": 50.0
       }
+    },
+    {
+      "id": "sales-invoice-detail",
+      "title": "Sales Invoice Detail",
+      "source_route": "/app/sales-invoice/<name>",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "ERPNext Sales Invoice list"
+      ],
+      "controls": [
+        {
+          "control_type": "button",
+          "id": "invoice-row-open",
+          "label": "Sales Invoice row",
+          "role": "listitem",
+          "keyboard": []
+        },
+        {
+          "control_type": "text",
+          "id": "invoice-detail-status",
+          "label": "Status",
+          "role": "text",
+          "keyboard": []
+        },
+        {
+          "control_type": "table",
+          "id": "invoice-detail-items",
+          "label": "Items",
+          "role": "table",
+          "keyboard": []
+        },
+        {
+          "control_type": "button",
+          "id": "invoice-detail-back",
+          "label": "Back",
+          "role": "button",
+          "keyboard": []
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "frappe.client.get",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice read"
+          ],
+          "mutation": false
+        }
+      ],
+      "native_component": "InvoiceDetailScreen",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#sales-invoice-detail",
+      "evidence": [
+        "evidence/journeys/invoice-detail-initial.json",
+        "experiments/0008-sales-invoice-detail-qualification.md"
+      ],
+      "failures": [
+        "editable draft form interactions pending",
+        "detail tabs and document actions pending",
+        "permission/keyboard/visual/performance evidence pending",
+        "multi-item return paid and overdue invoice states pending"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
     }
   ],
   "shared_component_scopes": {

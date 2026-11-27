@@ -577,6 +577,180 @@ fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
         .unwrap_or_default()
 }
 
+fn detail_string(doc: &serde_json::Value, key: &str) -> String {
+    doc.get(key)
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
+        .to_owned()
+}
+
+fn detail_time(doc: &serde_json::Value, key: &str) -> String {
+    detail_string(doc, key)
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+fn detail_number(doc: &serde_json::Value, key: &str) -> f64 {
+    doc.get(key).and_then(|value| value.as_f64()).unwrap_or(0.0)
+}
+
+fn detail_money(doc: &serde_json::Value, key: &str) -> String {
+    format!("$ {}", money(detail_number(doc, key)))
+}
+
+fn detail_check(doc: &serde_json::Value, key: &str) -> String {
+    if doc.get(key).and_then(|value| value.as_i64()).unwrap_or(0) == 1 {
+        "checked".into()
+    } else {
+        "unchecked".into()
+    }
+}
+
+fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name: &str) {
+    let Some(config) = state.runtime_config.clone() else {
+        app.set_status_text("Sales Invoice detail requires live ERP configuration".into());
+        return;
+    };
+    if state.erp_client.is_none() {
+        state.erp_client =
+            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
+    }
+    let Some(client) = state.erp_client.clone() else {
+        app.set_status_text("ERP login failed while loading Sales Invoice detail".into());
+        return;
+    };
+    match client.sales_invoice_detail(invoice_name) {
+        Ok(doc) => {
+            let customer = detail_string(&doc, "customer");
+            let customer_name = detail_string(&doc, "customer_name");
+            app.set_invoice_detail_name(detail_string(&doc, "name").into());
+            app.set_invoice_detail_customer_title(customer_name.clone().into());
+            app.set_invoice_detail_status(detail_string(&doc, "status").into());
+            let fields = [
+                ("Customer", customer, 0, 0, true),
+                ("Customer Name", customer_name, 1, 0, true),
+                (
+                    "Posting Date",
+                    detail_string(&doc, "posting_date"),
+                    2,
+                    0,
+                    true,
+                ),
+                (
+                    "Posting Time",
+                    detail_time(&doc, "posting_time"),
+                    0,
+                    1,
+                    false,
+                ),
+                (
+                    "Payment Due Date",
+                    detail_string(&doc, "due_date"),
+                    1,
+                    1,
+                    true,
+                ),
+                (
+                    "Update Stock",
+                    detail_check(&doc, "update_stock"),
+                    2,
+                    1,
+                    false,
+                ),
+                (
+                    "Source Warehouse",
+                    detail_string(&doc, "set_warehouse"),
+                    0,
+                    2,
+                    false,
+                ),
+                (
+                    "Total Quantity",
+                    qty(detail_number(&doc, "total_qty")),
+                    1,
+                    2,
+                    true,
+                ),
+                ("Total (USD)", detail_money(&doc, "total"), 2, 2, true),
+                (
+                    "Grand Total (USD)",
+                    detail_money(&doc, "grand_total"),
+                    0,
+                    3,
+                    true,
+                ),
+                ("In Words", detail_string(&doc, "in_words"), 1, 3, false),
+                (
+                    "Rounding Adjustment (USD)",
+                    detail_money(&doc, "rounding_adjustment"),
+                    2,
+                    3,
+                    false,
+                ),
+                (
+                    "Rounded Total (USD)",
+                    detail_money(&doc, "rounded_total"),
+                    0,
+                    4,
+                    true,
+                ),
+                (
+                    "Total Advance (USD)",
+                    detail_money(&doc, "total_advance"),
+                    1,
+                    4,
+                    false,
+                ),
+                (
+                    "Outstanding Amount (USD)",
+                    detail_money(&doc, "outstanding_amount"),
+                    2,
+                    4,
+                    true,
+                ),
+            ]
+            .into_iter()
+            .map(|(label, value, column, row, emphasized)| DetailField {
+                label: label.into(),
+                value: value.into(),
+                column,
+                row,
+                emphasized,
+            })
+            .collect::<Vec<_>>();
+            app.set_invoice_detail_fields(Rc::new(VecModel::from(fields)).into());
+            let items = doc
+                .get("items")
+                .and_then(|value| value.as_array())
+                .map(|rows| {
+                    rows.iter()
+                        .enumerate()
+                        .map(|(index, row)| {
+                            let item_code = detail_string(row, "item_code");
+                            let item_name = detail_string(row, "item_name");
+                            InvoiceDetailItem {
+                                index_text: (index + 1).to_string().into(),
+                                item_text: format!("{item_code}: {item_name}").into(),
+                                qty_text: qty(detail_number(row, "qty")).into(),
+                                rate_text: detail_money(row, "rate").into(),
+                                amount_text: detail_money(row, "amount").into(),
+                                warehouse: detail_string(row, "warehouse").into(),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            app.set_invoice_detail_items(Rc::new(VecModel::from(items)).into());
+            app.set_status_text(format!("Loaded Sales Invoice {invoice_name}").into());
+        }
+        Err(error) => {
+            app.set_status_text(format!("Sales Invoice detail failed: {error}").into());
+        }
+    }
+}
+
 fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     let filter = state.invoice_filter.clone();
     let Some(config) = state.runtime_config.clone() else {
@@ -950,6 +1124,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let initial_screen = match env::var("KHITMEE_INITIAL_SCREEN").as_deref() {
         Ok("stock-transfer") | Ok("transfer") | Ok("1") => 1,
         Ok("invoice-list") | Ok("invoices") | Ok("2") => 2,
+        Ok("invoice-detail") | Ok("invoice") | Ok("3") => 3,
         Ok("item-search") | Ok("4") => 4,
         _ => 0,
     };
@@ -957,6 +1132,22 @@ fn main() -> Result<(), slint::PlatformError> {
     if initial_screen == 2 {
         let mut state_ref = state.borrow_mut();
         refresh_invoice_rows(&app, &mut state_ref);
+    }
+    if initial_screen == 3 {
+        let mut state_ref = state.borrow_mut();
+        refresh_invoice_rows(&app, &mut state_ref);
+        let invoice_name = env::var("KHITMEE_INVOICE_NAME")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| {
+                state_ref
+                    .invoices
+                    .first()
+                    .map(|invoice| invoice.name.clone())
+            });
+        if let Some(invoice_name) = invoice_name {
+            refresh_invoice_detail(&app, &mut state_ref, &invoice_name);
+        }
     }
     app.set_search_results(search_model(&state.borrow().catalog, "retail"));
     refresh_voucher(&app, &state.borrow());
@@ -1326,6 +1517,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 .into(),
             );
             refresh_invoice_rows(&app, &mut state);
+        }
+    });
+
+    app.on_invoice_open({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |invoice_name| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            refresh_invoice_detail(&app, &mut state, invoice_name.as_str());
+            app.set_current_screen(3);
         }
     });
 

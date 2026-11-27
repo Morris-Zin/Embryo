@@ -29,6 +29,23 @@ export struct InvoiceRow {
     name-width: length,
 }
 
+export struct DetailField {
+    label: string,
+    value: string,
+    column: int,
+    row: int,
+    emphasized: bool,
+}
+
+export struct InvoiceDetailItem {
+    index-text: string,
+    item-text: string,
+    qty-text: string,
+    rate-text: string,
+    amount-text: string,
+    warehouse: string,
+}
+
 global Design {
     out property <color> bg: #f4f6f8;
     out property <color> panel: #ffffff;
@@ -602,10 +619,13 @@ component InvoiceSkeletonControl inherits Rectangle {
 component InvoiceGeneratedRow inherits Rectangle {
     in property <InvoiceRow> invoice;
     in property <int> index;
+    callback open-invoice(string);
     height: 41px;
     y: 190px + index * 41px;
     accessible-role: list-item;
     accessible-label: invoice.customer + "|" + invoice.status + "|" + invoice.posting-date + "|" + invoice.due-date + "|" + "$ " + invoice.total-text + "|" + invoice.name;
+
+    TouchArea { clicked => { root.open-invoice(invoice.name); } }
 
     Rectangle {
         x: 311px; y: 3px; width: 14px; height: 14px;
@@ -665,6 +685,7 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-filter-edited(string);
     callback invoice-load-more();
     callback invoice-sort-toggle();
+    callback invoice-open(string);
     background: #f4f5f7;
 
     Rectangle { x: 0px; y: 0px; width: 240px; height: 760px; background: #f8fafc; }
@@ -677,6 +698,7 @@ component InvoiceScreen inherits Rectangle {
         content-height: 230px + root.invoice-rows.length * 41px;
         for row[index] in root.invoice-rows: InvoiceGeneratedRow {
             x: 0px; y: 0px; width: 1180px; invoice: row; index: index;
+            open-invoice(name) => { root.invoice-open(name); }
         }
     }
 
@@ -1124,6 +1146,137 @@ component InvoiceScreen inherits Rectangle {
     Text { x: 296px; y: 716px; width: 180px; height: 18px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
 }
 
+component DetailFieldBox inherits Rectangle {
+    in property <DetailField> field;
+    in property <length> column-width;
+    x: 264px + field.column * (root.column-width + 12px);
+    y: 112px + field.row * 58px;
+    width: root.column-width;
+    height: 48px;
+    accessible-role: text;
+    accessible-label: "\{field.label}: \{field.value}";
+
+    Text {
+        x: 0px; y: 0px; width: parent.width; height: 16px;
+        text: field.label; color: Design.muted; font-size: 11px; overflow: elide;
+    }
+    Rectangle {
+        x: 0px; y: 19px; width: parent.width; height: 28px;
+        background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px;
+        Text {
+            x: 9px; width: parent.width - 18px; height: parent.height;
+            text: field.value; color: Design.text; font-size: 12px;
+            font-weight: field.emphasized ? 750 : 500;
+            vertical-alignment: center; overflow: elide;
+        }
+    }
+}
+
+component DetailNavItem inherits Rectangle {
+    in property <string> text;
+    in property <bool> active: false;
+    height: 28px;
+    accessible-role: button;
+    accessible-label: text;
+    accessible-enabled: true;
+    Text {
+        x: 12px; width: parent.width - 16px; height: parent.height;
+        text: parent.text; color: active ? #175cd3 : #344054;
+        font-size: 12px; font-weight: active ? 700 : 500; vertical-alignment: center;
+    }
+}
+
+component InvoiceDetailScreen inherits Rectangle {
+    in property <string> detail-title: "Sales Invoice";
+    in property <string> detail-name: "";
+    in property <string> detail-customer-title: "";
+    in property <string> detail-status: "";
+    in property <[DetailField]> detail-fields: [];
+    in property <[InvoiceDetailItem]> detail-items: [];
+    callback back-to-list();
+    background: #f4f5f7;
+
+    property <length> content-x: 240px;
+    property <length> content-width: root.width - root.content-x;
+    property <length> column-width: (root.content-width - 88px) / 3;
+    property <length> items-top: 410px;
+    property <length> detail-content-height: 535px + root.detail-items.length * 38px;
+
+    Rectangle { x: 0px; y: 0px; width: 57px; height: parent.height; background: #ffffff; border-color: #e4e7ec; border-width: 1px; }
+    Rectangle { x: 57px; y: 0px; width: 183px; height: parent.height; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
+    Text { x: 69px; y: 9px; width: 150px; height: 28px; text: "Accounts"; color: Design.text; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+    DetailNavItem { x: 61px; y: 48px; width: 171px; text: "Home"; }
+    DetailNavItem { x: 61px; y: 78px; width: 171px; text: "Dashboard"; }
+    DetailNavItem { x: 61px; y: 108px; width: 171px; text: "Chart of Accounts"; }
+    DetailNavItem { x: 61px; y: 138px; width: 171px; text: "Sales Invoice"; active: true; }
+    DetailNavItem { x: 61px; y: 168px; width: 171px; text: "Purchase Invoice"; }
+    DetailNavItem { x: 61px; y: 198px; width: 171px; text: "Payment Entry"; }
+    DetailNavItem { x: 61px; y: 228px; width: 171px; text: "Journal Entry"; }
+
+    Rectangle { x: root.content-x; y: 0px; width: root.content-width; height: parent.height; background: #ffffff; }
+    Text { x: root.content-x + 20px; y: 10px; width: 170px; height: 28px; text: root.detail-title; color: Design.text; font-size: 16px; font-weight: 700; vertical-alignment: center; accessible-label: root.detail-title; }
+    Text { x: root.content-x + 20px; y: 39px; width: 280px; height: 24px; text: root.detail-customer-title; color: Design.text; font-size: 15px; font-weight: 650; vertical-alignment: center; accessible-label: root.detail-customer-title; }
+    Rectangle {
+        x: root.content-x + 20px; y: 66px; width: 62px; height: 22px;
+        border-radius: 11px; background: #fff1f3; border-color: #fecdd3; border-width: 1px;
+        accessible-role: text; accessible-label: "Status: \{root.detail-status}";
+        Text { width: parent.width; height: parent.height; text: root.detail-status; color: #c01048; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+    Text { x: root.content-x + 91px; y: 66px; width: 190px; height: 22px; text: root.detail-name; color: Design.muted; font-size: 11px; vertical-alignment: center; accessible-label: root.detail-name; }
+    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; }
+    BrowserButton { x: root.content-x + root.content-width - 170px; y: 13px; width: 72px; height: 32px; text: "Create"; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; }
+    Rectangle {
+        x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
+        border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;
+        touch := TouchArea { clicked => { root.back-to-list(); } }
+        Text { width: parent.width; height: parent.height; text: "Back"; color: Design.text; font-size: 12px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+
+    Rectangle { x: root.content-x + 18px; y: 91px; width: root.content-width - 36px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 7px; }
+    for tab[index] in ["Details", "Payments", "Address & Contact", "Terms", "More Info", "Connections"]: Text {
+        x: root.content-x + 32px + index * 104px; y: 91px; width: 96px; height: 34px;
+        text: tab; color: index == 0 ? #175cd3 : #475467; font-size: 12px; font-weight: index == 0 ? 700 : 500;
+        vertical-alignment: center; accessible-label: tab;
+    }
+
+    Flickable {
+        x: root.content-x; y: 126px; width: root.content-width; height: parent.height - 126px;
+        content-width: root.content-width;
+        content-height: root.detail-content-height;
+        Rectangle { x: 0px; y: 0px; width: root.content-width; height: root.detail-content-height; background: #ffffff; }
+
+        for field in root.detail-fields: DetailFieldBox {
+            field: field;
+            column-width: root.column-width;
+            x: 20px + field.column * (root.column-width + 12px);
+            y: 12px + field.row * 58px;
+        }
+
+        Text { x: 20px; y: 303px; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
+        Rectangle { x: 20px; y: 331px; width: root.content-width - 40px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
+        Text { x: 28px; y: 331px; width: 34px; height: 34px; text: "No."; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: 70px; y: 331px; width: root.column-width + 70px; height: 34px; text: "Item"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: root.content-width - 430px; y: 331px; width: 70px; height: 34px; text: "Quantity"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: root.content-width - 350px; y: 331px; width: 88px; height: 34px; text: "Rate (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
+        Text { x: root.content-width - 252px; y: 331px; width: 96px; height: 34px; text: "Amount (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
+        Text { x: root.content-width - 146px; y: 331px; width: 120px; height: 34px; text: "Warehouse"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+
+        for item[index] in root.detail-items: Rectangle {
+            x: 20px; y: 365px + index * 38px; width: root.content-width - 40px; height: 38px;
+            background: #ffffff; border-color: #eef2f6; border-width: 1px;
+            accessible-role: list-item;
+            accessible-label: "\{item.index-text} \{item.item-text} \{item.qty-text} \{item.rate-text} \{item.amount-text} \{item.warehouse}";
+            Text { x: 8px; width: 30px; height: parent.height; text: item.index-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
+            Text { x: 50px; width: root.column-width + 78px; height: parent.height; text: item.item-text; color: #175cd3; font-size: 11px; vertical-alignment: center; overflow: elide; }
+            Text { x: root.content-width - 430px; width: 70px; height: parent.height; text: item.qty-text; color: Design.text; font-size: 11px; vertical-alignment: center; }
+            Text { x: root.content-width - 350px; width: 88px; height: parent.height; text: item.rate-text; color: Design.text; font-size: 11px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { x: root.content-width - 252px; width: 96px; height: parent.height; text: item.amount-text; color: Design.text; font-size: 11px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { x: root.content-width - 146px; width: 120px; height: parent.height; text: item.warehouse; color: Design.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+        }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "Khitmee Native Counter";
     preferred-width: 1180px;
@@ -1135,6 +1288,12 @@ export component AppWindow inherits Window {
     in property <[CatalogChoice]> search-results: [];
     in property <[VoucherLine]> voucher-lines: [];
     in property <[InvoiceRow]> invoice-rows: [];
+    in property <[DetailField]> invoice-detail-fields: [];
+    in property <[InvoiceDetailItem]> invoice-detail-items: [];
+    in property <string> invoice-detail-title: "Sales Invoice";
+    in property <string> invoice-detail-name: "";
+    in property <string> invoice-detail-customer-title: "";
+    in property <string> invoice-detail-status: "";
     in property <[string]> warehouse-options: [];
     in property <[string]> customer-options: [];
     in property <[string]> payment-options: [];
@@ -1171,6 +1330,7 @@ export component AppWindow inherits Window {
     callback invoice-filter-edited(string);
     callback invoice-load-more();
     callback invoice-sort-toggle();
+    callback invoice-open(string);
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1245,12 +1405,17 @@ export component AppWindow inherits Window {
         invoice-filter-edited(text) => { root.invoice-filter-edited(text); }
         invoice-load-more => { root.invoice-load-more(); }
         invoice-sort-toggle => { root.invoice-sort-toggle(); }
+        invoice-open(name) => { root.invoice-open(name); }
     }
 
-    if current-screen == 3: Rectangle {
-        background: Design.bg;
-        x: 390px; y: 250px; width: 400px; height: 240px;
-        Text { x: 0px; y: 0px; width: 400px; text: root.fixture-note; color: Design.muted; wrap: word-wrap; }
-        AboutSlint { x: 0px; y: 120px; width: 180px; height: 80px; }
+    if current-screen == 3: InvoiceDetailScreen {
+        width: parent.width; height: parent.height;
+        detail-title: root.invoice-detail-title;
+        detail-name: root.invoice-detail-name;
+        detail-customer-title: root.invoice-detail-customer-title;
+        detail-status: root.invoice-detail-status;
+        detail-fields: root.invoice-detail-fields;
+        detail-items: root.invoice-detail-items;
+        back-to-list => { current-screen = 2; }
     }
 }
