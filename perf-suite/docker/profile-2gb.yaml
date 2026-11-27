@@ -37,6 +37,8 @@ services:
   backend:
     mem_limit: 576m
     environment:
+      KHITMEE_PREWARM_CATALOG: "1"
+      KHITMEE_WORKER_RECYCLE_RSS_MB: "140"
       MALLOC_ARENA_MAX: "2"
       MALLOC_MMAP_THRESHOLD_: "1048576"
       MALLOC_TRIM_THRESHOLD_: "8388608"
@@ -53,7 +55,7 @@ services:
       - --preload
       - --max-requests=1500
       - --max-requests-jitter=300
-      - frappe.app:application
+      - khitmee_ops.preload_wsgi:application
 
   queue:
     image: ${CUSTOM_IMAGE:-frappe/erpnext}:${CUSTOM_TAG:-v16.60.0}
@@ -62,6 +64,8 @@ services:
     platform: linux/amd64
     mem_limit: 144m
     environment:
+      KHITMEE_PREWARM_CATALOG: "1"
+      KHITMEE_WORKER_RECYCLE_RSS_MB: "140"
       MALLOC_ARENA_MAX: "2"
     command:
       - bench
