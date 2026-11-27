@@ -1362,8 +1362,14 @@ def run_gp_parity(frappe, args):
         if not custom_from_date or not custom_to_date:
             raise ParityFailure("custom gross-profit ranges require both --custom-from-date and --custom-to-date")
         grouped_ranges.append(("custom", custom_from_date, custom_to_date))
+    long_range_mode = getattr(args, "gp_1y", None) or "warehouse"
     for window, from_date, to_date in grouped_ranges:
         for group_by in ("Warehouse", "Monthly"):
+            if window == "1y" and (long_range_mode == "none" or (long_range_mode == "warehouse" and group_by != "Warehouse")):
+                # Each 1y stock-oracle case costs ~30 min; 1y qty/amount is
+                # covered cheaply by the ledger reconciliation case below.
+                emit("PARITY_GP_CASE_SKIPPED_BY_PLAN", {"case": f"{window}-{group_by}", "gp_1y": long_range_mode})
+                continue
             for include_returned in (0, 1):
                 cases.append((f"{window}-{group_by}-ret{include_returned}", {
                     "company": first_company,
@@ -1426,6 +1432,22 @@ def run_gp_parity(frappe, args):
         })
         for mismatch in case_mismatches[:10]:
             emit("PARITY_GP_MISMATCH", {"case": label, **mismatch})
+
+    from khitmee_ops.profit_summary.reconcile import reconcile_summary_against_ledger
+
+    reconcile_start = time.monotonic()
+    drifts = reconcile_summary_against_ledger(first_company, DATE_1Y_FROM, DATE_TO)
+    executed_cases += 1
+    if drifts:
+        failed_cases += 1
+        mismatches.extend({"kind": "summary_ledger_drift", "case": "1y-summary-ledger-reconcile", **drift} for drift in drifts)
+    emit("PARITY_GP_CASE", {
+        "case": "1y-summary-ledger-reconcile",
+        "fast_seconds": round(time.monotonic() - reconcile_start, 3),
+        "mismatches": len(drifts),
+    })
+    for drift in drifts[:10]:
+        emit("PARITY_GP_MISMATCH", {"case": "1y-summary-ledger-reconcile", **drift})
 
     coverage = audit_gp_coverage_rows(load_gp_coverage_invoice_rows(frappe), cases)
     emit("PARITY_GP_COVERAGE", coverage)
@@ -2434,6 +2456,12 @@ def build_parser():
         help="sidecar (default): bounded throwaway container so the stock oracle cannot starve the 576 MiB backend; exec: legacy docker exec into the backend",
     )
     parser.add_argument("--sidecar-memory", default="1536m", help="memory (and swap) cap for the oracle sidecar")
+    parser.add_argument(
+        "--gp-1y",
+        choices=("warehouse", "all", "none"),
+        default="warehouse",
+        help="1y stock-oracle cases (~30 min each): warehouse (default, 2 cases), all (4, for nightly), none",
+    )
     parser.add_argument("--inside-backend", action="store_true", help=argparse.SUPPRESS)
     return parser
 
