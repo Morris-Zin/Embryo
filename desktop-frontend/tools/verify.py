@@ -79,6 +79,7 @@ def web_controls(dom: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "width": float(geometry.get("width", 0) or 0),
             "height": float(geometry.get("height", 0) or 0),
             "disabled": bool(control.get("disabled")),
+            "expanded": control.get("ariaExpanded") or None,
         })
     return occurrence_keyed(rows)
 
@@ -91,7 +92,9 @@ def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
             continue
         label = norm_text(element.get("accessibleLabel") or element.get("accessibleValue") or element.get("accessiblePlaceholder"))
         role = norm_text(element.get("accessibleRole") or element.get("role")).lower()
-        if not label and role in ("text", "statictext", "unknown", ""):
+        if role in ("text", "statictext"):
+            continue
+        if not label and role in ("unknown", ""):
             continue
         position = element.get("absolutePosition") or {}
         rows.append({
@@ -102,6 +105,7 @@ def native_controls(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "width": float(size.get("width", 0) or 0),
             "height": float(size.get("height", 0) or 0),
             "disabled": element.get("accessibleEnabled") is False,
+            "expanded": element.get("accessibleExpanded"),
         })
     return occurrence_keyed(rows)
 
@@ -132,8 +136,8 @@ def compare_structure(reference_dom: dict[str, Any], native_tree: dict[str, Any]
         deltas = {axis: abs(left[axis] - right[axis]) for axis in ("x", "y", "width", "height")}
         if any(delta > tolerance for delta in deltas.values()):
             geometry_failures.append({"control": key, "reference": {axis: left[axis] for axis in deltas}, "native": {axis: right[axis] for axis in deltas}, "deltas": deltas})
-        if left["disabled"] != right["disabled"]:
-            geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"]}})
+        if left["disabled"] != right["disabled"] or (left.get("expanded") is not None and left.get("expanded") != right.get("expanded")):
+            geometry_failures.append({"control": key, "stateMismatch": {"referenceDisabled": left["disabled"], "nativeDisabled": right["disabled"], "referenceExpanded": left.get("expanded"), "nativeExpanded": right.get("expanded")}})
     return {
         "passed": not missing and not unexpected and not geometry_failures,
         "referenceControlCount": len(reference),
@@ -218,12 +222,12 @@ def compare_state(screen: dict[str, Any], state: str, reference_dir: Path, nativ
 
 def evaluate_screen(screen: dict[str, Any], web_reference: Path, native_evidence: Path, evidence_out: Path, business_report: Path | None, performance_report: Path | None) -> dict[str, Any]:
     reference_id = screen["source_route"].strip("/").replace("/", "-").replace("#", "--") or "root"
-    aliases = [reference_id, screen["source_route"].strip("/").replace("_", "-"), screen["id"]]
+    aliases = [reference_id, screen["source_route"].strip("/").replace("_", "-").replace("#", "--"), screen["id"]]
     reference_base = next((web_reference / alias for alias in aliases if (web_reference / alias).exists()), web_reference / reference_id)
     native_base = native_evidence / screen["id"]
     reference_states = state_dirs(reference_base)
     native_states = state_dirs(native_base)
-    state_names = sorted(set(reference_states) | set(native_states), key=lambda value: (value != "initial", value))
+    state_names = sorted(set(reference_states) | set(native_states) | {"initial"}, key=lambda value: (value != "initial", value))
     result = {"screen": screen["id"], "passed": False, "failures": [], "states": [], "checks": {}}
     if not state_names:
         result["failures"].append(f"no reference or native capture states found for {screen['id']}")
@@ -291,7 +295,9 @@ def main() -> int:
         for screen in registry.get("screens", []):
             matched = next((item for item in results if item["screen"] == screen.get("id")), None)
             if matched and matched["passed"]:
-                screen["status"] = "verified"
+                screen["failures"] = []
+                if screen.get("status") != "regression-locked":
+                    screen["status"] = "verified"
             elif matched:
                 screen["failures"] = matched["failures"]
         write_json(registry_path, registry)
