@@ -436,6 +436,10 @@ async function main() {
       }
     }
 
+    if (!results.length) {
+      throw new Error(`No benchmark scenarios ran for catalog mode ${options.catalogMode}`);
+    }
+
     const output = {
       meta: {
         label: values.label,
