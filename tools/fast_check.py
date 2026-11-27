@@ -52,7 +52,7 @@ def check(root):
     def javascript():
         files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files", "-co",
                                          "--exclude-standard", "--", "apps/khitmee_ops/**/*.js",
-                                         "perf-suite/k6/**/*.js", "perf-suite/browser/**/*.mjs"], cwd=root, text=True).splitlines()
+                                         "perf-suite/k6/**/*.js", "perf-suite/browser/*.mjs"], cwd=root, text=True).splitlines()
         if not files:
             raise RuntimeError("no JavaScript inputs discovered")
         if bun:
