@@ -27,7 +27,8 @@ This ledger is append-only evidence for sales voucher, item search and invoice-l
 - `python tools/architecture_lint.py` passed.
 - `python tools/verify.py --screen sales-voucher` correctly failed because live reference, business and performance evidence are missing.
 - The real desktop UI was driven for a 10,000-item/10,000-invoice fixture run. Empty totals show `0`/`0.00`; Burmese query `ဆန်` returned 3 visible matches; selecting `ITEM-000000` produced qty `1` and subtotal `250.00`; submit/print was blocked without fabricating a sale; exact invoice filtering narrowed to one row.
-- SQLCipher encrypted-catalog execution is not yet proven on this Windows VM because OpenSSL build/install tooling is unresolved. The pilot was therefore run explicitly with `--no-default-features`; this is a qualification gap, not a security pass.
+- SQLCipher encrypted-catalog validation is now proven on this Windows VM after installing OpenSSL through Chocolatey: default-feature `cargo check` and `cargo test -p migration-core -p khitmee-catalog --locked` passed, including encrypted roundtrip and wrong-key rejection. Earlier `--no-default-features` UI evidence remains fixture-only and is not encrypted-catalog evidence.
+- The migration verifier was hardened into a state-based one-to-one harness: exact pixel comparison diagnostics, visible-control identity/geometry/accessibility comparison, state-directory matching, deterministic reference/native action capture, native keyboard probe recording, and synthetic self-tests (`python desktop-frontend/tools/test_verify.py`, 3 passed). Live ERP visual/business/performance parity remains unproven until capture completes.
 
 ## Rules
 

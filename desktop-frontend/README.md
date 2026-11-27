@@ -21,14 +21,14 @@ cd desktop-frontend && cargo test --locked
 cd desktop-frontend && cargo build -p khitmee-desktop
 ```
 
-Run the native pilot with MCP inspection enabled. On this Windows VM use the MSVC wrapper; `--no-default-features` bypasses the unresolved OpenSSL/SQLCipher toolchain only for fixture UI smoke testing and must not be reported as encrypted-catalog evidence:
+Run the native pilot with MCP inspection enabled. On this Windows VM use the MSVC wrapper; `--no-default-features` bypasses SQLCipher only for fixture UI smoke testing and must not be reported as encrypted-catalog evidence:
 
 ```bash
 cd desktop-frontend
 SLINT_MCP_PORT=49272 SLINT_EMIT_DEBUG_INFO=1 KHITMEE_CATALOG_ROWS=10000 KHITMEE_INVOICE_ROWS=10000 ./cargo-msvc.cmd cargo run -p khitmee-desktop --no-default-features
 ```
 
-Encrypted-catalog validation requires a working Windows OpenSSL toolchain for the `bundled-sqlcipher` feature, then the default `encrypted-catalog` feature must be rebuilt and tested end-to-end.
+Encrypted-catalog validation uses the Chocolatey OpenSSL installation with `OPENSSL_DIR=C:\Program Files\OpenSSL-Win64`, `OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib\VCd\MD`, and `OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include`; default-feature SQLCipher tests pass on this VM.
 
 Capture deterministic web references (requires the isolated `khitmee-perf` stack or another approved test site):
 
