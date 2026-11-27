@@ -46,10 +46,10 @@ The first uncontrolled pre-change run in the working checkout was 9.46s elapsed;
 
 ## Implemented improvements
 
-1. **Parallel unittest execution with preserved semantics.** `tools/fast_check.py` now uses pinned `unittest-parallel` for the five existing unittest suites. Financial, seeder, k6, and offload suites keep their original sequential discovery because they contain legacy import-time Frappe test-double coupling. That legacy serial stream overlaps the dominant tools suite, which runs at class level with four workers after measured validation.
+1. **Parallel unittest execution with preserved semantics.** `tools/fast_check.py` uses pinned `unittest-parallel` only for the independent tools suite. Financial, seeder, k6, and offload suites keep their original sequential discovery because they contain legacy import-time Frappe test-double coupling. That legacy serial stream overlaps the dominant tools suite, which runs at class level with four workers after measured validation.
 2. **Workflow security gate.** `zizmor` runs in fast-check. Actions are pinned to commit SHAs at the same major versions already in use, and checkout credential persistence is disabled where workflows do not push.
 3. **CI dependency caching and setup reduction.** Python and npm caches are enabled in CI/autoloop candidate jobs using dependency-manifest keys. Redundant `pip install --upgrade pip` was removed because setup-python's Python 3.14 installation already provides a pip new enough for `--group` installs.
-4. **Duplicate/stale-check elimination.** The ordinary CI job now inspects the pull-request event JSON before doing setup. If the PR is enrolled with the exact `autoloop` label, the job succeeds after detection while the stricter `autoloop-candidate-checks` job performs the same fast-check with empty permissions. Push events and non-enrolled PRs still run the full independent CI gate. CI also uses per-PR/per-ref concurrency cancellation so superseded pushes do not keep consuming runners.
+4. **Stale-check elimination.** CI uses per-PR/per-ref concurrency cancellation so superseded pushes do not keep consuming runners. An attempted labeled-PR fast-check skip was reverted after review because ordinary CI tests the merge result while candidate checks intentionally test the immutable PR head; those are not redundant verification signals.
 5. **Knowledge capture.** `docs/agents/perf-tooling.md` records the suite-parallelism constraint and zizmor suppression policy.
 
 ## Deliberate defect detection evidence
@@ -60,7 +60,7 @@ A temporary workflow containing the historical defect class from PR #12:
 - run: echo "${{ inputs.branch }}"
 ```
 
-was inserted locally, scanned, then deleted. Result: zizmor exited `14` and reported `error[template-injection]: code injection via template expansion` at the injected line. The same scan exits `0` on the fixed workflow set. This is direct evidence that the new gate detects the previous shell-injection class rather than merely adding a tool.
+was inserted locally, scanned, then deleted. Result: zizmor exited nonzero and reported `[template-injection]: code injection via template expansion` at the injected line. The final explicitly offline gate reproduced the detection with exit `13`, while the same scan exits `0` on the fixed workflow set even with `GH_TOKEN` exported. This is direct evidence that the new gate detects the previous shell-injection class rather than merely adding a tool.
 
 ## Rejected or unsuccessful experiments
 
@@ -68,12 +68,12 @@ was inserted locally, scanned, then deleted. Result: zizmor exited `14` and repo
 - **Module-level parallelism for legacy suites:** rejected after an initially lucky pass. A repeat fast-check failed nondeterministically with 24 errors and 2 failures because separate app test modules raced shared Frappe doubles. Those suites retain exact sequential discovery.
 - **Module-level parallelism for tools:** correct but slower. The tools suite measured about 4.54s versus about 2.5-3.7s for class-level parallelism in repeated runs.
 - **Test-level parallelism:** fastest in one experiment (~1.61s for tools) but rejected because unittest-parallel documents weaker fixture semantics at that level; speed does not justify weakening verification assumptions.
-- **GitHub object-filter job condition for label detection:** rejected. GitHub supports `labels*.name`, but zizmor could not parse it and suppressed several workflow-expression audits. The implemented event-JSON detection is explicit and scanner-friendly.
+- **Skipping ordinary CI on labeled autoloop PRs:** rejected after review. It reduced duplicate runtime, but ordinary CI tests the merge result while autoloop candidate checks test the immutable head; skipping the former would miss merge-only failures. An earlier GitHub object-filter condition was also rejected because zizmor could not parse it and suppressed workflow-expression audits.
 - **Mandatory mutation testing:** deferred, not implemented. Literature and prior project experience show high value but high runtime/operational cost; adding it to a sub-10s gate would violate the measured-impact priority.
 
 ## Remaining ranked opportunities
 
-1. Measure warm-cache CI duration on this PR and compare with baseline run `46034217934`; cache benefit is network-dependent and cannot be honestly claimed before the CI measurement exists.
+1. Measure more warm-cache CI samples before making stronger CI-duration claims; the first PR sample completed in about 26s versus 30s for baseline run `46034217934`, with fast-check itself at 4.20s versus the baseline 7s step.
 2. If the fast-check grows materially, add deterministic test-impact analysis using recorded test results rather than ad-hoc path rules.
 3. Evaluate diff-scoped mutmut as an optional nightly/nonblocking signal before considering it mandatory.
 4. Fix the environment blueprint so future VMs bootstrap a compatible Python instead of requiring a manually selected pyenv interpreter.
