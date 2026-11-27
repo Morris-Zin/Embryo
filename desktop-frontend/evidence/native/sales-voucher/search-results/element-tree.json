@@ -3556,7 +3556,7 @@
         "x": 330,
         "y": 714
       },
-      "accessibleLabel": "Local catalog search: 25 visible matches from 10000 rows",
+      "accessibleLabel": "Ready. Scan a barcode or press F2 to search.",
       "accessibleRole": "Text",
       "computedOpacity": 1,
       "handle": {

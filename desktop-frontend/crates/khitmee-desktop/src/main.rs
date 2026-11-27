@@ -301,9 +301,11 @@ fn load_fixture_catalog(
     let key = load_or_create_key(&key_path)?;
     let store = EncryptedStore::open(&db_path, &hex_key(&key))?;
     let scope = format!("fixture:{rows}");
-    let sync_token = format!("fixture-v2:{rows}");
+    let fixture_rows = fixture_catalog(rows);
+    let first = fixture_rows.first().expect("non-empty fixture catalog");
+    let sync_token = format!("fixture-v3:{rows}:{}:{}:{}", first.item_code, first.actual_qty, first.rate);
     if store.sync_token(&scope)? != sync_token || store.item_count(&scope)? != rows {
-        store.apply_sync(&scope, true, &sync_token, &fixture_catalog(rows))?;
+        store.apply_sync(&scope, true, &sync_token, &fixture_rows)?;
     }
     store.rows(&scope)
 }

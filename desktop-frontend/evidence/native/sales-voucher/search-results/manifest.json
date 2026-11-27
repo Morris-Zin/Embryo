@@ -10,20 +10,20 @@
     },
     {
       "type": "wait",
-      "ms": 500
+      "ms": 400
     }
   ],
-  "capturedAt": "2026-11-27T13:38:54.539Z",
+  "capturedAt": "2026-11-27T13:41:03.861Z",
   "server": {
     "name": "slint-mcp-embedded",
     "version": "0.1.0"
   },
   "screenshot": "native.png",
-  "screenshotSha256": "d04c39a2fb411dc6cf183d914c46f094298a57d41004b73089331be29d638d9f",
+  "screenshotSha256": "f00e2e664b24a6a5798712e80777b1a8db51ebc5fab519e4426a9090a688d955",
   "window": {
     "position": {
-      "x": 260,
-      "y": 260
+      "x": 130,
+      "y": 130
     },
     "rootElementHandle": {
       "generation": "1",
