@@ -100,6 +100,83 @@ class DuckDBDeltaMergeTest(unittest.TestCase):
             conn.close()
         self.assertEqual(rows, [("I-1", "Item 1"), ("I-2", "Item 2 changed")])
 
+    def test_delta_requires_existing_baseline_tables(self):
+        import csv
+        import gzip
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import duckdb
+
+        from duckdb_benchmark import apply_delta
+
+        columns = [column.name for column in TABLES_BY_KEY["item"].columns]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with gzip.open(root / "item.csv.gz", "wt", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                writer.writerow(columns)
+            (root / "manifest.json").write_text(json.dumps({"mode": "delta", "table_order": ["item"]}), encoding="utf-8")
+            conn = duckdb.connect(":memory:")
+            with self.assertRaisesRegex(RuntimeError, "existing full DuckDB baseline"):
+                apply_delta(conn, root, ["item"])
+            conn.close()
+
+    def test_failed_parity_preserves_target_database(self):
+        import csv
+        import gzip
+        import hashlib
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import duckdb
+
+        import duckdb_benchmark
+        from duckdb_benchmark import load_full, main
+
+        columns = [column.name for column in TABLES_BY_KEY["item"].columns]
+        row = ["I-1", "2026-01-01 00:00:00", "I-1", "Item 1", "Group", "Brand", 1, 0]
+
+        def write_extract(root, mode):
+            root.mkdir(parents=True, exist_ok=True)
+            with gzip.open(root / "item.csv.gz", "wt", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                writer.writerow(columns)
+                writer.writerow(row)
+            (root / "manifest.json").write_text(json.dumps({"mode": mode, "table_order": ["item"]}), encoding="utf-8")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full = tmp_path / "full"
+            delta = tmp_path / "delta"
+            write_extract(full, "full")
+            write_extract(delta, "delta")
+            database = tmp_path / "offload.duckdb"
+            conn = duckdb.connect(str(database))
+            load_full(conn, full, ["item"])
+            conn.close()
+            before = hashlib.sha256(database.read_bytes()).hexdigest()
+            mariadb_results = tmp_path / "mariadb.json"
+            mariadb_results.write_text(json.dumps({"queries": {}}), encoding="utf-8")
+            old_run_queries = duckdb_benchmark.run_duckdb_queries
+            old_verify = duckdb_benchmark.verify_parity
+            duckdb_benchmark.run_duckdb_queries = lambda *args, **kwargs: {}
+            duckdb_benchmark.verify_parity = lambda *args, **kwargs: {"forced": {"passed": False}}
+            try:
+                status = main([
+                    "--extract-dir", str(delta), "--database", str(database), "--company", "C",
+                    "--from-date", "2026-01-01", "--to-date", "2026-01-01",
+                    "--mariadb-results", str(mariadb_results), "--json-out", str(tmp_path / "report.json"),
+                ])
+            finally:
+                duckdb_benchmark.run_duckdb_queries = old_run_queries
+                duckdb_benchmark.verify_parity = old_verify
+            after = hashlib.sha256(database.read_bytes()).hexdigest()
+        self.assertEqual(status, 2)
+        self.assertEqual(before, after)
+
 
 class FormatTest(unittest.TestCase):
     def test_timedelta_format_is_sql_time_compatible(self):

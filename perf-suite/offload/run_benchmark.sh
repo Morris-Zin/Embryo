@@ -165,6 +165,11 @@ if [[ ! -f "$EXTRACT_DIR/manifest.json" ]]; then
   echo "Missing extracted manifest at $EXTRACT_DIR/manifest.json" >&2
   exit 4
 fi
+EXTRACT_MODE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("mode", ""))' "$EXTRACT_DIR/manifest.json")"
+if [[ "$EXTRACT_MODE" != "$MODE" ]]; then
+  echo "Extract mode '$EXTRACT_MODE' does not match requested --mode '$MODE'; refusing to mutate the DuckDB database" >&2
+  exit 4
+fi
 if [[ ! -f "$MARIADB_JSON" ]]; then
   echo "Missing MariaDB results at $MARIADB_JSON" >&2
   exit 4
