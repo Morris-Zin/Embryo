@@ -346,7 +346,7 @@ export component AppWindow inherits Window {
                 Panel {
                     heading: "Item search qualification";
                     vertical-stretch: 1;
-                    LineEdit {
+                    item-search-qualification := LineEdit {
                         height: 48px;
                         input-type: search;
                         placeholder-text: "Search 10,000 fixture items, Burmese text, or scan barcode…";
@@ -370,7 +370,7 @@ export component AppWindow inherits Window {
                 Panel {
                     heading: "Invoice list qualification";
                     vertical-stretch: 1;
-                    LineEdit {
+                    invoice-filter := LineEdit {
                         height: 44px;
                         input-type: search;
                         placeholder-text: "Filter invoice number, customer, status…";
