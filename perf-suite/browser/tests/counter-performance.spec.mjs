@@ -110,6 +110,36 @@ test.describe("cashier counter performance regressions", () => {
     await expect(page.locator('#lines-body tr[data-index="0"] strong')).toHaveText(itemCode(0));
   });
 
+  test("enter during an in-flight autocomplete search reuses the same request", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Network.enable");
+    await cdp.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 400,
+      downloadThroughput: 50 * 1024,
+      uploadThroughput: 50 * 1024,
+    });
+    const barcode = ean13ForIndex(2);
+    const apiRequests = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/method/khitmee_ops.api.search.search_items") && request.url().includes(barcode)) {
+        apiRequests.push(request.url());
+      }
+    });
+
+    const firstRequest = page.waitForRequest((request) =>
+      request.url().includes("/api/method/khitmee_ops.api.search.search_items") && request.url().includes(barcode),
+      { timeout: 7000 },
+    );
+    await page.locator("#item-search").pressSequentially(barcode, { delay: 3 });
+    await firstRequest;
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator("#lines-body tr")).toHaveCount(1, { timeout: 7000 });
+    expect(apiRequests, "Enter must join the in-flight search instead of duplicating it").toHaveLength(1);
+  });
+
   test("quantity changes update one row without rebuilding unaffected invoice rows", async ({ page }) => {
     await openAuthenticatedCounter(page);
     await measureBarcodeScan(page, itemCode(0), 0);
@@ -140,8 +170,8 @@ test.describe("cashier counter performance regressions", () => {
       rows += 1;
     }
     const probe = await probeSummary(page);
-    expect(probe.addedNodes, "ten scanned rows should append rows incrementally rather than rebuild the table").toBeLessThanOrEqual(180);
-    expect(probe.mutationRecords, "ten scanned rows should stay within the incremental rendering mutation budget").toBeLessThanOrEqual(140);
+    expect(probe.addedNodes, "ten scanned rows should append rows incrementally rather than rebuild the table").toBeLessThanOrEqual(70);
+    expect(probe.mutationRecords, "ten scanned rows should stay within the incremental rendering mutation budget").toBeLessThanOrEqual(70);
   });
 
   test("autocomplete keyboard navigation preserves option DOM nodes", async ({ page }) => {

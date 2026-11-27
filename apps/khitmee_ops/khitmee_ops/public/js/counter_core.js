@@ -120,6 +120,7 @@
 			searchKey: "",
 			searchRequestId: 0,
 			searchCache: new Map(),
+			inflightSearches: new Map(),
 			clientVoucherId: uuid(),
 			submitting: false,
 			customerQuery: "",
@@ -308,6 +309,7 @@
 			const searchKey = [term, searchWarehouse(), priceList, customer, config.showRates ? "rates" : "no-rates"].join("\u001f");
 			if (state.searchKey === searchKey && state.searchItems.length) return;
 			const useCache = !!(options && options.cache);
+			const shouldRender = !options || options.render !== false;
 			if (useCache) {
 				const cached = state.searchCache.get(searchKey);
 				if (cached && Date.now() - cached.at < 30000) {
@@ -316,13 +318,20 @@
 					state.searchKey = searchKey;
 					state.searchItems = cached.items;
 					state.activeIndex = state.searchItems.length ? 0 : -1;
-					renderResults();
+					if (shouldRender) renderResults();
 					return;
 				}
 			}
-			const requestId = ++state.searchRequestId;
-			try {
-				const result = await apiGet("khitmee_ops.api.search.search_items", {
+			let requestId;
+			let requestPromise;
+			let flight = state.inflightSearches.get(searchKey);
+			if (flight) {
+				if (!shouldRender) flight.render = false;
+				requestId = flight.requestId;
+				requestPromise = flight.promise;
+			} else {
+				requestId = ++state.searchRequestId;
+				requestPromise = apiGet("khitmee_ops.api.search.search_items", {
 					q: term,
 					warehouse: searchWarehouse(),
 					price_list: priceList,
@@ -330,6 +339,11 @@
 					limit: 10,
 					include_rates: config.showRates ? 1 : 0,
 				});
+				flight = { requestId: requestId, promise: requestPromise, render: shouldRender };
+				state.inflightSearches.set(searchKey, flight);
+			}
+			try {
+				const result = await requestPromise;
 				if (requestId !== state.searchRequestId || els.search.value.trim() !== term) return;
 				state.searchKey = searchKey;
 				state.searchItems = result.items || [];
@@ -341,9 +355,12 @@
 						state.searchCache.delete(state.searchCache.keys().next().value);
 					}
 				}
-				renderResults();
+				if (shouldRender && flight.render) renderResults();
 			} catch (error) {
 				setStatus(error.message, "error");
+			} finally {
+				const current = state.inflightSearches.get(searchKey);
+				if (current && current.promise === requestPromise) state.inflightSearches.delete(searchKey);
 			}
 		}
 
@@ -576,7 +593,7 @@
 				// Hardware scanners type and hit Enter faster than the debounce; cancel
 				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
 				searchDebouncer.cancel();
-				searchItems({ cache: true }).then(function () {
+				searchItems({ cache: true, render: false }).then(function () {
 					const item = state.searchItems[state.activeIndex] || state.searchItems[0];
 					if (item) addItem(item);
 				});

@@ -45,7 +45,7 @@ Options:
   --label <name>          Artifact label (default: baseline)
   --url <url>             Benchmark stack URL (default: ${DEFAULT_BASE_URL})
   --profiles <list>       normal,throttled or one profile (default: normal,throttled)
-  --scenarios <list>      search,scan,repeat-scan,keyboard,lines,memory,page-load (default: search,scan,repeat-scan,keyboard,lines,memory)
+  --scenarios <list>      search,scan,repeat-scan,inflight-scan,keyboard,lines,memory,page-load (default: search,scan,repeat-scan,keyboard,lines,memory)
   --line-counts <list>    Invoice sizes for the lines scenario (default: 10,50,200)
   --repeat <n>            Repetitions for search/scan/keyboard scenarios (default: 1)
   --headed                Run Chrome headed
@@ -189,6 +189,37 @@ async function repeatScanScenario(page) {
   };
 }
 
+async function inflightScanScenario(page) {
+  await clearLines(page);
+  const input = page.locator("#item-search");
+  const barcode = ean13ForIndex(70);
+  const searchRequests = [];
+  const trackRequest = (request) => {
+    if (request.url().includes("/api/method/khitmee_ops.api.search.search_items") && request.url().includes(encodeURIComponent(barcode))) {
+      searchRequests.push(request.url());
+    }
+  };
+  page.on("request", trackRequest);
+  try {
+    const firstRequest = page.waitForRequest((request) =>
+      request.url().includes("/api/method/khitmee_ops.api.search.search_items") && request.url().includes(encodeURIComponent(barcode)),
+      { timeout: 7000 },
+    );
+    await input.pressSequentially(barcode, { delay: 3 });
+    await firstRequest;
+    const started = performance.now();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#lines-body tr")).toHaveCount(1, { timeout: 7000 });
+    return {
+      latencyMs: Number((performance.now() - started).toFixed(2)),
+      searchRequestCount: searchRequests.length,
+    };
+  } finally {
+    page.off("request", trackRequest);
+    await clearLines(page);
+  }
+}
+
 async function keyboardScenario(page) {
   const latencies = [];
   for (let iteration = 0; iteration < 2; iteration += 1) {
@@ -275,7 +306,7 @@ async function main() {
       label: { type: "string", default: "baseline" },
       url: { type: "string", default: process.env.BENCH_URL || DEFAULT_BASE_URL },
       profiles: { type: "string", default: "normal,throttled" },
-      scenarios: { type: "string", default: "search,scan,repeat-scan,keyboard,lines,memory" },
+      scenarios: { type: "string", default: "search,scan,repeat-scan,inflight-scan,keyboard,lines,memory" },
       "line-counts": { type: "string", default: "10,50,200" },
       repeat: { type: "string", default: "1" },
       headed: { type: "boolean", default: false },
@@ -349,6 +380,9 @@ async function main() {
           }
           if (scenarios.includes("repeat-scan")) {
             await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "repeat-scan", true, () => repeatScanScenario(harness.page)));
+          }
+          if (scenarios.includes("inflight-scan")) {
+            await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "inflight-scan", true, () => inflightScanScenario(harness.page)));
           }
           if (scenarios.includes("keyboard")) {
             await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "keyboard", false, () => keyboardScenario(harness.page)));
