@@ -47,7 +47,11 @@
       "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#invoice-list",
       "evidence": [],
       "failures": [
-        "No Khitmee-specific invoice-list reference route was discovered under apps/khitmee_ops/www; ERPNext desk reference capture is required before visual parity can be claimed."
+        "initial: visual comparison failed or inputs were incomparable",
+        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "initial: behavioral keyboard evidence missing or failing",
+        "business outcome evidence missing",
+        "performance evidence missing"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
@@ -107,7 +111,11 @@
       "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#item-search",
       "evidence": [],
       "failures": [
-        "Fixture qualification exercises local search behavior, but live ERPNext API parity evidence is still required."
+        "initial: visual comparison failed or inputs were incomparable",
+        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "initial: behavioral keyboard evidence missing or failing",
+        "business outcome evidence missing",
+        "performance evidence missing"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
@@ -268,8 +276,11 @@
         }
       ],
       "failures": [
-        "Live ERPNext visual/behavior reference capture has not yet completed in this workspace.",
-        "Authoritative ERPNext submission and print adapters are intentionally blocked until contracts are wired; fixture submissions are never fabricated."
+        "initial: visual comparison failed or inputs were incomparable",
+        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "initial: behavioral keyboard evidence missing or failing",
+        "business outcome evidence missing",
+        "performance evidence missing"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
@@ -416,7 +427,11 @@
         }
       ],
       "failures": [
-        "Migration has not started; pilot scope is sales voucher, item search, and invoice list."
+        "initial: visual comparison failed or inputs were incomparable",
+        "initial: control identity, text/accessibility semantics, geometry, or state comparison failed",
+        "initial: behavioral keyboard evidence missing or failing",
+        "business outcome evidence missing",
+        "performance evidence missing"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,

@@ -48,6 +48,35 @@ fn qty(value: f64) -> String {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct SeedItemFixture {
+    barcode: String,
+    item_code: String,
+    item_name: String,
+    rate: f64,
+    uom: String,
+}
+
+fn seed_fixture_items() -> Vec<CatalogItem> {
+    let rows: Vec<SeedItemFixture> = serde_json::from_str(include_str!("../../../fixtures/smoke-items.json"))
+        .expect("valid smoke item fixture");
+    rows.into_iter()
+        .map(|row| CatalogItem {
+            barcode: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
+            barcode_text: (!row.barcode.is_empty()).then(|| row.barcode.clone()),
+            item_code: row.item_code,
+            item_name: Some(row.item_name),
+            stock_uom: Some(row.uom),
+            item_group: Some("Smoke fixture".into()),
+            brand: Some("Khitmee".into()),
+            rate: row.rate,
+            actual_qty: 100.0,
+            modified: Some("2026-11-27 00:00:00.000000".into()),
+            deleted: false,
+        })
+        .collect()
+}
+
 fn fixture_catalog(rows: usize) -> Vec<CatalogItem> {
     let burmese = [
         "ဆန်၀ါး ၅ ကီလို",
@@ -56,8 +85,12 @@ fn fixture_catalog(rows: usize) -> Vec<CatalogItem> {
         "နို့ဆီ ၁ လိတာ",
         "မန်ကျည်းသီး အေးမြသီး",
     ];
+    let seed_rows = seed_fixture_items();
     (0..rows)
         .map(|index| {
+            if let Some(row) = seed_rows.get(index) {
+                return row.clone();
+            }
             let code = format!("ITEM-{index:06}");
             let is_burmese = index % 997 == 0;
             let name = if is_burmese {

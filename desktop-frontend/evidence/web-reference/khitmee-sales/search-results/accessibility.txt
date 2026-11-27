@@ -1,0 +1,156 @@
+- main "Sales Counter":
+  - paragraph: Khitmee Ops
+  - heading "Sales Counter" [level=1]
+  - navigation "Counter mode":
+    - link "Sales":
+      - /url: /khitmee_sales
+    - link "Transfer":
+      - /url: /khitmee_transfer
+  - region "Sale details":
+    - heading "Sale details" [level=2]
+    - text: Shop warehouse
+    - combobox "Shop warehouse":
+      - option "Dist Hub 1" [selected]
+      - option "Dist Hub 2"
+      - option "Finished Goods"
+      - option "Goods In Transit"
+      - option "Shop 1"
+      - option "Shop 2"
+      - option "Shop 3"
+      - option "Shop 4"
+      - option "Stores"
+      - option "Work In Progress"
+    - text: Customer
+    - searchbox "Customer Choose customer Load more customers"
+    - combobox:
+      - option "Choose customer" [selected]
+      - option "Khit Customer 0001"
+      - option "Khit Customer 0002"
+      - option "Khit Customer 0003"
+      - option "Khit Customer 0004"
+      - option "Khit Customer 0005"
+      - option "Khit Customer 0006"
+      - option "Khit Customer 0007"
+      - option "Khit Customer 0008"
+      - option "Khit Customer 0009"
+      - option "Khit Customer 0010"
+      - option "Khit Customer 0011"
+      - option "Khit Customer 0012"
+      - option "Khit Customer 0013"
+      - option "Khit Customer 0014"
+      - option "Khit Customer 0015"
+      - option "Khit Customer 0016"
+      - option "Khit Customer 0017"
+      - option "Khit Customer 0018"
+      - option "Khit Customer 0019"
+      - option "Khit Customer 0020"
+      - option "Khit Customer 0021"
+      - option "Khit Customer 0022"
+      - option "Khit Customer 0023"
+      - option "Khit Customer 0024"
+      - option "Khit Customer 0025"
+      - option "Khit Customer 0026"
+      - option "Khit Customer 0027"
+      - option "Khit Customer 0028"
+      - option "Khit Customer 0029"
+      - option "Khit Customer 0030"
+      - option "Khit Customer 0031"
+      - option "Khit Customer 0032"
+      - option "Khit Customer 0033"
+      - option "Khit Customer 0034"
+      - option "Khit Customer 0035"
+      - option "Khit Customer 0036"
+      - option "Khit Customer 0037"
+      - option "Khit Customer 0038"
+      - option "Khit Customer 0039"
+      - option "Khit Customer 0040"
+      - option "Khit Customer 0041"
+      - option "Khit Customer 0042"
+      - option "Khit Customer 0043"
+      - option "Khit Customer 0044"
+      - option "Khit Customer 0045"
+      - option "Khit Customer 0046"
+      - option "Khit Customer 0047"
+      - option "Khit Customer 0048"
+      - option "Khit Customer 0049"
+      - option "Khit Customer 0050"
+    - button "Load more customers"
+    - text: Payment mode
+    - combobox "Payment mode":
+      - option "No payment / credit" [selected]
+      - option "Bank Draft"
+      - option "Cash"
+      - option "Cheque"
+      - option "Credit Card"
+      - option "Wire Transfer"
+    - group "Print format":
+      - text: Print format
+      - radio "Voucher 80mm" [checked]
+      - text: Voucher 80mm
+      - radio "Canon A4"
+      - text: Canon A4
+  - region "Scan or search":
+    - heading "Scan or search" [level=2]
+    - text: Barcode / item search F2
+    - combobox "Barcode / item search F2" [expanded]: Mekong
+    - listbox "Item search results":
+      - option "KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46" [selected]:
+        - button "KM-00001 Mekong Fresh Beverage 00001 Stock 485 18.46":
+          - strong: KM-00001
+          - text: Mekong Fresh Beverage 00001 Stock 485 18.46
+      - option "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03":
+        - button "KM-00005 Mekong Fresh Staple 00005 Stock 500 36.03":
+          - strong: KM-00005
+          - text: Mekong Fresh Staple 00005 Stock 500 36.03
+      - option "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34":
+        - button "KM-00007 Mekong Fresh Baby Care 00007 Stock 500 24.34":
+          - strong: KM-00007
+          - text: Mekong Fresh Baby Care 00007 Stock 500 24.34
+      - option "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62":
+        - button "KM-00021 Mekong Fresh Staple 00021 Stock 500 14.62":
+          - strong: KM-00021
+          - text: Mekong Fresh Staple 00021 Stock 500 14.62
+      - option "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40":
+        - button "KM-00038 Mekong Fresh Cleaning 00038 Stock 500 10.40":
+          - strong: KM-00038
+          - text: Mekong Fresh Cleaning 00038 Stock 500 10.40
+      - option "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26":
+        - button "KM-00050 Mekong Fresh Snack 00050 Stock 500 50.26":
+          - strong: KM-00050
+          - text: Mekong Fresh Snack 00050 Stock 500 50.26
+      - option "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82":
+        - button "KM-00054 Mekong Fresh Cleaning 00054 Stock 500 4.82":
+          - strong: KM-00054
+          - text: Mekong Fresh Cleaning 00054 Stock 500 4.82
+      - option "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20":
+        - button "KM-00055 Mekong Fresh Baby Care 00055 Stock 500 45.20":
+          - strong: KM-00055
+          - text: Mekong Fresh Baby Care 00055 Stock 500 45.20
+      - option "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88":
+        - button "KM-00056 Mekong Fresh Frozen 00056 Stock 500 5.88":
+          - strong: KM-00056
+          - text: Mekong Fresh Frozen 00056 Stock 500 5.88
+      - option "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77":
+        - button "KM-00060 Mekong Fresh Personal Care 00060 Stock 500 42.77":
+          - strong: KM-00060
+          - text: Mekong Fresh Personal Care 00060 Stock 500 42.77
+  - region "Lines":
+    - heading "Lines" [level=2]
+    - button "Clear"
+    - region "Sale lines":
+      - table:
+        - rowgroup:
+          - row "Item Qty UOM Rate Amount Actions":
+            - columnheader "Item"
+            - columnheader "Qty"
+            - columnheader "UOM"
+            - columnheader "Rate"
+            - columnheader "Amount"
+            - columnheader "Actions"
+        - rowgroup
+  - text: Total qty
+  - strong: "0"
+  - text: Subtotal
+  - strong: "0.00"
+  - status: Ready. Scan a barcode or press F2 to search.
+  - button "Submit & Print F9" [disabled]
