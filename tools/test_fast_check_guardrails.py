@@ -383,11 +383,17 @@ class TestVerificationEvidenceSafeguards(unittest.TestCase):
 		uv_deps = re.findall(r'["\'](uv==[^"\']+)["\']', dev_match.group(1))
 		self.assertEqual(len(uv_deps), 1)
 
-		for workflow in ("ci.yml", "autoloop-gate.yml"):
+		expected = {
+			"ci.yml": (1, ["apps/khitmee_ops/pyproject.toml"]),
+			"autoloop-gate.yml": (2, ["apps/khitmee_ops/pyproject.toml", "candidate-repo/apps/khitmee_ops/pyproject.toml"]),
+		}
+		for workflow, (job_count, dependency_paths) in expected.items():
 			text = (root / ".github/workflows" / workflow).read_text(encoding="utf-8")
-			bootstrap_pins = set(re.findall(r"python -m pip install (uv==[^\s]+)", text))
-			self.assertEqual(bootstrap_pins, {uv_deps[0]})
-			self.assertIn('UV_CACHE_DIR="$HOME/.cache/pip/uv"', text)
+			bootstrap_pins = re.findall(r"python -m pip install (uv==[^\s]+)", text)
+			self.assertEqual(bootstrap_pins, [uv_deps[0]] * job_count)
+			self.assertEqual(text.count('UV_CACHE_DIR="$HOME/.cache/pip/uv"'), job_count)
+			for dependency_path in dependency_paths:
+				self.assertIn(f"cache-dependency-path: {dependency_path}", text)
 
 	def test_benchmark_evidence_reports_exact_test_count_change(self):
 		text = (TOOLS_DIR.parent / ".autoloop/experiments/devprod-verification-20261127-benchmarks.md").read_text(encoding="utf-8")
