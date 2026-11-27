@@ -40,9 +40,11 @@ Same VM, same dependency/tool caches, `python -B tools/khitmee_dev.py fast-check
 | CPU utilization during gate | 122-123% | 264-275% | higher parallelism during a much shorter window |
 | Approximate CPU-seconds | mean ~9.73 CPU-s | mean ~7.51 CPU-s | **22.9% less CPU time** |
 | Peak RSS | 95-98 MB | 94-98 MB | no material increase |
-| Test count | unchanged | unchanged | every suite still runs and must discover nonzero tests |
+| Discovered tests | 472 total; tools suite 149 | 475 total; tools suite 152 | no baseline tests removed; 3 regression tests added |
 
-The first uncontrolled pre-change run in the working checkout was 9.46s elapsed; the controlled clean-worktree numbers above are the comparison used for the improvement claim.
+The first uncontrolled pre-change run in the working checkout was 9.46s elapsed; the controlled clean-worktree numbers above are the comparison used for the improvement claim. After the review fixes, three additional full fast-check repetitions passed in 2.65s, 2.63s, and 2.59s, giving no evidence of introduced flakiness in this sample.
+
+First GitHub Actions samples after caching: ordinary CI job wall times were about 26s and 19s versus 30s for baseline run `46034217934`; fast-check steps were 4.20s and 4.67s versus the baseline 7s step. These are warm-cache samples on shared hosted runners, so they validate direction but are not yet a stable CI-duration guarantee.
 
 ## Implemented improvements
 
@@ -73,7 +75,7 @@ was inserted locally, scanned, then deleted. Result: zizmor exited nonzero and r
 
 ## Remaining ranked opportunities
 
-1. Measure more warm-cache CI samples before making stronger CI-duration claims; the first PR sample completed in about 26s versus 30s for baseline run `46034217934`, with fast-check itself at 4.20s versus the baseline 7s step.
+1. Measure more warm-cache CI samples before making stronger CI-duration claims; current samples are positive but runner/network variance remains high.
 2. If the fast-check grows materially, add deterministic test-impact analysis using recorded test results rather than ad-hoc path rules.
 3. Evaluate diff-scoped mutmut as an optional nightly/nonblocking signal before considering it mandatory.
-4. Fix the environment blueprint so future VMs bootstrap a compatible Python instead of requiring a manually selected pyenv interpreter.
+4. Verify the next environment snapshot after the accepted blueprint update so future VMs bootstrap the compatible Python/dev-tool set without manual interpreter selection.
