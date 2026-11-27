@@ -148,6 +148,7 @@ async function searchScenario(page) {
   const latencies = [];
   for (const term of terms) latencies.push(await measureSearchRender(page, term));
   await page.keyboard.press("Escape");
+  await page.locator("#item-search").fill("");
   return {
     terms,
     latenciesMs: latencies.map((value) => Number(value.toFixed(2))),
