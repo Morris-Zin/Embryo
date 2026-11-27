@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "scenario": "exact",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": false,
+    "matched": true,
+    "reason": "read-only invoice journey"
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04936",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Unpaid",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-27",
+          "Posting Time": "19:16:51",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "6",
+          "Total (USD)": "$ 28.70",
+          "Grand Total (USD)": "$ 28.70",
+          "In Words": "USD Twenty Eight and Seventy Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 28.70",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 28.70"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 2 $ 0.53 $ 1.06 Dist Hub 1 - KMD",
+          "3 KM-00003: Phsar Select Household 00003 3 $ 3.06 $ 9.18 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 3
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04936",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Unpaid",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-27",
+          "Posting Time": "19:16:51",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "6",
+          "Total (USD)": "$ 28.70",
+          "Grand Total (USD)": "$ 28.70",
+          "In Words": "USD Twenty Eight and Seventy Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 28.70",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 28.70"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 2 $ 0.53 $ 1.06 Dist Hub 1 - KMD",
+          "3 KM-00003: Phsar Select Household 00003 3 $ 3.06 $ 9.18 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 3
+      },
+      "differences": []
+    }
+  ]
+}

@@ -682,6 +682,7 @@ component InvoiceScreen inherits Rectangle {
     in property <[InvoiceRow]> invoice-rows;
     in-out property <string> invoice-filter-text;
     in property <string> invoice-count-text;
+    in property <string> invoice-error-text;
     in property <string> invoice-sort-label;
     callback invoice-filter-edited(string);
     callback invoice-load-more();
@@ -692,6 +693,12 @@ component InvoiceScreen inherits Rectangle {
     Rectangle { x: 0px; y: 0px; width: 240px; height: parent.height; background: #f8fafc; }
     Rectangle { x: 240px; y: 0px; width: parent.width - 240px; height: parent.height; background: #ffffff; }
     Text { x: 258px; y: 12px; width: 180px; height: 24px; text: "Sales Invoice"; accessible-label: "Sales Invoice"; color: #17202a; font-size: 15px; font-weight: 650; }
+
+    if root.invoice-error-text != "": Rectangle {
+        x: 296px; y: 150px; width: parent.width - 340px; height: 90px;
+        background: #ffffff; border-color: #e4e7ec; border-width: 1px; border-radius: 4px;
+        Text { x: 18px; y: 16px; width: parent.width - 36px; height: 58px; text: root.invoice-error-text; accessible-label: root.invoice-error-text; color: #17202a; font-size: 15px; font-weight: 650; vertical-alignment: center; }
+    }
 
     invoice-scroll := Flickable {
         x: 0px; y: 0px; width: 100%; height: 100%;
@@ -1313,6 +1320,7 @@ export component AppWindow inherits Window {
     in-out property <string> fixture-note: "Fixture catalog: deterministic qualification data";
     in-out property <string> invoice-filter-text: "";
     in-out property <string> invoice-count-text: "";
+    in-out property <string> invoice-error-text: "";
     in property <string> invoice-sort-label: "descending";
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
@@ -1407,6 +1415,7 @@ export component AppWindow inherits Window {
         invoice-rows: root.invoice-rows;
         invoice-filter-text <=> root.invoice-filter-text;
         invoice-count-text: root.invoice-count-text;
+        invoice-error-text: root.invoice-error-text;
         invoice-sort-label: root.invoice-sort-label;
         invoice-filter-edited(text) => { root.invoice-filter-edited(text); }
         invoice-load-more => { root.invoice-load-more(); }

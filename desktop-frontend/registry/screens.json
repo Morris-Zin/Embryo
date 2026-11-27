@@ -537,6 +537,9 @@
       "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#sales-invoice-detail",
       "evidence": [
         "evidence/journeys/invoice-detail-initial.json",
+        "evidence/journeys/invoice-detail-multi-item.json",
+        "evidence/journeys/invoice-detail-return.json",
+        "evidence/journeys/invoice-list-permission-denied.json",
         "evidence/visual/invoice-detail-composite-list.png",
         "evidence/visual/invoice-detail-composite-detail.png",
         "experiments/0008-sales-invoice-detail-qualification.md"

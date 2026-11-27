@@ -751,10 +751,23 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
     }
 }
 
+fn invoice_error_text(error: &dyn std::error::Error) -> String {
+    let message = error.to_string();
+    if message
+        .to_ascii_lowercase()
+        .contains("insufficient permission")
+    {
+        "Not Permitted\n\nYou are not permitted to access this page.".into()
+    } else {
+        format!("Sales Invoice list failed: {message}")
+    }
+}
+
 fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     let filter = state.invoice_filter.clone();
     let Some(config) = state.runtime_config.clone() else {
         app.set_invoice_rows(invoice_model(&state.invoices, &filter));
+        app.set_invoice_error_text("".into());
         return;
     };
     if state.erp_client.is_none() {
@@ -762,6 +775,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
             ErpClient::login(&config.base_url, &config.username, &config.password).ok();
     }
     let Some(client) = state.erp_client.clone() else {
+        app.set_invoice_error_text("ERP login failed while loading Sales Invoices".into());
         app.set_status_text("ERP login failed while loading Sales Invoices".into());
         return;
     };
@@ -774,6 +788,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         Ok(payload) => {
             state.invoices = parse_invoice_rows(&payload);
             app.set_invoice_rows(invoice_model(&state.invoices, ""));
+            app.set_invoice_error_text("".into());
             if let Ok(count) = client.sales_invoice_count(&filter) {
                 let total = if count > 1000 {
                     "1,000+".to_owned()
@@ -784,7 +799,9 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
             }
         }
         Err(error) => {
-            app.set_status_text(format!("Sales Invoice list failed: {error}").into());
+            let text = invoice_error_text(error.as_ref());
+            app.set_invoice_error_text(text.clone().into());
+            app.set_status_text(text.into());
         }
     }
 }
