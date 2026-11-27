@@ -1,0 +1,112 @@
+services:
+  db:
+    mem_limit: 920m
+    environment:
+      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --innodb-snapshot-isolation=OFF
+      - --innodb-buffer-pool-size=448M
+      - --innodb-log-file-size=128M
+      - --innodb-buffer-pool-dump-pct=100
+      - --innodb-buffer-pool-load-at-startup=ON
+      - --innodb-buffer-pool-dump-at-shutdown=ON
+      - --innodb-io-capacity=1000
+      - --innodb-io-capacity-max=2000
+      - --innodb-log-buffer-size=16M
+      - --aria-pagecache-buffer-size=8M
+      - --key-buffer-size=1M
+      - --innodb-flush-log-at-trx-commit=1
+      - --innodb-flush-method=O_DIRECT
+      - --max-connections=40
+      - --thread-cache-size=20
+      - --table-open-cache=400
+      - --table-definition-cache=400
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --sort-buffer-size=1M
+      - --join-buffer-size=256K
+      - --innodb-lock-wait-timeout=20
+      - --performance-schema=OFF
+      - --slow-query-log=ON
+      - --log-slow-query-file=/var/lib/mysql/mariadb-slow.log
+      - --long-query-time=1
+
+  backend:
+    mem_limit: 576m
+    environment:
+      MALLOC_ARENA_MAX: "2"
+      MALLOC_MMAP_THRESHOLD_: "1048576"
+      MALLOC_TRIM_THRESHOLD_: "8388608"
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=2
+      - --workers=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+
+  queue:
+    image: ${CUSTOM_IMAGE:-frappe/erpnext}:${CUSTOM_TAG:-v16.60.0}
+    pull_policy: ${PULL_POLICY:-missing}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    platform: linux/amd64
+    mem_limit: 144m
+    environment:
+      MALLOC_ARENA_MAX: "2"
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default,long
+    volumes:
+      - perf-sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  scheduler:
+    mem_limit: 96m
+
+  redis-cache:
+    mem_limit: 48m
+    command:
+      - redis-server
+      - --maxmemory
+      - 32mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --tcp-keepalive
+      - "60"
+
+  redis-queue:
+    mem_limit: 32m
+    command:
+      - redis-server
+      - --maxmemory
+      - 16mb
+      - --maxmemory-policy
+      - noeviction
+      - --tcp-keepalive
+      - "60"
+
+  websocket:
+    mem_limit: 64m
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=48"
+
+  frontend:
+    mem_limit: 120m
+    volumes:
+      - ./nginx-2gb.conf:/etc/nginx/nginx.conf:ro

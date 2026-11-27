@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-26 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "idempotency_key",
+  "request_fingerprint",
+  "reference_doctype",
+  "reference_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Idempotency Key",
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1,
+   "length": 256
+  },
+  {
+   "fieldname": "request_fingerprint",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Request Fingerprint",
+   "read_only": 1,
+   "length": 64
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Reference DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reference Name",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Khitmee Ops",
+ "name": "Khitmee Idempotency Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_seen": 1
+}

@@ -1,0 +1,12 @@
+{
+  "name": "khitmee-ops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Khitmee counter operations browser assets",
+  "scripts": {
+    "check": "node --check khitmee_ops/public/js/counter_core.js && node --check khitmee_ops/public/js/print_bridge.js && node --check khitmee_ops/public/js/sales_counter.js && node --check khitmee_ops/public/js/stock_transfer.js"
+  },
+  "devDependencies": {
+    "knip": "6.46.1"
+  }
+}

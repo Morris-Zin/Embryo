@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<title>Khitmee Stock Transfer</title>
+	<link rel="stylesheet" href="/assets/khitmee_ops/css/counter.css">
+	<script>window.csrf_token = "{{ csrf_token }}";</script>
+	<script defer src="/assets/khitmee_ops/js/counter_core.js"></script>
+	<script defer src="/assets/khitmee_ops/js/print_bridge.js"></script>
+	<script defer src="/assets/khitmee_ops/js/stock_transfer.js"></script>
+</head>
+<body>
+	<main class="counter-app" aria-labelledby="page-title">
+		<header class="counter-header">
+			<div>
+				<p class="eyebrow">Khitmee Ops</p>
+				<h1 id="page-title">Stock Transfer</h1>
+			</div>
+			<nav class="mode-nav" aria-label="Counter mode">
+				<a href="/khitmee_sales">Sales</a>
+				<a class="active" aria-current="page" href="/khitmee_transfer">Transfer</a>
+			</nav>
+		</header>
+
+		<form id="counter-form" class="counter-grid">
+			<section class="panel controls-panel" aria-labelledby="transfer-details-heading">
+				<h2 id="transfer-details-heading">Transfer details</h2>
+				<div class="field-grid transfer-fields">
+					<label>Source warehouse
+						<select id="warehouse" required autocomplete="off"></select>
+					</label>
+					<label>Target warehouse
+						<select id="target-warehouse" required autocomplete="off"></select>
+					</label>
+					<label>Transfer mode
+						<select id="transfer-mode" autocomplete="off">
+							<option value="direct">Direct transfer</option>
+							<option value="dispatch">Dispatch to transit</option>
+							<option value="receive">Receive from transit</option>
+						</select>
+					</label>
+					<label>Outgoing stock entry
+						<input id="outgoing-stock-entry" type="text" autocomplete="off" placeholder="Required in receive mode" disabled>
+					</label>
+					<fieldset class="print-toggle">
+						<legend>Print format</legend>
+						<label><input type="radio" name="printer_type" value="voucher" checked> <span>Voucher 80mm</span></label>
+						<label><input type="radio" name="printer_type" value="a4"> <span>Canon A4</span></label>
+					</fieldset>
+				</div>
+			</section>
+
+			<section class="panel scan-panel" aria-labelledby="scan-heading">
+				<h2 id="scan-heading">Scan or search</h2>
+				<label class="scan-label">Barcode / item search <kbd>F2</kbd>
+					<input id="item-search" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" placeholder="Scan barcode or type item name…">
+				</label>
+				<ul id="search-results" class="search-results" role="listbox" aria-label="Item search results" hidden></ul>
+			</section>
+
+			<section class="panel lines-panel" aria-labelledby="lines-heading">
+				<div class="lines-heading-row">
+					<h2 id="lines-heading">Lines</h2>
+					<button type="button" id="clear-lines" class="secondary-button">Clear</button>
+				</div>
+				<div class="table-scroll" role="region" aria-label="Transfer lines" tabindex="0">
+					<table class="lines-table">
+						<thead>
+							<tr><th>Item</th><th>Qty</th><th>UOM</th><th class="numeric">Rate</th><th class="numeric">Amount</th><th><span class="visually-hidden">Actions</span></th></tr>
+						</thead>
+						<tbody id="lines-body"></tbody>
+					</table>
+				</div>
+			</section>
+
+			<footer class="totals-bar" aria-label="Totals and submit">
+				<div class="totals-copy">
+					<span>Total qty <strong id="total-qty">0</strong></span>
+					<span>Total <strong id="subtotal">0</strong></span>
+				</div>
+				<p id="status" class="status" role="status" aria-live="polite"></p>
+				<button id="submit-print" class="submit-button" type="submit">Submit &amp; Print <kbd>F9</kbd></button>
+			</footer>
+		</form>
+	</main>
+</body>
+</html>
