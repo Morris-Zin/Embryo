@@ -44,10 +44,12 @@ docker stop "$CONTAINER" >/dev/null
 DB_STOPPED=1
 docker run --rm \
   -e SNAPSHOT_NAME="$(basename "$TMP_ARCHIVE")" \
+  -e SNAPSHOT_UID="$(id -u)" \
+  -e SNAPSHOT_GID="$(id -g)" \
   -v "$VOLUME:/from:ro" \
   -v "$(dirname "$ARCHIVE"):/snapshot" \
   "$IMAGE" \
-  sh -c 'umask 077; cd /from && tar czf "/snapshot/$SNAPSHOT_NAME" .'
+  sh -c 'set -e; umask 077; cd /from; tar czf "/snapshot/$SNAPSHOT_NAME" .; chown "$SNAPSHOT_UID:$SNAPSHOT_GID" "/snapshot/$SNAPSHOT_NAME" 2>/dev/null || true'
 mv "$TMP_ARCHIVE" "$ARCHIVE"
 docker start "$CONTAINER" >/dev/null
 DB_STOPPED=0
