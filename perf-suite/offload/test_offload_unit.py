@@ -19,6 +19,11 @@ class TableSpecTest(unittest.TestCase):
         self.assertIn("'posting_date': 'DATE'", expression)
         self.assertIn("'actual_qty': 'DECIMAL(21,9)'", expression)
 
+    def test_erpnext_decimal_precision_is_preserved(self):
+        for table_key in ("sales_invoice_item", "stock_ledger_entry"):
+            columns = {column.name: column.duckdb_type for column in TABLES_BY_KEY[table_key].columns}
+            self.assertEqual(columns["incoming_rate"], "DECIMAL(21,9)")
+
     def test_inventory_uses_only_to_date(self):
         self.assertEqual(query_parameters("inventory_balance", "Company", "2026-01-01", "2026-11-26"), ("Company", "2026-11-26"))
         self.assertEqual(query_parameters("invoice_fact_scan", "Company", "2026-01-01", "2026-11-26"), ("Company", "2026-01-01", "2026-11-26"))
