@@ -1,0 +1,900 @@
+{
+  "schemaVersion": 1,
+  "scenario": "detail-tabs",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": true,
+    "matched": true,
+    "webVoucher": "ACC-SINV-2026-04937",
+    "nativeVoucher": "ACC-SINV-2026-04937",
+    "web": {
+      "docstatus": 0,
+      "customer": "KM-CUST-0001",
+      "dueDate": "2026-12-12",
+      "updateStock": 1,
+      "warehouse": "Dist Hub 1 - KMD",
+      "totalQty": 1,
+      "grandTotal": 18.46,
+      "outstanding": 18.46,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
+    },
+    "native": {
+      "docstatus": 0,
+      "customer": "KM-CUST-0001",
+      "dueDate": "2026-12-12",
+      "updateStock": 1,
+      "warehouse": "Dist Hub 1 - KMD",
+      "totalQty": 1,
+      "grandTotal": 18.46,
+      "outstanding": 18.46,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
+    },
+    "mismatches": []
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "01:56:08",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "01:56:08",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 0,
+      "action": {
+        "op": "detail-tab",
+        "value": "Payments"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Payments",
+        "sections": [
+          "Advance Payments"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Payments",
+        "sections": [
+          "Advance Payments"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "detail-tab",
+        "value": "Address & Contact"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Address & Contact",
+        "sections": [
+          "Billing Address",
+          "Shipping Address",
+          "Company Address"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Address & Contact",
+        "sections": [
+          "Billing Address",
+          "Shipping Address",
+          "Company Address"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "detail-tab",
+        "value": "Terms"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Terms",
+        "sections": [
+          "Payment Terms",
+          "Terms and Conditions"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Terms",
+        "sections": [
+          "Payment Terms",
+          "Terms and Conditions"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "detail-tab",
+        "value": "More Info"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "More Info",
+        "sections": [
+          "Customer PO Details",
+          "Accounting Details",
+          "Print Settings",
+          "Subscription",
+          "Additional Info"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "More Info",
+        "sections": [
+          "Customer PO Details",
+          "Accounting Details",
+          "Print Settings",
+          "Subscription",
+          "Additional Info"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 4,
+      "action": {
+        "op": "detail-tab",
+        "value": "Connections"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Connections",
+        "sections": [],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Connections",
+        "sections": [],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Scan Barcode": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 5,
+      "action": {
+        "op": "detail-tab",
+        "value": "Details"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "01:56:08",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04937",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "01:56:08",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
+      },
+      "differences": []
+    }
+  ]
+}

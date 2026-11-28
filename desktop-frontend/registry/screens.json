@@ -577,7 +577,8 @@
         "evidence/journeys/invoice-detail-layout-regression.json",
         "evidence/visual/invoice-detail-web-current.png",
         "evidence/visual/invoice-detail-native-current.png",
-        "evidence/visual/invoice-detail-composite-current.png"
+        "evidence/visual/invoice-detail-composite-current.png",
+        "evidence/journeys/invoice-detail-tabs.json"
       ],
       "failures": [
         "comprehensive server-side validation matrix pending",

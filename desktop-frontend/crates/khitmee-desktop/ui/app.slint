@@ -1261,6 +1261,7 @@ component InvoiceDetailScreen inherits Rectangle {
     callback detail-item-delete();
     in property <int> detail-editing-index: -1;
     in property <bool> detail-item-selected: false;
+    in-out property <int> detail-active-tab: 0;
     background: #f4f5f7;
 
     property <length> content-x: 240px;
@@ -1275,7 +1276,7 @@ component InvoiceDetailScreen inherits Rectangle {
     property <length> taxes-top: root.actions-top + 44px;
     property <length> totals-heading-top: root.taxes-top + 44px;
     property <length> totals-top: root.totals-heading-top + 30px;
-    property <length> detail-content-height: root.totals-top + 176px;
+    property <length> detail-content-height: root.totals-top + 214px;
     property <string> display-status: root.detail-dirty ? "Not Saved" : root.detail-status;
 
     Rectangle { x: 0px; y: 0px; width: 57px; height: parent.height; background: #ffffff; border-color: #e4e7ec; border-width: 1px; }
@@ -1314,10 +1315,15 @@ component InvoiceDetailScreen inherits Rectangle {
     BrowserButton { x: root.content-x + root.content-width - 76px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft" && root.detail-status != "Cancelled"; clicked => { root.detail-cancel(); } }
 
     Rectangle { x: root.content-x + 18px; y: 91px; width: root.content-width - 36px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 7px; }
-    for tab[index] in ["Details", "Payments", "Address & Contact", "Terms", "More Info", "Connections"]: Text {
+    for tab[index] in ["Details", "Payments", "Address & Contact", "Terms", "More Info", "Connections"]: Rectangle {
         x: root.content-x + 32px + index * 104px; y: 91px; width: 96px; height: 34px;
-        text: tab; color: index == 0 ? #175cd3 : #475467; font-size: 12px; font-weight: index == 0 ? 700 : 500;
-        vertical-alignment: center; accessible-label: tab;
+        accessible-role: button; accessible-label: tab; accessible-enabled: true; accessible-item-selected: index == root.detail-active-tab;
+        TouchArea { clicked => { root.detail-active-tab = index; } }
+        Text {
+            width: parent.width; height: parent.height;
+            text: tab; color: index == root.detail-active-tab ? #175cd3 : #475467; font-size: 12px; font-weight: index == root.detail-active-tab ? 700 : 500;
+            vertical-alignment: center;
+        }
     }
 
     if root.detail-error-text != "": Rectangle {
@@ -1342,7 +1348,7 @@ component InvoiceDetailScreen inherits Rectangle {
         BrowserButton { x: parent.width - 82px; y: parent.height - 43px; width: 62px; height: 30px; text: "OK"; primary: true; clicked => { root.detail-validation-close(); } }
     }
     Flickable {
-        visible: root.detail-error-text == "";
+        visible: root.detail-error-text == "" && root.detail-active-tab == 0;
         x: root.content-x; y: 126px; width: root.content-width; height: parent.height - 126px;
         content-width: root.content-width;
         content-height: root.detail-content-height;
@@ -1415,6 +1421,45 @@ component InvoiceDetailScreen inherits Rectangle {
 
         Text { x: 20px; y: root.taxes-top; width: 240px; height: 26px; text: "Taxes and Charges  ›"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Taxes and Charges"; }
         Text { x: 20px; y: root.totals-heading-top; width: 240px; height: 26px; text: "Totals (USD)"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Totals (USD)"; }
+        Text { x: 20px; y: root.totals-top + 174px; width: 240px; height: 26px; text: "Time Sheet List"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Time Sheet List"; }
+    }
+
+    Flickable {
+        visible: root.detail-error-text == "" && root.detail-active-tab != 0;
+        x: root.content-x; y: 126px; width: root.content-width; height: parent.height - 126px;
+        content-width: root.content-width; content-height: 620px;
+        Rectangle { x: 0px; y: 0px; width: root.content-width; height: 620px; background: #ffffff; }
+
+        if root.detail-active-tab == 1: Rectangle {
+            width: parent.width; height: parent.height;
+            Text { x: 20px; y: 14px; width: 260px; height: 28px; text: "Advance Payments"; accessible-label: "Advance Payments"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 20px; y: 54px; width: 360px; height: 28px; text: "Allocate Advances Automatically (FIFO)"; accessible-label: "Allocate Advances Automatically (FIFO)"; color: Design.text; font-size: 12px; vertical-alignment: center; }
+            Text { x: 20px; y: 92px; width: 180px; height: 28px; text: "Advances"; accessible-label: "Advances"; color: Design.text; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+        }
+        if root.detail-active-tab == 2: Rectangle {
+            width: parent.width; height: parent.height;
+            for heading[index] in ["Billing Address", "Shipping Address", "Company Address"]: Text {
+                x: 20px + index * 280px; y: 14px; width: 250px; height: 28px; text: heading; accessible-label: heading; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center;
+            }
+            for label[index] in ["Customer Address", "Contact Person", "Territory", "Shipping Address Name", "Dispatch Address Name", "Company Address Name", "Company Contact Person"]: Text {
+                x: 20px + Math.mod(index, 3) * 280px; y: 58px + Math.floor(index / 3) * 52px; width: 250px; height: 28px; text: label; accessible-label: label; color: Design.muted; font-size: 12px; vertical-alignment: center;
+            }
+        }
+        if root.detail-active-tab == 3: Rectangle {
+            width: parent.width; height: parent.height;
+            Text { x: 20px; y: 14px; width: 260px; height: 28px; text: "Payment Terms"; accessible-label: "Payment Terms"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 20px; y: 54px; width: 260px; height: 28px; text: "Payment Terms Template"; accessible-label: "Payment Terms Template"; color: Design.muted; font-size: 12px; vertical-alignment: center; }
+            Text { x: 20px; y: 92px; width: 260px; height: 28px; text: "Payment Schedule"; accessible-label: "Payment Schedule"; color: Design.text; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+            Text { x: 20px; y: 150px; width: 260px; height: 28px; text: "Terms and Conditions"; accessible-label: "Terms and Conditions"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 20px; y: 190px; width: 260px; height: 28px; text: "Terms"; accessible-label: "Terms"; color: Design.muted; font-size: 12px; vertical-alignment: center; }
+            Text { x: 280px; y: 190px; width: 320px; height: 28px; text: "Terms and Conditions Details"; accessible-label: "Terms and Conditions Details"; color: Design.muted; font-size: 12px; vertical-alignment: center; }
+        }
+        if root.detail-active-tab == 4: Rectangle {
+            width: parent.width; height: parent.height;
+            for heading[index] in ["Customer PO Details", "Accounting Details", "Print Settings", "Subscription", "Additional Info"]: Text {
+                x: 20px; y: 14px + index * 46px; width: 260px; height: 28px; text: heading; accessible-label: heading; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center;
+            }
+        }
     }
 }
 
