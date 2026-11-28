@@ -1,0 +1,23 @@
+[package]
+name = "khitmee-catalog"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Reusable encrypted Khitmee catalog storage and search library extracted from the PR #8 experiment"
+
+[features]
+default = ["sqlcipher"]
+sqlcipher = ["dep:rusqlite"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rusqlite = { workspace = true, optional = true }
+getrandom.workspace = true
+memchr.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-dpapi = "0.2.0"
