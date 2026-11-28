@@ -520,7 +520,7 @@ component CounterScreen inherits FocusScope {
         border-radius: 14px;
         Rectangle { x: 0px; y: 0px; width: root.lines-width; height: 72px; border-color: Design.line; border-width: 1px; }
         Text { x: 21px; y: 22px; text: "Lines"; color: Design.text; font-size: 16px; font-weight: 700; }
-        BrowserButton { x: root.lines-width - 87.65625px; y: 13.140625px; width: 66.640625px; height: 40px; text: "Clear"; clicked => { root.clear-lines(); } }
+        BrowserButton { x: root.lines-width - 87.65625px; y: 13.140625px; width: 66.640625px; height: 40px; text: "Clear"; clicked => { root.commit-quantity-edit(); root.clear-lines(); } }
         Rectangle {
             x: 5px; y: 66.9375px; width: root.lines-width - 10px;
             accessible-role: region;
@@ -538,9 +538,9 @@ component CounterScreen inherits FocusScope {
             for row in root.voucher-lines: VoucherLineRow {
                 width: parent.width;
                 line: row;
-                remove(code) => { root.remove-line(code); }
-                increase(code) => { root.increase-line(code); }
-                decrease(code) => { root.decrease-line(code); }
+                remove(code) => { root.commit-quantity-edit(); root.remove-line(code); }
+                increase(code) => { root.commit-quantity-edit(); root.increase-line(code); }
+                decrease(code) => { root.commit-quantity-edit(); root.decrease-line(code); }
                 quantity-editing(code, value) => {
                     root.editing-quantity-code = code;
                     root.editing-quantity-text = value;
