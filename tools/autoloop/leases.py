@@ -191,6 +191,12 @@ def resource_lock_dir() -> Path:
     return _LINUX_RESOURCE_LOCK_DIR.resolve()
 
 
+def coordinator_store_dir(store: str, *, lock_dir: Path | None = None) -> Path:
+    """Locate a coordinator ledger alongside the host lease and receipts stores."""
+    locks = (lock_dir if lock_dir is not None else resource_lock_dir()).resolve()
+    return (locks.parent if sys.platform == "win32" else locks) / store
+
+
 def resource_lease_key(
     resource: str, *, compose_project: str | None = None, docker_host: str | None = None,
 ) -> str:

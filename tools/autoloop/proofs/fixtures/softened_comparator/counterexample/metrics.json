@@ -1,0 +1,8 @@
+{
+  "actual": {
+    "gross_profit_%": 95.4
+  },
+  "expected": {
+    "gross_profit_%": 95.0
+  }
+}

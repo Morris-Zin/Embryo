@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+import hashlib
 import json
 import math
 import os
+from collections import defaultdict
 from pathlib import Path
 from statistics import median
 from typing import Any
 
 from .guard import GuardError
-from .leases import acquire_mutex
+from .leases import _is_wsl, acquire_mutex
+from .receipts import Broker, authority_dir, checkout_repo_id
 
 REQUIRED_FIELDS = ("task_id", "attempt")
 NUMBER_FIELDS = ("cost", "review_minutes", "elapsed_to_acceptance_minutes")
@@ -73,13 +75,63 @@ def record_attempt(repo: Path, override: Path | None, **values: Any) -> dict[str
     return {"log": str(path), "record": record}
 
 
+def _receipt_attempts(repo: Path) -> list[dict[str, Any]]:
+    if _is_wsl():
+        return []  # Legacy logs still work in WSL; read receipts using Windows Python.
+    root = authority_dir()
+    if not root.is_dir():
+        return []
+    repo_id = checkout_repo_id(repo)
+    if repo_id is None:
+        return []
+    rows = []
+    settled = [
+        (record, receipt) for record, receipt in Broker(repo_id, _root=root).settled()
+        if "cache_key_digest" not in record
+    ]
+    first_reserved = {
+        (record["run"], record["shard"], record["role"]): record["reserved_at"]
+        for record, _ in settled if record["generation"] == 1
+    }
+    for record, receipt in settled:
+        assignment = (record["run"], record["shard"], record["role"])
+        usage = receipt["usage"]
+        disposition = receipt["disposition"]
+        if disposition == "accepted" and receipt["publication"] != "published":
+            disposition = receipt["publication"]
+        elapsed = None
+        started = first_reserved.get(assignment)
+        ended = receipt["ended_at"]
+        if disposition == "accepted" and started is not None and ended is not None and ended >= started:
+            elapsed = (ended - started) / 60
+        worker = receipt["worker"] or {}
+        settings = record["settings"]
+        rows.append({
+            "task_id": assignment, "attempt": record["generation"],
+            "task_class": record["task_class"], "difficulty": record["difficulty"],
+            "provider": worker.get("provider") or record["provider"],
+            "model": worker.get("model") or record["model"],
+            "effort": settings.get("effort"), "speed": settings.get("speed"),
+            "disposition": disposition, "checks_passed": None, "evidence_id": receipt["receipt_id"],
+            "cost": usage.get("cost") if usage["source"] == "provider" else None,
+            "estimated_cost": usage.get("cost") if usage["source"] == "estimated" else None,
+            "review_minutes": None, "elapsed_to_acceptance_minutes": elapsed,
+        })
+    return rows
+
+
 def routing_report(repo: Path, override: Path | None) -> dict[str, Any]:
     path = attempt_log_path(repo, override)
-    if not path.exists():
-        return {"log": str(path), "minimum_first_attempts": MIN_ROUTE_SAMPLES, "routes": []}
-    mutex = path.with_name(f".{path.name}.lock")
-    with acquire_mutex(mutex):
-        attempts = _read_attempts(path)
+    attempts = []
+    if path.exists():
+        mutex = path.with_name(f".{path.name}.lock")
+        with acquire_mutex(mutex):
+            historical = {}
+            for record in _read_attempts(path):
+                digest = hashlib.sha256(json.dumps(record, sort_keys=True).encode("ascii")).hexdigest()
+                historical.setdefault(digest, record)
+            attempts = list(historical.values())
+    attempts.extend(_receipt_attempts(repo))
     first_acceptance = {}
     by_route = defaultdict(list)
     for row in attempts:
@@ -99,12 +151,16 @@ def routing_report(repo: Path, override: Path | None) -> dict[str, Any]:
             if row.get("elapsed_to_acceptance_minutes") is not None
         ]
         costs = [row["cost"] for row in rows if row.get("cost") is not None]
-        routes.append({
+        route = {
             "task_class": task_class, "model": model, "attempts": len(rows), "first_attempts": len(first),
             "first_attempt_acceptance": accepted_first / len(first) if first else None,
             "eventual_acceptance": len(accepted_eventually) / len(first) if first else None,
             "median_elapsed_to_acceptance_minutes": median(times) if times else None,
             "elapsed_samples": len(times), "spend": math.fsum(costs) if costs else None,
             "cost_samples": len(costs), "too_few_samples": len(first) < MIN_ROUTE_SAMPLES,
-        })
+        }
+        estimates = [row["estimated_cost"] for row in rows if row.get("estimated_cost") is not None]
+        if estimates:
+            route.update(estimated_spend=math.fsum(estimates), estimated_cost_samples=len(estimates))
+        routes.append(route)
     return {"log": str(path), "minimum_first_attempts": MIN_ROUTE_SAMPLES, "routes": routes}

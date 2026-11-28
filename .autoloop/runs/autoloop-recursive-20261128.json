@@ -1,0 +1,1960 @@
+{
+  "allow_policy_paths": [
+    "tools/autoloop/**",
+    ".github/workflows/autoloop-gate.yml"
+  ],
+  "allowed_paths": [],
+  "base_branch": "feat/backend-2gb-proof",
+  "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+  "check_timings": {
+    "all-shards": [
+      {
+        "at": "2026-11-28T17:55:41Z",
+        "head_sha": "b4a565073000e00fa64ab04d2585a046af71ebe4",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.925,
+          "fast_check.py": 6.886,
+          "fast_check.py/autoloop_lint": 4.748,
+          "fast_check.py/bash": 0.151,
+          "fast_check.py/compose": 0.219,
+          "fast_check.py/guardrails": 4.72,
+          "fast_check.py/javascript": 0.045,
+          "fast_check.py/knip": 0.953,
+          "fast_check.py/python": 6.788,
+          "fast_check.py/ruff_and_dev_deps": 0.049,
+          "fast_check.py/zizmor_workflows": 0.308,
+          "integration #2: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 8.844,
+          "profile #3: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.143,
+          "proofs #4: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.483,
+          "rdocs #5: python -B tools/autoloop/cli.py lint": 1.365,
+          "receipts #6: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 1.125,
+          "supervision #7: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.059,
+          "verification #8: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.183
+        }
+      },
+      {
+        "at": "2026-11-28T18:20:40Z",
+        "head_sha": "2d5d33661e05764a680b1efb02386eaa1cebb4df",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.972,
+          "fast_check.py": 7.603,
+          "fast_check.py/autoloop_lint": 4.562,
+          "fast_check.py/bash": 0.151,
+          "fast_check.py/compose": 0.203,
+          "fast_check.py/guardrails": 3.497,
+          "fast_check.py/javascript": 0.057,
+          "fast_check.py/knip": 0.927,
+          "fast_check.py/python": 7.515,
+          "fast_check.py/ruff_and_dev_deps": 0.053,
+          "fast_check.py/zizmor_workflows": 0.269,
+          "integration #2: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 13.473,
+          "profile #3: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.134,
+          "proofs #4: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.369,
+          "rdocs #5: python -B tools/autoloop/cli.py lint": 1.304,
+          "receipts #6: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 1.122,
+          "supervision #7: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.065,
+          "verification #8: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.164
+        }
+      }
+    ],
+    "shard:admission": [
+      {
+        "at": "2026-11-28T16:11:42Z",
+        "head_sha": "08681fd01d119406df8c1f42573c83be98e3ac39",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.477,
+          "fast_check.py": 4.747,
+          "fast_check.py/autoloop_lint": 3.765,
+          "fast_check.py/bash": 0.142,
+          "fast_check.py/compose": 0.256,
+          "fast_check.py/guardrails": 4.059,
+          "fast_check.py/javascript": 0.199,
+          "fast_check.py/knip": 2.669,
+          "fast_check.py/python": 4.657,
+          "fast_check.py/ruff_and_dev_deps": 0.171,
+          "fast_check.py/zizmor_workflows": 0.384
+        }
+      },
+      {
+        "at": "2026-11-28T17:07:03Z",
+        "head_sha": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.557,
+          "fast_check.py": 4.855,
+          "fast_check.py/autoloop_lint": 3.751,
+          "fast_check.py/bash": 0.24,
+          "fast_check.py/compose": 0.205,
+          "fast_check.py/guardrails": 3.921,
+          "fast_check.py/javascript": 0.056,
+          "fast_check.py/knip": 1.232,
+          "fast_check.py/python": 4.764,
+          "fast_check.py/ruff_and_dev_deps": 0.089,
+          "fast_check.py/zizmor_workflows": 0.33
+        }
+      },
+      {
+        "at": "2026-11-28T18:18:48Z",
+        "head_sha": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.92,
+          "fast_check.py": 4.727,
+          "fast_check.py/autoloop_lint": 3.564,
+          "fast_check.py/bash": 0.189,
+          "fast_check.py/compose": 0.188,
+          "fast_check.py/guardrails": 2.998,
+          "fast_check.py/javascript": 0.066,
+          "fast_check.py/knip": 1.031,
+          "fast_check.py/python": 4.638,
+          "fast_check.py/ruff_and_dev_deps": 0.059,
+          "fast_check.py/zizmor_workflows": 0.292
+        }
+      }
+    ],
+    "shard:integration": [
+      {
+        "at": "2026-11-28T17:54:18Z",
+        "head_sha": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 7.425,
+          "fast_check.py/autoloop_lint": 4.899,
+          "fast_check.py/bash": 0.173,
+          "fast_check.py/compose": 0.219,
+          "fast_check.py/guardrails": 5.035,
+          "fast_check.py/javascript": 0.049,
+          "fast_check.py/knip": 1.088,
+          "fast_check.py/python": 7.326,
+          "fast_check.py/ruff_and_dev_deps": 0.092,
+          "fast_check.py/zizmor_workflows": 0.332,
+          "integration #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 8.931
+        }
+      },
+      {
+        "at": "2026-11-28T18:13:42Z",
+        "head_sha": "21e746582e00c5395b73b1bfaf17bea3a767ea0b",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 8.964,
+          "fast_check.py/autoloop_lint": 4.617,
+          "fast_check.py/bash": 0.169,
+          "fast_check.py/compose": 0.239,
+          "fast_check.py/guardrails": 3.091,
+          "fast_check.py/javascript": 0.141,
+          "fast_check.py/knip": 1.368,
+          "fast_check.py/python": 8.849,
+          "fast_check.py/ruff_and_dev_deps": 0.133,
+          "fast_check.py/zizmor_workflows": 0.417,
+          "integration #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 13.734
+        }
+      },
+      {
+        "at": "2026-11-28T18:17:17Z",
+        "head_sha": "c145efa422eee342f7c064239634face36a5510e",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 8.218,
+          "fast_check.py/autoloop_lint": 4.663,
+          "fast_check.py/bash": 0.245,
+          "fast_check.py/compose": 0.218,
+          "fast_check.py/guardrails": 4.068,
+          "fast_check.py/javascript": 0.067,
+          "fast_check.py/knip": 1.076,
+          "fast_check.py/python": 8.13,
+          "fast_check.py/ruff_and_dev_deps": 0.062,
+          "fast_check.py/zizmor_workflows": 0.326,
+          "integration #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 26.906
+        }
+      },
+      {
+        "at": "2026-11-28T18:19:45Z",
+        "head_sha": "c145efa422eee342f7c064239634face36a5510e",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 8.158,
+          "fast_check.py/autoloop_lint": 4.273,
+          "fast_check.py/bash": 0.152,
+          "fast_check.py/compose": 0.198,
+          "fast_check.py/guardrails": 4.453,
+          "fast_check.py/javascript": 0.048,
+          "fast_check.py/knip": 0.914,
+          "fast_check.py/python": 8.071,
+          "fast_check.py/ruff_and_dev_deps": 0.014,
+          "fast_check.py/zizmor_workflows": 0.25,
+          "integration #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 13.918
+        }
+      }
+    ],
+    "shard:profile": [
+      {
+        "at": "2026-11-28T16:01:24Z",
+        "head_sha": "0491ea278225107eac64dadce640a8c63428e865",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.92,
+          "fast_check.py/autoloop_lint": 3.219,
+          "fast_check.py/bash": 0.196,
+          "fast_check.py/compose": 0.222,
+          "fast_check.py/guardrails": 3.31,
+          "fast_check.py/javascript": 0.047,
+          "fast_check.py/knip": 1.113,
+          "fast_check.py/python": 3.841,
+          "fast_check.py/ruff_and_dev_deps": 0.043,
+          "fast_check.py/zizmor_workflows": 0.279,
+          "profile #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.079
+        }
+      },
+      {
+        "at": "2026-11-28T18:18:32Z",
+        "head_sha": "adf2396f318a78969dc784a25a58614975c32713",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.507,
+          "fast_check.py/autoloop_lint": 3.416,
+          "fast_check.py/bash": 0.142,
+          "fast_check.py/compose": 0.219,
+          "fast_check.py/guardrails": 3.617,
+          "fast_check.py/javascript": 0.048,
+          "fast_check.py/knip": 1.233,
+          "fast_check.py/python": 4.42,
+          "fast_check.py/ruff_and_dev_deps": 0.073,
+          "fast_check.py/zizmor_workflows": 0.35,
+          "profile #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.144
+        }
+      }
+    ],
+    "shard:proofs": [
+      {
+        "at": "2026-11-28T16:47:38Z",
+        "head_sha": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.674,
+          "fast_check.py/autoloop_lint": 3.706,
+          "fast_check.py/bash": 0.123,
+          "fast_check.py/compose": 0.172,
+          "fast_check.py/guardrails": 3.869,
+          "fast_check.py/javascript": 0.048,
+          "fast_check.py/knip": 1.222,
+          "fast_check.py/python": 4.588,
+          "fast_check.py/ruff_and_dev_deps": 0.123,
+          "fast_check.py/zizmor_workflows": 0.326,
+          "proofs #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.289
+        }
+      },
+      {
+        "at": "2026-11-28T17:31:37Z",
+        "head_sha": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.643,
+          "fast_check.py/autoloop_lint": 3.683,
+          "fast_check.py/bash": 0.261,
+          "fast_check.py/compose": 0.242,
+          "fast_check.py/guardrails": 3.85,
+          "fast_check.py/javascript": 0.044,
+          "fast_check.py/knip": 1.139,
+          "fast_check.py/python": 4.551,
+          "fast_check.py/ruff_and_dev_deps": 0.037,
+          "fast_check.py/zizmor_workflows": 0.283,
+          "proofs #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.352
+        }
+      },
+      {
+        "at": "2026-11-28T18:19:05Z",
+        "head_sha": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.858,
+          "fast_check.py/autoloop_lint": 3.753,
+          "fast_check.py/bash": 0.174,
+          "fast_check.py/compose": 0.248,
+          "fast_check.py/guardrails": 2.008,
+          "fast_check.py/javascript": 0.064,
+          "fast_check.py/knip": 1.179,
+          "fast_check.py/python": 4.761,
+          "fast_check.py/ruff_and_dev_deps": 0.08,
+          "fast_check.py/zizmor_workflows": 0.396,
+          "proofs #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.313
+        }
+      }
+    ],
+    "shard:rdocs": [
+      {
+        "at": "2026-11-28T16:02:18Z",
+        "head_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.791,
+          "fast_check.py/autoloop_lint": 3.133,
+          "fast_check.py/bash": 0.121,
+          "fast_check.py/compose": 0.193,
+          "fast_check.py/guardrails": 3.19,
+          "fast_check.py/javascript": 0.038,
+          "fast_check.py/knip": 1.074,
+          "fast_check.py/python": 3.716,
+          "fast_check.py/ruff_and_dev_deps": 0.047,
+          "fast_check.py/zizmor_workflows": 0.262,
+          "rdocs #1: python -B tools/autoloop/cli.py lint": 1.041
+        }
+      },
+      {
+        "at": "2026-11-28T18:19:21Z",
+        "head_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.621,
+          "fast_check.py/autoloop_lint": 3.152,
+          "fast_check.py/bash": 0.153,
+          "fast_check.py/compose": 0.15,
+          "fast_check.py/guardrails": 3.547,
+          "fast_check.py/javascript": 0.056,
+          "fast_check.py/knip": 1.195,
+          "fast_check.py/python": 4.531,
+          "fast_check.py/ruff_and_dev_deps": 0.05,
+          "fast_check.py/zizmor_workflows": 0.303,
+          "rdocs #1: python -B tools/autoloop/cli.py lint": 1.208
+        }
+      }
+    ],
+    "shard:receipts": [
+      {
+        "at": "2026-11-28T16:01:31Z",
+        "head_sha": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.967,
+          "fast_check.py/autoloop_lint": 3.295,
+          "fast_check.py/bash": 0.21,
+          "fast_check.py/compose": 0.187,
+          "fast_check.py/guardrails": 3.29,
+          "fast_check.py/javascript": 0.041,
+          "fast_check.py/knip": 1.115,
+          "fast_check.py/python": 3.888,
+          "fast_check.py/ruff_and_dev_deps": 0.108,
+          "fast_check.py/zizmor_workflows": 0.288,
+          "receipts #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 0.77
+        }
+      },
+      {
+        "at": "2026-11-28T17:08:29Z",
+        "head_sha": "5800e686c9c7ec00539996d9ff591404401925fb",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.62,
+          "fast_check.py/autoloop_lint": 3.802,
+          "fast_check.py/bash": 0.192,
+          "fast_check.py/compose": 0.192,
+          "fast_check.py/guardrails": 2.939,
+          "fast_check.py/javascript": 0.077,
+          "fast_check.py/knip": 1.235,
+          "fast_check.py/python": 4.523,
+          "fast_check.py/ruff_and_dev_deps": 0.032,
+          "fast_check.py/zizmor_workflows": 0.287,
+          "receipts #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 0.969
+        }
+      },
+      {
+        "at": "2026-11-28T18:18:40Z",
+        "head_sha": "5800e686c9c7ec00539996d9ff591404401925fb",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.901,
+          "fast_check.py/autoloop_lint": 3.608,
+          "fast_check.py/bash": 0.235,
+          "fast_check.py/compose": 0.197,
+          "fast_check.py/guardrails": 1.912,
+          "fast_check.py/javascript": 0.066,
+          "fast_check.py/knip": 1.191,
+          "fast_check.py/python": 4.801,
+          "fast_check.py/ruff_and_dev_deps": 0.074,
+          "fast_check.py/zizmor_workflows": 0.332,
+          "receipts #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 1.047
+        }
+      }
+    ],
+    "shard:supervision": [
+      {
+        "at": "2026-11-28T16:20:10Z",
+        "head_sha": "f47da12f74e818d9ba86a29389bf897d9957b48d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.742,
+          "fast_check.py/autoloop_lint": 4.08,
+          "fast_check.py/bash": 0.29,
+          "fast_check.py/compose": 0.235,
+          "fast_check.py/guardrails": 4.083,
+          "fast_check.py/javascript": 0.085,
+          "fast_check.py/knip": 2.445,
+          "fast_check.py/python": 4.657,
+          "fast_check.py/ruff_and_dev_deps": 0.115,
+          "fast_check.py/zizmor_workflows": 0.319,
+          "supervision #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.061
+        }
+      },
+      {
+        "at": "2026-11-28T17:09:05Z",
+        "head_sha": "2fcfb4852d17276ecaba110691149d79d158d2be",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.374,
+          "fast_check.py/autoloop_lint": 3.559,
+          "fast_check.py/bash": 0.151,
+          "fast_check.py/compose": 0.185,
+          "fast_check.py/guardrails": 3.724,
+          "fast_check.py/javascript": 0.046,
+          "fast_check.py/knip": 1.16,
+          "fast_check.py/python": 4.288,
+          "fast_check.py/ruff_and_dev_deps": 0.053,
+          "fast_check.py/zizmor_workflows": 0.309,
+          "supervision #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.059
+        }
+      },
+      {
+        "at": "2026-11-28T18:19:13Z",
+        "head_sha": "2fcfb4852d17276ecaba110691149d79d158d2be",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.599,
+          "fast_check.py/autoloop_lint": 3.543,
+          "fast_check.py/bash": 0.185,
+          "fast_check.py/compose": 0.205,
+          "fast_check.py/guardrails": 2.199,
+          "fast_check.py/javascript": 0.052,
+          "fast_check.py/knip": 1.096,
+          "fast_check.py/python": 4.49,
+          "fast_check.py/ruff_and_dev_deps": 0.049,
+          "fast_check.py/zizmor_workflows": 0.313,
+          "supervision #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.063
+        }
+      }
+    ],
+    "shard:verification": [
+      {
+        "at": "2026-11-28T16:55:14Z",
+        "head_sha": "2f6977293f2bbff8a35a2f7b4e18ba6e31e9c8ea",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.392,
+          "fast_check.py/autoloop_lint": 3.512,
+          "fast_check.py/bash": 0.153,
+          "fast_check.py/compose": 0.188,
+          "fast_check.py/guardrails": 3.676,
+          "fast_check.py/javascript": 0.044,
+          "fast_check.py/knip": 1.119,
+          "fast_check.py/python": 4.307,
+          "fast_check.py/ruff_and_dev_deps": 0.027,
+          "fast_check.py/zizmor_workflows": 0.331,
+          "verification #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.161
+        }
+      },
+      {
+        "at": "2026-11-28T16:59:22Z",
+        "head_sha": "6f19302ff230617afe74d9605db79ad5769d0832",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 4.284,
+          "fast_check.py/autoloop_lint": 3.364,
+          "fast_check.py/bash": 0.162,
+          "fast_check.py/compose": 0.158,
+          "fast_check.py/guardrails": 3.54,
+          "fast_check.py/javascript": 0.062,
+          "fast_check.py/knip": 1.164,
+          "fast_check.py/python": 4.192,
+          "fast_check.py/ruff_and_dev_deps": 0.072,
+          "fast_check.py/zizmor_workflows": 0.28
+        }
+      },
+      {
+        "at": "2026-11-28T16:59:57Z",
+        "head_sha": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.315,
+          "fast_check.py/autoloop_lint": 3.405,
+          "fast_check.py/bash": 0.137,
+          "fast_check.py/compose": 0.199,
+          "fast_check.py/guardrails": 3.586,
+          "fast_check.py/javascript": 0.039,
+          "fast_check.py/knip": 1.099,
+          "fast_check.py/python": 4.23,
+          "fast_check.py/ruff_and_dev_deps": 0.016,
+          "fast_check.py/zizmor_workflows": 0.296,
+          "verification #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.128
+        }
+      },
+      {
+        "at": "2026-11-28T17:09:45Z",
+        "head_sha": "6812114c51321cf4a734da7f2df9e1d947ebd119",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.398,
+          "fast_check.py/autoloop_lint": 3.498,
+          "fast_check.py/bash": 0.16,
+          "fast_check.py/compose": 0.213,
+          "fast_check.py/guardrails": 3.676,
+          "fast_check.py/javascript": 0.051,
+          "fast_check.py/knip": 1.228,
+          "fast_check.py/python": 4.307,
+          "fast_check.py/ruff_and_dev_deps": 0.09,
+          "fast_check.py/zizmor_workflows": 0.295,
+          "verification #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.121
+        }
+      },
+      {
+        "at": "2026-11-28T18:18:56Z",
+        "head_sha": "6812114c51321cf4a734da7f2df9e1d947ebd119",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.496,
+          "fast_check.py/autoloop_lint": 3.66,
+          "fast_check.py/bash": 0.142,
+          "fast_check.py/compose": 0.168,
+          "fast_check.py/guardrails": 3.141,
+          "fast_check.py/javascript": 0.046,
+          "fast_check.py/knip": 1.0,
+          "fast_check.py/python": 4.406,
+          "fast_check.py/ruff_and_dev_deps": 0.09,
+          "fast_check.py/zizmor_workflows": 0.31,
+          "verification #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.166
+        }
+      }
+    ]
+  },
+  "contract_revision": 2,
+  "contract_sha256": "0f28fe55d5f56ecb7bb388138f9bbf39c3cedf6080f826903699379da8a019e6",
+  "created_at": "2026-11-28T14:24:07Z",
+  "dead_ends": [],
+  "findings": {
+    "admission-ignores-run-retry-ceiling": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "admission-ignores-run-retry-ceiling",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/cli.py:193 admission registration discards the run's retry limits; a 1-strike run gets another reservation."
+    },
+    "approval-obligations-skipped": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "approval-obligations-skipped",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/verification/predicate.py:77 approvals checked only at merge/policy; a review_submission approval requirement passes with none."
+    },
+    "cache-retains-pass-after-conflicting-execution": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "cache-retains-pass-after-conflicting-execution",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/verification/cache.py:198 conflicting valid receipts for one key leave the first PASS entry usable after the disagreement is detected."
+    },
+    "cached-origin-revocation-lost-at-verification": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "cached-origin-revocation-lost-at-verification",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/verification/predicate.py:915 cached evidence needs only nonempty origin IDs; a revoked cache origin is accepted until snapshot expiry."
+    },
+    "candidate-diff-authorizes-protected-additions": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "candidate-diff-authorizes-protected-additions",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/guard.py:569 trusted manifest built from the candidate diff marks new protected paths expected-absent, so unauthorized new tests pass the unmanifested-addition guard."
+    },
+    "compile-cache-omits-runtime-inputs": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "compile-cache-omits-runtime-inputs",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/cli.py:260 Windows interpreter fingerprint omits pythonXY._pth; a warm compile check can PASS when a fresh interpreter cannot start."
+    },
+    "contract-refresh-does-not-fence-publication": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "contract-refresh-does-not-fence-publication",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/receipts/__init__.py:263 settlement never checks the current contract revision/base; a pre-refresh worker can settle afterwards as current publication."
+    },
+    "crashed-red-proof-gate-counts-as-rejection": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "crashed-red-proof-gate-counts-as-rejection",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:35Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/proofs/redproof.py:357 any nonzero exit counts as NO-GO including signal termination; a gate that prints the diagnostic then crashes satisfies the repaired arm."
+    },
+    "failed-recheck-retains-merge-ready-status": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "failed-recheck-retains-merge-ready-status",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/state.py:640 failed enforced merge recheck persists ready_to_merge alongside the failed decision after approval revocation."
+    },
+    "fixture-only-changes-escape-integrity-scan": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "fixture-only-changes-escape-integrity-scan",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:35Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/guard.py:555 non-source extensions skipped and fixtures/oracles never classified; editing expected totals in a JSON fixture produces no violation."
+    },
+    "frozen-live-checks-classified-as-deterministic": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "frozen-live-checks-classified-as-deterministic",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/guard.py:893 every frozen command becomes a deterministic CheckRequirement; a cached completion can satisfy a live parity check."
+    },
+    "integrity-overflow-aborts-legacy-check": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "integrity-overflow-aborts-legacy-check",
+      "fix_summary": "3a75e38: advisory integrity scan exception-isolated; a 400-digit literal leaves the legacy check exit unchanged. Root-cause float conversion tracked in #22.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:01Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/proofs/integrity.py:985 advisory scanner converts ints to float; a 400-digit literal raises OverflowError uncaught by advise_test_integrity and the default check exits before the legacy gate."
+    },
+    "malformed-shadow-result-blocks-transition": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "malformed-shadow-result-blocks-transition",
+      "fix_summary": "3a75e38+21e7465: every shadow/advisory computation and write is exception-isolated and recorded as shadow_error; legacy transition saved before advisory writes; verification=null still saves the shard transition.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:01Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/state.py:577 advisory result written outside the exception handler assuming verification is a dict; verification=null raises TypeError before the shard transition is saved."
+    },
+    "missing-base-ref-passes-enforcement": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "missing-base-ref-passes-enforcement",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/state.py:589 current-base check accepts an unsuccessful show-ref; stale-base evidence passes after upstream advances."
+    },
+    "mutable-checkpoint-enables-enforcement": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "mutable-checkpoint-enables-enforcement",
+      "fix_summary": "3a75e38: verification mode only from frozen trusted contract or explicit CLI, and shadow regardless; checkpoint verification_mode=enforce leaves legacy outcome unchanged (regression reproduced on 80cb46f, passes now).",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:01Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/state.py:557 checkpoint verification_mode=enforce turns on enforcement without contract revision or CLI opt-in; a passing legacy check fails."
+    },
+    "origin-aliases-split-broker-authority": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "origin-aliases-split-broker-authority",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:34Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/receipts/__init__.py:85 repo identity from origin spelling; github.com vs ssh.github.com:443 clones get separate ledgers and both can consume full caps."
+    },
+    "partial-safeguard-evidence-passes": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "partial-safeguard-evidence-passes",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/verification/predicate.py:536 safeguard membership checked one way; a finding binding two safeguard digests passes with one."
+    },
+    "product-fix-can-change-the-oracle": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "product-fix-can-change-the-oracle",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:35Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/proofs/redproof.py:394 product-fix mode does not run both product versions against one frozen oracle; changing gate inputs yields PASS."
+    },
+    "profile-reconcile-drops-uncovered-requests": {
+      "finding_id": "profile-reconcile-drops-uncovered-requests",
+      "fix_summary": "adf2396: only demonstrably overlapping usage suppressed; unmatched requests preserved (12+23=35); ambiguous overlap reported as unresolved_overlap and excluded.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "reviewer": "chatgpt-codex-connector@4899b85",
+      "severity": "P2",
+      "source": "review",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/profile/reconcile.py:115 any detailed usage for a session discards or strips all provider-log usage for that session, including requests absent from the detailed source; 12 + 23 tokens reconcile to 12, understating the efficiency baseline."
+    },
+    "profile-since-cutoff-ignores-tool-activities": {
+      "finding_id": "profile-since-cutoff-ignores-tool-activities",
+      "fix_summary": "adf2396: tool activities filtered by their own observation time in Codex and Claude adapters; timeless activities excluded and counted as unknown-time; 2025-only rollouts contribute 0.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "reviewer": "chatgpt-codex-connector@4899b85",
+      "severity": "P2",
+      "source": "review",
+      "stage": "cloud",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/profile/codex.py:129 tool activities from older rollouts are appended without is_since (Claude tool-result branch too), so activity counts, output-byte sinks and repeated-read stats include history while tokens are window-filtered."
+    },
+    "red-proof-executes-unbound-files": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "red-proof-executes-unbound-files",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:35Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/cli.py:1006 red-proof hashes the git head but runs gates/fixtures from filesystem paths; uncommitted repairs PASS attributed to a defective commit."
+    },
+    "review-stages-collapse-to-one-record": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "review-stages-collapse-to-one-record",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/guard.py:898 cloud+deep review requirements collapse to one Boolean; ReviewEvidence lacks stage and verdict so one (even rejecting) review satisfies merge."
+    },
+    "shadow-admission-holds-production-leases": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "shadow-admission-holds-production-leases",
+      "fix_summary": "3a75e38: automatic admission hook never touches the host lease store; explicit admission commands refuse in the shadow-only release; test asserts no lease files created.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:01Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/admission/__init__.py:352 shadow reservation acquires the real host resource lease; existing timing callers get LeaseConflictError and a crash can leave the lease until TTL."
+    },
+    "state-api-skips-frozen-enforcement": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "state-api-skips-frozen-enforcement",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:32Z",
+      "resolved_at": "2026-11-28T18:20:01Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/state.py:922 record_all_shards_pass/record_shard_pass skip verification when the optional argument is omitted even for an enforce-mode contract."
+    },
+    "unreachable-assertions-count-as-active": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "unreachable-assertions-count-as-active",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:35Z",
+      "resolved_at": "2026-11-28T18:20:04Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/proofs/integrity.py:867 assertions counted without reachability; an early return before them still PASSes the guard."
+    },
+    "wrong-tooling-accepted-at-merge": {
+      "evidence": "Astra deep review of PR #21 @4899b85",
+      "finding_id": "wrong-tooling-accepted-at-merge",
+      "fix_summary": "Unreachable or advisory-only in the shadow-only release: enforce mode, --check-cache, red-proof and explicit admission refuse (3a75e38), legacy decisions stay authoritative, and fault injection on every shadow hook matches the 37313d9 oracle (21e7465). Deferred to Phase 2b issue #22; must be fixed before any of these paths is enabled.",
+      "opened_at": "2026-11-28T18:02:33Z",
+      "resolved_at": "2026-11-28T18:20:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "tools/autoloop/guard.py:931 signed tooling compared with observed tooling only at shard/integrated gates; an obsolete overlay passes at review submission and merge."
+    }
+  },
+  "goal": "ADR 0005 Phases 0-2: make autoloop measurably more capable per token via a deterministic evidence spine (token profiling, delegation receipts with generation fencing, admission/budgets, one verify predicate with content-addressed check cache, red-proof safeguards, deterministic review supervisor), shadow mode first; zero recurring model tokens",
+  "grill_summary": "Owner directives: token efficiency first-class; token-poor (no enforced independent reviewers, no panels, no LLM judge, no always-on meta agent); profile before optimizing; deterministic Tier-0 first; reject savings that weaken gates or complete less. ADR 0005 (Astra, e03050f+03548c3) binding. Phases 0-2 only; Phase 3 remote evaluator awaits owner provisioning off-machine.",
+  "history": [
+    {
+      "at": "2026-11-28T14:24:07Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T14:24:07Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T14:24:08Z",
+      "contract_revision": 1,
+      "contract_sha256": "1f79f97ff021f61f85f1bde163098fb9b17621aa3dab6bab43a8447a0d736f87",
+      "event": "lock",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T16:01:18Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "profile",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:01:24Z",
+      "code_tree_sha256": "1468dbf63308f5ae91fb583d08402f33262badf19ddd4869cf2a8a6df4f58c13",
+      "event": "shard-passed",
+      "shard": "profile",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:01:24Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "receipts",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:01:31Z",
+      "code_tree_sha256": "f8bc1f6e2a11524f4c564c07234dc1eb754d30c0284e4f9e05a058a8d60accb2",
+      "event": "shard-passed",
+      "shard": "receipts",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:01:31Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "verification",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:01:38Z",
+      "code_tree_sha256": "729f055575bad750be34383c7ad0e0f8223b080b7e792a160f583c31348b6bd1",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:02:11Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "rdocs",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:02:18Z",
+      "code_tree_sha256": "40d1757f883308e61bf0ee6e7962dac7eb7ab194ea0cb2e32f2e1ed128d4fd20",
+      "event": "shard-passed",
+      "shard": "rdocs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:11:34Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "admission",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:11:42Z",
+      "code_tree_sha256": "a045ef9a42c79402987b898efb9eff13ca24ef4d4943893b64498695df885a08",
+      "event": "shard-passed",
+      "shard": "admission",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:20:03Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "supervision",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:20:10Z",
+      "code_tree_sha256": "1e1032c3e97ba867dc66707a0d38f9e202a9e419ab402e15c0f9d5e97b505b8c",
+      "event": "shard-passed",
+      "shard": "supervision",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:47:30Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "proofs",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:47:38Z",
+      "code_tree_sha256": "a0e9515608aa57f70b08f98a9c59c608c22338906aba8e63d4c75a074078542b",
+      "event": "shard-passed",
+      "shard": "proofs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:52:25Z",
+      "code_tree_sha256": "eb0f724d50bf305aaf18ebda96ab1c526bf1e09194856865ebed0561fe88a9c5",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:55:14Z",
+      "code_tree_sha256": "5f4dcbbcbf7a837a0b6f9c0ee65cc3755ca00669a966b4a2655bce94e08532a4",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:59:22Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "6f19302ff230617afe74d9605db79ad5769d0832",
+      "shard": "verification",
+      "signature": "fast_check.py::VerificationFailure::fast_check.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:59:57Z",
+      "code_tree_sha256": "486cb94872c5876ac6ef8be0e73d230a3f0eb0f09b82d04c89b9b25a0a866b69",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:07:03Z",
+      "code_tree_sha256": "1f744ccf7091052a079b3b8b58d158df7bef63960286c0cbeeaa22a7d88ffcdf",
+      "event": "shard-passed",
+      "shard": "admission",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:29Z",
+      "code_tree_sha256": "60dbed2d66e6657fe976de67d1394cf520d1d7fc106cd274712c203da4db0e5b",
+      "event": "shard-passed",
+      "shard": "receipts",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:09:05Z",
+      "code_tree_sha256": "59230caf498930aaba09e52ecb8e1ceb31924b7bc4646a44640f37d0a5eeaa9d",
+      "event": "shard-passed",
+      "shard": "supervision",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:09:45Z",
+      "code_tree_sha256": "076221599662ac8ef11319b6bc420d2c89ed2e7ce79cf674ea2fdd0e11b6bfdb",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:31:37Z",
+      "code_tree_sha256": "9e6505137db318ea67555a072f196fdec248b7e3999fd82481634fdb8d164068",
+      "event": "shard-passed",
+      "shard": "proofs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:53:48Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "integration",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:53:48Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
+      "shard": "integration",
+      "signature": "verify-untampered::UNKNOWN::tools/autoloop/profile/devin.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:54:18Z",
+      "code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
+      "event": "shard-passed",
+      "shard": "integration",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:55:41Z",
+      "code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T17:56:42Z",
+      "contract_revision": 2,
+      "event": "bind-pr",
+      "pr_number": 21,
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T17:56:53Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-finding",
+      "finding_id": "mutable-checkpoint-enables-enforcement",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-finding",
+      "finding_id": "malformed-shadow-result-blocks-transition",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-finding",
+      "finding_id": "integrity-overflow-aborts-legacy-check",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-finding",
+      "finding_id": "shadow-admission-holds-production-leases",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "event": "record-finding",
+      "finding_id": "state-api-skips-frozen-enforcement",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "missing-base-ref-passes-enforcement",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "failed-recheck-retains-merge-ready-status",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "review-stages-collapse-to-one-record",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "wrong-tooling-accepted-at-merge",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "cached-origin-revocation-lost-at-verification",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "frozen-live-checks-classified-as-deterministic",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "partial-safeguard-evidence-passes",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:33Z",
+      "event": "record-finding",
+      "finding_id": "approval-obligations-skipped",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "cache-retains-pass-after-conflicting-execution",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "compile-cache-omits-runtime-inputs",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "origin-aliases-split-broker-authority",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "contract-refresh-does-not-fence-publication",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "admission-ignores-run-retry-ceiling",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:34Z",
+      "event": "record-finding",
+      "finding_id": "candidate-diff-authorizes-protected-additions",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:35Z",
+      "event": "record-finding",
+      "finding_id": "fixture-only-changes-escape-integrity-scan",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:35Z",
+      "event": "record-finding",
+      "finding_id": "unreachable-assertions-count-as-active",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:35Z",
+      "event": "record-finding",
+      "finding_id": "red-proof-executes-unbound-files",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:35Z",
+      "event": "record-finding",
+      "finding_id": "product-fix-can-change-the-oracle",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:02:35Z",
+      "event": "record-finding",
+      "finding_id": "crashed-red-proof-gate-counts-as-rejection",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:13:42Z",
+      "code_tree_sha256": "7360bef56de84d4b566eab451b59c602fd2110434af67c7dbabb190233859b28",
+      "event": "shard-passed",
+      "shard": "integration",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:17:17Z",
+      "code_tree_sha256": "1bd6b0e57bd86d248c70c3ad22db9b1fcd88eb846339b94a6feca54c45a39346",
+      "event": "shard-passed",
+      "shard": "integration",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:18:32Z",
+      "code_tree_sha256": "11f2c0761d283774a5f1d58b3885e66c24989c92a237585a709a3fd738848e59",
+      "event": "shard-passed",
+      "shard": "profile",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:18:40Z",
+      "code_tree_sha256": "60dbed2d66e6657fe976de67d1394cf520d1d7fc106cd274712c203da4db0e5b",
+      "event": "shard-passed",
+      "shard": "receipts",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:18:48Z",
+      "code_tree_sha256": "1f744ccf7091052a079b3b8b58d158df7bef63960286c0cbeeaa22a7d88ffcdf",
+      "event": "shard-passed",
+      "shard": "admission",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:18:56Z",
+      "code_tree_sha256": "076221599662ac8ef11319b6bc420d2c89ed2e7ce79cf674ea2fdd0e11b6bfdb",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:19:05Z",
+      "code_tree_sha256": "9e6505137db318ea67555a072f196fdec248b7e3999fd82481634fdb8d164068",
+      "event": "shard-passed",
+      "shard": "proofs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:19:13Z",
+      "code_tree_sha256": "59230caf498930aaba09e52ecb8e1ceb31924b7bc4646a44640f37d0a5eeaa9d",
+      "event": "shard-passed",
+      "shard": "supervision",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:19:21Z",
+      "code_tree_sha256": "40d1757f883308e61bf0ee6e7962dac7eb7ab194ea0cb2e32f2e1ed128d4fd20",
+      "event": "shard-passed",
+      "shard": "rdocs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:19:45Z",
+      "code_tree_sha256": "1bd6b0e57bd86d248c70c3ad22db9b1fcd88eb846339b94a6feca54c45a39346",
+      "event": "shard-passed",
+      "shard": "integration",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T18:20:01Z",
+      "event": "resolve-finding",
+      "finding_id": "mutable-checkpoint-enables-enforcement"
+    },
+    {
+      "at": "2026-11-28T18:20:01Z",
+      "event": "resolve-finding",
+      "finding_id": "malformed-shadow-result-blocks-transition"
+    },
+    {
+      "at": "2026-11-28T18:20:01Z",
+      "event": "resolve-finding",
+      "finding_id": "integrity-overflow-aborts-legacy-check"
+    },
+    {
+      "at": "2026-11-28T18:20:01Z",
+      "event": "resolve-finding",
+      "finding_id": "shadow-admission-holds-production-leases"
+    },
+    {
+      "at": "2026-11-28T18:20:01Z",
+      "event": "resolve-finding",
+      "finding_id": "state-api-skips-frozen-enforcement"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "missing-base-ref-passes-enforcement"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "failed-recheck-retains-merge-ready-status"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "review-stages-collapse-to-one-record"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "wrong-tooling-accepted-at-merge"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "cached-origin-revocation-lost-at-verification"
+    },
+    {
+      "at": "2026-11-28T18:20:02Z",
+      "event": "resolve-finding",
+      "finding_id": "frozen-live-checks-classified-as-deterministic"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "partial-safeguard-evidence-passes"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "approval-obligations-skipped"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "cache-retains-pass-after-conflicting-execution"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "compile-cache-omits-runtime-inputs"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "origin-aliases-split-broker-authority"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "contract-refresh-does-not-fence-publication"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "admission-ignores-run-retry-ceiling"
+    },
+    {
+      "at": "2026-11-28T18:20:03Z",
+      "event": "resolve-finding",
+      "finding_id": "candidate-diff-authorizes-protected-additions"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "fixture-only-changes-escape-integrity-scan"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "unreachable-assertions-count-as-active"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "red-proof-executes-unbound-files"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "product-fix-can-change-the-oracle"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "crashed-red-proof-gate-counts-as-rejection"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "profile-reconcile-drops-uncovered-requests"
+    },
+    {
+      "at": "2026-11-28T18:20:04Z",
+      "event": "resolve-finding",
+      "finding_id": "profile-since-cutoff-ignores-tool-activities"
+    },
+    {
+      "at": "2026-11-28T18:20:40Z",
+      "code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T18:21:29Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": "feat/autoloop-recursive",
+  "last_integrated_detached": false,
+  "last_integrated_sha": "2d5d33661e05764a680b1efb02386eaa1cebb4df",
+  "last_integrated_worktree": "/root/gate/Recur",
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "human",
+  "models": {
+    "architecture": "codex gpt-6.2-astra",
+    "coordinator": "claude-opus-5-5",
+    "reviewer": "codex gpt-6.2-astra high",
+    "workers": "devin swe-2-1-medium standard (default) / codex gpt-6.2-sol for concurrency"
+  },
+  "pending_contract_amendments": [],
+  "pr_number": 21,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": true,
+    "deep": true
+  },
+  "reviews": [
+    {
+      "at": "2026-11-28T18:02:32Z",
+      "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
+      "contract_revision": 2,
+      "oracle_mismatch_ids": [],
+      "reviewer": "chatgpt-codex-connector@4899b85",
+      "stage": "cloud",
+      "verdict": "reject"
+    }
+  ],
+  "run_id": "autoloop-recursive-20261128",
+  "safeguards": [],
+  "schema_version": 1,
+  "shards": {
+    "admission": {
+      "allowed_paths": [
+        "tools/autoloop/admission/**",
+        "tools/autoloop/leases.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/admission"
+    },
+    "integration": {
+      "allowed_paths": [
+        "tools/autoloop/cli.py",
+        "tools/autoloop/state.py",
+        "tools/autoloop/guard.py",
+        ".github/workflows/autoloop-gate.yml",
+        "tools/autoloop/integration_tests/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "c145efa422eee342f7c064239634face36a5510e",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "c145efa422eee342f7c064239634face36a5510e",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/integration"
+    },
+    "profile": {
+      "allowed_paths": [
+        "tools/autoloop/profile/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "adf2396f318a78969dc784a25a58614975c32713",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "adf2396f318a78969dc784a25a58614975c32713",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/profile"
+    },
+    "proofs": {
+      "allowed_paths": [
+        "tools/autoloop/proofs/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/proofs"
+    },
+    "rdocs": {
+      "allowed_paths": [
+        "docs/adr/0005-recursive-self-improving-autoloop.md"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B tools/autoloop/cli.py lint"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/rdocs"
+    },
+    "receipts": {
+      "allowed_paths": [
+        "tools/autoloop/receipts/**",
+        "tools/autoloop/routing.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "5800e686c9c7ec00539996d9ff591404401925fb",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "5800e686c9c7ec00539996d9ff591404401925fb",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/receipts"
+    },
+    "supervision": {
+      "allowed_paths": [
+        "tools/autoloop/supervision/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "2fcfb4852d17276ecaba110691149d79d158d2be",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "2fcfb4852d17276ecaba110691149d79d158d2be",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/supervision"
+    },
+    "verification": {
+      "allowed_paths": [
+        "tools/autoloop/verification/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "6812114c51321cf4a734da7f2df9e1d947ebd119",
+      "passed_code_tree_sha256": "b12a7024d51426dc1e8ab95b014a7e2eee7119079d1932bcfee2dad42fa3db3f",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "c145efa422eee342f7c064239634face36a5510e",
+          "profile": "adf2396f318a78969dc784a25a58614975c32713",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "20ba7cab15dfdd74003e1268a101d3f7ee8365faa62f7981ee9e1de091d15827",
+        "static_lint": {
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "6812114c51321cf4a734da7f2df9e1d947ebd119",
+      "worker_strikes": 0,
+      "worktree_path": "/root/gate/wt/verification"
+    }
+  },
+  "status": "awaiting_cloud_review",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T18:21:29Z"
+}
