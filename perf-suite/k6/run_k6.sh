@@ -66,6 +66,7 @@ STATS_CSV="$RESULT_DIR/${RUN_ID}-container-stats.csv"
 STATS_LOG="$RESULT_DIR/${RUN_ID}-stats-collector.log"
 SCORECARD="$RESULT_DIR/${RUN_ID}-scorecard.md"
 SEASONAL_VERIFICATION_JSON="$RESULT_DIR/${RUN_ID}-seasonal-verification.json"
+ATTRIBUTION_DIR="$RESULT_DIR/${RUN_ID}-attribution"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-khitmee-perf}"
 MEMORY_BUDGET_GB="${MEMORY_BUDGET_GB:-}"
 STATS_COLLECTOR="${STATS_COLLECTOR:-$PERF_ROOT/scripts/stats-collector.sh}"
@@ -224,6 +225,10 @@ fi
 rm -f "$STATS_CSV" "$K6_SUMMARY" "$K6_LOG" "$STATS_LOG" "$SCORECARD"
 start_stats_collector
 
+if [[ "$SCENARIO" == "seasonal" || "$SCENARIO" == "seasonal_preflight" ]]; then
+  python3 -B "$PERF_ROOT/seasonal/attribution.py" start --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" >"$RESULT_DIR/${RUN_ID}-attribution-start.log" 2>&1 || echo "WARNING: attribution start collection failed" >&2
+fi
+
 K6_STATUS=0
 if [[ "$USE_DOCKER" == "1" ]]; then
   NETWORK=""
@@ -310,6 +315,10 @@ fi
 sleep "${STATS_FLUSH_SECONDS:-1}"
 stop_stats_collector
 
+if [[ "$SCENARIO" == "seasonal" || "$SCENARIO" == "seasonal_preflight" ]]; then
+  python3 -B "$PERF_ROOT/seasonal/attribution.py" finish --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" >"$RESULT_DIR/${RUN_ID}-attribution-finish.log" 2>&1 || echo "WARNING: attribution finish collection failed" >&2
+fi
+
 EVAL_STATUS=0
 if [[ -f "$K6_SUMMARY" ]]; then
   if [[ "$SCENARIO" == "seasonal" ]]; then
@@ -337,12 +346,20 @@ if [[ -f "$K6_SUMMARY" ]]; then
       --k6-log "$K6_LOG"
       --stats-csv "$STATS_CSV"
       --verification "$SEASONAL_VERIFICATION_JSON"
+      --attribution "$ATTRIBUTION_DIR/attribution-summary.json"
       --output "$SCORECARD"
       --run-label "$RUN_ID"
     )
     if [[ "${SEASONAL_ENABLE_MANAGERS:-1}" == "0" ]]; then
       EVAL_ARGS+=(--cashier-only)
     fi
+  elif [[ "$SCENARIO" == "seasonal_preflight" ]]; then
+    EVAL_ARGS=(
+      "$PERF_ROOT/seasonal/evaluate_preflight.py"
+      --k6-log "$K6_LOG"
+      --output "$SCORECARD"
+      --json-output "$RESULT_DIR/${RUN_ID}-preflight-result.json"
+    )
   else
     EVAL_ARGS=(
       "$SCRIPT_DIR/evaluate_run.py"

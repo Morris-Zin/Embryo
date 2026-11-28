@@ -80,6 +80,38 @@ export function baseHeaders(extra = {}) {
 }
 
 
+
+let observabilityRequestCounter = 0;
+const observabilityVuInstance = Math.random().toString(36).slice(2, 10);
+
+function observabilityEndpointClass(options = {}) {
+  if (options.endpointClass) {
+    return options.endpointClass;
+  }
+  const tags = options.tags || {};
+  const endpoint = String(tags.endpoint || tags.name || 'request');
+  if (endpoint === 'login' || endpoint === 'desk_boot') return 'login/bootstrap';
+  if (endpoint.includes('search')) return 'search';
+  if (endpoint.includes('query_report')) return 'manager_summary';
+  if (endpoint.includes('export')) return 'manager_export';
+  if (endpoint.includes('sale') || endpoint.includes('transfer') || endpoint.includes('savedocs') || endpoint.includes('purchase')) return 'cashier_submit';
+  return endpoint;
+}
+
+export function observabilityHeaders(options = {}) {
+  observabilityRequestCounter += 1;
+  let vu = 0;
+  try {
+    vu = typeof __VU === 'undefined' ? 0 : __VU;
+  } catch (_err) {}
+  const endpointClass = observabilityEndpointClass(options);
+  const requestId = `${__ENV.RUN_ID || 'seasonal'}-vu${vu}-${observabilityVuInstance}-${observabilityRequestCounter}`;
+  return {
+    'X-K6-Request-Id': requestId,
+    'X-K6-Endpoint-Class': endpointClass,
+  };
+}
+
 function traceAuthEvent(payload) {
   const event = Object.assign({ at: new Date().toISOString() }, payload);
   try {
@@ -124,7 +156,7 @@ function extractCsrfToken(html) {
 
 function fetchCsrfToken(baseUrl, timeout) {
   const response = http.get(`${baseUrl}/app`, {
-    headers: baseHeaders({ Accept: 'text/html,application/xhtml+xml' }),
+    headers: baseHeaders(Object.assign({ Accept: 'text/html,application/xhtml+xml' }, observabilityHeaders({ endpointClass: 'login/bootstrap' }))),
     redirects: 5,
     timeout: timeout || '30s',
     tags: { name: 'desk_boot', endpoint: 'desk_boot' },
@@ -150,7 +182,7 @@ export function login(baseUrl, user, password, options = {}) {
     `${normalized}/api/method/login`,
     { usr: user, pwd: password },
     {
-      headers: baseHeaders(),
+      headers: baseHeaders(observabilityHeaders({ endpointClass: 'login/bootstrap' })),
       redirects: 0,
       timeout: options.timeout || '30s',
       tags: { name: 'login', endpoint: 'login' },
@@ -200,16 +232,19 @@ export function login(baseUrl, user, password, options = {}) {
   };
 }
 
-export function authHeaders(session, extra = {}) {
-  const headers = baseHeaders(extra);
+export function authHeaders(session, extra = {}, options = {}) {
+  const headers = baseHeaders(Object.assign(observabilityHeaders(options), extra));
   if (session && session.csrfToken) {
     headers['X-Frappe-CSRF-Token'] = session.csrfToken;
+  }
+  if (session && session.sid) {
+    headers.Cookie = `sid=${session.sid}`;
   }
   return headers;
 }
 
 export function postMethodRequest(session, method, payload = {}, options = {}) {
-  const headers = authHeaders(session, options.headers || {});
+  const headers = authHeaders(session, options.headers || {}, Object.assign({}, options, { tags: options.tags || {} }));
   let body = payload;
   if (!options.asForm) {
     body = JSON.stringify(payload);
@@ -235,7 +270,7 @@ export function postMethod(session, method, payload = {}, options = {}) {
 
 export function getMethod(session, methodAndQuery, options = {}) {
   return http.get(`${session.baseUrl}/api/method/${methodAndQuery}`, {
-    headers: authHeaders(session, options.headers || {}),
+    headers: authHeaders(session, options.headers || {}, options),
     redirects: 0,
     timeout: options.timeout || '60s',
     tags: options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] },
@@ -251,7 +286,7 @@ export function getResourceRequest(session, doctype, options = {}) {
     method: 'GET',
     url: `${session.baseUrl}/api/resource/${encodeURIComponent(doctype)}${name}${query ? `?${query}` : ''}`,
     params: {
-      headers: authHeaders(session, options.headers || {}),
+      headers: authHeaders(session, options.headers || {}, options),
       redirects: 0,
       timeout: options.timeout || '30s',
       tags: options.tags || { name: `resource_${doctype}`, endpoint: 'frappe_resource' },

@@ -22,6 +22,9 @@ FIXTURE_SHA="$PINNED_FIXTURE_SHA"
 ACTORS="$DEFAULT_ACTORS"
 MANIFEST="$DEFAULT_MANIFEST"
 OWNER="seasonal_harness"
+APP_TREE="$REPO_ROOT"
+APP_REF=""
+PREFLIGHT_ONLY=0
 
 usage() {
   cat <<'EOF'
@@ -37,6 +40,9 @@ Options:
   --actors PATH                                 JSON actor environment for the pinned fixture
   --seed-manifest PATH                          Pinned seed manifest
   --owner NAME                                  Lease owner (default seasonal_harness)
+  --app-tree PATH                               Clean git checkout containing apps/khitmee_ops (default this checkout)
+  --app-ref REF                                 Commit/ref inside --app-tree to deploy (default HEAD)
+  --preflight                                   Run one idle end-to-end request of each class, then stop before load
 EOF
 }
 
@@ -56,6 +62,11 @@ while (($#)); do
     --seed-manifest=*) MANIFEST="${1#*=}"; shift ;;
     --owner) OWNER="${2:?}"; shift 2 ;;
     --owner=*) OWNER="${1#*=}"; shift ;;
+    --app-tree) APP_TREE="${2:?}"; shift 2 ;;
+    --app-tree=*) APP_TREE="${1#*=}"; shift ;;
+    --app-ref) APP_REF="${2:?}"; shift 2 ;;
+    --app-ref=*) APP_REF="${1#*=}"; shift ;;
+    --preflight) PREFLIGHT_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -96,6 +107,23 @@ exec > >(tee -a "$ARTIFACT_DIR/qualify.log") 2>&1
 
 echo "[$STAMP] seasonal qualification run $RUN_ID"
 echo "Artifacts: $ARTIFACT_DIR"
+
+APP_TREE_METADATA="$ARTIFACT_DIR/app-tree.json"
+APP_TREE_MATERIALIZED="$ARTIFACT_DIR/app-tree-materialized"
+APP_REF_ARGS=()
+if [[ -n "$APP_REF" ]]; then
+  APP_REF_ARGS=(--ref "$APP_REF")
+fi
+if ! python3 -B "$SCRIPT_DIR/app_tree.py" \
+  --checkout "$APP_TREE" \
+  "${APP_REF_ARGS[@]}" \
+  --output "$APP_TREE_METADATA" \
+  --materialize-dir "$APP_TREE_MATERIALIZED" >"$ARTIFACT_DIR/app-tree.stdout" 2>"$ARTIFACT_DIR/app-tree.stderr"; then
+  cat "$ARTIFACT_DIR/app-tree.stderr" >&2
+  echo "NO-GO: candidate application tree failed validation/materialization" >&2
+  exit 2
+fi
+echo "Candidate app tree evidence: $APP_TREE_METADATA"
 
 PERF_LEASE_TOKEN=""
 TIMING_LEASE_TOKEN=""
@@ -223,6 +251,7 @@ compose() {
     -f "$DOCKER_DIR/profile-2gb.yaml" \
     -f "$DOCKER_DIR/khitmee-ops-2gb.yaml" \
     -f "$OVERLAY" \
+    -f "$SCRIPT_DIR/compose-observability.yaml" \
     "$@"
 }
 
@@ -287,6 +316,25 @@ else:
     print('bench-loadtest.localhost')
 PY
 )"
+
+echo "Deploying candidate khitmee_ops tree and running required migration"
+python3 -B "$SCRIPT_DIR/deploy_candidate.py" \
+  --metadata "$APP_TREE_METADATA" \
+  --docker-dir "$DOCKER_DIR" \
+  --actors "$ACTORS" \
+  --artifact-dir "$ARTIFACT_DIR" \
+  --site "$SITE_NAME_VALUE" \
+  --compose-project "$PROJECT" \
+  --compose-file "$DOCKER_DIR/compose.base.yaml" \
+  --compose-file "$DOCKER_DIR/profile-2gb.yaml" \
+  --compose-file "$DOCKER_DIR/khitmee-ops-2gb.yaml" \
+  --compose-file "$OVERLAY" \
+  --compose-file "$SCRIPT_DIR/compose-observability.yaml" \
+  >"$ARTIFACT_DIR/candidate-deployment.stdout" 2>"$ARTIFACT_DIR/candidate-deployment.stderr" || {
+    cat "$ARTIFACT_DIR/candidate-deployment.stderr" >&2
+    exit 2
+  }
+
 for _ in $(seq 1 90); do
   if curl -fsS --max-time 5 -H "Host: $SITE_NAME_VALUE" http://127.0.0.1:18086/api/method/ping >/dev/null 2>&1; then
     break
@@ -345,9 +393,15 @@ if [[ -f "$ARTIFACT_DIR/lease-renew.failed" ]]; then
   exit 6
 fi
 
-echo "Running seasonal $SEASONAL_PROFILE_VALUE workload"
+K6_SCENARIO="seasonal"
+if [[ "$PREFLIGHT_ONLY" == "1" ]]; then
+  K6_SCENARIO="seasonal_preflight"
+  echo "Running idle preflight: one request of each type before any load"
+else
+  echo "Running seasonal $SEASONAL_PROFILE_VALUE workload"
+fi
 set +e
-run_bash_script "$PERF_ROOT/k6/run_k6.sh" seasonal | tee "$ARTIFACT_DIR/workload.log"
+run_bash_script "$PERF_ROOT/k6/run_k6.sh" "$K6_SCENARIO" | tee "$ARTIFACT_DIR/workload.log"
 WORKLOAD_STATUS=${PIPESTATUS[0]}
 set -e
 
@@ -357,6 +411,8 @@ cp -f "$PERF_ROOT/results/${RUN_ID}-seasonal-verification.json" "$ARTIFACT_DIR/s
 cp -f "$PERF_ROOT/results/${RUN_ID}-container-stats.csv" "$ARTIFACT_DIR/container-stats.csv" 2>/dev/null || true
 cp -f "$PERF_ROOT/results/${RUN_ID}-k6-summary.json" "$ARTIFACT_DIR/k6-summary.json" 2>/dev/null || true
 cp -f "$PERF_ROOT/results/${RUN_ID}-k6.log" "$ARTIFACT_DIR/k6.log" 2>/dev/null || true
+rm -rf "$ARTIFACT_DIR/attribution"
+cp -a "$PERF_ROOT/results/${RUN_ID}-attribution" "$ARTIFACT_DIR/attribution" 2>/dev/null || true
 
 python3 -B "$SCRIPT_DIR/foreign_load.py" --output "$ARTIFACT_DIR/foreign-load-end.json" >"$ARTIFACT_DIR/foreign-load-end.stdout" 2>&1 || true
 
@@ -369,12 +425,16 @@ proof = {}
 proof_before = {}
 foreign_start = {}
 foreign_end = {}
+candidate = {}
+migration = {}
 for name, target in [
     ('seasonal-verification.json', 'verification'),
     ('resource-proof-after.json', 'proof'),
     ('resource-proof-before.json', 'proof_before'),
     ('foreign-load-start.json', 'foreign_start'),
     ('foreign-load-end.json', 'foreign_end'),
+    ('candidate-deployment.json', 'candidate'),
+    ('candidate-migration.json', 'migration'),
 ]:
     try:
         value = json.loads((artifact / name).read_text())
@@ -388,6 +448,10 @@ for name, target in [
         proof_before = value
     elif target == 'foreign_start':
         foreign_start = value
+    elif target == 'candidate':
+        candidate = value
+    elif target == 'migration':
+        migration = value
     else:
         foreign_end = value
 duplicates = sum((row or {}).get('duplicates', 0) for row in (verification.get('by_type') or {}).values())
@@ -420,6 +484,16 @@ result = {
     'resource_budget_problems_before': proof_before.get('budget_problems', []),
     'resource_budget_problems_after': proof.get('budget_problems', []),
     'workload_exit': status,
+    'app_checkout': candidate.get('app_checkout'),
+    'app_ref': candidate.get('app_ref'),
+    'app_commit_sha': candidate.get('app_commit_sha'),
+    'app_tree_hash': candidate.get('app_tree_hash'),
+    'app_tree_path': candidate.get('app_tree_path'),
+    'candidate_migration_required': migration.get('required') is True,
+    'candidate_migration_exit_code': migration.get('exit_code'),
+    'candidate_migration_log': migration.get('log'),
+    'candidate_role_grants': candidate.get('role_grants_artifact'),
+    'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),
     'duplicates': duplicates,
     'docker_oom_killed_after_run': oom,
     'restart_counts_after_run': restarts,

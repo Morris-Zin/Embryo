@@ -366,6 +366,21 @@ class SeasonalVerifierTests(unittest.TestCase):
 
 
 class SeasonalEvaluatorTests(unittest.TestCase):
+    def test_login_lifecycle_reports_attempts_and_cost(self):
+        bundle = events_bundle([
+            {"event": "auth_login_begin", "actor_user": "cashier@test.invalid"},
+            {"event": "auth_login_end", "actor_user": "cashier@test.invalid", "login_http_ms": 100, "bootstrap_ms": 300},
+            {"event": "auth_login_begin", "actor_user": "cashier@test.invalid"},
+        ])
+        report = evaluate_seasonal.login_lifecycle(bundle)
+        self.assertEqual(report["begin_count"], 2)
+        self.assertEqual(report["end_count"], 1)
+        self.assertEqual(report["failed_or_incomplete_count"], 1)
+        self.assertEqual(report["login_http_ms"]["total"], 100)
+        self.assertEqual(report["bootstrap_ms"]["total"], 300)
+        self.assertEqual(report["combined_ms"]["p95"], 400)
+        self.assertIn("per active k6 VU actor", report["session_lifecycle"])
+
     def test_detail_failure_is_independent_from_cashier_latency(self):
         events = []
         for phase in ("baseline", "margin", "recovery"):
@@ -759,6 +774,45 @@ console.log(JSON.stringify({{
         self.assertNotIn("fixture", json.dumps(public_config))
 
 
+    def test_contention_transfer_client_ids_are_unique_across_fractional_bursts(self):
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        module = (ROOT / "lib/seasonal_plan.js").read_bytes()
+        plan_uri = "data:text/javascript;base64," + base64.b64encode(module).decode("ascii")
+        script = f"""
+const planModule = await import('{plan_uri}');
+const settings = {{runId: 'offline-test', seed: 'seed'}};
+const ids = [];
+for (const sequence of [0, 1]) {{
+  const work = {{
+    segment: 'overload_step_1', mixKey: 'contention_transfer', minute: 2,
+    sequence: planModule.contentionTransferSequence(sequence),
+  }};
+  ids.push(planModule.makeClientVoucherId(settings, work));
+}}
+const saleIds = [];
+for (const sequence of [0, 1]) {{
+  for (let shop = 0; shop < 6; shop += 1) {{
+    saleIds.push(planModule.makeClientVoucherId(settings, {{
+      segment: 'overload_step_1', mixKey: 'contention_sale', minute: 2,
+      sequence: planModule.contentionSaleSequence(sequence, shop),
+    }}));
+  }}
+}}
+console.log(JSON.stringify({{ids, unique: new Set(ids).size, saleUnique: new Set(saleIds).size}}));
+"""
+        result = subprocess.run([node, "--input-type=module", "-"], input=script,
+                                text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["unique"], 2, payload)
+        self.assertEqual(payload["saleUnique"], 12, payload)
+        self.assertIn("-s0", payload["ids"][0])
+        self.assertIn("-s1", payload["ids"][1])
+
+
+
 class SeasonalPurchaseRecoveryNodeTests(unittest.TestCase):
     def test_lookup_uses_client_identity_and_validation_requires_identical_linked_document(self):
         node = shutil.which("node") or shutil.which("node.exe")
@@ -913,10 +967,49 @@ class SeasonalStaticContractTests(unittest.TestCase):
         self.assertIn("khitmee_ops.profit_summary.export_service.enqueue_profit_csv_export", combined)
         self.assertIn("khitmee_ops.profit_summary.export_service.download_profit_csv_export", combined)
 
+    def test_contention_transfer_preserves_burst_sequence_in_runtime(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        self.assertIn("sequence: contentionTransferSequence(work.sequence)", runtime)
+        self.assertNotIn("sequence: 0,\n    contention: true,\n  });\n  const builtTransfer", runtime)
+
+    def test_detail_pagination_uses_candidate_invoice_page_filter(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        start = runtime.index("export function performDetailReport")
+        end = runtime.index("function extractExportLogName", start)
+        detail = runtime[start:end]
+        self.assertIn("invoice_page: page + 1", detail)
+        self.assertNotIn("start: page * 50", detail)
+        self.assertNotIn("page_length: 50", detail)
+
+    def test_request_observability_headers_and_endpoint_classes_are_emitted(self):
+        auth = (ROOT / "lib/auth.js").read_text(encoding="utf-8")
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        self.assertIn("X-K6-Request-Id", auth)
+        self.assertIn("X-K6-Endpoint-Class", auth)
+        self.assertIn("observabilityHeaders(options)", auth)
+        self.assertIn("endpointClass: 'manager_detail'", runtime)
+        self.assertIn("endpointClass = 'manager_summary'", runtime)
+        self.assertIn("verifyUnauthorizedDetailDenied", runtime)
+
+    def test_preflight_covers_every_idle_request_type_and_negative_authorization(self):
+        source = (ROOT / "scenarios/seasonal_preflight.js").read_text(encoding="utf-8")
+        for token in (
+            "sale", "transfer", "purchase_receipt", "purchase_invoice", "search",
+            "warm_summary_warehouse", "warm_summary_monthly", "detail_page_1_and_deep_page",
+            "export_enqueue_status_download", "unauthorized_detail_denied",
+        ):
+            self.assertIn(token, source)
+        self.assertIn("detailPageCount: Math.max(10", source)
+        self.assertIn("errors: ['count==0']", source)
+        self.assertIn("preflight_result", source)
+
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn("perf_root/seasonal/verify_run.py".replace("perf_root", "$PERF_ROOT"), source)
         self.assertIn("evaluate_seasonal.py", source)
+        self.assertIn("evaluate_preflight.py", source)
+        self.assertIn("attribution.py", source)
+        self.assertIn("--attribution", source)
         self.assertIn("--k6-log \"$K6_LOG\"", source)
         self.assertIn("SEASONAL_ENABLE_MANAGERS", source)
         verifier_start = source.index('"$PYTHON_BIN" "$PERF_ROOT/seasonal/verify_run.py"')

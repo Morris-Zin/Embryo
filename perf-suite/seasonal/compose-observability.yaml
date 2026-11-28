@@ -1,0 +1,4 @@
+services:
+  frontend:
+    volumes:
+      - ../seasonal/nginx-attribution.conf.template:/templates/nginx/frappe.conf.template:ro

@@ -9,6 +9,22 @@ services:
     cpus: 0.70
   backend:
     cpus: 0.75
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=12
+      - --workers=1
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
   queue:
     cpus: 0.15
   scheduler:
