@@ -4,6 +4,7 @@ tools/autoloop/** text eol=lf
 .devin/skills/autoloop/** text eol=lf
 .github/workflows/** text eol=lf
 .github/CODEOWNERS text eol=lf
+perf-suite/scripts/*.sh text eol=lf
 AGENTS.md text eol=lf
 
 # Machine-generated migration fixtures and the Rust lockfile are inputs to

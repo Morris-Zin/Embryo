@@ -1,0 +1,6 @@
+services:
+  cashier:
+    environment:
+      PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops
+    volumes:
+      - /srv/khitmee-perf/apps/khitmee_ops:/home/frappe/frappe-bench/apps/khitmee_ops:rw

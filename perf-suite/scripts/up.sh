@@ -8,14 +8,14 @@ DEFAULT_PROFILE="2gb"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/up.sh [--profile 2gb|2gb-adr|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
+Usage: bash perf-suite/scripts/up.sh [--profile 2gb|2gb-adr|2gb-guest|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
 Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086
 (or PERF_HTTP_PORT from the env file).
 The script never targets the live khitmee-erpnext project.
 
 Options:
-  --profile PROFILE   Memory profile: 2gb, 2gb-adr, or 4gb (default: 2gb)
+  --profile PROFILE   Memory profile: 2gb, 2gb-adr, 2gb-guest, or 4gb (default: 2gb)
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
   --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
@@ -24,6 +24,9 @@ Options:
 
 MARIADB_IMAGE may be exported or set in the local .env to a digest-pinned image
 for an opt-in database A/B run. The default mariadb:11.8 image is unchanged.
+For --profile 2gb-guest, CASHIER_GUNICORN_WORKERS/CASHIER_GUNICORN_THREADS
+and GENERAL_GUNICORN_WORKERS may be exported or set in .env; ADR defaults are
+1x3 gthread cashier workers/threads and one sync general worker.
 EOF_USAGE
 }
 
@@ -73,9 +76,9 @@ while (($#)); do
 done
 
 case "$PROFILE" in
-  2gb|2gb-adr|4gb) ;;
+  2gb|2gb-adr|2gb-guest|4gb) ;;
   *)
-    echo "Invalid --profile '$PROFILE'; expected 2gb, 2gb-adr, or 4gb" >&2
+    echo "Invalid --profile '$PROFILE'; expected 2gb, 2gb-adr, 2gb-guest, or 4gb" >&2
     exit 2
     ;;
 esac
@@ -166,12 +169,15 @@ COMPOSE_FILE_ARGS=(
 )
 
 OPS_OVERLAY_PROFILE="$PROFILE"
-if [[ "$PROFILE" == "2gb-adr" ]]; then
+if [[ "$PROFILE" == 2gb* ]]; then
   OPS_OVERLAY_PROFILE="2gb"
 fi
 
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$OPS_OVERLAY_PROFILE.yaml" )
+  if [[ "$PROFILE" == "2gb-guest" ]]; then
+    COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-guest.yaml" )
+  fi
 fi
 
 if [[ "$WITH_BINLOG" == "1" ]]; then
@@ -226,6 +232,7 @@ sync_khitmee_ops() {
     KHITMEE_OPS_SYNC_CHANGED=0
   fi
   rsync "${rsync_args[@]}" "$source_dir/" "$target_dir/"
+  KHITMEE_OPS_TREE_HASH="$(find "$target_dir" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
   if [[ "$(id -u)" == "0" ]]; then
     chown -R 1000:0 "$target_dir"
   fi
@@ -258,6 +265,31 @@ wait_for_service_running() {
 site_has_app() {
   local app="$1"
   compose exec -T backend bench --site "$SITE_NAME" list-apps --format text < /dev/null 2>/dev/null | awk -v app="$app" '$1 == app { found=1 } END { exit !found }'
+}
+
+run_khitmee_ops_migration_if_needed() {
+  [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
+  [[ "${KHITMEE_OPS_SYNC_CHANGED:-0}" == "1" ]] || return 0
+
+  local evidence_file="/srv/khitmee-perf/startup-migrations.log"
+  local occurred_at status tree_hash
+  occurred_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  tree_hash="${KHITMEE_OPS_TREE_HASH:-unknown}"
+  mkdir -p "$(dirname "$evidence_file")"
+
+  echo "khitmee_ops tree changed; running bench migrate outside the measured window..."
+  status=success
+  if ! compose run --rm --no-deps -T backend bench --site "$SITE_NAME" migrate < /dev/null; then
+    status=failed
+  fi
+  printf '{"at":"%s","site":"%s","profile":"%s","tree_sha256":"%s","reason":"khitmee_ops tree changed","status":"%s"}\n' \
+    "$occurred_at" "$SITE_NAME" "$PROFILE" "$tree_hash" "$status" >> "$evidence_file"
+
+  if [[ "$status" != "success" ]]; then
+    echo "bench migrate failed after khitmee_ops changed; see $evidence_file" >&2
+    return 1
+  fi
+  echo "Recorded startup migration in $evidence_file"
 }
 
 ensure_khitmee_ops_database_objects() {
@@ -398,15 +430,26 @@ warmup_read_only_http() {
 sync_khitmee_ops
 
 python_services=(backend scheduler)
+if [[ "$PROFILE" == "2gb-guest" ]]; then
+  python_services+=(cashier)
+fi
 if [[ "$PROFILE" == 2gb* ]]; then
   python_services+=(queue)
 else
   python_services+=(queue-short queue-long)
 fi
 
+if [[ "$PROFILE" == "2gb-guest" ]]; then
+  echo "Ensuring whole-guest parent cgroup before container creation..."
+  bash "$SCRIPT_DIR/guest_cgroup_setup.sh"
+fi
+
 echo "Starting $PROJECT_NAME with profile $PROFILE..."
 compose up -d --remove-orphans
 wait_for_service_running backend 180
+if [[ "$PROFILE" == "2gb-guest" ]]; then
+  wait_for_service_running cashier 180
+fi
 
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   if [[ "${KHITMEE_OPS_SYNC_CHANGED:-0}" == "1" ]]; then
@@ -443,6 +486,7 @@ if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   else
     echo "khitmee_ops is already installed on $SITE_NAME."
   fi
+  run_khitmee_ops_migration_if_needed
   ensure_khitmee_ops_database_objects
 fi
 
@@ -504,5 +548,10 @@ if ! wait_for_innodb_buffer_pool_preload; then
 fi
 
 warmup_read_only_http
+
+if [[ "$PROFILE" == "2gb-guest" ]]; then
+  echo "Verifying whole-guest cgroup limits and container process membership..."
+  bash "$SCRIPT_DIR/verify_guest_cgroup.sh"
+fi
 
 echo "$PROJECT_NAME is healthy at http://127.0.0.1:${PERF_HTTP_PORT} (site: $SITE_NAME, profile: $PROFILE)."
