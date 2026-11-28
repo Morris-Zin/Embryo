@@ -440,6 +440,9 @@ class _MonkeyPatchScopeScanner:
 		self.violations = violations
 
 	def add_direct(self, node, target_description):
+		# Direct import-binding patches use the same justified allowlist as dynamic ones.
+		if MONKEY_PATCH_ALLOWLIST.get(f"{self.display_path}:{target_description}"):
+			return
 		self.violations.append(GuardrailViolation(
 			self.display_path,
 			getattr(node, "lineno", 0),

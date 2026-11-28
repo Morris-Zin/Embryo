@@ -40,6 +40,18 @@ class TestMonkeyPatchGuardrail(unittest.TestCase):
 		self.assertTrue(all(violation.rule == "anti-monkey-patch" for violation in violations))
 		self.assertIn("erpnext.patched", violations[0].message)
 
+	def test_direct_patch_allowlist_is_exact_path_and_target(self):
+		source = (
+			"from frappe.model import document\n"
+			"document._filter = lambda *a: None\n"
+			"document.other = 1\n"
+		)
+		with mock.patch.dict(fc.MONKEY_PATCH_ALLOWLIST, {"sample.py:document._filter": "x" * 40}):
+			violations = self.scan(source)
+		self.assertEqual([v.message for v in violations if "document._filter" in v.message], [])
+		self.assertTrue(any("document.other" in v.message for v in violations))
+		self.assertEqual(len(self.scan(source)), 2)
+
 	def test_detects_augassign_annassign_and_setattr_on_core_symbols(self):
 		violations = self.scan(
 			"import frappe\n"
