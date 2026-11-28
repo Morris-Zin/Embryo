@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image
+from png_codec import write_png_rgba
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,12 +25,12 @@ class VerifyHarnessTest(unittest.TestCase):
         native = tmp / "native" / "sales-voucher"
         web.mkdir(parents=True)
         native.mkdir(parents=True)
-        left = Image.new("RGBA", (8, 8), (255, 255, 255, 255))
-        right = Image.new("RGBA", (8, 8), (255, 255, 255, 255))
+        left_pixels = bytes((255, 255, 255, 255)) * 64
+        right_pixels = bytearray(left_pixels)
         if mutate_pixel:
-            right.putpixel((0, 0), (0, 0, 0, 255))
-        left.save(web / "reference.png")
-        right.save(native / "native.png")
+            right_pixels[0:4] = bytes((0, 0, 0, 255))
+        write_png_rgba(web / "reference.png", 8, 8, left_pixels)
+        write_png_rgba(native / "native.png", 8, 8, bytes(right_pixels))
         control = {
             "tag": "button",
             "id": "save",
