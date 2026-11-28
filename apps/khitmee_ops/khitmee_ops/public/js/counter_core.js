@@ -602,7 +602,44 @@
 			const item = state.searchItems[Number(li.dataset.index)];
 			if (item) addItem(item);
 		});
-		els.search.addEventListener("input", function () {
+		let scannerBuffer = "";
+		let scannerFlushTimer = null;
+		function flushScannerInput() {
+			if (scannerFlushTimer !== null) {
+				window.clearTimeout(scannerFlushTimer);
+				scannerFlushTimer = null;
+			}
+			if (!scannerBuffer) return;
+			const inserted = scannerBuffer;
+			scannerBuffer = "";
+			const oldValue = els.search.value;
+			const start = els.search.selectionStart ?? oldValue.length;
+			const end = els.search.selectionEnd ?? oldValue.length;
+			els.search.value = oldValue.slice(0, start) + inserted + oldValue.slice(end);
+			const caret = start + inserted.length;
+			if (start !== end || end !== oldValue.length || inserted.length !== 1) {
+				els.search.setSelectionRange(caret, caret);
+			}
+			els.search.dispatchEvent(new InputEvent("input", {
+				bubbles: true,
+				inputType: "insertText",
+				data: inserted,
+			}));
+		}
+		els.search.addEventListener("keydown", function (event) {
+			// Scanner output is normally uppercase alphanumeric plus separators. Preventing
+			// those keydowns keeps Chromium from constructing editor undo commands per scan;
+			// lowercase/manual typing keeps the browser's normal editing path. Buffering to
+			// a 16 ms boundary avoids one input-element mutation for every scanner key.
+			if (event.ctrlKey || event.metaKey || event.altKey || !/^[A-Z0-9-]$/.test(event.key)) {
+				flushScannerInput();
+				return;
+			}
+			event.preventDefault();
+			scannerBuffer += event.key;
+			if (scannerFlushTimer === null) scannerFlushTimer = window.setTimeout(flushScannerInput, 16);
+		});
+		function handleSearchInput() {
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
@@ -611,7 +648,9 @@
 			state.activeIndex = -1;
 			hideResults();
 			searchDebouncer.schedule();
-		});
+		}
+		els.search.addEventListener("input", handleSearchInput);
+		els.search.addEventListener("beforeinput", flushScannerInput);
 		els.search.addEventListener("keydown", function (event) {
 			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 				if (!state.searchItems.length) return;
@@ -622,6 +661,7 @@
 				updateResultSelection();
 			} else if (event.key === "Enter") {
 				event.preventDefault();
+				flushScannerInput();
 				// Hardware scanners type and hit Enter faster than the debounce; cancel
 				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
 				searchDebouncer.cancel();
