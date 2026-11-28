@@ -1440,6 +1440,22 @@ class TestBackendSafeguardRules(unittest.TestCase):
             1,
         )
         self.assertTrue(rule({path: early_record.encode()}))
+        unavailable_store = "            benchmarks[label] = unavailable_report_measurement(result.reason)\n"
+        discarded_return = good.replace(
+            unavailable_store,
+            "            unavailable_report_measurement(result.reason)\n"
+            "            benchmarks[label] = {'wall_ms': 1}\n",
+        )
+        overwritten_record = good.replace(
+            unavailable_store, unavailable_store + "            benchmarks[label] = {'wall_ms': 1}\n",
+        )
+        updated_record = good.replace(
+            unavailable_store, unavailable_store + "            benchmarks.update({label: {'wall_ms': 1}})\n",
+        )
+        wrong_label = good.replace(unavailable_store, unavailable_store.replace("[label]", "['other']"))
+        for mutation in (discarded_return, overwritten_record, updated_record, wrong_label):
+            with self.subTest(mutation=mutation):
+                self.assertTrue(rule({path: mutation.encode()}))
 
     def test_stock_locks_accept_the_adr0003_planner_in_plan_order(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/api/stock_locks.py"
@@ -1457,6 +1473,37 @@ class TestBackendSafeguardRules(unittest.TestCase):
             b"def lock():\n    frappe.db.sql('SELECT name FROM tabItem LOCK IN SHARE MODE')\n"
         )}
         self.assertEqual([v["path"] for v in rule(outside)], list(outside))
+
+    def test_stock_rule_rejects_size_dependent_order_on_overlapping_plans(self) -> None:
+        path = "apps/khitmee_ops/khitmee_ops/api/stock_locks.py"
+        raw = (TOOLS_DIR / "autoloop/fixtures/stock_locks_adr0003.py").read_bytes()
+        rule = self.rules["stock-row-locks-only-in-stock-locks"]
+        for aliases, coordinates in (
+            ("item_aliases", ("A", "B", "C")),
+            ("aliases", (("A", "W"), ("B", "W"), ("C", "W"))),
+        ):
+            with self.subTest(aliases=aliases):
+                canonical = f"tuple(sorted(set({aliases}.values())))"
+                conditional = f"tuple(sorted(set({aliases}.values()), reverse=len({aliases}) > 2))"
+                small = dict(enumerate(coordinates[:2]))
+                large = dict(enumerate(coordinates))
+                namespace = {"__builtins__": {"tuple": tuple, "sorted": sorted, "set": set, "len": len}}
+                small_order = eval(conditional, namespace, {aliases: small})
+                large_order = eval(conditional, namespace, {aliases: large})
+                self.assertEqual(small_order, coordinates[:2])
+                self.assertEqual(tuple(key for key in large_order if key in small_order), small_order[::-1])
+                self.assertIn(canonical.encode(), raw)
+                mutation = raw.replace(canonical.encode(), conditional.encode(), 1)
+                self.assertTrue(any("canonical ascending" in item["message"] for item in rule({path: mutation})))
+
+        marker = b"\tfor item in plan.items:\n"
+        mutation = raw.replace(
+            marker,
+            b"\tif len(plan.items) > 2:\n"
+            b"\t\tplan = replace(plan, items=plan.items[::-1])\n" + marker,
+            1,
+        )
+        self.assertTrue(any("preserve planned Item and Bin order" in v["message"] for v in rule({path: mutation})))
 
     def test_stubs_allow_patches_and_matching_cleanups(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/tests/test_new.py"
