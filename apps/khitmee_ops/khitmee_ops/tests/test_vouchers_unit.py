@@ -656,6 +656,25 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 		rollback.assert_called_once_with()
 		sleep.assert_called_once_with(0.03)
 
+	def test_stock_restart_carries_exclusive_hint_only_after_rollback(self):
+		events = []
+
+		def attempt():
+			events.append(stock_locks.stock_retry_items())
+			if not stock_locks.stock_retry_items():
+				error = stock_locks.StockLockRestart(["ITEM-1"])
+				error.retryable = True
+				raise error
+			return "created"
+
+		with (
+			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback")),
+			patch.object(vouchers.time, "sleep", side_effect=lambda _: events.append("jitter")),
+		):
+			self.assertEqual(vouchers._execute_with_deadlock_retry(attempt), "created")
+		self.assertEqual(events, [set(), "rollback", "jitter", {"ITEM-1"}])
+		self.assertEqual(stock_locks.stock_retry_items(), set())
+
 	def test_deadlock_retry_is_bounded_to_three_retries_by_default(self):
 		calls = []
 

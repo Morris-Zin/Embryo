@@ -4,6 +4,7 @@ import sys
 import threading
 import types
 import unittest
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -542,6 +543,22 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 			with voucher_fastpath.voucher_transaction_read_cache(locked_bins=locked_bins, fresh_snapshot=False):
 				self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
 			self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
+
+	def test_locked_item_links_seed_only_the_exact_native_fields_and_clear_on_exit(self):
+		cache = defaultdict(lambda: defaultdict(dict))
+		fields = ("name", "has_batch_no", "has_serial_no")
+		prior = [{"name": "EXISTING"}]
+		cache["Item"]["EXISTING"][fields] = prior
+		with (
+			patch.object(voucher_fastpath.frappe.db, "value_cache", cache, create=True),
+			patch.object(voucher_fastpath.frappe, "_dict", dict, create=True),
+			voucher_fastpath.cache_locked_item_links([("A", 0, 1), ("EXISTING", 0, 0)]),
+		):
+			self.assertEqual(cache["Item"]["A"][fields], [{"name": "A", "has_batch_no": 0, "has_serial_no": 1}])
+			self.assertIs(cache["Item"]["EXISTING"][fields], prior)
+			self.assertEqual(cache["Item"]["NATIVE-UNCACHED"], {})
+		self.assertNotIn(fields, cache["Item"]["A"])
+		self.assertIs(cache["Item"]["EXISTING"][fields], prior)
 
 	def test_accounting_checks_are_memoized_without_sharing_mutable_rows(self):
 		upstream = Mock(return_value=[{"fieldname": "branch"}])

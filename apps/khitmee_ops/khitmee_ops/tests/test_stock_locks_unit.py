@@ -100,6 +100,84 @@ class TestStockLocks(unittest.TestCase):
 	def tearDown(self):
 		stock_locks.clear_transaction_stock_locks()
 
+	def test_plan_canonicalizes_aliases_and_upgrades_all_pairs_for_a_predicted_miss(self):
+		rows = [
+			(0, "ITEM-1", "WH-B", None, 1, 0, 0, 0, "FIFO", "Co"),
+			(1, "ITEM-2", "WH-A", "BIN-C", 1, 0, 0, 0, "FIFO", "Co"),
+			(2, "ITEM-1", "WH-A", "BIN-A", 1, 0, 0, 0, "FIFO", "Co"),
+		]
+		db = SimpleNamespace(sql=lambda *args: rows, get_value=lambda *a: "FIFO", get_single_value=lambda *a, **kw: 0)
+		with patch.object(stock_locks.frappe, "db", db):
+			plan = stock_locks.plan_stock_locks(
+				[("ITEM-2", "WH-A"), ("item-1", "wh-a"), ("ITEM-1", "WH-B"), ("item-1", "wh-a")],
+				ordinary_sale=True, company="Co",
+			)
+		self.assertEqual(plan.items, ("ITEM-1", "ITEM-2"))
+		self.assertEqual(plan.pairs, (("ITEM-1", "WH-A"), ("ITEM-1", "WH-B"), ("ITEM-2", "WH-A")))
+		self.assertEqual(plan.shared, {"ITEM-2": "FIFO"})
+		self.assertEqual(plan.aliases[("item-1", "wh-a")], ("ITEM-1", "WH-A"))
+
+	def test_surprise_miss_aborts_after_all_items_without_promoting_or_extending(self):
+		plan = stock_locks.StockLockPlan(
+			("A", "B"), (("A", "W"), ("B", "W")), {}, {}, {"A": "FIFO"}, "Co", "FIFO"
+		)
+		queries = []
+
+		def sql(statement, params=()):
+			queries.append((statement, params))
+			return [(params[0], 1, 0, 0, 0, "FIFO")] if "`tabItem`" in statement else []
+
+		db = SimpleNamespace(
+			sql=sql, after_commit=SimpleNamespace(add=lambda fn: None),
+			after_rollback=SimpleNamespace(add=lambda fn: None),
+		)
+		with patch.object(stock_locks.frappe, "db", db):
+			with self.assertRaises(stock_locks.StockLockRestart) as restart:
+				stock_locks.acquire_stock_plan(plan)
+			with self.assertRaises(stock_locks.StockLockRestart):
+				stock_locks.acquire_stock_plan(plan)
+		self.assertEqual(restart.exception.items, {"A"})
+		self.assertEqual([params for _, params in queries], [("A",), ("B",), ("A", "W")])
+		self.assertIn("LOCK IN SHARE MODE", queries[0][0])
+		self.assertIn("FOR UPDATE", queries[1][0])
+		self.assertIn("FORCE INDEX (`unique_item_warehouse`)", queries[2][0])
+
+	def test_prelocked_submit_cannot_expand_coordinates_or_strengthen_mode(self):
+		plan = stock_locks.StockLockPlan(("A",), (("A", "W"),), {}, {}, {"A": "FIFO"}, "Co", "FIFO")
+		sql = Mock(side_effect=[[("A", 1, 0, 0, 0, "FIFO")], [("BIN", "A", "W")], []])
+		callbacks = []
+		db = SimpleNamespace(
+			sql=sql, after_commit=SimpleNamespace(add=callbacks.append), after_rollback=SimpleNamespace(add=lambda _: None)
+		)
+		with (
+			patch.object(stock_locks.frappe, "db", db),
+			patch.object(stock_locks, "stock_lock_protocol", return_value="adr0003"),
+		):
+			stock_locks.acquire_stock_plan(plan)
+			stock_locks.lock_stock_coordinates([("A", "W")], require_prelocked=True, ordinary_sale=True)
+			with self.assertRaises(stock_locks.StockLockRestart):
+				stock_locks.lock_stock_coordinates([("A", "W")], require_prelocked=True)
+			with self.assertRaises(stock_locks.StockLockRestart):
+				stock_locks.lock_stock_coordinates([("A", "OTHER")], require_prelocked=True, ordinary_sale=True)
+			self.assertEqual(sql.call_count, 3)
+			callbacks[0]()
+			self.assertFalse(stock_locks.stock_attempt_pending())
+
+	def test_document_coordinates_include_rejected_and_supplier_stock(self):
+		doc = {
+			"doctype": "Purchase Receipt",
+			"set_warehouse": "ACCEPTED",
+			"rejected_warehouse": "REJECTED",
+			"supplier_warehouse": "SUPPLIER",
+			"items": [{"item_code": "FINISHED", "rejected_qty": 1}],
+			"supplied_items": [{"rm_item_code": "COMPONENT"}],
+		}
+		self.assertEqual(stock_locks.document_item_codes(doc), ["COMPONENT", "FINISHED"])
+		self.assertEqual(
+			stock_locks.document_bin_pairs(doc),
+			[("COMPONENT", "SUPPLIER"), ("FINISHED", "ACCEPTED"), ("FINISHED", "REJECTED")],
+		)
+
 	def test_lock_stock_coordinates_locks_sorted_items_before_bins_in_batched_queries(self):
 		queries = []
 

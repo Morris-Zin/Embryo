@@ -30,6 +30,7 @@ Architecture guarantee (F02):
    `RecursionError`, and lazy-import worker poisoning architecturally impossible.
 """
 
+from collections import defaultdict
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
@@ -697,6 +698,35 @@ def _prepare_schema_filter_cache():
 	schemas = ("Sales Invoice Item", "Stock Ledger Entry", "GL Entry", "Payment Ledger Entry")
 	fields = (frappe.get_meta(doctype).fields for doctype in schemas)
 	return {id(rows): rows for rows in fields}
+
+
+@contextmanager
+def cache_locked_item_links(item_link_rows):
+	"""Seed Frappe's positive, transaction-local Link validation cache.
+
+	The caller passes rows read under a retained Item lock after resetting the
+	advisory snapshot. Frappe still runs link validation, fetches these exact
+	fields, preserves canonical names, and invalidates its own cache on writes.
+	"""
+	cache = getattr(frappe.db, "value_cache", None)
+	if not item_link_rows or not isinstance(cache, defaultdict):
+		yield
+		return
+	fields = ("name", "has_batch_no", "has_serial_no")
+	items = cache["Item"]
+	created = []
+	try:
+		for name, batch, serial in item_link_rows:
+			values = items[name]
+			if fields not in values:
+				result = [frappe._dict(name=name, has_batch_no=batch, has_serial_no=serial)]
+				values[fields] = result
+				created.append((values, result))
+		yield
+	finally:
+		for values, result in created:
+			if values.get(fields) is result:
+				del values[fields]
 
 
 _READ_CACHE_TARGETS = (
