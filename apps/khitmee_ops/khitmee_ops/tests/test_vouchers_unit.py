@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import sys
 import types
@@ -1018,11 +1020,12 @@ class ProfitExportDownloadTestCase(unittest.TestCase):
 			"expires_at": now + timedelta(hours=1),
 		}
 		self.actor = SimpleNamespace(user=self.user)
+		self.signing_key = "test-snapshot-signing-key"
 		frappe = SimpleNamespace(
 			session=self.actor,
 			db=SimpleNamespace(get_value=Mock(return_value=1)),
 			get_doc=Mock(return_value=self.doc),
-			conf={"encryption_key": "test-snapshot-signing-key"},
+			conf={"encryption_key": self.signing_key},
 		)
 		private_dir = Path(self.enterContext(TemporaryDirectory()))
 		csv_path = private_dir / "snapshot.csv"
@@ -1123,20 +1126,39 @@ class TestProfitExportDownloadScope(ProfitExportDownloadTestCase):
 		select.assert_not_called()
 		self.digest.assert_not_called()
 
-	def test_legacy_export_requires_exact_untruncated_digest(self):
-		for digest, truncated, status in (
-			("published-digest", False, 200),
-			("changed-digest", False, 403),
-			("published-digest", True, 403),
-		):
-			with self.subTest(digest=digest, truncated=truncated):
-				self.digest.reset_mock()
-				self.digest.return_value = (digest, ["SI-1"], truncated)
-				response = self.download()
-				self.digest.assert_called_once_with(self.filters, self.user)
-				self.assertEqual(response.status_code, status)
-				if status == 200:
-					self.assertEqual(response.get_data(), self.snapshot)
+	def test_restricted_export_without_manifest_denies_without_legacy_lookup(self):
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=(["SI-1"], False)
+		) as lookup:
+			self.assertEqual(self.download().status_code, 403)
+		lookup.assert_not_called()
+		self.digest.assert_not_called()
+
+	def test_restricted_export_with_signed_v1_manifest_denies_without_legacy_lookup(self):
+		# Use the legacy payload and signing domain to reproduce an authentic old artifact.
+		invoice_names = ["SI-1"]
+		payload = {
+			"version": 1,
+			"export_log_name": self.doc["name"],
+			"export_uuid": self.doc["export_uuid"],
+			"requested_by": self.user,
+			"filters_hash": self.doc["filters_hash"],
+			"permission_fingerprint": self.doc["permission_fingerprint"],
+			"exported_invoice_sha256": self.doc["exported_invoice_sha256"],
+			"invoice_names": invoice_names,
+			"invoice_names_sha256": hashlib.sha256(self.service._scope_json(invoice_names)).hexdigest(),
+		}
+		message = b"khitmee:profit-export-scope:v1\x00" + self.service._scope_json(payload)
+		signature = hmac.new(self.signing_key.encode("utf-8"), message, "sha256").hexdigest()
+		_, scope_path = self.service._export_scope_paths(self.doc["export_uuid"])
+		Path(scope_path).write_text(json.dumps({"scope": payload, "signature": signature}), encoding="utf-8")
+
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=(["SI-1"], False)
+		) as lookup:
+			self.assertEqual(self.download().status_code, 403)
+		lookup.assert_not_called()
+		self.digest.assert_not_called()
 
 
 if __name__ == "__main__":
