@@ -26,6 +26,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from autoloop import (
     EXIT_ILLEGAL_TRANSITION,
+    EXIT_LEASE_CONFLICT,
     EXIT_POLICY_OR_INTEGRITY,
     EXIT_UNSAFE_ROLLBACK,
 )
@@ -69,6 +70,7 @@ from autoloop.leases import (
     release_lease,
     renew_lease,
     resource_key_hash,
+    resource_lease_key,
     resource_lock_dir,
 )
 from autoloop.lessons import globs_overlap
@@ -1408,6 +1410,36 @@ class TestBackendSafeguardRules(unittest.TestCase):
                 }
                 hits = self.rules[directory.name](examples)
                 self.assertTrue(any(hit["path"] in examples for hit in hits))
+
+    def test_bench_rule_accepts_typed_classifier_only_with_guard_before_records(self) -> None:
+        rule = self.rules["bench-results-typed-gated"]
+        path = "tools/perf_bench_inner.py"
+        header = "from perf_gp_result import UnavailableGrossProfit, classify_gross_profit_result\n"
+        good = header + (
+            "def run(cases, fast_gp_execute):\n"
+            "    benchmarks = {}\n"
+            "    for label, flt in cases:\n"
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n"
+            "        if isinstance(result, UnavailableGrossProfit):\n"
+            "            benchmarks[label] = unavailable_report_measurement(result.reason)\n"
+            "            continue\n"
+            "        benchmarks[label] = {'wall_ms': 1}\n"
+        )
+        self.assertEqual(rule({path: good.encode()}), [])
+        no_guard = good.replace(
+            "        if isinstance(result, UnavailableGrossProfit):\n"
+            "            benchmarks[label] = unavailable_report_measurement(result.reason)\n"
+            "            continue\n",
+            "",
+        )
+        self.assertTrue(rule({path: no_guard.encode()}))
+        early_record = good.replace(
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n",
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n"
+            "        benchmarks[label] = {'wall_ms': 1}\n",
+            1,
+        )
+        self.assertTrue(rule({path: early_record.encode()}))
 
     def test_stock_locks_accept_the_adr0003_planner_in_plan_order(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/api/stock_locks.py"
@@ -3550,7 +3582,7 @@ class TestWorkflowMetadata(unittest.TestCase):
         worker_pass, _ = self.cli("check", *run, "--shard", "worker")
         self.assertEqual(worker_pass["tooling"]["policy_shas"], {"policy": recovered})
 
-    def test_lease_common_dir_override_and_status(self) -> None:
+    def test_checkpoint_mutexes_share_git_common_dir_and_honor_override(self) -> None:
         linked = self.root / "lease-worktree"
         _git(self.repo, "worktree", "add", "-b", "lease-shard", str(linked), self.base)
         with mock.patch.dict(os.environ):
@@ -3561,33 +3593,87 @@ class TestWorkflowMetadata(unittest.TestCase):
             override = self.root / "shared-locks"
             os.environ["AUTOLOOP_LOCK_DIR"] = str(override)
             self.assertEqual(default_lock_dir(linked), override)
-            def lease(action, *extra, expected=0):
-                return self.cli("lease", action, "--resource", "khitmee-perf", *extra, expected=expected)[0]
 
-            first = lease("acquire", "--owner", "worker")
-            status = lease("status")
+    def test_clones_contend_for_host_resources_and_isolate_docker_stacks(self) -> None:
+        first_clone = self.root / "first-clone"
+        second_clone = self.root / "second-clone"
+        for clone in (first_clone, second_clone):
+            _git(self.repo, "clone", "--no-hardlinks", str(self.repo), str(clone))
+        with mock.patch.dict(os.environ):
+            os.environ.pop("AUTOLOOP_LOCK_DIR", None)
+            os.environ.pop("AUTOLOOP_SHARED_LOCK_DIR", None)
+            self.assertNotEqual(default_lock_dir(first_clone), default_lock_dir(second_clone))
+        program_data = self.root / "ProgramData"
+        authority = program_data / "autoloop/locks"
+
+        def lease(repo, action, resource, *flags, expected=0):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            args = ("--repo", str(repo), "lease", action, "--resource", resource, *flags)
+            with mock.patch.dict(os.environ, {"AUTOLOOP_LOCK_DIR": str(repo / "checkpoint-locks")}):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli_main(list(args))
+            self.assertEqual(code, expected, stderr.getvalue())
+            return json.loads(stdout.getvalue() or "{}")
+
+        with (
+            mock.patch("autoloop.leases._is_wsl", return_value=False),
+            mock.patch("autoloop.leases._windows_program_data", return_value=program_data),
+            mock.patch("autoloop.leases._LINUX_RESOURCE_LOCK_DIR", authority),
+        ):
+            self.assertEqual(resource_lock_dir(), authority.resolve())
+            default = ("--compose-project", "khitmee-perf", "--docker-host", "unix:///var/run/docker.sock")
+            first = lease(first_clone, "acquire", "khitmee-perf", "--owner", "first")
+            status = lease(second_clone, "status", "khitmee-perf", *default)
+            self.assertEqual(status["authority_path"], str(authority.resolve()))
+            self.assertEqual(status["resource_key"], resource_lease_key("khitmee-perf"))
+            self.assertEqual(status["resource_key"], resource_lease_key(
+                "khitmee-perf", docker_host="npipe:////./pipe/docker_engine",
+            ))
             self.assertTrue(status["active"])
-            self.assertEqual(status["holder"]["owner"], "worker")
+            self.assertEqual(status["holder"]["owner"], "first")
             self.assertNotIn("token", status["holder"])
-            self.assertTrue(lease("release", "--owner", "worker", "--token", first["token"])["released"])
-            self.assertEqual(lease("status"), {"resource": "khitmee-perf", "active": False, "holder": None})
+            lease(second_clone, "acquire", "khitmee-perf", *default, "--owner", "second",
+                  expected=EXIT_LEASE_CONFLICT)
+            for scope in (("--compose-project", "another-stack"), ("--docker-host", "ssh://remote")):
+                independent = lease(second_clone, "acquire", "khitmee-perf", *scope, "--owner", "second")
+                self.assertNotEqual(independent["resource_hash"], first["resource_hash"])
+                self.assertTrue(lease(second_clone, "release", "khitmee-perf", *scope, "--owner", "second",
+                                      "--token", independent["token"])["released"])
+            lease(first_clone, "acquire", "host-timing", "--owner", "first")
+            lease(second_clone, "acquire", "host-timing", "--owner", "second", expected=EXIT_LEASE_CONFLICT)
+            lease(second_clone, "acquire", "host-timing", "--owner", "second", "--compose-project", "another",
+                  expected=1)
+            renewed = lease(second_clone, "renew", "khitmee-perf", *default, "--owner", "first",
+                            "--token", first["token"])
+            self.assertEqual(renewed["resource_hash"], first["resource_hash"])
+            self.assertTrue(lease(second_clone, "release", "khitmee-perf", *default, "--owner", "first",
+                                  "--token", first["token"])["released"])
+            self.assertFalse(lease(first_clone, "status", "khitmee-perf")["active"])
 
-    def test_windows_backed_wsl_fails_closed_before_creating_lock(self) -> None:
+    def test_wsl_fails_closed_before_creating_local_resource_locks(self) -> None:
         override = self.root / "must-not-create"
         with mock.patch.dict(os.environ, {"AUTOLOOP_LOCK_DIR": str(override)}):
-            with mock.patch("autoloop.leases._is_wsl", return_value=True):
-                with mock.patch("autoloop.leases._on_windows_drive", return_value=True):
-                    _, error = self.cli("lease", "acquire", "--resource", "khitmee-perf", "--owner", "wsl", expected=1)
-                    self.assertIn("python.exe tools/autoloop/cli.py lease", error)
-                    self.assertFalse(override.exists())
-                with mock.patch("autoloop.leases._on_windows_drive", return_value=False):
-                    self.assertEqual(resource_lock_dir(self.repo), override)
+            with (
+                mock.patch("autoloop.leases._is_wsl", return_value=True),
+                mock.patch("autoloop.leases._LINUX_RESOURCE_LOCK_DIR", override),
+            ):
+                _, error = self.cli("lease", "acquire", "--resource", "khitmee-perf", "--owner", "wsl", expected=1)
+                self.assertIn("python.exe tools/autoloop/cli.py lease", error)
+                self.assertFalse(override.exists())
+
+    def test_resource_metadata_permission_errors_fail_closed(self) -> None:
+        lock_dir = self.root / "locked-metadata"
+        first = acquire_lease("host-timing", "first", lock_dir=lock_dir)
+        with mock.patch.object(Path, "read_bytes", side_effect=PermissionError("another account owns the lease")):
+            with self.assertRaises(PermissionError):
+                acquire_lease("host-timing", "second", lock_dir=lock_dir)
+        self.assertEqual(read_lease("host-timing", lock_dir=lock_dir), first)
 
     def test_foreign_pid_lease_survives_until_ttl(self) -> None:
         lock_dir = self.root / "foreign-locks"
         resource = "khitmee-perf"
         first = acquire_lease(resource, "foreign", ttl_s=30, lock_dir=lock_dir)
-        path = lock_dir / f"{resource_key_hash(resource)}.lease.json"
+        path = lock_dir / f"{resource_key_hash(resource_lease_key(resource))}.lease.json"
         first.update(pid=123, pid_namespace="foreign")
         _write_lf(path, json.dumps(first) + "\n")
         with mock.patch("autoloop.leases.is_pid_alive", return_value=False) as liveness:

@@ -437,6 +437,36 @@ def rule_bench_results(file_map):
     issues = []
     for execute in calls(tree, *execute_names):
         classified = parent_map[execute]
+        # Typed form: `result = classify_gross_profit_result(execute(...))` followed, in the same
+        # loop and before any `benchmarks[...]` store, by an `isinstance(result, UnavailableGrossProfit)`
+        # guard that records an unavailable measurement and skips timing.
+        if isinstance(classified, ast.Call) and dotted(classified.func) == "classify_gross_profit_result":
+            typed_assignment = parent_map.get(classified)
+            loop = enclosing(execute, parent_map, (ast.For, ast.While))
+            target_name = (
+                dotted(typed_assignment.targets[0])
+                if isinstance(typed_assignment, ast.Assign) and len(typed_assignment.targets) == 1
+                else None
+            )
+            guards = [
+                guard for guard in (loop.body if loop else [])
+                if isinstance(guard, ast.If)
+                and target_name
+                and ast.unparse(guard.test) == f"isinstance({target_name}, UnavailableGrossProfit)"
+                and list(calls(guard, "unavailable_report_measurement"))
+                and any(isinstance(stmt, (ast.Continue, ast.Return)) for stmt in guard.body)
+                and guard.lineno > execute.lineno
+            ]
+            early_records = [
+                node for node in ast.walk(loop or tree)
+                if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store)
+                and dotted(node.value) == "benchmarks" and node.lineno > execute.lineno
+                and guards and node.lineno < guards[0].lineno
+                and not any(guard in ast_nodes_above(node, parent_map) for guard in guards)
+            ]
+            if not guards or early_records:
+                issues.append(violation(PERF_BENCH, execute, "skip successful timing when the classifier reports an unavailable result"))
+            continue
         if not (isinstance(classified, ast.Call) and dotted(classified.func) == "split_query_report_result"):
             assignment = parent_map[execute]
             classified = None
