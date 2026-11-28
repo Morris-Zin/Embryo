@@ -50,6 +50,7 @@ export struct InvoiceDetailItem {
     qty-value: string,
     rate-value: string,
     amount-value: string,
+    selected: bool,
 }
 
 global Design {
@@ -700,6 +701,9 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
     callback invoice-detail-item-rate-edited(int, string);
+    callback invoice-detail-item-add();
+    callback invoice-detail-item-select(int);
+    callback invoice-detail-item-delete();
     callback invoice-detail-validation-close();
     background: #f4f5f7;
 
@@ -1242,7 +1246,11 @@ component InvoiceDetailScreen inherits Rectangle {
     callback detail-item-open(int);
     callback detail-item-qty-edited(int, string);
     callback detail-item-rate-edited(int, string);
+    callback detail-item-add();
+    callback detail-item-select(int);
+    callback detail-item-delete();
     in property <int> detail-editing-index: -1;
+    in property <bool> detail-item-selected: false;
     background: #f4f5f7;
 
     property <length> content-x: 240px;
@@ -1337,6 +1345,13 @@ component InvoiceDetailScreen inherits Rectangle {
             accessible-role: list-item;
             accessible-label: "\{item.index-text} \{item.item-text} \{item.qty-text} \{item.rate-text} \{item.amount-text} \{item.warehouse}";
             TouchArea { enabled: item.editable && root.detail-editing-index != index; clicked => { root.detail-item-open(index); } }
+            Rectangle {
+                x: 30px; y: root.detail-editing-index == index ? 12px : 11px; width: 15px; height: 15px;
+                background: item.selected ? Design.accent : #ffffff; border-color: item.selected ? Design.accent : Design.line; border-width: 1px; border-radius: 3px;
+                accessible-role: button; accessible-label: "Select row \{item.index-text}"; accessible-enabled: item.editable;
+                TouchArea { enabled: item.editable; clicked => { root.detail-item-select(index); } }
+                if item.selected: Text { width: parent.width; height: parent.height; text: "✓"; color: #ffffff; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
+            }
             if root.detail-editing-index != index: Rectangle {
                 width: parent.width; height: parent.height;
                 Text { x: 8px; width: 30px; height: parent.height; text: item.index-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
@@ -1357,6 +1372,17 @@ component InvoiceDetailScreen inherits Rectangle {
                 Text { x: 50px; y: 45px; width: 260px; height: 28px; text: "item_code    qty    rate    amount    warehouse"; color: Design.muted; font-size: 10px; vertical-alignment: center; }
             }
         }
+
+        if root.detail-status == "Draft" && root.detail-error-text == "": Rectangle {
+            x: 20px; y: 373px + root.detail-items.length * 38px + (root.detail-editing-index >= 0 ? 48px : 0px); width: root.content-width - 40px; height: 42px;
+            BrowserButton { x: 0px; y: 0px; width: 86px; height: 30px; text: "Add row"; visible: !root.detail-item-selected; clicked => { root.detail-item-add(); } }
+            BrowserButton { x: 94px; y: 0px; width: 112px; height: 30px; text: "Add multiple"; visible: !root.detail-item-selected; enabled: false; }
+            BrowserButton { x: 0px; y: 0px; width: 100px; height: 30px; text: "Delete row"; visible: root.detail-item-selected; clicked => { root.detail-item-delete(); } }
+            BrowserButton { x: 108px; y: 0px; width: 86px; height: 30px; text: "Edit row"; visible: root.detail-item-selected; enabled: false; }
+            BrowserButton { x: 202px; y: 0px; width: 118px; height: 30px; text: "Duplicate row"; visible: root.detail-item-selected; enabled: false; }
+            BrowserButton { x: 214px; y: 0px; width: 78px; height: 30px; text: "Upload"; visible: !root.detail-item-selected; enabled: false; }
+            BrowserButton { x: 328px; y: 0px; width: 78px; height: 30px; text: "Upload"; visible: root.detail-item-selected; enabled: false; }
+        }
     }
 }
 
@@ -1374,6 +1400,7 @@ export component AppWindow inherits Window {
     in property <[DetailField]> invoice-detail-fields: [];
     in property <[InvoiceDetailItem]> invoice-detail-items: [];
     in property <bool> invoice-detail-dirty: false;
+    in property <bool> invoice-detail-item-selected: false;
     in property <string> invoice-detail-error-text: "";
     in property <string> invoice-detail-validation-text: "";
     in property <string> invoice-detail-validation-title: "";
@@ -1426,6 +1453,9 @@ export component AppWindow inherits Window {
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
     callback invoice-detail-item-rate-edited(int, string);
+    callback invoice-detail-item-add();
+    callback invoice-detail-item-select(int);
+    callback invoice-detail-item-delete();
     callback invoice-detail-validation-close();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
@@ -1519,6 +1549,7 @@ export component AppWindow inherits Window {
         detail-validation-title: root.invoice-detail-validation-title;
         detail-validation-close => { root.invoice-detail-validation-close(); }
         detail-editing-index: root.invoice-detail-editing-index;
+        detail-item-selected: root.invoice-detail-item-selected;
         back-to-list => { current-screen = 2; }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
         detail-save => { root.invoice-detail-save(); }
@@ -1526,5 +1557,8 @@ export component AppWindow inherits Window {
         detail-item-open(index) => { root.invoice-detail-item-open(index); }
         detail-item-qty-edited(index, value) => { root.invoice-detail-item-qty-edited(index, value); }
         detail-item-rate-edited(index, value) => { root.invoice-detail-item-rate-edited(index, value); }
+        detail-item-add => { root.invoice-detail-item-add(); }
+        detail-item-select(index) => { root.invoice-detail-item-select(index); }
+        detail-item-delete => { root.invoice-detail-item-delete(); }
     }
 }

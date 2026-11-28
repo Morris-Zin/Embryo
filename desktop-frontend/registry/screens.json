@@ -563,6 +563,7 @@
         "evidence/journeys/invoice-detail-overdue.json",
         "evidence/journeys/invoice-detail-multi-row-edit.json",
         "evidence/journeys/invoice-detail-zero-qty-validation.json",
+        "evidence/journeys/invoice-detail-row-add-delete.json",
         "evidence/journeys/invoice-detail-item-rate-edit.json",
         "evidence/journeys/invoice-detail-paid.json",
         "evidence/journeys/invoice-list-permission-denied.json",

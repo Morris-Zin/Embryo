@@ -769,6 +769,7 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                                 qty_value: format!("{:.3}", detail_number(row, "qty")).into(),
                                 rate_value: money(detail_number(row, "rate")).into(),
                                 amount_value: money(detail_number(row, "amount")).into(),
+                                selected: false,
                             }
                         })
                         .collect::<Vec<_>>()
@@ -1017,6 +1018,137 @@ fn edit_invoice_detail_item_rate(app: &AppWindow, state: &mut PilotState, index:
     app.set_invoice_detail_dirty(true);
     refresh_detail_item_model(app, state);
     app.set_status_text("Edited item rate; save before submitting.".into());
+}
+
+fn update_detail_item_selection_state(app: &AppWindow, state: &PilotState) {
+    app.set_invoice_detail_item_selected(
+        state.invoice_detail_items.iter().any(|item| item.selected),
+    );
+}
+
+fn add_invoice_detail_item(app: &AppWindow, state: &mut PilotState) {
+    if app.get_invoice_detail_status() != "Draft" {
+        return;
+    }
+    let Some(doc) = state.invoice_detail_doc.as_mut() else {
+        return;
+    };
+    let warehouse = detail_string(doc, "set_warehouse");
+    let Some(rows) = doc.get_mut("items").and_then(|rows| rows.as_array_mut()) else {
+        return;
+    };
+    rows.push(serde_json::json!({
+        "doctype": "Sales Invoice Item",
+        "item_code": "",
+        "item_name": "",
+        "qty": serde_json::Value::Null,
+        "rate": 0,
+        "amount": 0,
+        "warehouse": warehouse,
+    }));
+    let index = rows.len() - 1;
+    state.invoice_detail_items.push(InvoiceDetailItem {
+        index_text: (index + 1).to_string().into(),
+        item_text: "".into(),
+        qty_text: "".into(),
+        rate_text: "".into(),
+        amount_text: "".into(),
+        warehouse: warehouse.clone().into(),
+        editable: true,
+        item_code: "".into(),
+        qty_value: "".into(),
+        rate_value: "".into(),
+        amount_value: "".into(),
+        selected: false,
+    });
+    state.invoice_detail_editing_index = index as i32;
+    app.set_invoice_detail_editing_index(index as i32);
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    refresh_detail_item_model(app, state);
+    update_detail_item_selection_state(app, state);
+    app.set_status_text("Added invoice item row; save before submitting.".into());
+}
+
+fn select_invoice_detail_item(app: &AppWindow, state: &mut PilotState, index: i32) {
+    if app.get_invoice_detail_status() != "Draft" || index < 0 {
+        return;
+    }
+    if let Some(item) = state.invoice_detail_items.get_mut(index as usize) {
+        item.selected = !item.selected;
+    }
+    refresh_detail_item_model(app, state);
+    update_detail_item_selection_state(app, state);
+}
+
+fn delete_invoice_detail_items(app: &AppWindow, state: &mut PilotState) {
+    if app.get_invoice_detail_status() != "Draft"
+        || !state.invoice_detail_items.iter().any(|item| item.selected)
+    {
+        return;
+    }
+    let selected = state
+        .invoice_detail_items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| item.selected.then_some(index))
+        .collect::<Vec<_>>();
+    if let Some(rows) = state
+        .invoice_detail_doc
+        .as_mut()
+        .and_then(|doc| doc.get_mut("items"))
+        .and_then(|rows| rows.as_array_mut())
+    {
+        for index in selected.iter().rev() {
+            if *index < rows.len() {
+                rows.remove(*index);
+            }
+        }
+    }
+    for index in selected.iter().rev() {
+        if *index < state.invoice_detail_items.len() {
+            state.invoice_detail_items.remove(*index);
+        }
+    }
+    for (index, item) in state.invoice_detail_items.iter_mut().enumerate() {
+        item.index_text = (index + 1).to_string().into();
+        item.selected = false;
+    }
+    if let Some(doc) = state.invoice_detail_doc.as_mut() {
+        let total_qty = doc
+            .get("items")
+            .and_then(|rows| rows.as_array())
+            .map(|rows| {
+                rows.iter()
+                    .map(|item| detail_number(item, "qty"))
+                    .sum::<f64>()
+            })
+            .unwrap_or(0.0);
+        let total = doc
+            .get("items")
+            .and_then(|rows| rows.as_array())
+            .map(|rows| {
+                rows.iter()
+                    .map(|item| detail_number(item, "amount"))
+                    .sum::<f64>()
+            })
+            .unwrap_or(0.0);
+        doc["total_qty"] = serde_json::json!(total_qty);
+        doc["total"] = serde_json::json!(total);
+        doc["net_total"] = serde_json::json!(total);
+        doc["grand_total"] = serde_json::json!(total);
+        doc["rounded_total"] = serde_json::json!(total);
+        doc["outstanding_amount"] = serde_json::json!(total);
+        let snapshot = doc.clone();
+        set_detail_numeric_fields(state, &snapshot);
+    }
+    state.invoice_detail_editing_index = -1;
+    app.set_invoice_detail_editing_index(-1);
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    refresh_detail_item_model(app, state);
+    update_detail_item_selection_state(app, state);
+    app.set_status_text("Deleted invoice item row; save before submitting.".into());
 }
 
 fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
@@ -1955,6 +2087,36 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             edit_invoice_detail_item_rate(&app, &mut state, index, value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_item_add({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            add_invoice_detail_item(&app, &mut state);
+        }
+    });
+
+    app.on_invoice_detail_item_select({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |index| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            select_invoice_detail_item(&app, &mut state, index);
+        }
+    });
+
+    app.on_invoice_detail_item_delete({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            delete_invoice_detail_items(&app, &mut state);
         }
     });
 

@@ -69,3 +69,6 @@ The ERP password is read from the isolated environment in the normal qualificati
 ## Zero-quantity validation milestone
 
 `evidence/journeys/invoice-detail-zero-qty-validation.json` passed with zero differential failures. Browser and native both accepted a zero item quantity into the dirty editor, recalculated amount/totals to zero, exposed Save rather than Submit, rejected save with the same invalid-quantity state and message (`Row #1: Quantity for Item KM-00001 cannot be zero.`), closed the row editor, and did not persist the invalid document. This proves representative numeric item validation; it does not exhaust every ERPNext validation rule.
+## Item-row add/delete milestone
+
+`evidence/journeys/invoice-detail-row-add-delete.json` passed with zero differential failures. Browser and native both started with one row and draft Add row/Add multiple/Upload grid actions; Add row created a second expanded blank row with empty item/qty/rate/amount, default warehouse, `Not Saved` status and Save action; selecting row 2 exposed Delete row/Edit row/Duplicate row/Upload; Delete row removed it and returned to one row while preserving the dirty state. This proves row add/select/delete UI mutation. It does not yet prove saving a newly populated row or item-code substitution.
