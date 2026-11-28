@@ -1,0 +1,12 @@
+{
+  "applies_to": [
+    ".autoloop/**",
+    "tools/**"
+  ],
+  "created_at": "2026-11-28T12:20:46Z",
+  "draft": false,
+  "evidence": "autoloop_meta re-check ran 58 tests on stale 5dd94f0 instead of 63 on 44a7e56",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Gate evidence must name the exact commit gated. git fetch into a branch checked out in a gate worktree is refused, and a swallowed error re-gated a stale head as passed. Fetch into remote-tracking refs, hard-reset worktrees, and print gated vs intended SHA."
+}
