@@ -1,0 +1,11 @@
+{
+  "completed_assertions": [
+    "status",
+    "total"
+  ],
+  "passed": true,
+  "required_assertions": [
+    "status",
+    "total"
+  ]
+}
