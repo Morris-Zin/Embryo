@@ -1563,6 +1563,7 @@ export component AppWindow inherits Window {
     callback invoice-detail-cancel();
     callback invoice-detail-cancel-yes();
     callback invoice-detail-cancel-no();
+    callback invoice-back-to-list();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1665,7 +1666,7 @@ export component AppWindow inherits Window {
         detail-show-currency: root.invoice-detail-show-currency;
         detail-is-pos: root.invoice-detail-is-pos;
         detail-is-return: root.invoice-detail-is-return;
-        back-to-list => { current-screen = 2; }
+        back-to-list => { current-screen = 2; root.invoice-back-to-list(); }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
         detail-save => { root.invoice-detail-save(); }
         detail-submit => { root.invoice-detail-submit(); }

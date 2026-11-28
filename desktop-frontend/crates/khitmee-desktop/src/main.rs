@@ -4,7 +4,7 @@ use khitmee_catalog::{CatalogIndex, CatalogItem};
 use khitmee_erp::{ErpClient, SaleItem};
 use slint::{Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::rc::Rc;
 
@@ -22,6 +22,8 @@ struct PilotState {
     lines: Vec<LineState>,
     invoices: Vec<InvoiceSeed>,
     invoice_row_model: Option<Rc<VecModel<InvoiceRow>>>,
+    invoice_list_start: usize,
+    invoice_list_stale: bool,
     invoice_filter: String,
     invoice_limit: usize,
     invoice_sort_ascending: bool,
@@ -607,6 +609,21 @@ fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn invoice_result_row_count(payload: &serde_json::Value) -> usize {
+    payload
+        .get("values")
+        .and_then(|value| value.as_array())
+        .map(Vec::len)
+        .unwrap_or_default()
+}
+
+fn unique_invoice_rows(rows: Vec<InvoiceSeed>) -> Vec<InvoiceSeed> {
+    let mut seen = HashSet::new();
+    rows.into_iter()
+        .filter(|row| seen.insert(row.name.clone()))
+        .collect()
 }
 
 fn detail_string(doc: &serde_json::Value, key: &str) -> String {
@@ -1450,6 +1467,7 @@ fn confirm_cancel_invoice_detail(app: &AppWindow, state: &mut PilotState) {
     app.set_status_text(format!("Cancelling Sales Invoice {name}…").into());
     match client.cancel_sales_invoice(&name) {
         Ok(_) => {
+            state.invoice_list_stale = true;
             refresh_invoice_detail(app, state, &name);
             app.set_status_text(format!("Cancelled Sales Invoice {name}").into());
         }
@@ -1555,6 +1573,7 @@ In Payment Schedule, Due Date is required in every row.";
     };
     match result {
         Ok(_) => {
+            state.invoice_list_stale = true;
             app.set_invoice_detail_validation_title("".into());
             app.set_invoice_detail_validation_text("".into());
             state.invoice_detail_dirty = false;
@@ -1612,6 +1631,16 @@ fn set_invoice_count(app: &AppWindow, client: &ErpClient, state: &PilotState) {
     }
 }
 
+fn set_fixture_invoice_count(app: &AppWindow, state: &PilotState) {
+    let loaded = state
+        .invoice_row_model
+        .as_ref()
+        .map(|model| model.row_count())
+        .unwrap_or_default();
+    let total = filtered_invoice_rows(&state.invoices, &state.invoice_filter, usize::MAX).count();
+    app.set_invoice_count_text(format!("{loaded} of {total}").into());
+}
+
 fn append_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     if state.runtime_config.is_none() {
         let Some(model) = state.invoice_row_model.clone() else {
@@ -1625,6 +1654,7 @@ fn append_invoice_rows(app: &AppWindow, state: &mut PilotState) {
                 .map(invoice_row_data),
         );
         app.set_invoice_error_text("".into());
+        set_fixture_invoice_count(app, state);
         return;
     }
 
@@ -1637,7 +1667,7 @@ fn append_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         refresh_invoice_rows(app, state);
         return;
     };
-    let start = state.invoices.len();
+    let start = state.invoice_list_start;
     let page_length = state.invoice_limit.saturating_sub(start);
     if page_length == 0 {
         app.set_invoice_error_text("".into());
@@ -1650,7 +1680,16 @@ fn append_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         state.invoice_sort_ascending,
     ) {
         Ok(payload) => {
-            let rows = parse_invoice_rows(&payload);
+            state.invoice_list_start += invoice_result_row_count(&payload);
+            let mut seen = state
+                .invoices
+                .iter()
+                .map(|row| row.name.clone())
+                .collect::<HashSet<_>>();
+            let rows = parse_invoice_rows(&payload)
+                .into_iter()
+                .filter(|row| seen.insert(row.name.clone()))
+                .collect::<Vec<_>>();
             model.extend(rows.iter().map(invoice_row_data));
             state.invoices.extend(rows);
             app.set_invoice_error_text("".into());
@@ -1682,6 +1721,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     if state.runtime_config.is_none() {
         install_invoice_model(app, state, &filter);
         app.set_invoice_error_text("".into());
+        set_fixture_invoice_count(app, state);
         return;
     }
     let Some(client) = invoice_erp_client(state) else {
@@ -1696,7 +1736,9 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         state.invoice_sort_ascending,
     ) {
         Ok(payload) => {
-            state.invoices = parse_invoice_rows(&payload);
+            state.invoice_list_start = invoice_result_row_count(&payload);
+            state.invoices = unique_invoice_rows(parse_invoice_rows(&payload));
+            state.invoice_list_stale = false;
             install_invoice_model(app, state, "");
             app.set_invoice_error_text("".into());
             set_invoice_count(app, &client, state);
@@ -2024,6 +2066,8 @@ fn main() -> Result<(), slint::PlatformError> {
         lines: Vec::new(),
         invoices: fixture_invoices(invoice_rows),
         invoice_row_model: None,
+        invoice_list_start: 0,
+        invoice_list_stale: false,
         invoice_filter: String::new(),
         invoice_limit: 20,
         invoice_sort_ascending: false,
@@ -2656,13 +2700,28 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    app.on_invoice_back_to_list({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            if state.invoice_list_stale {
+                refresh_invoice_rows(&app, &mut state);
+            }
+        }
+    });
+
     release_allocator_cache();
     app.run()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{edited_quantity, filtered_invoice_rows, InvoiceSeed};
+    use super::{
+        edited_quantity, filtered_invoice_rows, invoice_result_row_count, unique_invoice_rows,
+        InvoiceSeed,
+    };
 
     fn invoice_seed(name: &str, customer: &str) -> InvoiceSeed {
         InvoiceSeed {
@@ -2714,5 +2773,23 @@ mod tests {
             .map(|row| row.name.clone())
             .collect();
         assert_eq!(visible, vec!["ACC-SINV-00001", "ACC-SINV-00003"]);
+    }
+
+    #[test]
+    fn invoice_result_count_includes_rows_the_display_parser_skips() {
+        let payload = serde_json::json!({"values": [["ACC-SINV-00001"], null]});
+        assert_eq!(invoice_result_row_count(&payload), 2);
+    }
+
+    #[test]
+    fn unique_invoice_rows_retain_the_first_copy_like_frappe_list_data() {
+        let rows = unique_invoice_rows(vec![
+            invoice_seed("ACC-SINV-00001", "first"),
+            invoice_seed("ACC-SINV-00001", "duplicate"),
+            invoice_seed("ACC-SINV-00002", "second"),
+        ]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].customer, "first");
+        assert_eq!(rows[1].customer, "second");
     }
 }
