@@ -8,18 +8,21 @@ DEFAULT_PROFILE="2gb"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
+Usage: bash perf-suite/scripts/up.sh [--profile 2gb|2gb-adr|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
 Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086
 (or PERF_HTTP_PORT from the env file).
 The script never targets the live khitmee-erpnext project.
 
 Options:
-  --profile 2gb|4gb   Memory profile to use (default: 2gb)
+  --profile PROFILE   Memory profile: 2gb, 2gb-adr, or 4gb (default: 2gb)
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
   --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
   -h, --help          Show this help
+
+MARIADB_IMAGE may be exported or set in the local .env to a digest-pinned image
+for an opt-in database A/B run. The default mariadb:11.8 image is unchanged.
 EOF_USAGE
 }
 
@@ -64,9 +67,9 @@ while (($#)); do
 done
 
 case "$PROFILE" in
-  2gb|4gb) ;;
+  2gb|2gb-adr|4gb) ;;
   *)
-    echo "Invalid --profile '$PROFILE'; expected 2gb or 4gb" >&2
+    echo "Invalid --profile '$PROFILE'; expected 2gb, 2gb-adr, or 4gb" >&2
     exit 2
     ;;
 esac
@@ -114,6 +117,8 @@ CUSTOM_TAG=v16.60.0
 SITE_NAME=bench-loadtest.localhost
 DB_PASSWORD=$db_password
 ADMIN_PASSWORD=$admin_password
+# Optional digest-pinned A/B override, for example:
+# MARIADB_IMAGE=mariadb:11.8.10@sha256:73c35e8483b56390cc98f8d6d9840244bd03c929aea7109490641b9389a18088
 EOF_ENV
   )
   chmod 600 "$ENV_FILE" 2>/dev/null || true
@@ -154,8 +159,13 @@ COMPOSE_FILE_ARGS=(
   -f "$DOCKER_DIR/profile-$PROFILE.yaml"
 )
 
+OPS_OVERLAY_PROFILE="$PROFILE"
+if [[ "$PROFILE" == "2gb-adr" ]]; then
+  OPS_OVERLAY_PROFILE="2gb"
+fi
+
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
-  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$PROFILE.yaml" )
+  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$OPS_OVERLAY_PROFILE.yaml" )
 fi
 
 if [[ "$WITH_BINLOG" == "1" ]]; then
@@ -372,7 +382,7 @@ warmup_read_only_http() {
 sync_khitmee_ops
 
 python_services=(backend scheduler)
-if [[ "$PROFILE" == "2gb" ]]; then
+if [[ "$PROFILE" == 2gb* ]]; then
   python_services+=(queue)
 else
   python_services+=(queue-short queue-long)

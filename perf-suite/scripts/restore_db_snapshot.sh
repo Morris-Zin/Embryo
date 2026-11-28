@@ -24,7 +24,7 @@ ARCHIVE="$(cd -- "$(dirname -- "$ARCHIVE")" && pwd)/$(basename -- "$ARCHIVE")"
 CONTAINER="khitmee-perf-db-1"
 PROJECT="khitmee-perf"
 VOLUME="${DB_VOLUME:-perf-db-data}"
-IMAGE="${DB_IMAGE:-mariadb:11.8}"
+IMAGE="${DB_IMAGE:-${MARIADB_IMAGE:-mariadb:11.8}}"
 
 project="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$CONTAINER" 2>/dev/null || true)"
 if [[ "$project" != "$PROJECT" ]]; then

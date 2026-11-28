@@ -3,14 +3,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/seed.sh [--scale smoke|month|year]
+Usage: bash perf-suite/scripts/seed.sh [--scale smoke|month|year] [--restore-snapshot ARCHIVE]
 
 Seeds the isolated khitmee-perf backend container with the benchmark dataset.
+With --restore-snapshot, restores a stopped-database tar.gz snapshot instead of
+running the slower row-by-row generator.
 The script never targets the live khitmee-erpnext project.
 EOF_USAGE
 }
 
 SCALE="smoke"
+RESTORE_SNAPSHOT=""
 while (($#)); do
   case "$1" in
     --scale)
@@ -20,6 +23,15 @@ while (($#)); do
       ;;
     --scale=*)
       SCALE="${1#--scale=}"
+      shift
+      ;;
+    --restore-snapshot)
+      [[ $# -ge 2 ]] || { echo "Missing value for --restore-snapshot" >&2; exit 2; }
+      RESTORE_SNAPSHOT="$2"
+      shift 2
+      ;;
+    --restore-snapshot=*)
+      RESTORE_SNAPSHOT="${1#--restore-snapshot=}"
       shift
       ;;
     -h|--help)
@@ -58,6 +70,14 @@ fi
 if docker inspect --format '{{.Config.Labels.com.docker.compose.project}}' "$CONTAINER" | grep -qx 'khitmee-erpnext'; then
   echo "Refusing to seed the live khitmee-erpnext project" >&2
   exit 1
+fi
+
+
+if [[ -n "$RESTORE_SNAPSHOT" ]]; then
+  echo "Fast-restoring database snapshot $RESTORE_SNAPSHOT; skipping $SCALE re-seed."
+  bash "$SCRIPT_DIR/restore_db_snapshot.sh" "$RESTORE_SNAPSHOT"
+  echo "Snapshot restore complete; no row-by-row seed generation was needed."
+  exit 0
 fi
 
 ORIGINAL_BACKEND_MEMORY=""
