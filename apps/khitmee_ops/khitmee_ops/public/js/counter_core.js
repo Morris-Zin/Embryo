@@ -659,8 +659,11 @@
 				return false;
 			}
 			els.search.value = value.slice(0, entry.start) + entry.before + value.slice(insertedEnd);
-			const caret = entry.start + entry.before.length;
-			els.search.setSelectionRange(caret, caret);
+			if (entry.before) {
+				els.search.setSelectionRange(entry.start, entry.start + entry.before.length);
+			} else {
+				els.search.setSelectionRange(entry.start, entry.start);
+			}
 			scannerRedoEntries.push(entry);
 			dispatchScannerInput("deleteContentBackward", null);
 			return true;

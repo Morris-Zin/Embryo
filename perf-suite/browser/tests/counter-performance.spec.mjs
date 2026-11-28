@@ -319,6 +319,7 @@ test.describe("cashier counter performance regressions", () => {
 
     await page.keyboard.press("Control+z");
     await expect(input).toHaveValue("AB");
+    expect(await input.evaluate((node) => [node.selectionStart, node.selectionEnd]), "undoing a replacement reselects restored text").toEqual([0, 2]);
     await page.keyboard.press("Control+Shift+z");
     await expect(input).toHaveValue("K");
     await page.keyboard.press("Control+z");
