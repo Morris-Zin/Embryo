@@ -84,7 +84,10 @@ class QualifyEntryPointTests(unittest.TestCase):
 
     def test_supervisor_contract_uses_adr_guest_topology(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
-        self.assertIn('run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest --with-khitmee-ops', source)
+        self.assertIn('run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"', source)
+        startup_line = 'run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"'
+        self.assertNotIn("--with-khitmee-ops", startup_line)
+        self.assertNotIn("--profile 2gb-guest --with-khitmee-ops", source)
         self.assertIn('CGROUP_PARENT="/sys/fs/cgroup/khitmeeperf.slice"', source)
         self.assertNotIn("docker update --cpus", source)
         self.assertNotIn('runtime-${RUNTIME_PROFILE}', source)
@@ -324,7 +327,13 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "fixture_manifest_path": "/srv/khitmee-lab/operator/fixtures/0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd.manifest.json",
                 "fixture_manifest_sha256": "c" * 64,
             },
-            "candidate-migration.json": {"required": True, "exit_code": 0},
+            "candidate-migration.json": {
+                "required": True,
+                "exit_code": 0,
+                "app_tree_hash_expected": "b" * 40,
+                "migrated_app_tree_hash": "b" * 40,
+                "tree_hash_verified": True,
+            },
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "seasonal-verification.json": {"by_type": {}},
@@ -345,6 +354,40 @@ class QualifyEntryPointTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_startup_does_not_migrate_checkout_and_migration_tree_mismatch_is_no_go(self):
+        source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        startup = 'run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"'
+        self.assertIn(startup, source)
+        self.assertNotIn(startup.replace(" --profile", " --with-khitmee-ops --profile"), source)
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        self.assertIn("MIGRATION_STATE_EVIDENCE", deploy)
+        self.assertIn("migrated_app_tree_hash", deploy)
+        self.assertIn("tree_hash_verified", deploy)
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            # This old evidence shape had only a successful exit code and would
+            # previously have satisfied the migration gate.
+            old_shape = {"required": True, "exit_code": 0}
+            self.assertNotIn("migrated_app_tree_hash", old_shape)
+            migration["migrated_app_tree_hash"] = "c" * 40
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "candidate-migration.json").write_text(json.dumps(old_shape))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
 
     def test_smoke_workload_pass_can_never_qualify_as_2gb(self):
         module = self.decision_module()

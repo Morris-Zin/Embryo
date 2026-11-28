@@ -16,6 +16,40 @@ MANAGER_KEYS = [
     "SEASONAL_MANAGER_DETAIL_USER",
     "SEASONAL_MANAGER_EXPORT_USER",
 ]
+
+MIGRATION_STATE_SCRIPT = r'''
+import json
+import sys
+import frappe
+
+site = sys.argv[1]
+tree_hash = sys.argv[2]
+frappe.init(site=site, sites_path="/home/frappe/frappe-bench/sites")
+frappe.connect()
+try:
+    frappe.db.sql("""
+        CREATE TABLE IF NOT EXISTS `__khitmee_ops_migration_state` (
+          `name` varchar(32) NOT NULL PRIMARY KEY,
+          `tree_hash` varchar(64) NOT NULL,
+          `migrated_at` datetime(6) NOT NULL
+        ) ENGINE=InnoDB
+    """)
+    frappe.db.sql(
+        """
+        INSERT INTO `__khitmee_ops_migration_state` (`name`, `tree_hash`, `migrated_at`)
+        VALUES ('state', %(tree_hash)s, UTC_TIMESTAMP(6))
+        ON DUPLICATE KEY UPDATE `tree_hash`=VALUES(`tree_hash`), `migrated_at`=VALUES(`migrated_at`)
+        """,
+        {"tree_hash": tree_hash},
+    )
+    frappe.db.commit()
+    rows = frappe.db.sql("SELECT tree_hash FROM `__khitmee_ops_migration_state` WHERE name='state'")
+    recorded = rows[0][0] if rows else ""
+finally:
+    frappe.destroy()
+print("MIGRATION_STATE_EVIDENCE " + json.dumps({"tree_hash": recorded}, sort_keys=True))
+'''
+
 ROLE_SCRIPT = r'''
 import json
 import sys
@@ -129,6 +163,33 @@ def main():
         migrate_finished = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
         migrate_log.write_text(migrate.stdout + migrate.stderr)
         require_ok(migrate, "bench migrate for candidate tree")
+        expected_tree_hash = str(metadata.get("app_tree_hash") or "")
+        if not expected_tree_hash:
+            raise RuntimeError("candidate metadata lacks app_tree_hash; refusing to record migration state")
+        state_result = run(
+            compose + [
+                "-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T",
+                "-w", "/home/frappe/frappe-bench/sites", "backend",
+                "/home/frappe/frappe-bench/env/bin/python", "-", args.site, expected_tree_hash,
+            ],
+            input_text=MIGRATION_STATE_SCRIPT,
+            timeout=180,
+        )
+        (artifact / "candidate-migration-state.log").write_text(state_result.stdout + state_result.stderr)
+        require_ok(state_result, "record migrated candidate tree hash")
+        marker = "MIGRATION_STATE_EVIDENCE "
+        state_evidence = None
+        for line in state_result.stdout.splitlines():
+            if line.startswith(marker):
+                state_evidence = json.loads(line[len(marker):])
+        if state_evidence is None:
+            raise RuntimeError("migration state script did not emit machine-readable evidence")
+        migrated_tree_hash = str(state_evidence.get("tree_hash") or "")
+        tree_hash_verified = migrated_tree_hash == expected_tree_hash
+        if not tree_hash_verified:
+            raise RuntimeError(
+                "migrated app tree digest mismatch: expected " + expected_tree_hash + " but recorded " + migrated_tree_hash
+            )
         migration = {
             "required": True,
             "reason": "candidate tree changed or fixture restore lacks candidate schema",
@@ -136,6 +197,10 @@ def main():
             "finished_at": migrate_finished,
             "exit_code": migrate.returncode,
             "log": str(migrate_log),
+            "app_tree_hash_expected": expected_tree_hash,
+            "migrated_app_tree_hash": migrated_tree_hash,
+            "tree_hash_verified": tree_hash_verified,
+            "state_log": str(artifact / "candidate-migration-state.log"),
         }
         (artifact / "candidate-migration.json").write_text(json.dumps(migration, indent=2, sort_keys=True) + "\n")
 

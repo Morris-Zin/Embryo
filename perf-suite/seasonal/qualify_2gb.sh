@@ -262,8 +262,11 @@ python3 -B "$SCRIPT_DIR/fixture_restore.py" "$FIXTURE" \
   --docker-dir "$DOCKER_DIR" \
   --output "$ARTIFACT_DIR/fixture-restore.json" | tee "$ARTIFACT_DIR/fixture-restore.stdout"
 
-echo "Starting isolated stack with khitmee_ops"
-run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest --with-khitmee-ops >"$ARTIFACT_DIR/up.log" 2>&1
+echo "Starting isolated base stack; the selected candidate tree is deployed before migration"
+# Do not pass --with-khitmee-ops here: startup must not mount or migrate the
+# working checkout. deploy_candidate.py below mounts the exact materialized
+# tree, recreates the Python services, and performs the only khitmee_ops migration.
+run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log" 2>&1
 
 SEASONAL_COMPOSE_FILES=(
   "$DOCKER_DIR/compose.base.yaml"

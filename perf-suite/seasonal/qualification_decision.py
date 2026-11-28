@@ -184,8 +184,16 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
             evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
     if not candidate.get('app_commit_sha') or not candidate.get('app_tree_hash'):
         evidence_problems.append('candidate commit/tree evidence missing')
+    migration_tree_hash_ok = (
+        migration.get('exit_code') == 0
+        and migration.get('tree_hash_verified') is True
+        and migration.get('app_tree_hash_expected') == candidate.get('app_tree_hash')
+        and migration.get('migrated_app_tree_hash') == candidate.get('app_tree_hash')
+    )
     if migration.get('exit_code') != 0:
         evidence_problems.append('candidate migration evidence missing or failed')
+    elif not migration_tree_hash_ok:
+        evidence_problems.append('migrated app tree digest missing or does not match the selected candidate tree')
 
     qualification_evidence = not evidence_problems
     qualified_bool = qualification_evidence and workload_passed
@@ -245,6 +253,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'app_tree_path': candidate.get('app_tree_path'),
         'candidate_migration_required': migration.get('required') is True,
         'candidate_migration_exit_code': migration.get('exit_code'),
+        'candidate_migration_tree_hash_verified': migration.get('tree_hash_verified') is True,
+        'candidate_migrated_app_tree_hash': migration.get('migrated_app_tree_hash'),
+        'migration_tree_hash_ok': migration_tree_hash_ok,
         'candidate_migration_log': migration.get('log'),
         'candidate_role_grants': candidate.get('role_grants_artifact'),
         'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),
