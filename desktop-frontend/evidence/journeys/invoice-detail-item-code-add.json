@@ -1,0 +1,633 @@
+{
+  "schemaVersion": 1,
+  "scenario": "item-code-add-submit",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": true,
+    "matched": true,
+    "webVoucher": "ACC-SINV-2026-05016",
+    "nativeVoucher": "ACC-SINV-2026-05017",
+    "web": {
+      "docstatus": 1,
+      "customer": "KM-CUST-0001",
+      "dueDate": "2026-12-11",
+      "updateStock": 1,
+      "warehouse": "Dist Hub 1 - KMD",
+      "totalQty": 2,
+      "grandTotal": 18.99,
+      "outstanding": 18.99,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        {
+          "itemCode": "KM-00002",
+          "qty": 1,
+          "rate": 0.53,
+          "amount": 0.53,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
+    },
+    "native": {
+      "docstatus": 1,
+      "customer": "KM-CUST-0001",
+      "dueDate": "2026-12-11",
+      "updateStock": 1,
+      "warehouse": "Dist Hub 1 - KMD",
+      "totalQty": 2,
+      "grandTotal": 18.99,
+      "outstanding": 18.99,
+      "item": {
+        "itemCode": "KM-00001",
+        "qty": 1,
+        "rate": 18.46,
+        "amount": 18.46,
+        "warehouse": "Dist Hub 1 - KMD"
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        {
+          "itemCode": "KM-00002",
+          "qty": 1,
+          "rate": 0.53,
+          "amount": 0.53,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
+    },
+    "mismatches": []
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05016",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:34",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05017",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:35",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 1,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 0,
+      "action": {
+        "op": "detail-item-add"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05016",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Not Saved",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:34",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 13 results found item_code qty rate amount Begin typing for results. warehouse"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Save"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": true,
+          "itemCode": "",
+          "qty": "",
+          "rate": "",
+          "amount": "",
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05017",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Not Saved",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:35",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "1",
+          "Total (USD)": "$ 18.46",
+          "Grand Total (USD)": "$ 18.46",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.46",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.46"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Save"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": true,
+          "itemCode": "",
+          "qty": "",
+          "rate": "",
+          "amount": "",
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 1,
+      "action": {
+        "op": "detail-item-code",
+        "value": "KM-00002"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05016",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Not Saved",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:34",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 item_code qty $ rate $ amount Begin typing for results. warehouse"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Save"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": true,
+          "itemCode": "KM-00002",
+          "qty": "1.000",
+          "rate": "0.53",
+          "amount": "0.53",
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05017",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Not Saved",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:35",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Forty Six Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 1 $ 0.53 $ 0.53 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Save"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": true,
+          "itemCode": "KM-00002",
+          "qty": "1.000",
+          "rate": "0.53",
+          "amount": "0.53",
+          "warehouse": "Dist Hub 1 - KMD"
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 2,
+      "action": {
+        "op": "detail-save"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05016",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:55",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Ninety Nine Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 1 $ 0.53 $ 0.53 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05017",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Draft",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:47:57",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Ninety Nine Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 1 $ 0.53 $ 0.53 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Preview",
+          "Get Items From",
+          "Submit"
+        ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
+        "editableFields": {
+          "Customer": "editable",
+          "Payment Due Date": "editable",
+          "Update Stock": "editable",
+          "Source Warehouse": "editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "differences": []
+    },
+    {
+      "index": 3,
+      "action": {
+        "op": "detail-submit"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05016",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Unpaid",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:48:00",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Ninety Nine Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 1 $ 0.53 $ 0.53 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Cancel"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-05017",
+        "customerTitle": "Khit Customer 0001",
+        "status": "Unpaid",
+        "fields": {
+          "Customer": "KM-CUST-0001",
+          "Customer Name": "Khit Customer 0001",
+          "Posting Date": "2026-11-28",
+          "Posting Time": "02:48:03",
+          "Payment Due Date": "2026-12-11",
+          "Update Stock": "checked",
+          "Source Warehouse": "Dist Hub 1 - KMD",
+          "Total Quantity": "2",
+          "Total (USD)": "$ 18.99",
+          "Grand Total (USD)": "$ 18.99",
+          "In Words": "USD Eighteen and Ninety Nine Cent only.",
+          "Rounding Adjustment (USD)": "$ 0.00",
+          "Rounded Total (USD)": "$ 18.99",
+          "Total Advance (USD)": "$ 0.00",
+          "Outstanding Amount (USD)": "$ 18.99"
+        },
+        "itemRows": [
+          "1 KM-00001: Mekong Fresh Beverage 00001 1 $ 18.46 $ 18.46 Dist Hub 1 - KMD",
+          "2 KM-00002: Lotus House Snack 00002 1 $ 0.53 $ 0.53 Dist Hub 1 - KMD"
+        ],
+        "itemCount": 2,
+        "actions": [
+          "Create",
+          "Cancel"
+        ],
+        "gridActions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "validationText": ""
+      },
+      "differences": []
+    }
+  ]
+}

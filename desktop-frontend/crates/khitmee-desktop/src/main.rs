@@ -1020,6 +1020,113 @@ fn edit_invoice_detail_item_rate(app: &AppWindow, state: &mut PilotState, index:
     app.set_status_text("Edited item rate; save before submitting.".into());
 }
 
+fn edit_invoice_detail_item_code(app: &AppWindow, state: &mut PilotState, index: i32, value: &str) {
+    if app.get_invoice_detail_status() != "Draft" || index < 0 {
+        return;
+    }
+    let item_code = value.trim().to_owned();
+    let Some(catalog_item) = state.by_code.get(&item_code).cloned() else {
+        return;
+    };
+    let Some(doc) = state.invoice_detail_doc.as_mut() else {
+        return;
+    };
+    let template = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .and_then(|rows| rows.first())
+        .cloned();
+    let mut updated_amount = None;
+    if let Some(row) = doc
+        .get_mut("items")
+        .and_then(|rows| rows.as_array_mut())
+        .and_then(|rows| rows.get_mut(index as usize))
+    {
+        if let Some(template) = template {
+            for (key, value) in template.as_object().into_iter().flatten() {
+                if ![
+                    "name",
+                    "owner",
+                    "creation",
+                    "modified",
+                    "modified_by",
+                    "parent",
+                    "parentfield",
+                    "parenttype",
+                    "idx",
+                    "item_code",
+                    "item_name",
+                    "qty",
+                    "rate",
+                    "amount",
+                    "warehouse",
+                ]
+                .contains(&key.as_str())
+                {
+                    row[key.clone()] = value.clone();
+                }
+            }
+        }
+        let qty = 1.0;
+        let amount = qty * catalog_item.rate;
+        row["item_code"] = serde_json::json!(catalog_item.item_code);
+        row["item_name"] = serde_json::json!(catalog_item.item_name.clone().unwrap_or_default());
+        if let Some(uom) = catalog_item.stock_uom.clone() {
+            row["uom"] = serde_json::json!(uom);
+            row["stock_uom"] = serde_json::json!(uom);
+        }
+        row["qty"] = serde_json::json!(qty);
+        row["stock_qty"] = serde_json::json!(qty);
+        row["rate"] = serde_json::json!(catalog_item.rate);
+        row["amount"] = serde_json::json!(amount);
+        updated_amount = Some(amount);
+    }
+    let Some(amount) = updated_amount else {
+        return;
+    };
+    let total_qty = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|item| detail_number(item, "qty"))
+                .sum::<f64>()
+        })
+        .unwrap_or(1.0);
+    let total = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|item| detail_number(item, "amount"))
+                .sum::<f64>()
+        })
+        .unwrap_or(amount);
+    doc["total_qty"] = serde_json::json!(total_qty);
+    doc["total"] = serde_json::json!(total);
+    doc["net_total"] = serde_json::json!(total);
+    doc["grand_total"] = serde_json::json!(total);
+    doc["rounded_total"] = serde_json::json!(total);
+    doc["outstanding_amount"] = serde_json::json!(total);
+    let doc_snapshot = doc.clone();
+    if let Some(item) = state.invoice_detail_items.get_mut(index as usize) {
+        let item_name = catalog_item.item_name.clone().unwrap_or_default();
+        item.item_text = format!("{}: {}", catalog_item.item_code, item_name).into();
+        item.qty_text = "1".into();
+        item.rate_text = format!("$ {}", money(catalog_item.rate)).into();
+        item.amount_text = format!("$ {}", money(amount)).into();
+        item.item_code = catalog_item.item_code.clone().into();
+        item.qty_value = "1.000".into();
+        item.rate_value = money(catalog_item.rate).into();
+        item.amount_value = money(amount).into();
+    }
+    set_detail_numeric_fields(state, &doc_snapshot);
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    refresh_detail_item_model(app, state);
+    app.set_status_text("Edited item code; save before submitting.".into());
+}
+
 fn update_detail_item_selection_state(app: &AppWindow, state: &PilotState) {
     app.set_invoice_detail_item_selected(
         state.invoice_detail_items.iter().any(|item| item.selected),
@@ -2087,6 +2194,16 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             edit_invoice_detail_item_rate(&app, &mut state, index, value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_item_code_edited({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |index, value| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            edit_invoice_detail_item_code(&app, &mut state, index, value.as_str());
         }
     });
 
