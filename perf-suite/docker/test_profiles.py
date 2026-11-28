@@ -713,7 +713,13 @@ class GuestRouteVerifierBehaviourTest(unittest.TestCase):
                 FAKE_SEARCH_BODY=body,
             )
             return subprocess.run(
-                ["bash", str(script)], env=env, capture_output=True, text=True, timeout=30, check=False
+                ["bash", str(script)],
+                env=env,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
             )
 
     def test_all_routes_ok_passes(self):
