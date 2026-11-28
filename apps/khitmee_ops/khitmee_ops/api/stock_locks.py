@@ -1,6 +1,7 @@
 """Deadlock-safe deterministic Item + Bin row locking for stock-posting vouchers.
 
 All stock writers (counter sales, direct/dispatch/receive transfers, and native
+Desk Sales Invoice / Stock Entry / Delivery Note / Stock Reconciliation /
 Purchase Receipt / Purchase Invoice submissions) acquire InnoDB row locks in the
 exact same global order:
 
@@ -9,20 +10,57 @@ exact same global order:
 2. Existing `tabBin` rows in sorted `(item_code, warehouse)` order (batched
    `ORDER BY item_code, warehouse, name FOR UPDATE`). Missing Bin rows are never
    rejected because the Item lock already serializes concurrent Bin creation.
+
+A transaction-scoped `threading.local()` guard (cleared via `after_commit` and
+`after_rollback`) makes `before_submit` hooks re-entrant: when `submit_sale` or
+`submit_transfer` already locked the superset of `(items, pairs)`, the hook is a
+zero-SQL no-op.
 """
 
 from itertools import islice
+import threading
 
 import frappe
 from frappe.utils import cint
 
 LOCK_BATCH_SIZE = 500
 
+_TXN_LOCK_STATE = threading.local()
+
 
 def batched(iterable, size):
 	iterator = iter(iterable)
 	while chunk := tuple(islice(iterator, size)):
 		yield chunk
+
+
+def _get_txn_lock_state():
+	state = getattr(_TXN_LOCK_STATE, "held", None)
+	if state is None:
+		state = {"items": set(), "pairs": set(), "registered": False}
+		_TXN_LOCK_STATE.held = state
+	return state
+
+
+def clear_transaction_stock_locks():
+	"""Clear the transaction-scoped re-entrancy guard for the current thread."""
+	state = getattr(_TXN_LOCK_STATE, "held", None)
+	if state is not None:
+		state["items"].clear()
+		state["pairs"].clear()
+		state["registered"] = False
+
+
+def _register_txn_cleanup(state):
+	if state["registered"]:
+		return
+	db = getattr(frappe, "db", None)
+	after_commit = getattr(db, "after_commit", None)
+	after_rollback = getattr(db, "after_rollback", None)
+	if hasattr(after_commit, "add") and hasattr(after_rollback, "add"):
+		after_commit.add(clear_transaction_stock_locks)
+		after_rollback.add(clear_transaction_stock_locks)
+		state["registered"] = True
 
 
 def ordered_item_codes(item_codes):
@@ -174,23 +212,65 @@ def lock_existing_bins(pairs):
 def lock_stock_coordinates(pairs, item_codes=None):
 	"""Acquire sorted tabItem locks followed by sorted existing tabBin locks.
 
-	Returns a dict with:
-	- `items`: locked tabItem names
-	- `bins`: locked existing tabBin rows
-	- `pairs`: normalized sorted `(item_code, warehouse)` tuples covered by the lock
+	Re-entrant within a single transaction: if the current transaction already
+	holds locks for the superset of requested items and pairs, returns immediately
+	with zero SQL.
 	"""
 	ordered_pairs = ordered_bin_pairs(pairs)
 	combined_items = list(item_codes or ())
 	combined_items.extend(item_code for item_code, _warehouse in ordered_pairs)
 	ordered_items = ordered_item_codes(combined_items)
 
+	if not ordered_items and not ordered_pairs:
+		return {"items": [], "bins": [], "pairs": []}
+
+	state = _get_txn_lock_state()
+	if state["registered"] and state["items"].issuperset(ordered_items) and state["pairs"].issuperset(ordered_pairs):
+		return {
+			"items": ordered_items,
+			"bins": [],
+			"pairs": ordered_pairs,
+		}
+
 	locked_items = lock_items(ordered_items)
 	locked_bins = lock_existing_bins(ordered_pairs)
+
+	_register_txn_cleanup(state)
+	if state["registered"]:
+		state["items"].update(ordered_items)
+		state["pairs"].update(ordered_pairs)
+
 	return {
 		"items": locked_items,
 		"bins": locked_bins,
 		"pairs": ordered_pairs,
 	}
+
+
+def lock_stock_voucher_before_submit(doc, method=None):
+	"""Re-entrant before_submit lock hook covering all stock-posting doctypes."""
+	doctype = str(
+		(doc.get("doctype") if hasattr(doc, "get") else getattr(doc, "doctype", "")) or ""
+	)
+	item_codes = document_item_codes(doc)
+	if doctype == "Sales Invoice":
+		update_stock = cint(
+			doc.get("update_stock") if hasattr(doc, "get") else getattr(doc, "update_stock", 0)
+		)
+		if not update_stock:
+			return {"items": [], "bins": [], "pairs": []}
+		pairs = document_bin_pairs(doc)
+	elif doctype == "Purchase Invoice":
+		update_stock = cint(
+			doc.get("update_stock") if hasattr(doc, "get") else getattr(doc, "update_stock", 0)
+		)
+		pairs = document_bin_pairs(doc) if update_stock else []
+	else:
+		pairs = document_bin_pairs(doc)
+
+	if not item_codes and not pairs:
+		return {"items": [], "bins": [], "pairs": []}
+	return lock_stock_coordinates(pairs, item_codes=item_codes)
 
 
 def lock_purchase_receipt_stock(doc, method=None):
