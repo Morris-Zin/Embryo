@@ -55,3 +55,6 @@ The ERP password is read from the isolated environment in the normal qualificati
 ## Direct detail permission milestone
 
 `evidence/journeys/invoice-detail-permission-denied.json` passed with zero differential failures for `noperm.counter@example.com` opening `ACC-SINV-2026-04935` directly. Browser and native both exposed a non-vacuous `not-permitted` state, no invoice fields, no item rows, no document actions, and no editable controls. This is direct-detail permission evidence in addition to the earlier invoice-list denial evidence.
+## Mandatory validation milestone
+
+`evidence/journeys/invoice-detail-mandatory-validation.json` passed with zero differential failures. Browser and native both allowed Payment Due Date to be cleared into the same `Not Saved` state, exposed Save rather than Submit, rejected save with the same missing-fields state and validation message (`Payment Due Date` plus payment-schedule due date), and preserved matching draft document outcomes because neither invalid document was persisted. This is mandatory-field validation evidence only; server-side validation and numeric/item validation remain open.

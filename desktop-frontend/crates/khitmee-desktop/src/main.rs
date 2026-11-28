@@ -836,10 +836,6 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     } else {
         value
     };
-    if key == "due_date" && normalized.trim().is_empty() {
-        app.set_status_text("Payment Due Date is required.".into());
-        return;
-    }
     if key == "update_stock" {
         doc[key] = serde_json::json!(normalized.parse::<i64>().unwrap_or(0));
     } else {
@@ -857,6 +853,7 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     }
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
+    app.set_invoice_detail_validation_text("".into());
     app.set_status_text(format!("Edited {label}; save before submitting.").into());
 }
 
@@ -978,6 +975,17 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
         return;
     };
     let name = detail_string(&doc, "name");
+    if detail_string(&doc, "due_date").trim().is_empty() {
+        let message = "Please fill the following mandatory fields before saving:
+
+Payment Due Date is required.
+In Payment Schedule, Due Date is required in every row.";
+        app.set_invoice_detail_validation_text(message.into());
+        app.set_status_text(
+            format!("Sales Invoice {name} validation failed: missing Payment Due Date").into(),
+        );
+        return;
+    }
     app.set_status_text(
         if submit {
             format!("Submitting Sales Invoice {name}…")
@@ -993,6 +1001,7 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
     };
     match result {
         Ok(_) => {
+            app.set_invoice_detail_validation_text("".into());
             state.invoice_detail_dirty = false;
             app.set_invoice_detail_dirty(false);
             refresh_invoice_detail(app, state, &name);
@@ -1827,6 +1836,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             edit_invoice_detail_field(&app, &mut state, label.as_str(), value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_validation_close({
+        let app = app.as_weak();
+        move || {
+            let app = app.unwrap();
+            app.set_invoice_detail_validation_text("".into());
         }
     });
 

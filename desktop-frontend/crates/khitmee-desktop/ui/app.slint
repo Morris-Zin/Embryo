@@ -699,6 +699,7 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-detail-submit();
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
+    callback invoice-detail-validation-close();
     background: #f4f5f7;
 
     Rectangle { x: 0px; y: 0px; width: 240px; height: parent.height; background: #f8fafc; }
@@ -1230,6 +1231,8 @@ component InvoiceDetailScreen inherits Rectangle {
     in property <[InvoiceDetailItem]> detail-items: [];
     in property <bool> detail-dirty: false;
     in property <string> detail-error-text: "";
+    in property <string> detail-validation-text: "";
+    callback detail-validation-close();
     callback back-to-list();
     callback detail-field-edited(string, string);
     callback detail-save();
@@ -1292,6 +1295,14 @@ component InvoiceDetailScreen inherits Rectangle {
         x: root.content-x + 20px; y: 126px; width: root.content-width - 40px; height: parent.height - 146px;
         background: #ffffff; border-color: #e4e7ec; border-width: 1px;
         Text { width: parent.width; height: 160px; text: root.detail-error-text; accessible-label: root.detail-error-text; color: Design.text; font-size: 16px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+    }
+    if root.detail-validation-text != "": Rectangle {
+        x: root.content-x + (root.content-width - 430px) / 2; y: 190px; width: 430px; height: 170px;
+        background: #ffffff; border-color: #d0d5dd; border-width: 1px; border-radius: 8px;
+        accessible-role: text; accessible-label: "Missing Fields";
+        Text { x: 20px; y: 14px; width: parent.width - 40px; height: 24px; text: "Missing Fields"; accessible-label: "Missing Fields"; color: Design.text; font-size: 15px; font-weight: 750; vertical-alignment: center; }
+        Text { x: 20px; y: 45px; width: parent.width - 40px; height: 75px; text: root.detail-validation-text; accessible-label: root.detail-validation-text; color: Design.text; font-size: 12px; vertical-alignment: top; wrap: word-wrap; }
+        BrowserButton { x: parent.width - 82px; y: parent.height - 43px; width: 62px; height: 30px; text: "OK"; primary: true; clicked => { root.detail-validation-close(); } }
     }
     Flickable {
         visible: root.detail-error-text == "";
@@ -1361,6 +1372,7 @@ export component AppWindow inherits Window {
     in property <[InvoiceDetailItem]> invoice-detail-items: [];
     in property <bool> invoice-detail-dirty: false;
     in property <string> invoice-detail-error-text: "";
+    in property <string> invoice-detail-validation-text: "";
     in property <int> invoice-detail-editing-index: -1;
     in property <string> invoice-detail-title: "Sales Invoice";
     in property <string> invoice-detail-name: "";
@@ -1409,6 +1421,7 @@ export component AppWindow inherits Window {
     callback invoice-detail-submit();
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
+    callback invoice-detail-validation-close();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1497,6 +1510,8 @@ export component AppWindow inherits Window {
         detail-items: root.invoice-detail-items;
         detail-dirty: root.invoice-detail-dirty;
         detail-error-text: root.invoice-detail-error-text;
+        detail-validation-text: root.invoice-detail-validation-text;
+        detail-validation-close => { root.invoice-detail-validation-close(); }
         detail-editing-index: root.invoice-detail-editing-index;
         back-to-list => { current-screen = 2; }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
