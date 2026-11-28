@@ -1411,6 +1411,36 @@ class TestBackendSafeguardRules(unittest.TestCase):
                 hits = self.rules[directory.name](examples)
                 self.assertTrue(any(hit["path"] in examples for hit in hits))
 
+    def test_bench_rule_accepts_typed_classifier_only_with_guard_before_records(self) -> None:
+        rule = self.rules["bench-results-typed-gated"]
+        path = "tools/perf_bench_inner.py"
+        header = "from perf_gp_result import UnavailableGrossProfit, classify_gross_profit_result\n"
+        good = header + (
+            "def run(cases, fast_gp_execute):\n"
+            "    benchmarks = {}\n"
+            "    for label, flt in cases:\n"
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n"
+            "        if isinstance(result, UnavailableGrossProfit):\n"
+            "            benchmarks[label] = unavailable_report_measurement(result.reason)\n"
+            "            continue\n"
+            "        benchmarks[label] = {'wall_ms': 1}\n"
+        )
+        self.assertEqual(rule({path: good.encode()}), [])
+        no_guard = good.replace(
+            "        if isinstance(result, UnavailableGrossProfit):\n"
+            "            benchmarks[label] = unavailable_report_measurement(result.reason)\n"
+            "            continue\n",
+            "",
+        )
+        self.assertTrue(rule({path: no_guard.encode()}))
+        early_record = good.replace(
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n",
+            "        result = classify_gross_profit_result(fast_gp_execute(flt))\n"
+            "        benchmarks[label] = {'wall_ms': 1}\n",
+            1,
+        )
+        self.assertTrue(rule({path: early_record.encode()}))
+
     def test_stock_locks_accept_the_adr0003_planner_in_plan_order(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/api/stock_locks.py"
         raw = (TOOLS_DIR / "autoloop/fixtures/stock_locks_adr0003.py").read_bytes()
