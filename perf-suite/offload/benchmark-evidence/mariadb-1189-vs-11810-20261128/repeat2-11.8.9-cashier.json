@@ -1,0 +1,50 @@
+{
+  "arm": "mariadb-11.8.9",
+  "cases": {
+    "sale_10_lines": {
+      "count": 5,
+      "line_count": 10,
+      "max_ms": 274.53,
+      "mean_ms": 251.541,
+      "min_ms": 228.953,
+      "p50_ms": 252.852,
+      "p95_ms": 270.278,
+      "samples_ms": [
+        248.105,
+        252.852,
+        274.53,
+        253.266,
+        228.953
+      ],
+      "warmup_ms": [
+        968.799
+      ]
+    },
+    "sale_50_lines": {
+      "count": 5,
+      "line_count": 50,
+      "max_ms": 1000.538,
+      "mean_ms": 891.463,
+      "min_ms": 813.986,
+      "p50_ms": 879.728,
+      "p95_ms": 987.776,
+      "samples_ms": [
+        826.333,
+        1000.538,
+        879.728,
+        936.731,
+        813.986
+      ],
+      "warmup_ms": [
+        995.993
+      ]
+    }
+  },
+  "iterations": 5,
+  "project": "khitmee-perf",
+  "schema_version": "cashier-sale-repeat-v1",
+  "seed": 20261128,
+  "site": "bench-loadtest.localhost",
+  "warehouse": "Shop 1 - KMD",
+  "warmups": 1
+}
