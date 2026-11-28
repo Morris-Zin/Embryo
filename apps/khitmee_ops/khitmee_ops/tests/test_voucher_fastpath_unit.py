@@ -97,6 +97,7 @@ def _ensure_stubs():
 		"erpnext.stock.doctype.packed_item",
 		"erpnext.stock.doctype.stock_reservation_entry",
 		"erpnext.stock.doctype.stock_entry",
+		"erpnext.stock.utils",
 	):
 		sys.modules.setdefault(mod_name, types.ModuleType(mod_name))
 
@@ -520,6 +521,40 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertEqual(lazily_bound_fn(), ["shop"])
 		self.assertEqual(lazily_bound_fn(), ["shop"])
 		self.assertEqual(self.dim_calls, 3)
+
+	def test_bin_cache_reuses_only_existing_locked_bins_in_fresh_snapshot(self):
+		stock_utils = sys.modules["erpnext.stock.utils"]
+		upstream = Mock(return_value="upstream-bin")
+
+		def get_or_make_bin(item_code, warehouse):
+			return upstream(item_code, warehouse)
+
+		locked_bins = [{"item_code": "ITEM-1", "warehouse": "WH-1", "name": "BIN-1"}]
+		with (
+			patch.object(stock_utils, "get_or_make_bin", get_or_make_bin, create=True),
+			patch.object(STOCK_LEDGER_MOD, "get_or_make_bin", get_or_make_bin, create=True),
+		):
+			with voucher_fastpath.voucher_transaction_read_cache(locked_bins=locked_bins):
+				bin_lookup = STOCK_LEDGER_MOD.get_or_make_bin
+				self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "BIN-1")
+				upstream.assert_not_called()
+				self.assertEqual(bin_lookup("ITEM-1", "OTHER"), "upstream-bin")
+			with voucher_fastpath.voucher_transaction_read_cache(locked_bins=locked_bins, fresh_snapshot=False):
+				self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
+			self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
+
+	def test_accounting_checks_are_memoized_without_sharing_mutable_rows(self):
+		upstream = Mock(return_value=[{"fieldname": "branch"}])
+
+		def get_checks():
+			return upstream()
+
+		with patch.object(ACC_DIM_MOD, "get_checks_for_pl_and_bs_accounts", get_checks, create=True):
+			with voucher_fastpath.voucher_transaction_read_cache():
+				checks = ACC_DIM_MOD.get_checks_for_pl_and_bs_accounts()
+				checks[0]["fieldname"] = "changed"
+				self.assertEqual(ACC_DIM_MOD.get_checks_for_pl_and_bs_accounts(), [{"fieldname": "branch"}])
+			upstream.assert_called_once_with()
 
 	def test_read_cache_thread_isolation_and_exception_cleanup(self):
 		barrier = threading.Barrier(2)

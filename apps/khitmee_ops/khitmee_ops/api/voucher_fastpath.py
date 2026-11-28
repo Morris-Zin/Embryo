@@ -13,10 +13,12 @@
    Strictly thread-local, single-transaction read-only metadata cache around
    `doc.insert()` eliminating repeated identical lookups inside one voucher:
    - `get_accounting_dimensions` (155x-600x -> 1x)
+   - `get_checks_for_pl_and_bs_accounts` (one lookup for all GL validations)
    - `is_product_bundle` (50x-200x -> 1 bulk query)
    - Empty `get_product_bundle_items` lookups reuse the same bulk result
    - `get_sre_reserved_qty_for_item_and_warehouse` (100x-400x -> 1 bulk query)
    - `get_pos_profile` (50x-200x -> 1x)
+   - `get_or_make_bin` reuses the name of an already locked Bin
 
 Architecture guarantee (F02):
    Every wrapped callable binds its captured `original` directly inside a closure
@@ -58,6 +60,13 @@ _ACCOUNTING_DIM_CALLERS = (
 	"erpnext.stock.doctype.stock_entry.stock_entry",
 	"erpnext.controllers.stock_controller",
 )
+_ACCOUNTING_CHECK_CALLERS = (
+	_ACCOUNTING_DIM_MODULE,
+	"erpnext.accounts.general_ledger",
+	"erpnext.accounts.doctype.gl_entry.gl_entry",
+	"erpnext.accounts.doctype.payment_ledger_entry.payment_ledger_entry",
+)
+_STOCK_UTILS_MODULE = "erpnext.stock.utils"
 
 _PRODUCT_BUNDLE_MODULE = "erpnext.stock.doctype.packed_item.packed_item"
 _PRODUCT_BUNDLE_CALLERS = (
@@ -160,13 +169,13 @@ class FutureSleFastpathContext:
 @dataclass
 class VoucherReadCacheContext:
 	active: bool
-	accounting_dimensions: dict = field(default_factory=dict)
+	reads: dict = field(default_factory=dict)
+	locked_bin_names: dict = field(default_factory=dict)
 	prefetched_items: frozenset = field(default_factory=frozenset)
 	product_bundles: frozenset = field(default_factory=frozenset)
 	extra_product_bundles: dict = field(default_factory=dict)
 	prefetched_sre_pairs: frozenset = field(default_factory=frozenset)
 	sre_reserved_qty: dict = field(default_factory=dict)
-	pos_profiles: dict = field(default_factory=dict)
 	hits: int = 0
 	misses: int = 0
 
@@ -521,8 +530,8 @@ def _prefetch_sre_reserved_qty(locked_pairs):
 	return frozenset(ordered), reserved
 
 
-def _make_accounting_dims_dispatcher(original):
-	def _dispatch_get_accounting_dimensions(*args, **kwargs):
+def _make_read_dispatcher(original):
+	def _dispatch_read(*args, **kwargs):
 		ctx = getattr(_READ_CACHE_STATE, "context", None)
 		if ctx is None or not ctx.active:
 			return original(*args, **kwargs)
@@ -531,18 +540,19 @@ def _make_accounting_dims_dispatcher(original):
 		if key is None:
 			ctx.misses += 1
 			return original(*args, **kwargs)
-		if key in ctx.accounting_dimensions:
+		key = (original, key)
+		if key in ctx.reads:
 			ctx.hits += 1
-			return copy.deepcopy(ctx.accounting_dimensions[key])
+			return copy.deepcopy(ctx.reads[key])
 
 		ctx.misses += 1
 		result = original(*args, **kwargs)
-		ctx.accounting_dimensions[key] = copy.deepcopy(result)
+		ctx.reads[key] = copy.deepcopy(result)
 		return result
 
-	_dispatch_get_accounting_dimensions._khitmee_dispatcher = True
-	_dispatch_get_accounting_dimensions._khitmee_original = original
-	return _dispatch_get_accounting_dimensions
+	_dispatch_read._khitmee_dispatcher = True
+	_dispatch_read._khitmee_original = original
+	return _dispatch_read
 
 
 def _make_product_bundle_dispatcher(original):
@@ -629,28 +639,19 @@ def _make_sre_reserved_qty_dispatcher(original):
 	return _dispatch_get_sre_reserved_qty
 
 
-def _make_pos_profile_dispatcher(original):
-	def _dispatch_get_pos_profile(*args, **kwargs):
+def _make_get_or_make_bin_dispatcher(original):
+	def _dispatch_get_or_make_bin(item_code, warehouse):
 		ctx = getattr(_READ_CACHE_STATE, "context", None)
-		if ctx is None or not ctx.active:
-			return original(*args, **kwargs)
-
-		key = _safe_cache_key(args, kwargs)
-		if key is None:
+		if ctx is not None and ctx.active and isinstance(item_code, str) and isinstance(warehouse, str):
+			if name := ctx.locked_bin_names.get((item_code, warehouse)):
+				ctx.hits += 1
+				return name
 			ctx.misses += 1
-			return original(*args, **kwargs)
-		if key in ctx.pos_profiles:
-			ctx.hits += 1
-			return copy.deepcopy(ctx.pos_profiles[key])
+		return original(item_code, warehouse)
 
-		ctx.misses += 1
-		result = original(*args, **kwargs)
-		ctx.pos_profiles[key] = copy.deepcopy(result)
-		return result
-
-	_dispatch_get_pos_profile._khitmee_dispatcher = True
-	_dispatch_get_pos_profile._khitmee_original = original
-	return _dispatch_get_pos_profile
+	_dispatch_get_or_make_bin._khitmee_dispatcher = True
+	_dispatch_get_or_make_bin._khitmee_original = original
+	return _dispatch_get_or_make_bin
 
 
 _READ_CACHE_TARGETS = (
@@ -658,7 +659,19 @@ _READ_CACHE_TARGETS = (
 		"get_accounting_dimensions",
 		_ACCOUNTING_DIM_MODULE,
 		_ACCOUNTING_DIM_CALLERS,
-		_make_accounting_dims_dispatcher,
+		_make_read_dispatcher,
+	),
+	(
+		"get_checks_for_pl_and_bs_accounts",
+		_ACCOUNTING_DIM_MODULE,
+		_ACCOUNTING_CHECK_CALLERS,
+		_make_read_dispatcher,
+	),
+	(
+		"get_or_make_bin",
+		_STOCK_UTILS_MODULE,
+		(_STOCK_UTILS_MODULE, "erpnext.stock.stock_ledger"),
+		_make_get_or_make_bin_dispatcher,
 	),
 	(
 		"is_product_bundle",
@@ -682,7 +695,7 @@ _READ_CACHE_TARGETS = (
 		"get_pos_profile",
 		_POS_PROFILE_MODULE,
 		_POS_PROFILE_CALLERS,
-		_make_pos_profile_dispatcher,
+		_make_read_dispatcher,
 	),
 )
 
@@ -711,7 +724,9 @@ def _ensure_read_cache_dispatchers_installed():
 
 
 @contextmanager
-def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=None, enabled=True, fresh_snapshot=True):
+def voucher_transaction_read_cache(
+	doc=None, *, item_codes=None, locked_pairs=None, locked_bins=(), enabled=True, fresh_snapshot=True
+):
 	"""Thread-local single-transaction read-metadata cache around voucher `doc.insert()`."""
 	if not enabled:
 		yield VoucherReadCacheContext(active=False)
@@ -729,6 +744,11 @@ def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=No
 
 	ctx = VoucherReadCacheContext(
 		active=True,
+		# ERPNext enforces a unique (item_code, warehouse) Bin and this
+		# transaction owns each prefetched row lock until commit.
+		locked_bin_names={
+			(row["item_code"], row["warehouse"]): row["name"] for row in locked_bins
+		} if fresh_snapshot else {},
 		prefetched_items=prefetched_items,
 		product_bundles=product_bundles,
 		prefetched_sre_pairs=prefetched_sre_pairs,

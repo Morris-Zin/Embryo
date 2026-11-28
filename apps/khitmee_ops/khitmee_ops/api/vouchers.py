@@ -543,7 +543,11 @@ def _create_sales_invoice(
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
 		voucher_transaction_read_cache(
-			doc, item_codes=item_codes, locked_pairs=lock_result["pairs"], fresh_snapshot=fresh_snapshot
+			doc,
+			item_codes=item_codes,
+			locked_pairs=lock_result["pairs"],
+			locked_bins=lock_result["bins"],
+			fresh_snapshot=fresh_snapshot,
 		),
 		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
 	):
