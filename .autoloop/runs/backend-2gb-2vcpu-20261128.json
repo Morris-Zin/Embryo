@@ -554,12 +554,30 @@
       "stage": "deep",
       "status": "ready_to_merge",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:56:27Z",
+      "code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
     }
   ],
   "issue_number": null,
   "last_integrated_branch": "feat/backend-2gb-2vcpu-autoloop",
   "last_integrated_detached": false,
-  "last_integrated_sha": "4257c8c9c7a9216a870a7fd300d7696266400317",
+  "last_integrated_sha": "a881f8fba6e44778742d07bcf5980d2600a6b40a",
   "last_integrated_worktree": "E:\\khitmee-backend-2gb-autoloop",
   "limits": {
     "max_replan_count": 1,
@@ -626,6 +644,13 @@
     {
       "at": "2026-11-28T10:42:05Z",
       "code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
       "reviewer": "gemini-4-neon-high",
       "stage": "deep",
       "verdict": "pass"
@@ -747,7 +772,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "9831e58c19732dcb627f499c3438475ae6de0a76",
-      "passed_code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "passed_code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -773,7 +798,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "d91fbd25987274a37b84e43012db23c7d2203aca",
-      "passed_code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "passed_code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -802,7 +827,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "fa3b85efea7566319cad4b2c73cf4c4a2be5933e",
-      "passed_code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "passed_code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -812,5 +837,5 @@
   },
   "status": "ready_to_merge",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T10:42:05Z"
+  "updated_at": "2026-11-28T10:56:28Z"
 }
