@@ -60,6 +60,8 @@ services:
       - --timeout=120
       - --keep-alive=65
       - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
       - --max-requests=1500
       - --max-requests-jitter=300
       - frappe.app:application

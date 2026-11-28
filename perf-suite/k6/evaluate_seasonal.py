@@ -143,18 +143,21 @@ def voucher_latency_gate(events):
     completes = [event for event in events["events"] if event.get("event") == "voucher_complete"]
     for phase in CORE_PHASES:
         for voucher_type in VOUCHER_TYPES:
-            durations = [
-                event.get("duration_ms")
-                for event in completes
-                if event.get("phase") == phase and event.get("type") == voucher_type
-            ]
-            rows.append({"phase": phase, "group": voucher_type, "count": len(durations), "p95": percentile(durations, 0.95)})
-        large = [
-            event.get("duration_ms")
-            for event in completes
-            if event.get("phase") == phase and event.get("type") == "sale" and int(event.get("line_count") or 0) == 200
-        ]
-        rows.append({"phase": phase, "group": "sale/200-lines", "count": len(large), "p95": percentile(large, 0.95)})
+            if voucher_type == "sale":
+                # Basket classes are independent acceptance populations. Pooling
+                # them lets the dominant 10-line class mask a slow 50-line class.
+                shapes = [(10, "sale/10-lines"), (50, "sale/50-lines"), (200, "sale/200-lines")]
+            else:
+                shapes = [(50, voucher_type)]
+            for line_count, group in shapes:
+                durations = [
+                    event.get("duration_ms")
+                    for event in completes
+                    if event.get("phase") == phase
+                    and event.get("type") == voucher_type
+                    and int(event.get("line_count") or 0) == line_count
+                ]
+                rows.append({"phase": phase, "group": group, "count": len(durations), "p95": percentile(durations, 0.95)})
     return latency_gate("Cashier submit-to-confirmation p95", rows, SUBMIT_P95_MS)
 
 
@@ -925,6 +928,24 @@ def approved_margin_rate_gate(events):
         "; ".join(failures[:10]),
     )
 
+CASHIER_REQUIRED_GATE_NAMES = frozenset({
+    "Real cashier-only discovery",
+    "Authorized exact distinct actor users",
+    "Offered/started/completed/rejected/dropped accounting",
+    "Approved per-minute voucher mix",
+    "Approved margin/recovery offered rates",
+    "Cashier submit-to-confirmation p95",
+    "Six-shop hot-stock contention",
+    "Cashier search p95",
+    "Independent database correctness",
+    "Lost-acknowledgement retry identity",
+    "Baseline/margin/recovery workflow completion",
+    "Overload failure induced",
+    "Recovery within 2 minutes",
+    "Container OOM/restart evidence",
+})
+
+
 def actor_separation_gate(events):
     actors = events["config"].get("actors") or {}
     managers_enabled = bool(events["config"].get("managers_enabled", True))
@@ -1200,22 +1221,7 @@ def evaluate_events(events, k6_summary, *, cashier_only=False):
         relevant = [gate for gate in gates if gate.name in names]
         return "NO-GO" if any(gate.status in {"FAIL", "NO DATA"} for gate in relevant) else "GO"
 
-    cashier_status = status_of(
-        {
-            "Real cashier-only discovery",
-            "Authorized exact distinct actor users",
-            "Offered/started/completed/rejected/dropped accounting",
-            "Approved per-minute voucher mix",
-            "Approved margin/recovery offered rates",
-            "Cashier submit-to-confirmation p95",
-            "Six-shop hot-stock contention",
-            "Cashier search p95",
-            "Lost-acknowledgement retry identity",
-            "Baseline/margin/recovery workflow completion",
-            "Overload failure induced",
-            "Recovery within 2 minutes",
-        }
-    )
+    cashier_status = status_of(CASHIER_REQUIRED_GATE_NAMES)
     summary_status = summary_gate(indexed, managers_enabled).status
     detail_status = detail_gate(indexed, managers_enabled).status
     export_status = export_gate(indexed, export_enabled).status
@@ -1248,7 +1254,77 @@ def evaluate_events(events, k6_summary, *, cashier_only=False):
         ],
     }
 
-def render_markdown(run_label, gates, count_rows, feature_statuses, verification, memory=None):
+
+def login_lifecycle(events):
+    rows = events.get("events") or []
+    begins = [event for event in rows if event.get("event") == "auth_login_begin"]
+    ends = [event for event in rows if event.get("event") == "auth_login_end"]
+    login_http = [event.get("login_http_ms") for event in ends]
+    bootstrap = [event.get("bootstrap_ms") for event in ends]
+    total = [sum(values) for values in zip(
+        [event.get("login_http_ms") or 0 for event in ends],
+        [event.get("bootstrap_ms") or 0 for event in ends],
+    )]
+    return {
+        "begin_count": len(begins),
+        "end_count": len(ends),
+        "failed_or_incomplete_count": max(0, len(begins) - len(ends)),
+        "login_http_ms": {"total": sum(v or 0 for v in login_http), "p50": percentile(login_http, 0.50), "p95": percentile(login_http, 0.95)},
+        "bootstrap_ms": {"total": sum(v or 0 for v in bootstrap), "p50": percentile(bootstrap, 0.50), "p95": percentile(bootstrap, 0.95)},
+        "combined_ms": {"total": sum(total), "p50": percentile(total, 0.50), "p95": percentile(total, 0.95)},
+        "session_lifecycle": "one authenticated SID/CSRF pair per active k6 VU actor; cached across iterations until that client is reinitialized or login fails",
+    }
+
+
+def render_attribution(lines, attribution):
+    if not attribution:
+        return lines
+    lines.extend([
+        "",
+        "## Request attribution: nginx to Gunicorn",
+        "",
+        "`estimated dispatch/entry` is nginx upstream response time minus Gunicorn service duration. It includes proxy dispatch/transport and worker admission wait; it is not a true nginx upstream_queue_time.",
+        "",
+        "| Endpoint class | Requests | Joined | nginx response p50/p95 ms | Gunicorn service p50/p95 ms | Est. dispatch/entry p50/p95 ms |",
+        "|---|---:|---:|---:|---:|---:|",
+    ])
+    classes = attribution.get("endpoint_classes") or {}
+    for endpoint_class in ("cashier_submit", "search", "login/bootstrap", "manager_summary", "manager_detail", "manager_export", "unclassified"):
+        row = classes.get(endpoint_class)
+        if not row:
+            continue
+        def pair(name):
+            values = row.get(name) or {}
+            return f"{fmt_ms(values.get('p50'))} / {fmt_ms(values.get('p95'))}"
+        lines.append(
+            f"| {endpoint_class} | {row.get('count', 0)} | {row.get('joined_count', 0)} | "
+            f"{pair('upstream_response_ms')} | {pair('gunicorn_service_ms')} | {pair('estimated_dispatch_to_entry_ms')} |"
+        )
+    lines.extend([
+        "",
+        "Attribution join counts: "
+        f"nginx={attribution.get('nginx_rows', 0)}, gunicorn={attribution.get('gunicorn_rows', 0)}, "
+        f"joined={attribution.get('joined_rows', 0)}, nginx-only={attribution.get('unjoined_nginx_rows', 0)}.",
+    ])
+    redis_cache = attribution.get("redis_cache_commandstats_delta") or []
+    redis_queue = attribution.get("redis_queue_commandstats_delta") or []
+    if redis_cache or redis_queue:
+        lines.extend(["", "### Redis command deltas", "", "| Redis | Command | Calls | Total ms | Avg ms |", "|---|---|---:|---:|---:|"])
+        for label, rows in (("cache", redis_cache[:8]), ("queue", redis_queue[:8])):
+            for row in rows:
+                lines.append(f"| {label} | {row.get('command')} | {row.get('calls', 0)} | {row.get('total_ms', 0):.1f} | {row.get('avg_ms', 0):.3f} |")
+    locks = attribution.get("db_innodb_row_locks_delta") or {}
+    lines.extend([
+        "",
+        "### InnoDB row-lock deltas",
+        "",
+        "```json",
+        json.dumps(locks, indent=2, sort_keys=True),
+        "```",
+    ])
+    return lines
+
+def render_markdown(run_label, gates, count_rows, feature_statuses, verification, memory=None, attribution=None, login=None):
     lines = [
         f"# Seasonal acceptance scorecard: {run_label}",
         "",
@@ -1281,6 +1357,16 @@ def render_markdown(run_label, gates, count_rows, feature_statuses, verification
                 int(restarts),
                 "yes" if entry.docker_oom_killed else "no",
             ))
+    if login:
+        lines.extend([
+            "", "## Login/session lifecycle", "",
+            f"login begins: {login['begin_count']}; login completions: {login['end_count']}; failed/incomplete: {login['failed_or_incomplete_count']}",
+            f"login HTTP cost total/p50/p95: {login['login_http_ms']['total']:.1f} ms / {fmt_ms(login['login_http_ms']['p50'])} / {fmt_ms(login['login_http_ms']['p95'])}",
+            f"Desk bootstrap cost total/p50/p95: {login['bootstrap_ms']['total']:.1f} ms / {fmt_ms(login['bootstrap_ms']['p50'])} / {fmt_ms(login['bootstrap_ms']['p95'])}",
+            f"combined login+bootstrap total/p50/p95: {login['combined_ms']['total']:.1f} ms / {fmt_ms(login['combined_ms']['p50'])} / {fmt_ms(login['combined_ms']['p95'])}",
+            f"session lifecycle: {login['session_lifecycle']}",
+        ])
+    lines = render_attribution(lines, attribution)
     if verification:
         lines.extend(["", "## Independent verifier", "", "```json", json.dumps({k: verification.get(k) for k in ("passed", "run_prefix", "started", "completed", "rejected", "unknown", "retried_completed", "reconciled_completed", "lost_ack_observed", "by_type")}, indent=2, sort_keys=True), "```"])
     lines.append("")
@@ -1291,6 +1377,7 @@ def evaluate(args):
     events = verify_run.parse_events(args.k6_log)
     summary = load_json(args.k6_summary, required=True)
     verification = load_json(args.verification) if args.verification else None
+    attribution = load_json(args.attribution) if args.attribution else None
     memory = base.analyze_memory(args.stats_csv)
     config = events["config"]
     managers_enabled = bool(config.get("managers_enabled", True)) and not args.cashier_only
@@ -1326,23 +1413,7 @@ def evaluate(args):
             return "NO-GO"
         return "GO"
 
-    cashier_status = status_of(
-        {
-            "Real cashier-only discovery",
-            "Offered/started/completed/rejected/dropped accounting",
-            "Approved per-minute voucher mix",
-            "Approved margin/recovery offered rates",
-            "Cashier submit-to-confirmation p95",
-            "Six-shop hot-stock contention",
-            "Cashier search p95",
-            "Independent database correctness",
-            "Lost-acknowledgement retry identity",
-            "Baseline/margin/recovery workflow completion",
-            "Overload failure induced",
-            "Recovery within 2 minutes",
-            "Container OOM/restart evidence",
-        }
-    )
+    cashier_status = status_of(CASHIER_REQUIRED_GATE_NAMES)
     summary_status = summary_gate(events, managers_enabled).status
     detail_status = detail_gate(events, managers_enabled).status
     export_status = export_gate(events, export_enabled).status
@@ -1361,7 +1432,7 @@ def evaluate(args):
         verdict = "GO" if all(gate.status == "PASS" for gate in gates) else "NO-GO"
         feature_statuses["standalone workload verdict"] = verdict
         feature_statuses["2 GiB seasonal qualification"] = "Recorded by the protected supervisor after its guest and oracle checks"
-    markdown = render_markdown(args.run_label, gates, count_rows, feature_statuses, verification, memory)
+    markdown = render_markdown(args.run_label, gates, count_rows, feature_statuses, verification, memory, attribution=attribution, login=login_lifecycle(events))
     return verdict, markdown
 
 
@@ -1371,6 +1442,7 @@ def main(argv=None):
     parser.add_argument("--k6-log", required=True)
     parser.add_argument("--stats-csv", required=True)
     parser.add_argument("--verification")
+    parser.add_argument("--attribution")
     parser.add_argument("--output", required=True)
     parser.add_argument("--run-label", default="seasonal")
     parser.add_argument("--cashier-only", action="store_true")

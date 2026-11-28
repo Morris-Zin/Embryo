@@ -9,6 +9,8 @@ export const REGULAR_VOUCHER_MIX = {
 export const CONTENTION_SALES_PER_BURST = 6;
 export const CONTENTION_TRANSFERS_PER_BURST = 1;
 export const BASE_SEARCHES_PER_MINUTE = 80;
+const CONTENTION_SHOP_COUNT = 6;
+
 export const VOUCHER_TYPES = ['sale', 'transfer', 'purchase_receipt', 'purchase_invoice'];
 
 export function retryWitness(work) {
@@ -643,6 +645,19 @@ export function basketHash(lines) {
 export function seasonalRunPrefix(settings) {
   const seedPart = hashHex(`${settings.runId}:${settings.seed}`).slice(0, 10);
   return `K6S-${seedPart}-`;
+}
+
+
+export function contentionSaleSequence(sequence, shopIndex) {
+  return sequence * CONTENTION_SHOP_COUNT + shopIndex;
+}
+
+export function contentionTransferSequence(sequence) {
+  // A contention burst's sale fan-out occupies sequence*6..sequence*6+5. The
+  // transfer is a separate mix key, but preserving the burst sequence keeps its
+  // client voucher id unique across multiple fractional-minute bursts in the
+  // same logical minute. Resetting it to zero was the duplicate-start defect.
+  return sequence;
 }
 
 export function makeClientVoucherId(settings, work) {

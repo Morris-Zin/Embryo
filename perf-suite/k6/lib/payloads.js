@@ -46,18 +46,32 @@ function compactSeasonalContext(full) {
       uoms,
     };
   });
-  const firstRate = {};
+  const catalogByCode = {};
+  const hasStockMap = Object.keys(full.inStock || {}).length > 0;
   full.items.forEach((item) => {
-    if (stocked[item.item_code] && firstRate[item.item_code] === undefined) {
-      firstRate[item.item_code] = item.rate;
+    if ((!hasStockMap || stocked[item.item_code]) && catalogByCode[item.item_code] === undefined) {
+      catalogByCode[item.item_code] = item;
     }
   });
-  const catalogCodes = Object.keys(firstRate).sort();
+  const catalogCodes = Object.keys(catalogByCode).sort();
   const catalogRates = [];
   const catalogHasRate = [];
+  const catalogNames = [];
+  const catalogBarcodes = [];
+  const catalogUoms = [];
+  const catalogHotRanks = [];
   catalogCodes.forEach((code) => {
-    catalogRates.push(firstRate[code] === undefined ? 0 : firstRate[code]);
-    catalogHasRate.push(firstRate[code] !== undefined);
+    const item = catalogByCode[code];
+    catalogRates.push(item.rate === undefined ? 0 : item.rate);
+    catalogHasRate.push(item.rate !== undefined);
+    catalogNames.push(item.item_name || code);
+    catalogBarcodes.push(item.barcode || '');
+    catalogUoms.push(item.uom || full.defaultUom || 'Nos');
+    catalogHotRanks.push(item.hot_rank || 0);
+  });
+  const catalogHotOrder = catalogCodes.map((code, index) => index).sort((left, right) => {
+    const rankDelta = (catalogHotRanks[left] || 0) - (catalogHotRanks[right] || 0);
+    return rankDelta || left - right;
   });
   return {
     raw: { seed_id: full.raw && full.raw.seed_id, site_name: full.raw && full.raw.site_name },
@@ -72,6 +86,11 @@ function compactSeasonalContext(full) {
     catalogCodes,
     catalogRates,
     catalogHasRate,
+    catalogNames,
+    catalogBarcodes,
+    catalogUoms,
+    catalogHotRanks,
+    catalogHotOrder,
     reportWindow: full.reportWindow,
     defaultPriceList: full.defaultPriceList,
     defaultCustomer: full.defaultCustomer,
@@ -83,10 +102,6 @@ function compactSeasonalContext(full) {
   };
 }
 
-const sharedManifestContext = new SharedArray('seed_manifest_context', function () {
-  return [compactSeasonalContext(buildContextFromRoot(loadSeedManifest()))];
-});
-
 const DEFAULT_WAREHOUSES = [
   { name: 'Dist Hub 1', role: 'distribution' },
   { name: 'Dist Hub 2', role: 'distribution' },
@@ -95,6 +110,10 @@ const DEFAULT_WAREHOUSES = [
   { name: 'Shop 3', role: 'retail' },
   { name: 'Shop 4', role: 'retail' },
 ];
+
+const sharedManifestContext = new SharedArray('seed_manifest_context', function () {
+  return [compactSeasonalContext(buildContextFromRoot(loadSeedManifest()))];
+});
 
 function asList(value) {
   if (!value) {
@@ -410,28 +429,109 @@ export function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function catalogRateIndex(itemCode) {
+  const codes = manifestContext.catalogCodes || [];
+  let low = 0;
+  let high = codes.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (codes[mid] === itemCode) {
+      return mid;
+    }
+    if (codes[mid] < itemCode) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return -1;
+}
+
+function catalogItemAt(index) {
+  const code = manifestContext.catalogCodes[index];
+  const item = {
+    item_code: code,
+    item_name: (manifestContext.catalogNames || [])[index] || code,
+    barcode: (manifestContext.catalogBarcodes || [])[index] || '',
+    uom: (manifestContext.catalogUoms || [])[index] || manifestContext.defaultUom || 'Nos',
+    hot_rank: (manifestContext.catalogHotRanks || [])[index] || index + 1,
+  };
+  if ((manifestContext.catalogHasRate || [])[index]) {
+    item.rate = manifestContext.catalogRates[index];
+  }
+  return item;
+}
+
+function catalogOrder() {
+  if (manifestContext.catalogHotOrder && manifestContext.catalogHotOrder.length) {
+    return manifestContext.catalogHotOrder;
+  }
+  return (manifestContext.catalogCodes || []).map((_code, index) => index);
+}
+
+export function catalogItems() {
+  return catalogOrder().map(catalogItemAt);
+}
+
+function inStockItemAt(entry, index) {
+  if (entry.items) {
+    return entry.items[index];
+  }
+  const code = (entry.item_codes || [])[index];
+  const catalogIndex = catalogRateIndex(code);
+  const catalogItem = catalogIndex >= 0 ? catalogItemAt(catalogIndex) : null;
+  const item = {
+    item_code: code,
+    item_name: catalogItem ? catalogItem.item_name : code,
+    barcode: catalogItem ? catalogItem.barcode : '',
+    qty: (entry.quantities || [])[index],
+    uom: (entry.uoms || [])[index] || manifestContext.defaultUom || 'Nos',
+    hot_rank: catalogItem ? catalogItem.hot_rank : index + 1,
+  };
+  if (catalogIndex >= 0 && (manifestContext.catalogHasRate || [])[catalogIndex]) {
+    item.rate = manifestContext.catalogRates[catalogIndex];
+  }
+  return item;
+}
+
 export function inStockItemsFor(warehouse) {
   const entry = manifestContext.inStock[String(warehouse || '').toLowerCase()];
-  return entry ? entry.items : [];
+  if (!entry) {
+    return [];
+  }
+  const length = entry.items ? entry.items.length : (entry.item_codes || []).length;
+  const items = [];
+  for (let index = 0; index < length; index += 1) {
+    items.push(inStockItemAt(entry, index));
+  }
+  return items;
 }
 
 export function pickItem(options = {}) {
-  let items = manifestContext.items;
+  let length = 0;
+  let itemAtIndex = null;
   if (options.warehouse) {
     // Stock-moving flows must only pick items actually stocked in this warehouse.
-    const inStock = inStockItemsFor(options.warehouse);
-    if (inStock.length) {
-      items = inStock;
+    const entry = manifestContext.inStock[String(options.warehouse || '').toLowerCase()];
+    const stockLength = entry ? (entry.items ? entry.items.length : (entry.item_codes || []).length) : 0;
+    if (stockLength) {
+      length = stockLength;
+      itemAtIndex = (index) => inStockItemAt(entry, index);
     }
   }
-  if (!items.length) {
+  if (!itemAtIndex) {
+    const order = catalogOrder();
+    length = order.length;
+    itemAtIndex = (index) => catalogItemAt(order[index]);
+  }
+  if (!length) {
     throw new Error('Seed manifest contains no usable items. Expected items with item_code / sku values.');
   }
   const contention = Boolean(options.contention);
   const configuredPool = Number(__ENV.HOT_SKU_POOL || 50);
-  const poolSize = contention ? Math.max(1, Math.min(items.length, configuredPool)) : items.length;
+  const poolSize = contention ? Math.max(1, Math.min(length, configuredPool)) : length;
   const exponent = Number(options.zipfExponent || __ENV.ZIPF_EXPONENT || (contention ? 1.45 : 1.15));
-  return items[zipfIndex(poolSize, exponent)];
+  return itemAtIndex(zipfIndex(poolSize, exponent));
 }
 
 export function warehouseRole(warehouseName) {

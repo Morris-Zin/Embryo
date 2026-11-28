@@ -33,6 +33,8 @@ import {
   basketHash,
   deterministicLines,
   hashHex,
+  contentionSaleSequence,
+  contentionTransferSequence,
   makeClientVoucherId,
   retryWitness,
   stableHash32,
@@ -1082,7 +1084,7 @@ export function performContentionBurst(session, plan, work) {
       lineCount: 10,
       // Preserve the fractional-minute burst index in the client identity while
       // keeping each shop distinct inside that burst.
-      sequence: work.sequence * CONTENTION_SHOP_COUNT + shopIndex,
+      sequence: contentionSaleSequence(work.sequence, shopIndex),
       contention: true,
     });
     const builtSale = tagCashierActor(buildSeasonalWorkPayload(plan, saleWork, {
@@ -1098,7 +1100,7 @@ export function performContentionBurst(session, plan, work) {
     mixKey: 'contention_transfer',
     type: 'transfer',
     lineCount: 50,
-    sequence: 0,
+    sequence: contentionTransferSequence(work.sequence),
     contention: true,
   });
   const builtTransfer = tagCashierActor(buildSeasonalWorkPayload(plan, transferWork, {
@@ -1173,7 +1175,7 @@ export function reportFilters(groupBy, fullYear = false, plan = null) {
   };
 }
 
-function executeReportCall(session, reportName, filters, timeout, extraPayload = {}) {
+function executeReportCall(session, reportName, filters, timeout, extraPayload = {}, endpointClass = 'manager_summary') {
   sleepForSimulatedRtt(1);
   const uxStart = Date.now();
   const serverStart = Date.now();
@@ -1189,6 +1191,7 @@ function executeReportCall(session, reportName, filters, timeout, extraPayload =
       asForm: true,
       timeout,
       tags: { name: 'seasonal_query_report', endpoint: 'seasonal_query_report', report: reportName },
+      endpointClass,
     }
   );
   return {
@@ -1220,7 +1223,7 @@ function validReportRows(response) {
 
 export function performSummaryReport(session, plan, phase, groupBy, iterationIndex) {
   const reportName = plan.settings.summaryReportName;
-  const measured = executeReportCall(session, reportName, reportFilters(groupBy, false, plan), '10s');
+  const measured = executeReportCall(session, reportName, reportFilters(groupBy, false, plan), '10s', {}, 'manager_summary');
   const validation = validReportRows(measured.response);
   const tags = managerTags(phase.phase, { report: reportName, group_by: groupBy });
   if (validation.ok) {
@@ -1296,10 +1299,8 @@ export function performDetailReport(session, plan, phase) {
   const pageSignatures = [];
   const pageDigests = [];
   for (let page = 0; page < settings.detailPageCount; page += 1) {
-    const measured = executeReportCall(session, reportName, filters, `${settings.detailTimeoutSeconds}s`, {
-      start: page * 50,
-      page_length: 50,
-    });
+    const pageFilters = Object.assign({}, filters, { invoice_page: page + 1 });
+    const measured = executeReportCall(session, reportName, pageFilters, `${settings.detailTimeoutSeconds}s`, {}, 'manager_detail');
     const validation = validReportRows(measured.response);
     if (page === 0) {
       firstPage = measured;
@@ -1314,7 +1315,7 @@ export function performDetailReport(session, plan, phase) {
     }
     if (validation.rows.length > 50) {
       paginationHonored = false;
-      failureReason = `pagination not honored: detail endpoint ignored page_length=50 and returned ${validation.rows.length} rows`;
+      failureReason = `pagination not honored: detail endpoint ignored invoice_page bounded rows and returned ${validation.rows.length} rows`;
       break;
     }
     const signature = firstRowIdentity(validation.rows[0]);
@@ -1396,6 +1397,34 @@ function csvEvidence(body) {
   };
 }
 
+
+export function verifyUnauthorizedDetailDenied(session, plan) {
+  const response = postMethod(
+    session,
+    'frappe.desk.query_report.run',
+    {
+      report_name: plan.settings.detailReportName,
+      filters: JSON.stringify(reportFilters('Invoice', false, plan)),
+      ignore_prepared_report: 1,
+    },
+    {
+      asForm: true,
+      timeout: `${plan.settings.detailTimeoutSeconds}s`,
+      tags: { name: 'preflight_unauthorized_detail', endpoint: 'seasonal_query_report', report: plan.settings.detailReportName },
+      endpointClass: 'manager_detail',
+    }
+  );
+  const denied = Boolean(response) && (response.status === 401 || response.status === 403);
+  logSeasonalEvent({
+    event: denied ? 'preflight_unauthorized_detail_denied' : 'preflight_unauthorized_detail_failure',
+    actor: 'cashier',
+    actor_user: session.user,
+    status: response ? response.status : null,
+    reason: denied ? 'unauthorized actor denied as required' : 'unauthorized actor was not denied with HTTP 401/403',
+  });
+  return denied;
+}
+
 export function performExportCycle(session, plan, phase) {
   const settings = plan.settings;
   const exportId = hashHex(`${settings.runId}:export:${Date.now()}`).slice(0, 12);
@@ -1441,11 +1470,29 @@ export function performExportCycle(session, plan, phase) {
 
   const timeoutSeconds = Number(__ENV.SEASONAL_EXPORT_TIMEOUT_SECONDS || 600);
   const deadline = Date.now() + timeoutSeconds * 1000;
-  let downloadResponse = null;
-  while (Date.now() < deadline) {
+  const downloadQuery = `${settings.exportDownloadMethod}?export_log_name=${encodeURIComponent(exportLogName)}`;
+  let downloadResponse = getMethod(
+    session,
+    downloadQuery,
+    { timeout: '180s', tags: { name: 'seasonal_export_status', endpoint: 'seasonal_export_status' } }
+  );
+  const initialStatus = downloadResponse ? downloadResponse.status : 0;
+  logSeasonalEvent({
+    event: initialStatus === 200 || initialStatus === 409 ? 'export_status' : 'export_status_reject',
+    phase: phase.phase,
+    segment: phase.name,
+    export_cycle: exportId,
+    export_log_name: exportLogName,
+    http_status: initialStatus,
+    status_semantics: initialStatus === 409 ? 'queued_or_running' : (initialStatus === 200 ? 'completed_downloadable' : 'unexpected'),
+  });
+  if (initialStatus !== 200 && initialStatus !== 409) {
+    return reject(`export status probe returned unexpected HTTP ${initialStatus}`, { export_log_name: exportLogName });
+  }
+  while (Date.now() < deadline && (!downloadResponse || downloadResponse.status !== 200)) {
     downloadResponse = getMethod(
       session,
-      `${settings.exportDownloadMethod}?export_log_name=${encodeURIComponent(exportLogName)}`,
+      downloadQuery,
       { timeout: '180s', tags: { name: 'seasonal_export_download', endpoint: 'seasonal_export_download' } }
     );
     if (downloadResponse && downloadResponse.status === 200) {

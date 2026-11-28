@@ -18,7 +18,8 @@ The runner writes:
 - `perf-suite/results/<run>-k6-summary.json` — k6 metrics and dropped iterations;
 - `perf-suite/results/<run>-container-stats.csv` — memory/restart evidence;
 - `perf-suite/results/<run>-seasonal-verification.json` — independent database verdict;
-- `perf-suite/results/<run>-scorecard.md` — feature-separated seasonal gates.
+- `perf-suite/results/<run>-scorecard.md` — feature-separated seasonal gates, including login count/cost and endpoint-class request attribution;
+- `perf-suite/results/<run>-attribution/` — nginx JSON access rows, Gunicorn rows joined by `X-K6-Request-Id`, Redis command/latency snapshots, and InnoDB row-lock deltas.
 
 A full qualification requires cashier, manager summary, issue-#2 detail pagination, full-year export, overload/recovery, exact accounting, container evidence, and database correctness gates. Missing endpoints or evidence fail closed; they are not treated as success.
 
@@ -73,6 +74,16 @@ There is intentionally no public `expected_vouchers` aggregate. Use `result["off
 Individual sale/transfer start events may be resubmitted after submission using the same client voucher id; purchase recovery reuses that identity only in read-only lookups. Neither case emits an additional `voucher_start` event. A duplicate `voucher_start` client id is therefore a schedule defect, not retry evidence.
 
 `manager_outputs` is hash-only evidence in load order. Summary and first-detail-page hashes use `canonical-json-v1([columns,result])`: object keys are sorted recursively, array/row order is preserved, numbers use at most 15 fractional digits with trailing zeroes trimmed, and JSON is serialized without whitespace before SHA-256. For replay implementations, the canonical text `{"a":1,"b":[2,{"a":"x"}]}` must hash to `2c77e8e42231c5a2b199e37b8c1225614c241a3b2e7623a7ebd6f17815a4a738`. Export hashes are SHA-256 over the response body text exactly as received by k6. Each output carries actor, actor user, explicit report window, observation id, hash algorithm, and canonicalization; customer row values and export contents are not included.
+
+## Login/session lifecycle and request attribution
+
+The harness follows the normal client lifecycle: one authenticated SID/CSRF pair per active k6 VU actor, cached across iterations with `noCookiesReset`. It does not use a privileged prebuilt session or share one session across independent active clients. k6 VUs are isolated JavaScript runtimes, so a replaced or newly allocated client must authenticate again; failed/interrupted initialization can therefore produce additional real login attempts. The scorecard reports login begins/completions and total, p50 and p95 login HTTP, Desk bootstrap, and combined cost so shift-start authentication remains visible rather than hidden.
+
+Every HTTP helper emits a unique `X-K6-Request-Id` plus `X-K6-Endpoint-Class`. The seasonal nginx template logs request, upstream connect/header/response times, status, upstream address, request id and endpoint class as JSON. The seasonal Gunicorn command logs the same request id and service duration. `perf-suite/seasonal/attribution.py` joins those rows and reports p50/p95 server time and `estimated_dispatch_to_entry_ms` per endpoint class (`cashier_submit`, `search`, `login/bootstrap`, `manager_summary`, `manager_detail`, `manager_export`). The estimate is nginx upstream response time minus Gunicorn service duration; it includes proxy dispatch/transport/admission wait and is not a true nginx `upstream_queue_time` unless nginx is built with that upstream-queue feature.
+
+## Idle preflight
+
+`qualify_2gb.sh --preflight` restores the pinned fixture, deploys the exact candidate app tree, migrates it, grants the manager fixture actors the ERPNext Accounts roles required by the real report, then executes `scenarios/seasonal_preflight.js`. The preflight is a single idle client pass through nginx, before any load: login/boot/discovery, sale, transfer, purchase receipt plus linked invoice, search, both warm summaries, detail page 1 through a deep page, full-year export enqueue/status/download, and a negative check that the cashier actor is denied the manager detail report. Any missing or failed step increments k6 `errors` and fails closed.
 
 ## Important environment overrides
 

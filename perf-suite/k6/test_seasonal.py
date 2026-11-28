@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "seasonal"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -366,12 +367,28 @@ class SeasonalVerifierTests(unittest.TestCase):
 
 
 class SeasonalEvaluatorTests(unittest.TestCase):
+    def test_login_lifecycle_reports_attempts_and_cost(self):
+        bundle = events_bundle([
+            {"event": "auth_login_begin", "actor_user": "cashier@test.invalid"},
+            {"event": "auth_login_end", "actor_user": "cashier@test.invalid", "login_http_ms": 100, "bootstrap_ms": 300},
+            {"event": "auth_login_begin", "actor_user": "cashier@test.invalid"},
+        ])
+        report = evaluate_seasonal.login_lifecycle(bundle)
+        self.assertEqual(report["begin_count"], 2)
+        self.assertEqual(report["end_count"], 1)
+        self.assertEqual(report["failed_or_incomplete_count"], 1)
+        self.assertEqual(report["login_http_ms"]["total"], 100)
+        self.assertEqual(report["bootstrap_ms"]["total"], 300)
+        self.assertEqual(report["combined_ms"]["p95"], 400)
+        self.assertIn("per active k6 VU actor", report["session_lifecycle"])
+
     def test_detail_failure_is_independent_from_cashier_latency(self):
         events = []
         for phase in ("baseline", "margin", "recovery"):
             for voucher_type in ("sale", "transfer", "purchase_receipt", "purchase_invoice"):
-                line_count = 200 if voucher_type == "sale" else 10
-                events.append(complete_event(f"{phase}-{voucher_type}", "V-1", voucher_type, line_count, phase))
+                line_counts = (10, 50, 200) if voucher_type == "sale" else (50,)
+                for line_count in line_counts:
+                    events.append(complete_event(f"{phase}-{voucher_type}-{line_count}", "V-1", voucher_type, line_count, phase))
             events.append({
                 "event": "manager_detail_reject",
                 "phase": phase,
@@ -657,6 +674,91 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         self.assertEqual(evaluate_seasonal.canonical_json_text({"n": 1.0}), '{"n":1}')
 
 
+    def test_sale_basket_latency_classes_are_independent_and_missing_classes_fail(self):
+        def sale_events():
+            events = []
+            for phase in ("baseline", "margin", "recovery"):
+                for line_count in (10, 200):
+                    events.append(complete_event(f"{phase}-sale-{line_count}", "V", "sale", line_count, phase))
+                for index in range(20):
+                    event = complete_event(f"{phase}-sale-50-{index}", "V", "sale", 50, phase)
+                    event["duration_ms"] = 2000 if index >= 18 else 100
+                    events.append(event)
+                for voucher_type in ("transfer", "purchase_receipt", "purchase_invoice"):
+                    events.append(complete_event(f"{phase}-{voucher_type}", "V", voucher_type, 50, phase))
+            return events
+
+        gate = evaluate_seasonal.voucher_latency_gate(events_bundle(sale_events()))
+        self.assertEqual(gate.status, "FAIL", gate)
+        self.assertIn("sale/50-lines", gate.detail)
+        self.assertIn("baseline/sale/50-lines: 2000.0 ms (n=20)", gate.observed)
+
+        missing_50 = [event for event in sale_events() if not (event["type"] == "sale" and event["line_count"] == 50)]
+        missing_gate = evaluate_seasonal.voucher_latency_gate(events_bundle(missing_50))
+        self.assertEqual(missing_gate.status, "FAIL", missing_gate)
+        self.assertIn("sale/50-lines: no data (n=0)", missing_gate.observed)
+
+    def test_cashier_only_cli_verdict_uses_shared_actor_gate(self):
+        config = {
+            "run_prefix": "K6S-test-",
+            "managers_enabled": False,
+            "export_enabled": False,
+            "actors": {"cashier": {"actor": "cashier", "user": "cashier@test.invalid", "authorization": "submit"}},
+            "report_windows": self.report_windows(),
+            "phases": [],
+        }
+        mismatch = {"event": "voucher_start", "actor": "cashier", "actor_user": "wrong@test.invalid", "client_voucher_id": "x"}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            log = root / "k6.log"
+            log.write_text(
+                "noise KHITMEE_SEASONAL_EVENT " + json.dumps({"event": "config", "config": config}) + chr(10)
+                + "noise KHITMEE_SEASONAL_EVENT " + json.dumps(mismatch) + chr(10)
+            )
+            summary = root / "summary.json"
+            summary.write_text('{"metrics": {}}')
+            stats = root / "stats.csv"
+            stats.write_text('')
+            args = SimpleNamespace(
+                k6_log=str(log), k6_summary=str(summary), stats_csv=str(stats), verification=None,
+                attribution=None, cashier_only=True, run_label="actor-regression",
+            )
+
+            def passing_gate(*_args, **_kwargs):
+                return evaluate_seasonal.Gate("pass", "PASS", "ok", "required")
+
+            originals = {}
+            replacements = {
+                "discovery_gate": passing_gate,
+                "report_window_gate": passing_gate,
+                "offered_counts_gate": lambda *_a, **_k: (evaluate_seasonal.Gate("counts", "PASS", "ok", "required"), []),
+                "per_minute_mix_gate": passing_gate,
+                "approved_margin_rate_gate": passing_gate,
+                "voucher_latency_gate": passing_gate,
+                "contention_gate": passing_gate,
+                "latency_gate": lambda name, *_a, **_k: evaluate_seasonal.Gate(name, "PASS", "ok", "required"),
+                "correctness_gate": passing_gate,
+                "retry_identity_gate": passing_gate,
+                "workflow_completion_gate": passing_gate,
+                "overload_failure_gate": passing_gate,
+                "recovery_gate": passing_gate,
+                "memory_gates": lambda *_a, **_k: [],
+                "summary_gate": passing_gate,
+                "detail_gate": passing_gate,
+                "export_gate": passing_gate,
+                "comparable_manager_output_gate": passing_gate,
+            }
+            for name, replacement in replacements.items():
+                originals[name] = getattr(evaluate_seasonal, name)
+                setattr(evaluate_seasonal, name, replacement)
+            try:
+                verdict, _markdown = evaluate_seasonal.evaluate(args)
+            finally:
+                for name, original in originals.items():
+                    setattr(evaluate_seasonal, name, original)
+        self.assertEqual(verdict, "NO-GO")
+        self.assertIn("Authorized exact distinct actor users", evaluate_seasonal.CASHIER_REQUIRED_GATE_NAMES)
+
 class SeasonalPlanNodeTests(unittest.TestCase):
     def context(self):
         distribution = ["Dist Hub 1", "Dist Hub 2"]
@@ -759,6 +861,45 @@ console.log(JSON.stringify({{
         self.assertNotIn("fixture", json.dumps(public_config))
 
 
+    def test_contention_transfer_client_ids_are_unique_across_fractional_bursts(self):
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        module = (ROOT / "lib/seasonal_plan.js").read_bytes()
+        plan_uri = "data:text/javascript;base64," + base64.b64encode(module).decode("ascii")
+        script = f"""
+const planModule = await import('{plan_uri}');
+const settings = {{runId: 'offline-test', seed: 'seed'}};
+const ids = [];
+for (const sequence of [0, 1]) {{
+  const work = {{
+    segment: 'overload_step_1', mixKey: 'contention_transfer', minute: 2,
+    sequence: planModule.contentionTransferSequence(sequence),
+  }};
+  ids.push(planModule.makeClientVoucherId(settings, work));
+}}
+const saleIds = [];
+for (const sequence of [0, 1]) {{
+  for (let shop = 0; shop < 6; shop += 1) {{
+    saleIds.push(planModule.makeClientVoucherId(settings, {{
+      segment: 'overload_step_1', mixKey: 'contention_sale', minute: 2,
+      sequence: planModule.contentionSaleSequence(sequence, shop),
+    }}));
+  }}
+}}
+console.log(JSON.stringify({{ids, unique: new Set(ids).size, saleUnique: new Set(saleIds).size}}));
+"""
+        result = subprocess.run([node, "--input-type=module", "-"], input=script,
+                                text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["unique"], 2, payload)
+        self.assertEqual(payload["saleUnique"], 12, payload)
+        self.assertIn("-s0", payload["ids"][0])
+        self.assertIn("-s1", payload["ids"][1])
+
+
+
 class SeasonalPurchaseRecoveryNodeTests(unittest.TestCase):
     def test_lookup_uses_client_identity_and_validation_requires_identical_linked_document(self):
         node = shutil.which("node") or shutil.which("node.exe")
@@ -855,6 +996,118 @@ console.log(JSON.stringify({
         self.assertTrue(payload["transferServerErrorResubmits"], payload)
 
 
+
+class PayloadsNodeTests(unittest.TestCase):
+    def node(self):
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        return node
+
+    def import_payloads_script(self, manifest_path):
+        source = (ROOT / "lib/payloads.js").read_text(encoding="utf-8")
+        shim = "class SharedArray { constructor(_name, factory) { return factory(); } }"
+        source = source.replace("import { SharedArray } from 'k6/data';", shim)
+        module_uri = "data:text/javascript;base64," + base64.b64encode(source.encode()).decode("ascii")
+        return f"""
+import fs from 'node:fs';
+globalThis.__ENV = {{SEED_MANIFEST_PATH: {json.dumps(str(manifest_path))}, SITE_NAME: 'bench-loadtest.localhost'}};
+globalThis.open = (path) => fs.readFileSync(path, 'utf8');
+const payloads = await import({json.dumps(module_uri)});
+"""
+
+    def write_manifest(self, root, payload):
+        path = Path(root) / "seed_manifest.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def object_manifest(self):
+        warehouses = [
+            {"name": "Dist Hub 1", "role": "distribution"},
+            {"name": "Dist Hub 2", "role": "distribution"},
+            {"name": "Shop 1", "role": "retail"},
+            {"name": "Shop 2", "role": "retail"},
+            {"name": "Shop 3", "role": "retail"},
+            {"name": "Shop 4", "role": "retail"},
+        ]
+        items = [
+            {"item_code": f"ITEM-{index:03d}", "item_name": f"June Item {index}", "barcode": f"890{index:07d}", "uom": "Nos", "rate": 10 + index}
+            for index in range(1, 9)
+        ]
+        in_stock = {}
+        for warehouse in warehouses:
+            count = 8 if warehouse["role"] == "distribution" else 5
+            in_stock[warehouse["name"]] = [
+                {"item_code": item["item_code"], "qty": 500, "uom": "Nos"}
+                for item in items[:count]
+            ]
+        return {
+            "site_name": "bench-loadtest.localhost",
+            "items": items,
+            "warehouses": warehouses,
+            "in_stock_items": in_stock,
+            "price_lists": ["Standard Selling"],
+            "customers": ["Walk-in Customer"],
+            "uoms": ["Nos"],
+            "company": "Khitmee",
+        }
+
+    def test_june_iteration_builders_accept_compact_manifest_context(self):
+        node = self.node()
+        with tempfile.TemporaryDirectory() as td:
+            manifest = self.write_manifest(td, self.object_manifest())
+            script = self.import_payloads_script(manifest) + r"""
+const sustainedSale = payloads.buildKhitmeeSalePayload({warehouse: 'Shop 1', contention: false, lineCount: 3});
+const burstTransfer = payloads.buildKhitmeeTransferPayload({sourceWarehouse: 'Dist Hub 1', contention: true, lineCount: 3, transferMode: 'direct'});
+const browseItem = payloads.pickItem({contention: false});
+const exactItem = payloads.pickItem({contention: true});
+console.log(JSON.stringify({
+  saleLines: sustainedSale.items,
+  transferLines: burstTransfer.items,
+  transferMode: burstTransfer.transfer_mode,
+  browseTerm: payloads.searchTermForItem(browseItem, false),
+  exactTerm: payloads.searchTermForItem(exactItem, true),
+  itemObject: browseItem,
+  contextItemsType: typeof payloads.manifestContext.items[0],
+  warehouseCount: payloads.manifestContext.warehouses.length,
+}));
+"""
+            result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["contextItemsType"], "string")
+        self.assertEqual(len(payload["saleLines"]), 3)
+        self.assertEqual(len(payload["transferLines"]), 3)
+        self.assertEqual(payload["transferMode"], "direct")
+        self.assertTrue(all(line["item_code"].startswith("ITEM-") for line in payload["saleLines"]))
+        self.assertTrue(all("rate" in line for line in payload["saleLines"]))
+        self.assertTrue(all("rate" not in line for line in payload["transferLines"]))
+        self.assertIsInstance(payload["itemObject"], dict)
+        self.assertTrue(payload["itemObject"]["item_code"].startswith("ITEM-"))
+        self.assertTrue(payload["browseTerm"])
+        self.assertTrue(payload["exactTerm"])
+        self.assertEqual(payload["warehouseCount"], 6)
+
+    def test_array_only_manifest_initializes_after_default_warehouses(self):
+        node = self.node()
+        with tempfile.TemporaryDirectory() as td:
+            manifest = self.write_manifest(td, ["ITEM-001", "ITEM-002"])
+            script = self.import_payloads_script(manifest) + r"""
+console.log(JSON.stringify({
+  loaded: true,
+  warehouses: payloads.manifestContext.warehouses.map((warehouse) => warehouse.name),
+  compactItemCount: payloads.manifestContext.items.length,
+}));
+"""
+            result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["loaded"])
+        self.assertEqual(payload["warehouses"][:2], ["Dist Hub 1", "Dist Hub 2"])
+        self.assertIn("Shop 4", payload["warehouses"])
+        self.assertEqual(payload["compactItemCount"], 2)
+
+
 class SeasonalStaticContractTests(unittest.TestCase):
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
@@ -913,10 +1166,49 @@ class SeasonalStaticContractTests(unittest.TestCase):
         self.assertIn("khitmee_ops.profit_summary.export_service.enqueue_profit_csv_export", combined)
         self.assertIn("khitmee_ops.profit_summary.export_service.download_profit_csv_export", combined)
 
+    def test_contention_transfer_preserves_burst_sequence_in_runtime(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        self.assertIn("sequence: contentionTransferSequence(work.sequence)", runtime)
+        self.assertNotIn("sequence: 0,\n    contention: true,\n  });\n  const builtTransfer", runtime)
+
+    def test_detail_pagination_uses_candidate_invoice_page_filter(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        start = runtime.index("export function performDetailReport")
+        end = runtime.index("function extractExportLogName", start)
+        detail = runtime[start:end]
+        self.assertIn("invoice_page: page + 1", detail)
+        self.assertNotIn("start: page * 50", detail)
+        self.assertNotIn("page_length: 50", detail)
+
+    def test_request_observability_headers_and_endpoint_classes_are_emitted(self):
+        auth = (ROOT / "lib/auth.js").read_text(encoding="utf-8")
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        self.assertIn("X-K6-Request-Id", auth)
+        self.assertIn("X-K6-Endpoint-Class", auth)
+        self.assertIn("observabilityHeaders(options)", auth)
+        self.assertIn("endpointClass: 'manager_detail'", runtime)
+        self.assertIn("endpointClass = 'manager_summary'", runtime)
+        self.assertIn("verifyUnauthorizedDetailDenied", runtime)
+
+    def test_preflight_covers_every_idle_request_type_and_negative_authorization(self):
+        source = (ROOT / "scenarios/seasonal_preflight.js").read_text(encoding="utf-8")
+        for token in (
+            "sale", "transfer", "purchase_receipt", "purchase_invoice", "search",
+            "warm_summary_warehouse", "warm_summary_monthly", "detail_page_1_and_deep_page",
+            "export_enqueue_status_download", "unauthorized_detail_denied",
+        ):
+            self.assertIn(token, source)
+        self.assertIn("detailPageCount: Math.max(10", source)
+        self.assertIn("errors: ['count==0']", source)
+        self.assertIn("preflight_result", source)
+
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn("perf_root/seasonal/verify_run.py".replace("perf_root", "$PERF_ROOT"), source)
         self.assertIn("evaluate_seasonal.py", source)
+        self.assertIn("evaluate_preflight.py", source)
+        self.assertIn("attribution.py", source)
+        self.assertIn("--attribution", source)
         self.assertIn("--k6-log \"$K6_LOG\"", source)
         self.assertIn("SEASONAL_ENABLE_MANAGERS", source)
         verifier_start = source.index('"$PYTHON_BIN" "$PERF_ROOT/seasonal/verify_run.py"')
