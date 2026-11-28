@@ -54,12 +54,16 @@ The committed `benchmark_sustained.py` harness drove 1,000 timed iterations in e
 
 Slint MCP `click_element` has an approximately 51 ms fixed wait even when clicking non-interactive text. The invoice report therefore separates raw click latency (51.588 ms p95) from latency above the same-run control-click floor (0.545 ms p95). CPU time is measured independently; invoice work averaged 1.492 ms per interaction including clicks and row-count verification.
 
+After exact-barcode compaction, a 1,000-search-edit MCP run passed the same gates: end RSS 56,414,208 B, checkpoints flat after warm-up within 4,096 B, p95 7.798 ms, mean 3.488 ms, CPU 3.240 ms/interaction. Exact-entry compaction halves the entry struct from the prior padded 24-byte layout to 12 bytes; RSS comparisons are noisier than that structural saving because renderer/driver allocations vary by several MiB across process launches.
+
+Release-profile size optimization was tested rather than assumed. Across five quiet alternating startup probes at 100,000 rows, `opt-level = "s"` lowered median idle RSS from 52.18 MB (`opt-level = 3`) to 48.98 MB but increased 300-edit search p95 from 7.51 ms to 11.77 ms and CPU from 3.00 ms to 5.20 ms per interaction. `opt-level = 2` was performance-neutral but did not meaningfully reduce RSS. The release profile therefore remains `opt-level = 3`.
+
 ## Behavior-preservation evidence
 
 - `CatalogIndex::search` is property-tested against a naive reference oracle across generated ASCII/Burmese terms and limits.
 - Interned stock-UOM/item-group/brand values are tested for independent roundtrip and search behavior with mixed dimensions.
 - Streamed encrypted-store indexing is equality-tested against materializing rows across a decode-chunk boundary.
-- Exact item-code, exact-barcode precedence, prefix-before-substring ordering, deleted-row filtering, Burmese search, quantity editing, invoice filtering, invoice paging order, migration strictness, and sales-invoice sort-order unit tests pass.
+- Exact item-code, exact-barcode precedence, exact-token boundary, long-barcode-text indexing, prefix-before-substring ordering, deleted-row filtering, Burmese search, quantity editing, invoice filtering, invoice paging order, migration strictness, and sales-invoice sort-order unit tests pass.
 - Native invoice-list capture comparison against the PR #18 binary preserved the same visible rows, labels, values, positions, and sizes. Intentional semantic deltas are the added virtualized `List` container, the newly populated `20 of 10000` fixture count text, and omission of the one tail row that PR #18 rendered underneath the fixed footer (15 accessibility elements belonging to that hidden row). Initial row order, scrolling row replacement, and opening an invoice detail were smoke-tested through Slint MCP.
 - Independent fixture UI validation of the pre-interning native runtime passed catalog search ordering/selection/add-line, exact barcode, Burmese search after installing a Myanmar font, invoice Load More, filtering, virtualized scrolling, and detail-shell navigation. That validation does not by itself cover the later interned-index revision; rerun it before treating the compact revision as UI-validated.
 - Screenshots remained visually equivalent in layout and content. Renderer rasterization is not pixel-identical (5.19% of pixels differed; mean channel absolute difference 1.52/255), so exact pixel parity is not claimed.
