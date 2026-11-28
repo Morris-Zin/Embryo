@@ -113,6 +113,33 @@
           "seasonal_harness #9: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.226,
           "verify_tooling #10: python -B -m unittest discover -s tools -p test_*.py": 9.95
         }
+      },
+      {
+        "at": "2026-11-28T16:31:55Z",
+        "head_sha": "0d56b7816d5ff0e2ce6026bc89d6381531eb5443",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.473,
+          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.127,
+          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.074,
+          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.074,
+          "cashier_correctness #5: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.106,
+          "docs #6: python -B tools/autoloop/cli.py lint": 1.231,
+          "fast_check.py": 4.308,
+          "fast_check.py/autoloop_lint": 3.654,
+          "fast_check.py/bash": 0.247,
+          "fast_check.py/compose": 0.176,
+          "fast_check.py/guardrails": 3.06,
+          "fast_check.py/javascript": 0.061,
+          "fast_check.py/knip": 1.233,
+          "fast_check.py/python": 4.222,
+          "fast_check.py/ruff_and_dev_deps": 0.078,
+          "fast_check.py/zizmor_workflows": 0.28,
+          "report_paths #7: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.494,
+          "runtime_profile #8: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.096,
+          "seasonal_harness #9: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.301,
+          "verify_tooling #10: python -B -m unittest discover -s tools -p test_*.py": 11.323
+        }
       }
     ],
     "shard:autoloop_meta": [
@@ -2478,12 +2505,23 @@
       "at": "2026-11-28T16:31:25Z",
       "event": "resolve-finding",
       "finding_id": "export-admission-blocked-by-abandoned-job"
+    },
+    {
+      "at": "2026-11-28T16:31:55Z",
+      "code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T16:32:02Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
     }
   ],
   "issue_number": null,
   "last_integrated_branch": "feat/backend-2gb-proof",
   "last_integrated_detached": false,
-  "last_integrated_sha": "ea0534b3d3fc7c0399f26f771724475b772026c6",
+  "last_integrated_sha": "0d56b7816d5ff0e2ce6026bc89d6381531eb5443",
   "last_integrated_worktree": "/root/gate/Embryo",
   "limits": {
     "max_replan_count": 1,
@@ -2542,7 +2580,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2587,7 +2625,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "e012503b72caa6cfba8d1e1cada4e32674d45c18",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2620,7 +2658,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2655,7 +2693,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
-      "passed_code_tree_sha256": "f5c1afee002e98f050d7538fda8c93dff04b54aa0601f1e54671defe18587609",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2665,20 +2703,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -2702,7 +2728,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "e3557656b08257fe2a2d705a2d4549e1f0c23bdf",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2738,7 +2764,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
-      "passed_code_tree_sha256": "34e5bff13c7fb661c26db22e9cb7a7a22a76b8e06ad6daeab5ad8be5b846d551",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2748,20 +2774,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -2783,7 +2797,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2805,7 +2819,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "in_progress",
+  "status": "awaiting_cloud_review",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:31:25Z"
+  "updated_at": "2026-11-28T16:32:02Z"
 }
