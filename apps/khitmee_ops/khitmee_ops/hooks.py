@@ -12,6 +12,10 @@ app_version = "0.1.0"
 
 _profit_stock_voucher_hook = "khitmee_ops.profit_summary.store.on_stock_voucher_change"
 
+extend_doctype_class = {
+	"Sales Invoice": ["khitmee_ops.api.voucher_fastpath.CounterSalesInvoiceStatusMixin"],
+}
+
 doc_events = {
 	"Sales Invoice": {
 		"validate": "khitmee_ops.api.vouchers.sync_counter_autopay_payment",

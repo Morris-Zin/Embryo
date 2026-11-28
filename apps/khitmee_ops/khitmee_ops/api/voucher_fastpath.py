@@ -170,6 +170,7 @@ class FutureSleFastpathContext:
 @dataclass
 class VoucherReadCacheContext:
 	active: bool
+	document: object = None
 	reads: dict = field(default_factory=dict)
 	locked_bin_names: dict = field(default_factory=dict)
 	schema_fields: dict = field(default_factory=dict)
@@ -181,6 +182,41 @@ class VoucherReadCacheContext:
 	sre_reserved_qty: dict = field(default_factory=dict)
 	hits: int = 0
 	misses: int = 0
+
+
+class CounterSalesInvoiceStatusMixin:
+	"""Skip native child quantity updates with no source links on counter sales."""
+
+	def _update_children(self, args, update_modified):
+		update_children = super()._update_children
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		join_field = args.get("join_field")
+		if (
+			ctx is not None
+			and ctx.document is self
+			and self.docstatus == 1
+			and not self.is_return
+			and args.get("source_dt") == "Sales Invoice Item"
+			and args.get("second_source_dt") == "Delivery Note Item"
+			and join_field in ("so_detail", "pick_list_item")
+			and args.get("second_join_field") == join_field
+		):
+			from erpnext.controllers.status_updater import StatusUpdater
+
+			# The stock method queries WHERE link = NULL, then skips its
+			# aggregate and write when the source link is absent. Keep the
+			# parent percentage and blanket-order work in native update_qty.
+			if (
+				getattr(update_children, "__func__", None) is StatusUpdater._update_children
+				and getattr(self._update_modified, "__func__", None) is StatusUpdater._update_modified
+				and all(
+					row.get(join_field) is None
+					for row in self.get_all_children()
+					if row.doctype == args["source_dt"]
+				)
+			):
+				return
+		return update_children(args, update_modified)
 
 
 def _field(obj, name, default=None):
@@ -819,6 +855,7 @@ def voucher_transaction_read_cache(
 
 	ctx = VoucherReadCacheContext(
 		active=True,
+		document=doc,
 		schema_fields=(
 			_prepare_schema_filter_cache()
 			if doctype == "Sales Invoice" and fresh_snapshot and callable(getattr(frappe, "get_meta", None))
