@@ -50,12 +50,12 @@ def authorize_profit_request(filters, user, *, require_export=False):
 	return implementation(filters, user, require_export=require_export)
 
 
-def run_detail_gross_profit(filters, *, invoice_ids=None, enforce_budget=False):
+def run_detail_gross_profit(filters, *, invoice_ids=None, enforce_budget=False, **options):
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 		run_detail_gross_profit as implementation,
 	)
 
-	return implementation(filters, invoice_ids=invoice_ids, enforce_budget=enforce_budget)
+	return implementation(filters, invoice_ids=invoice_ids, enforce_budget=enforce_budget, **options)
 
 
 def _doc_get(doc, fieldname, default=None):
@@ -311,7 +311,7 @@ def _export_scope_paths(export_uuid):
 
 def _export_scope_binding(doc, report_digest):
 	return {
-		"version": 1,
+		"version": 2,
 		"export_log_name": _doc_get(doc, "name"),
 		"export_uuid": _doc_get(doc, "export_uuid"),
 		"requested_by": _doc_get(doc, "requested_by"),
@@ -351,8 +351,22 @@ def _open_private_write(path, flags):
 	return os.open(path, flags, 0o600)
 
 
+class _ExportInvoiceScope:
+	def __init__(self, match_conditions):
+		self.match_conditions = match_conditions
+		self.invoice_names = set()
+
+	def include(self, names):
+		for name in names:
+			self.invoice_names.add(name)
+			if len(self.invoice_names) > RESTRICTED_EXPORT_MAX_INVOICES:
+				raise frappe.PermissionError(
+					f"Restricted profit exports are limited to {RESTRICTED_EXPORT_MAX_INVOICES} contributing invoices"
+				)
+
+
 def exported_invoice_scope_is_current(doc, filters, user):
-	"""Recheck only captured inputs. Artifacts predating the manifest use exact live digest parity."""
+	"""Require a signed scope that attests to the invoices and returns read during export."""
 	report_digest = _doc_get(doc, "exported_invoice_sha256")
 	if user != _doc_get(doc, "requested_by") or not report_digest:
 		return False
@@ -361,8 +375,7 @@ def exported_invoice_scope_is_current(doc, filters, user):
 		with open(final_path, "rb") as handle:
 			encoded = handle.read(MAX_EXPORT_SCOPE_BYTES + 1)
 	except FileNotFoundError:
-		live_digest, _, truncated = compute_exported_invoice_digest(filters, user)
-		return not truncated and hmac.compare_digest(live_digest, report_digest)
+		return False
 	if len(encoded) > MAX_EXPORT_SCOPE_BYTES:
 		return False
 	try:
@@ -661,7 +674,7 @@ def _row_values(row, fieldnames):
 MAX_EXPORT_INPUT_ROWS = 50_000
 
 
-def _write_invoice_csv(filters, path, invoice_ids, captured_invoice_ids):
+def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 		_copy_report_filters,
 		invoice_total_row,
@@ -677,7 +690,8 @@ def _write_invoice_csv(filters, path, invoice_ids, captured_invoice_ids):
 	with open(path, "w", newline="", encoding="utf-8") as csv_file:
 		writer = csv.writer(csv_file)
 		fieldnames = None
-		for columns, data in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids):
+		options = {} if export_scope is None else {"export_scope": export_scope}
+		for columns, data in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids, **options):
 			if fieldnames is None:
 				writer.writerow(_column_headers(columns))
 				fieldnames = _column_fieldnames(columns)
@@ -685,8 +699,6 @@ def _write_invoice_csv(filters, path, invoice_ids, captured_invoice_ids):
 				if row.get("indent") == 1:
 					total_base_amount += row.get("selling_amount") or 0.0
 					total_buying_amount += row.get("buying_amount") or 0.0
-				if captured_invoice_ids is not None and row.get("indent") == 0:
-					captured_invoice_ids.add(row["sales_invoice"])
 				writer.writerow(_row_values(row, fieldnames))
 				row_count += 1
 			csv_file.flush()
@@ -701,10 +713,10 @@ def _write_invoice_csv(filters, path, invoice_ids, captured_invoice_ids):
 	return row_count + 1
 
 
-def write_profit_csv(filters, path, *, invoice_ids=None, captured_invoice_ids=None):
+def write_profit_csv(filters, path, *, invoice_ids=None, export_scope=None):
 	group_by = (filters or {}).get("group_by") or "Invoice"
 	if group_by == "Invoice":
-		return _write_invoice_csv(filters or {}, path, invoice_ids, captured_invoice_ids)
+		return _write_invoice_csv(filters or {}, path, invoice_ids, export_scope)
 
 	if invoice_ids is None:
 		from khitmee_ops.profit_summary.budget import preflight_detail_input_rows
@@ -714,7 +726,8 @@ def write_profit_csv(filters, path, *, invoice_ids=None, captured_invoice_ids=No
 			raise frappe.ValidationError(
 				f"Profit export input cap exceeded ({MAX_EXPORT_INPUT_ROWS} invoice lines); narrow the date range"
 			)
-	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False)
+	options = {} if export_scope is None else {"export_scope": export_scope}
+	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False, **options)
 	if max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:
 		raise frappe.ValidationError(f"Profit export group cap exceeded ({MAX_EXPORT_GROUPS} groups)")
 
@@ -768,6 +781,7 @@ def run_profit_csv_export(export_log_name):
 
 		invoice_ids = None
 		exported_invoice_sha256 = None
+		export_scope = None
 		if has_restricted_match_conditions(filters, requested_by):
 			exported_invoice_sha256, invoice_ids, truncated = compute_exported_invoice_digest(
 				filters, requested_by
@@ -776,20 +790,18 @@ def run_profit_csv_export(export_log_name):
 				raise frappe.PermissionError(
 					f"Restricted profit exports are limited to {RESTRICTED_EXPORT_MAX_INVOICES} invoices"
 				)
+			export_scope = _ExportInvoiceScope(build_sales_invoice_match_conditions())
 
 		export_uuid = _doc_get(doc, "export_uuid")
 		temporary_path, final_path = get_export_paths(export_uuid)
 		temporary_paths.append(temporary_path)
-		invoice_export = (filters.get("group_by") or "Invoice") == "Invoice"
-		captured_invoice_ids = set() if invoice_ids is not None and invoice_export else None
 		row_count = write_profit_csv(
-			filters, temporary_path, invoice_ids=invoice_ids, captured_invoice_ids=captured_invoice_ids
+			filters, temporary_path, invoice_ids=invoice_ids, export_scope=export_scope
 		)
-		if invoice_ids is not None:
+		if export_scope is not None:
 			scope_tmp, scope_path = _export_scope_paths(export_uuid)
 			temporary_paths.append(scope_tmp)
-			scope_names = captured_invoice_ids if invoice_export else invoice_ids
-			_write_export_scope(scope_tmp, doc, exported_invoice_sha256, scope_names)
+			_write_export_scope(scope_tmp, doc, exported_invoice_sha256, export_scope.invoice_names)
 			os.replace(scope_tmp, scope_path)
 			renamed_paths.append(scope_path)
 		os.replace(temporary_path, final_path)

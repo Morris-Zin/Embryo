@@ -1270,6 +1270,7 @@ def run_detail_gross_profit(
 	enforce_budget: bool = False,
 	invoice_phase: int | None = None,
 	invoice_row_limit: int | None = None,
+	export_scope=None,
 ) -> tuple[list[dict], list]:
 	"""Run the low-level detail report directly; this never delegates to ``query_profit``."""
 	if standard_gross_profit is None:
@@ -1284,12 +1285,14 @@ def run_detail_gross_profit(
 			"Company", report_filters.company, "default_currency"
 		)
 
-	if invoice_phase is None:
-		gross_profit_data = FastGrossProfitGenerator(report_filters, invoice_ids=scoped_invoice_ids)
-	else:
-		gross_profit_data = FastGrossProfitGenerator(
-			report_filters, invoice_ids=scoped_invoice_ids, invoice_phase=invoice_phase, invoice_row_limit=invoice_row_limit
-		)
+	options = {"invoice_ids": scoped_invoice_ids}
+	if invoice_phase is not None:
+		options.update(invoice_phase=invoice_phase, invoice_row_limit=invoice_row_limit)
+	if export_scope is not None:
+		options["export_scope"] = export_scope
+	gross_profit_data = FastGrossProfitGenerator(report_filters, **options)
+	if export_scope is not None:
+		export_scope.include(row.parent for row in gross_profit_data.si_list if row.get("parent"))
 	return _render_detail_result(gross_profit_data, report_filters)
 
 
@@ -1527,7 +1530,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	accesses are replaced.
 	"""
 
-	def __init__(self, filters=None, *, invoice_ids=None, invoice_phase=None, invoice_row_limit=None):
+	def __init__(self, filters=None, *, invoice_ids=None, invoice_phase=None, invoice_row_limit=None, export_scope=None):
 		self._matched_sles = {}
 		self._sle_predecessors = {}
 		self._sle_pair_exists = {}
@@ -1543,6 +1546,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self._scoped_invoice_ids = _normalise_invoice_ids(invoice_ids)
 		self._invoice_phase = invoice_phase
 		self._invoice_row_limit = invoice_row_limit
+		self._export_scope = export_scope
 		self._valuation_source_by_row_id = {}
 		super().__init__(filters)
 
@@ -1882,6 +1886,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		if self.filters.company:
 			query = query.where(si.company == self.filters.company)
+		if (scope := getattr(self, "_export_scope", None)) is not None and scope.match_conditions:
+			from pypika.terms import LiteralValue
+
+			# Use the requester's Sales Invoice predicate in its own table scope.
+			# Match permissions independently of the report's selected original IDs.
+			visible = frappe.qb.from_(si).select(si.name).where(LiteralValue(f"({scope.match_conditions})"))
+			query = query.where(si.name.isin(visible))
 		return query
 
 	def get_returned_invoice_items(self):
@@ -1903,6 +1914,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		self.returned_invoices = frappe._dict()
 		self.legacy_returned_invoices = frappe._dict()
+		if (scope := getattr(self, "_export_scope", None)) is not None:
+			scope.include(inv.name for inv in returned_invoices)
 		for inv in returned_invoices:
 			invoice_returns = (
 				self.returned_invoices if inv.sales_invoice_item else self.legacy_returned_invoices

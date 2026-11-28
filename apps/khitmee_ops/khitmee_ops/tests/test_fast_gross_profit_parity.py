@@ -1080,7 +1080,7 @@ class FakeQBField:
 		return FakeCriterion("between", (self.name, start, end))
 
 	def isin(self, values):
-		return FakeCriterion("isin", (self.name, list(values)))
+		return FakeCriterion("isin", (self.name, values if isinstance(values, FakeQBQuery) else list(values)))
 
 	def notin(self, values):
 		return FakeCriterion("notin", (self.name, list(values)))
@@ -1134,6 +1134,49 @@ class FakeQBQuery:
 
 
 class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
+	def test_export_return_lookup_checks_return_visibility_separately_from_original_ids(self):
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript("""
+			CREATE TABLE `tabSales Invoice` (name, customer);
+			INSERT INTO `tabSales Invoice` VALUES ('SI-1', 'visible'), ('RET-SHOWN', 'visible'), ('RET-HIDDEN', 'hidden');
+			CREATE TABLE returned (name, return_against, item_code, sales_invoice_item, qty, base_amount);
+			INSERT INTO returned VALUES
+				('RET-SHOWN', 'SI-1', 'ITEM', 'LINE-1', -1, -25),
+				('RET-HIDDEN', 'SI-1', 'ITEM', 'LINE-1', -2, -50);
+		""")
+		predicate = "`tabSales Invoice`.`customer` = 'visible'"
+		scope = export_service._ExportInvoiceScope(predicate)
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.si_list = [AttrDict(parent="SI-1")]
+		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31", sales_invoice="SI-1")
+		generator._scoped_invoice_ids = ("SI-1",)
+		generator._export_scope = scope
+
+		def run_returns(query):
+			self.assertEqual(query.wheres[1].value, ("return_against", ["SI-1"]))
+			name_field, allowed_invoices = query.wheres[-1].value
+			self.assertEqual(name_field, "name")
+			self.assertEqual(allowed_invoices.table.table_name, "Sales Invoice")
+			self.assertEqual(allowed_invoices.wheres, [f"({predicate})"])
+			cursor = db.execute(
+				f"""SELECT name, return_against, item_code, sales_invoice_item, qty, base_amount
+				FROM returned WHERE return_against = ?
+				AND name IN (SELECT name FROM `tabSales Invoice` WHERE {allowed_invoices.wheres[0]})""",
+				("SI-1",),
+			)
+			fields = [column[0] for column in cursor.description]
+			return [AttrDict(zip(fields, row, strict=True)) for row in cursor]
+
+		generator._run_invoice_query = run_returns
+		frappe_stub = types.SimpleNamespace(_dict=AttrDict, qb=types.SimpleNamespace(DocType=FakeQBTable, from_=FakeQBQuery))
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.dict(
+			sys.modules, {"pypika.terms": types.SimpleNamespace(LiteralValue=lambda sql: sql)}
+		):
+			generator.get_returned_invoice_items()
+		self.assertEqual(scope.invoice_names, {"RET-SHOWN"})
+		self.assertEqual([row.base_amount for row in generator.returned_invoices["SI-1"]["LINE-1"]], [-25])
+
 	def test_empty_invoice_scope_skips_returned_invoice_query(self):
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.si_list = []

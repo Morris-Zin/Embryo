@@ -573,6 +573,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			self.assertEqual(self.fake.db.commit_count, 1)
 			self.assertIn("START TRANSACTION WITH CONSISTENT SNAPSHOT", [call[0] for call in self.fake.db.sql_calls])
 			self.assertFalse(os.path.exists(final_path))
+			kwargs["export_scope"].include(["SI-1"])
 			yield columns, rows
 
 		with patch.object(invoice_batches, "iter_invoice_detail_batches", side_effect=batch) as runner, patch.object(
@@ -602,6 +603,60 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertIn("START TRANSACTION WITH CONSISTENT SNAPSHOT", plain_sql)
 		self.fake.set_user("other")
 		self.assertEqual(export_service.download_profit_csv_export(doc["name"]).status_code, 403)
+
+	def test_worker_manifest_requires_visibility_of_absorbed_return_without_its_own_header(self):
+		class Row(dict):
+			__getattr__ = dict.get
+
+		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None)
+		filters = {**json.loads(doc["filters_json"]), "sales_invoice": "SI-1", "currency": "MMK"}
+		doc["filters_json"] = json.dumps(filters)
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		self.state.match_conditions = "`tabSales Invoice`.`customer` = 'allowed'"
+		self.state.invoice_names = ["SI-1", "RET-1"]
+		self.restricted.return_value = True
+
+		def build(generator, filters, *, invoice_ids, invoice_phase, invoice_row_limit, export_scope):
+			self.assertEqual(invoice_ids, ("SI-1",))
+			self.assertEqual(export_scope.match_conditions, self.state.match_conditions)
+			generator.si_list = [Row(parent="SI-1")]
+			generator._export_scope = export_scope
+			generator._build_returned_invoice_query = lambda parents: types.SimpleNamespace(limit=lambda size: parents)
+			generator._run_invoice_query = lambda query: [Row(
+				name="RET-1", return_against="SI-1", sales_invoice_item="LINE-1", item_code="ITEM", base_amount=-25,
+			)]
+			generator._invoice_row_limit = invoice_row_limit
+			generator.get_returned_invoice_items()
+
+		def render(generator, report_filters):
+			sale = 100 + generator.returned_invoices["SI-1"]["LINE-1"][0].base_amount
+			columns = [{"fieldname": "sales_invoice"}, {"fieldname": "selling_amount"}]
+			return columns, [
+				{"sales_invoice": "SI-1", "indent": 0, "selling_amount": sale},
+				{"sales_invoice": "ITEM", "indent": 1, "selling_amount": sale},
+				{"sales_invoice": "Total", "selling_amount": sale},
+			]
+
+		with patch.object(self.fake, "_dict", Row, create=True), patch.object(fast_gross_profit, "frappe", self.fake), patch.object(
+			fast_gross_profit, "standard_gross_profit", object()
+		), patch.object(fast_gross_profit.FastGrossProfitGenerator, "__init__", build), patch.object(
+			fast_gross_profit, "_render_detail_result", side_effect=render
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			invoice_batches, "_invoice_keys", return_value=[(1, "SI-1", 0)]
+		), patch.object(fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total", "selling_amount": 75}):
+			export_service.run_profit_csv_export(doc["name"])
+
+		with Path(self.artifact_path()).open(newline="", encoding="utf-8") as artifact:
+			self.assertEqual(list(csv.reader(artifact)), [
+				["sales_invoice", "selling_amount"], ["SI-1", "75"], ["ITEM", "75"], ["Total", "75"],
+			])
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		self.assertEqual(json.loads(Path(scope_path).read_bytes())["scope"]["invoice_names"], ["RET-1", "SI-1"])
+		self.state.invoice_names.append("SI-NEW")
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.state.invoice_names.remove("RET-1")
+		self.assertEqual(export_service.compute_permission_fingerprint(filters, "owner"), doc["permission_fingerprint"])
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
 
 	def test_worker_rechecks_requester_scope_before_writing(self):
 		doc = self.make_log(status="Queued", artifact_published=0)
@@ -796,14 +851,19 @@ class TestDownloadPrecedence(ExportServiceTestCase):
 			lookup.assert_not_called()
 		self.digest.assert_not_called()
 
-	def test_legacy_export_without_manifest_uses_live_digest_and_fails_closed(self):
+	def test_restricted_legacy_export_without_complete_manifest_fails_closed(self):
 		doc = self.make_log()
 		filters = json.loads(doc["filters_json"])
-		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
-		self.digest.return_value = ("digest", ["SI-1"], True)
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
 		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
-		self.digest.return_value = ("different-digest", ["SI-1", "SI-2"], False)
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		export_service._write_export_scope(scope_path, doc, "digest", {"SI-1"})
+		manifest = json.loads(Path(scope_path).read_bytes())
+		manifest["scope"]["version"] = 1
+		manifest["signature"] = export_service._sign_export_scope(manifest["scope"])
+		Path(scope_path).write_text(json.dumps(manifest), encoding="utf-8")
 		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.digest.assert_not_called()
 
 	def test_missing_log_returns_404(self):
 		response = self.download("MISSING")
