@@ -105,8 +105,13 @@ class TestHookWiring(unittest.TestCase):
 			"khitmee_ops.api.vouchers.sync_counter_autopay_payment",
 		)
 		item_events = hooks.doc_events["Item"]
-		for event in ("after_insert", "on_update", "on_trash", "after_rename"):
+		for event in ("after_insert", "on_update"):
 			self.assertEqual(item_events[event], "khitmee_ops.api.search.invalidate_item_search_cache")
+		for event in ("on_trash", "after_rename"):
+			self.assertEqual(item_events[event], [
+				"khitmee_ops.api.search.invalidate_item_search_cache",
+				"khitmee_ops.api.catalog.record_item_catalog_tombstone",
+			])
 		self.assertEqual(hooks.after_request, ["khitmee_ops.api.memory.maybe_trim_heap"])
 
 
