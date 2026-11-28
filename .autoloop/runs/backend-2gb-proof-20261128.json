@@ -847,6 +847,15 @@
       "status": "fixed_pending_review",
       "summary": "perf-suite/seasonal/attribution.py:291 computes collection success from independent record counts; unreadable nginx log or disjoint request IDs report success with zero joined requests."
     },
+    "base-startup-removes-candidate-from-bench-app-list": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "base-startup-removes-candidate-from-bench-app-list",
+      "opened_at": "2026-11-28T17:08:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/qualify_2gb.sh:269 base startup runs the configurator without the khitmee_ops mount, so ls -1 apps > sites/apps.txt drops khitmee_ops; candidate deploy recreates services with --no-deps and never reruns the configurator."
+    },
     "bench-results-typed-gated": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
       "finding_id": "bench-results-typed-gated",
@@ -895,6 +904,15 @@
       "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329).",
       "verified_at": "2026-11-28T16:38:06Z"
     },
+    "different-daemon-can-share-qualification-guest": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "different-daemon-can-share-qualification-guest",
+      "opened_at": "2026-11-28T17:08:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/load_generator_attestation.py:90 a rootless/second Docker daemon on the guest has a distinct ID and passes the off-guest check while sharing guest CPU/RAM."
+    },
     "export-admission-blocked-by-abandoned-job": {
       "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EqL4",
       "finding_id": "export-admission-blocked-by-abandoned-job",
@@ -930,6 +948,15 @@
       "stage": "deep",
       "status": "fixed_pending_review",
       "summary": "perf-suite/k6/evaluate_seasonal.py:1289 renders collection failure only as text; run_k6.sh downgrades the collector's nonzero exit to a warning and qualification can still emit GO without joined application evidence."
+    },
+    "failed-database-attribution-reported-as-zero-waits": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "failed-database-attribution-reported-as-zero-waits",
+      "opened_at": "2026-11-28T17:08:03Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/attribution.py:310 collection success ignores MariaDB lock snapshot failures; empty snapshots report zero waits and the run can qualify."
     },
     "fastpath-must-keep-upstream-validation": {
       "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
@@ -1075,6 +1102,16 @@
       "summary": "Windows and WSL workers could hold independent leases for the same resource.",
       "verified_at": "2026-11-28T16:38:06Z"
     },
+    "manager-gates-ignore-rejected-requests": {
+      "finding_id": "manager-gates-ignore-rejected-requests",
+      "opened_at": "2026-11-28T17:08:02Z",
+      "reviewer": "chatgpt-codex-connector@78fef76",
+      "severity": "P2",
+      "source": "review",
+      "stage": "cloud",
+      "status": "open",
+      "summary": "perf-suite/k6/evaluate_seasonal.py:659 detail and summary gates judge only successful-request latency; 1 fast success + 100 manager_detail_reject events per phase PASS, manager_summary_reject is ignored and the errors counter has no threshold, so widespread manager failures can still GO."
+    },
     "manual-container-restart-escapes-window-check": {
       "finding_id": "manual-container-restart-escapes-window-check",
       "fix_summary": "6886ad8: resource_proof records State.StartedAt and State.Pid; decision compares them per ADR service; changed or missing is NO-GO.",
@@ -1098,6 +1135,15 @@
       "status": "closed_needs_safeguard",
       "summary": "app_tree.py:58 --materialize-dir recursively deletes an existing directory before archiving; a mistaken path erases the checkout or unrelated files.",
       "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "migration-marker-verifies-its-own-input": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "migration-marker-verifies-its-own-input",
+      "opened_at": "2026-11-28T17:08:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/deploy_candidate.py:188 marker inserts the expected hash after migration and reads back the same value; a changed bind mount between copy and bench migrate still yields tree_hash_verified=true."
     },
     "no-chmod-on-operator-paths": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
@@ -1147,6 +1193,15 @@
       "summary": "perf_parity --require-db stops when Fast Gross Profit returns a 3-field pending/gated response (missing summary days): verifier unpacks 2 fields and aborts before invoking the stock oracle for that case; must classify pending explicitly and fail closed with a clear reason",
       "verified_at": "2026-11-28T16:38:06Z"
     },
+    "partial-request-logs-can-qualify": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "partial-request-logs-can-qualify",
+      "opened_at": "2026-11-28T17:08:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/attribution.py:310 join-ratio denominator is only surviving nginx rows; after log rotation the tail can join 100% and qualify with whole endpoint classes missing."
+    },
     "post-run-resource-failure-ignored": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "post-run-resource-failure-ignored",
@@ -1182,6 +1237,24 @@
       "stage": "deep",
       "status": "fixed_pending_review",
       "summary": "apps/khitmee_ops/khitmee_ops/profit_summary/export_service.py:470 treats every Running export older than 3660s as abandoned; a live --run-sync export has no RQ timeout, gets marked Failed, a second export is admitted and the first's completion silently affects zero rows."
+    },
+    "remote-default-target-resolves-on-generator": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "remote-default-target-resolves-on-generator",
+      "opened_at": "2026-11-28T17:08:03Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/k6/run_k6.sh:254 default loopback target rewritten to frontend:8080 on the generator network; fails or hits the generator's own frontend."
+    },
+    "remote-runner-uses-daemon-local-files": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "remote-runner-uses-daemon-local-files",
+      "opened_at": "2026-11-28T17:08:02Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/k6/run_k6.sh:264 with K6_DOCKER_HOST remote, bind mounts resolve on the generator; staged scenario/manifest missing and summary written on the generator while the evaluator waits on the guest."
     },
     "report-columns-have-fieldname-or-key": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
@@ -1302,6 +1375,24 @@
       "status": "closed_needs_safeguard",
       "summary": "Shared framework stub attributes leaked from one offline test suite into another.",
       "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "transient-heartbeat-error-retires-live-export": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "transient-heartbeat-error-retires-live-export",
+      "opened_at": "2026-11-28T17:08:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "apps/khitmee_ops/khitmee_ops/profit_summary/export_service.py:538 one lock timeout or dropped heartbeat connection stops renewal permanently; after 3660s another admission fails the live export and its CSV is discarded."
+    },
+    "visible-memory-does-not-prove-assigned-memory": {
+      "evidence": "Astra deep review round 4 of PR #19 @5952d43",
+      "finding_id": "visible-memory-does-not-prove-assigned-memory",
+      "opened_at": "2026-11-28T17:08:03Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "perf-suite/seasonal/guest_attestation.py:71 guests assigned 2112 MiB (96 reserved) or 1984 MiB (64 reserved) both pass; the 2048 MiB assignment cannot be established from kernel-visible MemTotal."
     },
     "wsl-scripts-lf": {
       "evidence": "git commit 89eaa8563e469435e202b59a19da7016a0758ae4",
@@ -2978,6 +3069,85 @@
       "at": "2026-11-28T17:01:44Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "event": "record-finding",
+      "finding_id": "base-startup-removes-candidate-from-bench-app-list",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "event": "record-finding",
+      "finding_id": "migration-marker-verifies-its-own-input",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "event": "record-finding",
+      "finding_id": "different-daemon-can-share-qualification-guest",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "event": "record-finding",
+      "finding_id": "remote-runner-uses-daemon-local-files",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:03Z",
+      "event": "record-finding",
+      "finding_id": "remote-default-target-resolves-on-generator",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:03Z",
+      "event": "record-finding",
+      "finding_id": "visible-memory-does-not-prove-assigned-memory",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:03Z",
+      "event": "record-finding",
+      "finding_id": "partial-request-logs-can-qualify",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:03Z",
+      "event": "record-finding",
+      "finding_id": "failed-database-attribution-reported-as-zero-waits",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:08:03Z",
+      "event": "record-finding",
+      "finding_id": "transient-heartbeat-error-retires-live-export",
+      "fixed_by": null,
+      "source": "review",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -3041,6 +3211,16 @@
       "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
       "stage": "deep",
       "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T17:08:02Z",
+      "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+      "code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "contract_revision": 7,
+      "oracle_mismatch_ids": [],
+      "reviewer": "chatgpt-codex-connector@78fef76",
+      "stage": "cloud",
+      "verdict": "reject"
     }
   ],
   "run_id": "backend-2gb-proof-20261128",
@@ -3063,7 +3243,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3079,7 +3259,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/autoloop_meta"
@@ -3108,7 +3288,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3124,7 +3304,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/cashier_correctness"
@@ -3141,7 +3321,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3157,7 +3337,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/docs"
@@ -3176,7 +3356,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3192,7 +3372,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
@@ -3211,7 +3391,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3227,7 +3407,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/runtime_profile"
@@ -3247,7 +3427,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "2160506c02c592fca87cfa36cd035009e4339df0",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3263,7 +3443,7 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "2160506c02c592fca87cfa36cd035009e4339df0",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/seasonal_harness"
@@ -3280,7 +3460,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
-      "passed_code_tree_sha256": "e4714a384a9b6c4db1fe8eec84a3861b6bcda4fc60d893c906a182ee29e89e9d",
+      "passed_code_tree_sha256": null,
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3296,13 +3476,13 @@
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "trusted_policy_pass_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T17:01:44Z"
+  "updated_at": "2026-11-28T17:08:03Z"
 }
