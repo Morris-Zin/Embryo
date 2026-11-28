@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import ctypes
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass, replace
+from enum import Enum
 import hashlib
 import json
 import os
@@ -13,7 +14,10 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any
+from tempfile import TemporaryDirectory
+import time
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -540,6 +544,35 @@ def git_read_blob(repo: Path, tree_ish: str, path: str) -> bytes | None:
     return proc.stdout
 
 
+def advise_test_integrity(repo: Path, base: str, head: str, *, now: str) -> None:
+    """Report protected test changes from committed trees without affecting the legacy gate."""
+    from .proofs import ProtectedKind, evaluate_integrity, trusted_manifest_for_files
+
+    try:
+        kinds = {}
+        for change in git_diff_tree_entries(repo, base, head):
+            path = Path(change.path)
+            if path.suffix not in (".py", ".js", ".mjs", ".ts", ".jsx", ".tsx"):
+                continue
+            if path.name in {"fast_check.py", "perf_parity.py", "perf_eval_ledger.py"}:
+                kinds[change.path] = ProtectedKind.EVALUATOR
+            elif "tests" in path.parts or path.name.startswith("test_") or ".test." in path.name or ".spec." in path.name:
+                kinds[change.path] = ProtectedKind.TEST
+        if not kinds:
+            return
+        base_files = git_read_tree_blobs(repo, base, tree_entries=[
+            entry for entry in git_ls_tree(repo, base) if entry.path in kinds
+        ])
+        candidate = git_read_tree_blobs(repo, head, tree_entries=[
+            entry for entry in git_ls_tree(repo, head) if entry.path in kinds
+        ])
+        report = evaluate_integrity(base_files, candidate, trusted_manifest_for_files(base_files, kinds), now=now)
+        for violation in report.violations:
+            print(f"SHADOW-INTEGRITY {violation.rule_id} {violation.path}: {violation.message}", file=sys.stderr)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"SHADOW-INTEGRITY unavailable: {exc}", file=sys.stderr)
+
+
 def git_is_ancestor(repo: Path, ancestor_sha: str, descendant_sha: str) -> bool:
     proc = _run_git(repo, ["merge-base", "--is-ancestor", ancestor_sha, descendant_sha], check=False)
     if proc.returncode == 0:
@@ -746,6 +779,220 @@ def canonical_json_bytes(obj: Any) -> bytes:
 
 def contract_sha256(contract: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(contract)).hexdigest()
+
+
+_VERIFICATION_NAMESPACE = "autoloop-verification-v1"
+_VERIFICATION_COMMENT = re.compile(r"<!--\s*autoloop-verification:v1\s+([A-Za-z0-9+/=]+)\s*-->")
+
+
+def verification_check_id(shard: str, index: int, command: str) -> str:
+    return f"{shard}:{index}:{contract_sha256({'command': command})}"
+
+
+def read_verification_key(path: Path) -> str:
+    value = path.read_text(encoding="utf-8").split()
+    if len(value) < 2 or value[0] != "ssh-ed25519":
+        raise GuardError("verification signing key must be an OpenSSH Ed25519 public key")
+    key = " ".join(value[:2])
+    if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/=]+", key):
+        raise GuardError("invalid verification signing key")
+    return key
+
+
+def _decode_verification_value(schema: Any, value: Any) -> Any:
+    """Decode the signed JSON against the service's public evidence dataclasses."""
+    origin, args = get_origin(schema), get_args(schema)
+    if origin in (Union, UnionType) and type(None) in args:
+        return None if value is None else _decode_verification_value(next(t for t in args if t is not type(None)), value)
+    if origin is tuple and isinstance(value, list):
+        return tuple(_decode_verification_value(args[0], item) for item in value)
+    if isinstance(schema, type):
+        if issubclass(schema, Enum):
+            return schema(value)
+        if is_dataclass(schema) and isinstance(value, dict):
+            hints = get_type_hints(schema)
+            if value.keys() - {field.name for field in fields(schema)}:
+                raise ValueError(f"unknown {schema.__name__} field")
+            return schema(**{key: _decode_verification_value(hints[key], item) for key, item in value.items()})
+        if type(value) is schema:
+            return value
+    raise ValueError(f"invalid verification evidence value for {schema}")
+
+
+def _authenticated_snapshots(contract: dict[str, Any], envelope: dict[str, Any] | None) -> dict[str, Any]:
+    if envelope is None:
+        return {}
+    from .verification import EvidenceSnapshot
+
+    key = contract.get("verification_key") or ""
+    if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/=]+", key):
+        raise GuardError("signed evidence requires a verification_key in the frozen contract")
+    snapshots = envelope["snapshots"]
+    if not isinstance(snapshots, dict):
+        raise ValueError("signed snapshots must be an object keyed by shard ID")
+    with TemporaryDirectory(prefix="autoloop-signature-") as temp:
+        signers = Path(temp) / "signers"
+        signature = Path(temp) / "signature"
+        signers.write_text(f"autoloop {key}\n", encoding="ascii", newline="\n")
+        signature.write_text(envelope["signature"], encoding="ascii", newline="\n")
+        proc = subprocess.run(
+            ["ssh-keygen", "-Y", "verify", "-f", str(signers), "-I", "autoloop",
+             "-n", _VERIFICATION_NAMESPACE, "-s", str(signature)],
+            input=canonical_json_bytes(snapshots), capture_output=True, timeout=10, check=False, cwd=temp,
+        )
+    if proc.returncode:
+        raise GuardError("verification evidence signature was rejected")
+    return {sid: _decode_verification_value(EvidenceSnapshot, data) for sid, data in snapshots.items()}
+
+
+def verification_envelope(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    value = json.loads(path.read_bytes())
+    if not isinstance(value, dict):
+        raise ValueError("verification evidence must be a signed JSON object")
+    return value
+
+
+def verification_comment_envelope(comments: list[dict], trusted_owners: set[str]) -> dict[str, Any] | None:
+    import base64
+
+    for comment in reversed(comments):
+        if _is_comment_owner_authentic(comment, trusted_owners):
+            if match := _VERIFICATION_COMMENT.search(str(comment.get("body") or "")):
+                return json.loads(base64.b64decode(match[1], validate=True))
+    return None
+
+
+def verify_phase2(
+    repo: Path, run: dict[str, Any], contract: dict[str, Any], *, obligation: str,
+    head: str, base: str, shard_id: str | None = None, repo_id: str | None = None,
+    envelope: dict[str, Any] | None = None, legacy_ok: bool | None = None,
+    auto_merge_approved: bool | None = None,
+    checked_tooling_digest: str | None = None,
+) -> dict[str, Any]:
+    """Use current Git observations and authenticated evidence for local and CI shadow verification."""
+    from .receipts import Broker, checkout_repo_id
+    from . import verification as v
+
+    level = v.Obligation(obligation)
+    ids = [shard_id] if shard_id is not None else sorted(contract["shards"])
+    identity = repo_id or checkout_repo_id(repo) or repo.resolve().as_uri()
+    revision = int(contract["contract_revision"])
+    digest = contract_sha256(contract)
+    reviewers = contract.get("reviewers") or {}
+    merge_auto = contract.get("merge_mode") == "auto" or auto_merge_approved is not None
+    if level is v.Obligation.MERGE_ELIGIBILITY and merge_auto and auto_merge_approved is None and envelope is not None:
+        auto_merge_approved = _observe_auto_merge_approval(repo, identity, contract, head)
+    requirements = (
+        (v.ApprovalRequirement(v.Obligation.MERGE_ELIGIBILITY, "auto-merge"),) if merge_auto else ()
+    )
+    frozen = v.FrozenContract(
+        identity, run["run_id"], contract.get("issue_number"), contract.get("pr_number"), revision, digest,
+        tuple(v.ShardContract(sid, tuple(
+            v.CheckRequirement(verification_check_id(sid, index, command), gate)
+            for gate in (v.Obligation.SHARD, v.Obligation.INTEGRATED)
+            for index, command in enumerate(["fast_check.py", *spec.get("checks", [])])
+        )) for sid, spec in sorted(contract["shards"].items())),
+        approvals=requirements, require_delegation_receipts=bool(contract.get("require_delegation_receipts")),
+        review_required=bool(reviewers.get("cloud", True) or reviewers.get("deep", True) or contract.get("oracle_mismatches")),
+    )
+    observed_at = int(time.time())
+    code_hash = compute_code_tree_sha256(repo, head, run_id=run["run_id"])
+    evidence_error = None
+    try:
+        signed = _authenticated_snapshots(contract, envelope)
+    except (OSError, ValueError, KeyError, TypeError, GuardError, subprocess.TimeoutExpired) as exc:
+        signed = {}
+        evidence_error = str(exc)
+    decisions = {}
+    for sid in ids:
+        shard = run["shards"][sid]
+        shard_head = head if level is v.Obligation.SHARD or len(run["shards"]) == 1 else shard.get("last_green_sha")
+        if shard_head and shard_head != head and not git_is_ancestor(repo, shard_head, head):
+            shard_head = None
+        shard_tree = (compute_code_tree_sha256(repo, shard_head, run_id=run["run_id"])
+                      if shard_head and shard_head != head else code_hash)
+        binding = v.Binding(identity, run["run_id"], run.get("issue_number"), run.get("pr_number"),
+                            int(run["contract_revision"]), run["contract_sha256"], base, shard_head or "")
+        generations = v.Generations(
+            shard=int(shard.get("attempts") or 0), integration=int(run.get("total_attempts") or 0),
+            review=len(run.get("reviews") or []), merge=len(run.get("reviews") or []),
+        )
+        snapshot = signed.get(sid)
+        signed_tooling = set() if snapshot is None else {
+            item.tooling_digest for item in snapshot.tooling if item.gate == level
+        } or {snapshot.tooling_digest}
+        if snapshot is not None and (
+            snapshot.binding != binding or snapshot.generations != generations
+            or snapshot.shard_tree_digest != shard_tree
+            or (level is not v.Obligation.SHARD and
+                (snapshot.integration_commit, snapshot.integration_tree_digest) != (head, code_hash))
+            or (checked_tooling_digest is not None and level in (v.Obligation.SHARD, v.Obligation.INTEGRATED)
+                and signed_tooling != {checked_tooling_digest})
+            or (level is v.Obligation.MERGE_ELIGIBILITY
+                and {item.finding_id for item in snapshot.findings} != set(run.get("findings") or {}))
+        ):
+            evidence_error = "signed evidence tuple differs from the current contract, tree or generation"
+            snapshot = None
+        if snapshot is None:
+            snapshot = v.EvidenceSnapshot(observed_at, binding, generations)
+        if frozen.require_delegation_receipts and snapshot.shard_results:
+            try:
+                broker = Broker(identity)
+                current = broker.current_publication(run["run_id"], sid, "implementation")
+                authorized = (
+                    current is not None
+                    and current.get("git_after") == {"base": base, "head": shard_head, "tree": shard_tree}
+                    and any(
+                        receipt["receipt_id"] == current["receipt_id"]
+                        and reservation["contract_hash"] == digest
+                        and reservation["contract_revision"] == revision
+                        for reservation, receipt in broker.settled()
+                    )
+                )
+            except (RuntimeError, OSError, ValueError):
+                authorized = False
+            snapshot = replace(snapshot, shard_results=tuple(
+                item if authorized and item.implementation_receipt_id == current["receipt_id"]
+                else replace(item, implementation_receipt_id="")
+                for item in snapshot.shard_results
+            ))
+        approvals = snapshot.approvals if auto_merge_approved is not False else tuple(
+            replace(a, meta=replace(a.meta, status="revoked")) if a.action == "auto-merge" else a
+            for a in snapshot.approvals
+        )
+        snapshot = replace(
+            snapshot, observed_at=observed_at, binding=binding, generations=generations,
+            integration_commit=head if level is not v.Obligation.SHARD else None,
+            integration_tree_digest=code_hash if level is not v.Obligation.SHARD else None,
+            shard_tree_digest=shard_tree, approvals=approvals,
+        )
+        decision = v.verify(v.Target(level, sid), frozen, snapshot)
+        decisions[sid] = asdict(decision)
+    result = {"obligation": obligation, "ok": all(item["ok"] for item in decisions.values()), "decisions": decisions}
+    result["digest"] = contract_sha256(result)
+    if evidence_error is not None:
+        result["evidence_error"] = evidence_error
+    if legacy_ok is not None and result["ok"] != legacy_ok:
+        print(f"SHADOW-DIVERGENCE {obligation}: legacy={legacy_ok} verification={result['ok']} "
+              f"digest={result['digest']}", file=sys.stderr)
+    return result
+
+
+def _observe_auto_merge_approval(repo: Path, identity: str, contract: dict[str, Any], head: str) -> bool:
+    if not identity.startswith("github.com/") or not contract.get("pr_number"):
+        return False
+    try:
+        owners = set(load_config(repo).get("trusted_owners") or [])
+        client = GitHubAPIClient(identity.removeprefix("github.com/"))
+        pr = int(contract["pr_number"])
+        return _has_owner_label_event(client.get_pr_events(pr), "allow-auto-merge", owners) and (
+            _has_owner_comment_match(client.get_issue_comments_graphql(pr), AUTO_MERGE_APPROVAL_RE,
+                                     (str(pr), head), owners)
+        )
+    except (GuardError, OSError, ValueError):
+        return False
 
 
 def oracle_mismatch_id(record: dict[str, Any]) -> str:
@@ -1689,6 +1936,8 @@ def verify_pr_integrity(
     candidate_checks_result: str | None = None,
     trusted_shard_results: dict[str, str] | None = None,
     pr_body: str = "",
+    shadow_verification: bool = False,
+    shadow_envelope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """V3 trusted PR integrity verifier (read-only over Git blobs, zero candidate code execution)."""
     if mode not in ("preflight", "finalize"):
@@ -2042,7 +2291,7 @@ def verify_pr_integrity(
         raise GuardError("enrolled PR has unresolved contract amendment requests")
 
     if mode == "preflight":
-        return {
+        result = {
             "verdict": "enrolled-preflight",
             "enrolled": True,
             "run_id": run_id,
@@ -2054,6 +2303,23 @@ def verify_pr_integrity(
             "merge_tree_oid": merge_tree_oid,
             "shard_checks": shard_checks_payload,
         }
+        if shadow_verification:
+            auto_merge_approved = None
+            if contract.get("merge_mode") == "auto" or "allow-auto-merge" in label_set:
+                auto_merge_approved = (
+                    "allow-auto-merge" in label_set
+                    and _has_owner_label_event(pr_events, "allow-auto-merge", trusted_owners)
+                    and _has_owner_comment_match(
+                        pr_comments, AUTO_MERGE_APPROVAL_RE, (str(pr_number), resolved_head), trusted_owners,
+                    )
+                )
+            envelope = shadow_envelope or verification_comment_envelope(pr_comments, trusted_owners)
+            for target in ("integrated", "merge_eligibility"):
+                result[f"shadow_{target}"] = verify_phase2(
+                    repo, run_data, contract, obligation=target, head=resolved_head, base=resolved_base,
+                    envelope=envelope, auto_merge_approved=auto_merge_approved,
+                )
+        return result
 
     # --- Finalize Mode: Independent Shard Results, Review & Safeguard Artifacts ---
     if candidate_checks_result is not None and candidate_checks_result != "success":
