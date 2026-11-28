@@ -116,6 +116,7 @@
 		const state = {
 			context: null,
 			lines: [],
+			lineIndexByItemCode: new Map(),
 			searchItems: [],
 			activeIndex: -1,
 			searchKey: "",
@@ -390,9 +391,9 @@
 		const searchDebouncer = createDebouncer(searchItems, 100);
 
 		function addItem(item) {
-			const existingIndex = state.lines.findIndex(function (line) {
-				return line.item_code === item.item_code;
-			});
+			const existingIndex = state.lineIndexByItemCode.has(item.item_code)
+				? state.lineIndexByItemCode.get(item.item_code)
+				: -1;
 			if (existingIndex >= 0) {
 				state.lines[existingIndex].qty += 1;
 				updateLineRow(els.linesBody.children[existingIndex], state.lines[existingIndex], existingIndex);
@@ -406,6 +407,7 @@
 					actual_qty: Number(item.actual_qty || 0),
 				};
 				state.lines.push(line);
+				state.lineIndexByItemCode.set(line.item_code, state.lines.length - 1);
 				els.linesBody.appendChild(createLineRow(line, state.lines.length - 1));
 			}
 			els.search.value = "";
@@ -415,10 +417,13 @@
 		}
 
 		function removeLine(index) {
+			const removed = state.lines[index];
 			state.lines.splice(index, 1);
+			if (removed) state.lineIndexByItemCode.delete(removed.item_code);
 			const row = els.linesBody.children[index];
 			if (row) row.remove();
 			for (let position = index; position < state.lines.length; position += 1) {
+				state.lineIndexByItemCode.set(state.lines[position].item_code, position);
 				updateLineRow(els.linesBody.children[position], state.lines[position], position);
 			}
 			renderTotals();
@@ -525,6 +530,7 @@
 
 		function resetLines() {
 			state.lines = [];
+			state.lineIndexByItemCode.clear();
 			state.clientVoucherId = uuid();
 			renderLines();
 		}
