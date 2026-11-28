@@ -1834,24 +1834,18 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		pending = [invoice for invoice in invoices if invoice not in self._linked_dn_parent_invoices]
 		for invoice_chunk in batched(pending, 1000):
 			placeholders = ", ".join(["%s"] * len(invoice_chunk))
-			row_limit = getattr(self, "_invoice_row_limit", None)
-			limit_sql = "LIMIT %s" if row_limit is not None else ""
-			query_params = [*invoice_chunk, row_limit + 1] if row_limit is not None else invoice_chunk
 			rows = frappe.db.sql(
 				f"""
 				SELECT DISTINCT parent
 				FROM `tabDelivery Note Item`
 				WHERE docstatus = 1 AND against_sales_invoice IN ({placeholders})
-				{limit_sql}
 				""",
-				query_params,
+				invoice_chunk,
 				as_dict=True,
 			)
 			self._linked_dn_parents.update(
 				row.get("parent") if hasattr(row, "get") else row[0] for row in rows
 			)
-			if row_limit is not None and len(self._linked_dn_parents) > row_limit:
-				raise InvoiceBatchTooLarge()
 			self._linked_dn_parent_invoices.update(invoice_chunk)
 		return sorted(parent for parent in self._linked_dn_parents if parent)
 
@@ -1917,20 +1911,22 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self.product_bundles = {}
 		invoices = sorted({row.parent for row in self.si_list if row.get("parent")})
 		if not invoices:
-			return {}
+			return self.product_bundles
 
-		packed_row_limit = getattr(self, "_invoice_row_limit", None)
-		bundle_invoices = invoices
-		if packed_row_limit is None:
-			packed_parent_items = set(
-				frappe.db.sql_list(
-					"SELECT DISTINCT parent_item FROM `tabPacked Item` "
-					"WHERE parenttype = 'Sales Invoice' AND docstatus = 1"
-				)
+		row_limit = getattr(self, "_invoice_row_limit", None)
+		if row_limit is not None:
+			self._load_invoice_batch_bundles(invoices, row_limit)
+			return self.product_bundles
+
+		packed_parent_items = set(
+			frappe.db.sql_list(
+				"SELECT DISTINCT parent_item FROM `tabPacked Item` "
+				"WHERE parenttype = 'Sales Invoice' AND docstatus = 1"
 			)
-			bundle_invoices = sorted(
-				{row.parent for row in self.si_list if row.get("item_code") in packed_parent_items and row.get("parent")}
-			)
+		)
+		bundle_invoices = sorted(
+			{row.parent for row in self.si_list if row.get("item_code") in packed_parent_items and row.get("parent")}
+		)
 
 		delivery_notes = {row.delivery_note for row in self.si_list if row.get("delivery_note")}
 		if self._has_submitted_delivery_note_items():
@@ -1951,9 +1947,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			clauses.append(f"(parenttype = 'Delivery Note' AND parent IN ({placeholders}))")
 			params.extend(delivery_notes)
 
-		limit_sql = "LIMIT %s" if packed_row_limit is not None else ""
-		if packed_row_limit is not None:
-			params.append(packed_row_limit + 1)
+		self._read_packed_items(" OR ".join(clauses), params)
+		return self.product_bundles
+
+	def _read_packed_items(self, conditions, params, component_budget=None):
+		limit_sql = "LIMIT %s" if component_budget is not None else ""
+		if component_budget is not None:
+			params = [*params, component_budget + 1]
 		rows = frappe.db.sql(
 			"""
 			SELECT
@@ -1968,20 +1968,84 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				parent_detail_docname,
 				serial_and_batch_bundle
 			FROM `tabPacked Item`
-			WHERE docstatus = 1 AND ({clauses})
+			WHERE docstatus = 1 AND ({conditions})
 			{limit_sql}
-			""".format(clauses=" OR ".join(clauses), limit_sql=limit_sql),
+			""".format(conditions=conditions, limit_sql=limit_sql),
 			params,
 			as_dict=True,
 		)
-		if packed_row_limit is not None and len(rows) > packed_row_limit:
+		if component_budget is not None and len(rows) > component_budget:
 			raise InvoiceBatchTooLarge()
 
 		for row in rows:
 			self.product_bundles.setdefault(row.parenttype, frappe._dict()).setdefault(
 				row.parent, frappe._dict()
 			).setdefault(row.parent_item, []).append(row)
-		return self.product_bundles
+		return len(rows)
+
+	def _read_packed_groups(self, parenttype, groups, component_budget=None):
+		for chunk in batched(sorted(groups), 128):
+			pairs = ", ".join(["(%s, %s)"] * len(chunk))
+			count = self._read_packed_items(
+				f"parenttype = %s AND (parent, parent_item) IN ({pairs})",
+				[parenttype, *(value for group in chunk for value in group)],
+				component_budget,
+			)
+			if component_budget is not None:
+				component_budget -= count
+
+	def _load_invoice_batch_bundles(self, invoices, row_limit):
+		component_budget = row_limit - len(invoices) - len(self.si_list)
+		if component_budget < 0:
+			raise InvoiceBatchTooLarge()
+		# Every selected Sales Invoice group renders at least once. Keep the full
+		# group even if the same code is present on multiple invoice lines.
+		invoice_groups = {(row.parent, row.item_code) for row in self.si_list if row.parent and row.item_code}
+		self._read_packed_groups("Sales Invoice", invoice_groups, component_budget)
+
+		invoice_bundles = self.product_bundles.get("Sales Invoice", {})
+		delivery_groups = set()
+		details = {row.item_row for row in self.si_list if row.item_row}
+		for row in self.si_list:
+			if not effective_dn_detail(row):
+				continue
+			details.add(row.dn_detail)
+			if not row.delivery_note or not row.item_code:
+				continue
+			delivery_groups.add((row.delivery_note, row.item_code))
+			# A rendered component can also be a DN bundle parent in its own right.
+			for component in invoice_bundles.get(row.parent, {}).get(row.item_code, ()):
+				if component.item_code:
+					delivery_groups.add((row.delivery_note, component.item_code))
+
+		self._scoped_bundle_deliveries = self._read_linked_bundle_deliveries(invoices, details)
+		delivery_groups.update((row.parent, row.item_code) for row in self._scoped_bundle_deliveries)
+		self._read_packed_groups("Delivery Note", delivery_groups)
+
+	def _read_linked_bundle_deliveries(self, invoices, item_details):
+		if not item_details or not self._has_submitted_delivery_note_items():
+			return []
+		deliveries = []
+		for detail_chunk in batched(sorted(item_details), 500):
+			for invoice_chunk in batched(invoices, 128):
+				details = ", ".join(["%s"] * len(detail_chunk))
+				parents = ", ".join(["%s"] * len(invoice_chunk))
+				deliveries.extend(frappe.db.sql(
+					f"""
+					SELECT dni.name, dni.parent, dni.item_code, dni.stock_qty, dni.si_detail
+					FROM `tabDelivery Note Item` dni
+					WHERE dni.docstatus = 1 AND dni.si_detail IN ({details})
+						AND dni.against_sales_invoice IN ({parents})
+						AND EXISTS (
+							SELECT 1 FROM `tabPacked Item` pki
+							WHERE pki.docstatus = 1 AND pki.parenttype = 'Delivery Note'
+								AND pki.parent = dni.parent AND pki.parent_item = dni.item_code
+						)
+					""",
+					[*detail_chunk, *invoice_chunk],
+					as_dict=True,
+				))
+		return deliveries
 
 	def _product_bundles_for_row(self, row, dn_detail=None):
 		if row.get("update_stock"):
@@ -2018,7 +2082,12 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	def get_delivery_notes(self):
 		self.delivery_notes = frappe._dict()
 		all_invoices = sorted({row.parent for row in self.si_list if row.get("parent")})
-		if not self._get_linked_delivery_note_parents(all_invoices):
+		if not all_invoices:
+			return
+		if getattr(self, "_invoice_row_limit", None) is not None:
+			if not self._has_submitted_delivery_note_items():
+				return
+		elif not self._get_linked_delivery_note_parents(all_invoices):
 			return
 
 		placeholders = ", ".join(["%s"] * len(all_invoices))
@@ -2042,8 +2111,15 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			self.delivery_notes[entry.si_detail] = entry
 
 	def load_bundle_deliveries(self):
-		if not self.product_bundles.get("Delivery Note"):
+		delivery_bundles = self.product_bundles.get("Delivery Note")
+		if not delivery_bundles:
 			self.bundle_deliveries = {}
+			return
+		if getattr(self, "_invoice_row_limit", None) is not None:
+			self.bundle_deliveries = {}
+			for row in self._scoped_bundle_deliveries:
+				if components := delivery_bundles.get(row.parent, {}).get(row.item_code):
+					self.bundle_deliveries.setdefault(row.si_detail, []).append((row, components))
 			return
 		return super().load_bundle_deliveries()
 
