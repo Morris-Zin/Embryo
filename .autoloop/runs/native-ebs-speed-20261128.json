@@ -1,0 +1,107 @@
+{
+  "allow_policy_paths": [],
+  "allowed_paths": [],
+  "base_branch": "devin/1795778138-native-migration-framework",
+  "base_sha": "9a43d836d4094aacd22450d7238bf51fc911d869",
+  "contract_revision": 1,
+  "contract_sha256": "3e7227ca72e6793583db3122d05486ccfa13e4b169462bd2530595269f9f6cf6",
+  "created_at": "2026-11-28T10:47:14Z",
+  "dead_ends": [],
+  "findings": {},
+  "goal": "Make the native desktop frontend significantly faster while preserving exact behavior parity with original ERPNext, using PR #9 differential/oracle evidence plus hypothesis-driven differential testing",
+  "grill_summary": "Interview resolved: EBS means original ERPNext behavior. PR #9's Playwright-vs-Slint differential verifier and authoritative ERP readbacks are the oracle; missing behavioral coverage must be added rather than weakening parity. User explicitly chose current-session Devin SWE-2.1 for implementation and review, with external cloud/deep review disabled and human merge mode. Single shard may modify the native desktop frontend, catalog/index/ERP adapter code, verification/performance harnesses, fixtures/contracts, and concise experiment records. Non-goals: no upstream ERPNext/Frappe core edits, no financial/inventory semantic changes, no Tauri/Electron/WebView return, no production hardware claims. Acceptance: produce a measured significant improvement (at least 30% lower p50 latency or startup time in a dominant local frontend hot path, with no measured hot-path regression beyond 5%), preserve ERPNext parity through differential and authoritative checks, extend hypothesis/property or differential regression coverage for changed behavior, and document rejected hypotheses.",
+  "history": [
+    {
+      "at": "2026-11-28T10:47:14Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T10:48:07Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T10:48:08Z",
+      "contract_revision": 1,
+      "contract_sha256": "3e7227ca72e6793583db3122d05486ccfa13e4b169462bd2530595269f9f6cf6",
+      "event": "lock",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T10:48:12Z",
+      "event": "start-shard",
+      "shard": "native_frontend",
+      "status": "in_progress"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": null,
+  "last_integrated_detached": null,
+  "last_integrated_sha": null,
+  "last_integrated_worktree": null,
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "human",
+  "models": {
+    "implementation": {
+      "mode": "current-session",
+      "model": "SWE-2.1",
+      "provider": "Devin"
+    },
+    "review": {
+      "mode": "current-session",
+      "model": "SWE-2.1",
+      "provider": "Devin"
+    }
+  },
+  "pending_contract_amendments": [],
+  "pr_number": null,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": false,
+    "deep": false
+  },
+  "reviews": [],
+  "run_id": "native-ebs-speed-20261128",
+  "safeguards": [],
+  "schema_version": 1,
+  "shards": {
+    "native_frontend": {
+      "allowed_paths": [
+        "desktop-frontend/crates/khitmee-desktop/**",
+        "desktop-frontend/crates/khitmee-catalog/**",
+        "desktop-frontend/crates/khitmee-erp/**",
+        "desktop-frontend/crates/migration-core/**",
+        "desktop-frontend/tools/**",
+        "desktop-frontend/experiments/**",
+        "desktop-frontend/fixtures/**",
+        "desktop-frontend/contracts/**",
+        "desktop-frontend/README.md",
+        "desktop-frontend/Cargo.toml",
+        "desktop-frontend/Cargo.lock"
+      ],
+      "attempts": 0,
+      "checks": [
+        "cd desktop-frontend && cargo test --locked",
+        "python desktop-frontend/tools/test_verify.py",
+        "python desktop-frontend/tools/architecture_lint.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "9a43d836d4094aacd22450d7238bf51fc911d869",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "in_progress",
+      "worker_strikes": 0,
+      "worktree_path": "/home/ubuntu/repos/embryo-worktrees/native-frontend-opt"
+    }
+  },
+  "status": "in_progress",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T10:48:12Z"
+}
