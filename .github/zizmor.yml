@@ -1,0 +1,7 @@
+# The comment-refresh workflow is intentionally triggered by owner-authored
+# autoloop contract/approval comment changes. It never checks out or executes
+# comment-controlled code; it only identifies the bound gate run and requests a rerun.
+rules:
+  dangerous-triggers:
+    ignore:
+      - autoloop-comment-refresh.yml:4
