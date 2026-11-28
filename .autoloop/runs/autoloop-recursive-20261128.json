@@ -7,6 +7,26 @@
   "base_branch": "feat/backend-2gb-proof",
   "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
   "check_timings": {
+    "shard:admission": [
+      {
+        "at": "2026-11-28T16:11:42Z",
+        "head_sha": "08681fd01d119406df8c1f42573c83be98e3ac39",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.477,
+          "fast_check.py": 4.747,
+          "fast_check.py/autoloop_lint": 3.765,
+          "fast_check.py/bash": 0.142,
+          "fast_check.py/compose": 0.256,
+          "fast_check.py/guardrails": 4.059,
+          "fast_check.py/javascript": 0.199,
+          "fast_check.py/knip": 2.669,
+          "fast_check.py/python": 4.657,
+          "fast_check.py/ruff_and_dev_deps": 0.171,
+          "fast_check.py/zizmor_workflows": 0.384
+        }
+      }
+    ],
     "shard:profile": [
       {
         "at": "2026-11-28T16:01:24Z",
@@ -24,6 +44,26 @@
           "fast_check.py/ruff_and_dev_deps": 0.043,
           "fast_check.py/zizmor_workflows": 0.279,
           "profile #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.079
+        }
+      }
+    ],
+    "shard:rdocs": [
+      {
+        "at": "2026-11-28T16:02:18Z",
+        "head_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.791,
+          "fast_check.py/autoloop_lint": 3.133,
+          "fast_check.py/bash": 0.121,
+          "fast_check.py/compose": 0.193,
+          "fast_check.py/guardrails": 3.19,
+          "fast_check.py/javascript": 0.038,
+          "fast_check.py/knip": 1.074,
+          "fast_check.py/python": 3.716,
+          "fast_check.py/ruff_and_dev_deps": 0.047,
+          "fast_check.py/zizmor_workflows": 0.262,
+          "rdocs #1: python -B tools/autoloop/cli.py lint": 1.041
         }
       }
     ],
@@ -152,6 +192,46 @@
         "warning_count": 0
       },
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:02:11Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "rdocs",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:02:18Z",
+      "code_tree_sha256": "40d1757f883308e61bf0ee6e7962dac7eb7ab194ea0cb2e32f2e1ed128d4fd20",
+      "event": "shard-passed",
+      "shard": "rdocs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:11:34Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "admission",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:11:42Z",
+      "code_tree_sha256": "a045ef9a42c79402987b898efb9eff13ca24ef4d4943893b64498695df885a08",
+      "event": "shard-passed",
+      "shard": "admission",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -194,13 +274,31 @@
         "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "08681fd01d119406df8c1f42573c83be98e3ac39",
+      "passed_code_tree_sha256": "a045ef9a42c79402987b898efb9eff13ca24ef4d4943893b64498695df885a08",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
+          "verification": "37275c867a31abd019fa7692dc67d7cd176ce3e3"
+        },
+        "sha256": "91906db19108a8a3d44beb7e11b701ab10ff7d50196b41da71f0d70c483a3265",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "08681fd01d119406df8c1f42573c83be98e3ac39",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "/root/gate/wt/admission"
     },
     "integration": {
       "allowed_paths": [
@@ -280,13 +378,31 @@
         "python -B tools/autoloop/cli.py lint"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
+      "passed_code_tree_sha256": "40d1757f883308e61bf0ee6e7962dac7eb7ab194ea0cb2e32f2e1ed128d4fd20",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
+          "verification": "37275c867a31abd019fa7692dc67d7cd176ce3e3"
+        },
+        "sha256": "91906db19108a8a3d44beb7e11b701ab10ff7d50196b41da71f0d70c483a3265",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "/root/gate/wt/rdocs"
     },
     "receipts": {
       "allowed_paths": [
@@ -376,5 +492,5 @@
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:01:38Z"
+  "updated_at": "2026-11-28T16:11:42Z"
 }
