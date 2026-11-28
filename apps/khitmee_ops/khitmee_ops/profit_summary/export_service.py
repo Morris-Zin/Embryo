@@ -3,8 +3,10 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import uuid
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Literal, TypedDict
 
 from khitmee_ops.profit_summary.eligibility import (
@@ -35,6 +37,8 @@ class ProfitExportBusyError(Exception):
 EXPORT_DOCTYPE = "Khitmee Profit Export Log"
 EXPORT_TIMEOUT_SECONDS = 3600
 EXPORT_RECOVERY_GRACE_SECONDS = 60
+EXPORT_HEARTBEAT_INTERVAL_SECONDS = 30
+EXPORT_HEARTBEAT_STALE_SECONDS = EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS
 EXPORT_RECOVERY_SCAN_LIMIT = 8
 ABANDONED_WORKER_REASON = "abandoned: worker lost"
 ABANDONED_QUEUE_REASON = "abandoned: queue job missing"
@@ -460,14 +464,109 @@ def _rq_job_is_active(job_id, export_log_name=None):
 	return _scan_rq_for_export(export_log_name)
 
 
+def _heartbeat_now_function():
+	try:
+		from frappe.utils import get_system_timezone
+
+		zone = ZoneInfo(get_system_timezone())
+	except Exception:
+		return datetime.now
+	return lambda: datetime.now(zone).replace(tzinfo=None)
+
+
+def _open_export_heartbeat_connection():
+	from frappe.database import get_db
+
+	conf = frappe.conf
+	db_name = conf.get("db_name")
+	database = get_db(
+		socket=conf.get("db_socket"),
+		host=conf.get("db_host"),
+		port=conf.get("db_port"),
+		user=conf.get("db_user") or db_name,
+		password=conf.get("db_password"),
+		cur_db_name=db_name,
+	)
+	database.connect()
+	return database
+
+
+class _ExportHeartbeat:
+	def __init__(self, export_log_name, database, *, interval=EXPORT_HEARTBEAT_INTERVAL_SECONDS, now=None):
+		self.export_log_name = export_log_name
+		self.database = database
+		self.interval = interval
+		self.now = now or datetime.now
+		self.error = None
+		self._stop_event = threading.Event()
+		self._thread = threading.Thread(
+			target=self._run,
+			name=f"khitmee-profit-export-heartbeat-{export_log_name}",
+			daemon=True,
+		)
+
+	def start(self):
+		self.beat()
+		self._thread.start()
+		return self
+
+	def beat(self):
+		connection = self.database._conn
+		if connection is None:
+			raise RuntimeError("profit export heartbeat database is not connected")
+		cursor = connection.cursor()
+		try:
+			cursor.execute(
+				f"UPDATE `tab{EXPORT_DOCTYPE}` SET `modified` = %s WHERE `name` = %s AND `status` = 'Running'",
+				(self.now(), self.export_log_name),
+			)
+			rowcount = cursor.rowcount
+			connection.commit()
+			return rowcount
+		except Exception:
+			connection.rollback()
+			raise
+		finally:
+			cursor.close()
+
+	def _run(self):
+		while not self._stop_event.wait(self.interval):
+			try:
+				if self.beat() != 1:
+					break
+			except Exception as error:
+				self.error = error
+				break
+
+	def close(self):
+		self._stop_event.set()
+		if self._thread.ident is not None:
+			self._thread.join(timeout=5)
+		if not self._thread.is_alive():
+			try:
+				self.database.close()
+			except Exception as error:
+				self.error = self.error or error
+
+
+def _start_export_heartbeat(export_log_name):
+	database = _open_export_heartbeat_connection()
+	heartbeat = _ExportHeartbeat(export_log_name, database, now=_heartbeat_now_function())
+	try:
+		return heartbeat.start()
+	except Exception:
+		database.close()
+		raise
+
+
 def _abandoned_export_reason(export, now):
 	status = _doc_get(export, "status")
 	modified = _datetime_value(_doc_get(export, "modified"))
 	if modified is None:
 		return None
 	if status == "Running":
-		claim_timeout = timedelta(seconds=EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS)
-		if modified + claim_timeout < now:
+		heartbeat_timeout = timedelta(seconds=EXPORT_HEARTBEAT_STALE_SECONDS)
+		if modified + heartbeat_timeout < now:
 			return ABANDONED_WORKER_REASON
 	elif status == "Queued":
 		enqueue_grace = timedelta(seconds=EXPORT_RECOVERY_GRACE_SECONDS)
@@ -662,6 +761,48 @@ class _NullSentinel:
 NULL = _NullSentinel()
 
 
+FENCED_COMPLETION_DIAGNOSTIC = "fenced late completion: export ownership was lost before worker finished"
+
+
+def _sql_row_count():
+	rows = frappe.db.sql("SELECT ROW_COUNT()")
+	return int(rows[0][0]) if rows else 0
+
+
+def _log_export_diagnostic(message):
+	try:
+		logger = getattr(frappe, "logger", None)
+		if logger:
+			logger().warning(message)
+	except Exception:
+		pass
+
+
+def _surface_fenced_completion(export_log_name):
+	state = _lock_export_state(export_log_name)
+	status = _doc_get(state, "status") or "missing"
+	diagnostic = f"{FENCED_COMPLETION_DIAGNOSTIC} (current status: {status})"
+	_log_export_diagnostic(f"Profit export {export_log_name}: {diagnostic}")
+	if not state or status != "Failed":
+		return diagnostic
+
+	export_uuid = _doc_get(state, "export_uuid")
+	if export_uuid:
+		_, final_path = get_export_paths(export_uuid)
+		_, scope_path = _export_scope_paths(export_uuid)
+		for path in (final_path, scope_path):
+			_remove_file_quietly(path)
+
+	error = _doc_get(state, "error") or ""
+	if FENCED_COMPLETION_DIAGNOSTIC not in error:
+		error = f"{error}\n{diagnostic}".strip()[:1000]
+		frappe.db.sql(
+			f"UPDATE `tab{EXPORT_DOCTYPE}` SET `error` = %s, `modified` = %s WHERE `name` = %s AND `status` = 'Failed'",
+			(error, _now_datetime(), export_log_name),
+		)
+	return diagnostic
+
+
 def _commit_completed_export(export_log_name, exported_invoice_sha256, row_count):
 	frappe.db.sql(
 		f"""
@@ -678,12 +819,21 @@ def _commit_completed_export(export_log_name, exported_invoice_sha256, row_count
 		""",
 		(exported_invoice_sha256, row_count, _now_datetime(), export_log_name),
 	)
+	if _sql_row_count() == 1:
+		frappe.db.commit()
+		return True
+	_surface_fenced_completion(export_log_name)
 	frappe.db.commit()
+	return False
 
 
 def _lock_export_state(export_log_name):
 	rows = frappe.db.sql(
-		f"SELECT `status`, `expires_at`, `modified` FROM `tab{EXPORT_DOCTYPE}` WHERE `name` = %s FOR UPDATE",
+		f"""
+		SELECT `status`, `expires_at`, `modified`, `error`, `export_uuid`, `artifact_published`
+		FROM `tab{EXPORT_DOCTYPE}`
+		WHERE `name` = %s FOR UPDATE
+		""",
 		(export_log_name,),
 		as_dict=True,
 	)
@@ -875,7 +1025,9 @@ def run_profit_csv_export(export_log_name):
 	previous_user = frappe.session.user
 	temporary_paths = []
 	renamed_paths = []
+	heartbeat = None
 	try:
+		heartbeat = _start_export_heartbeat(export_log_name)
 		_begin_repeatable_read_snapshot()
 		filters = json.loads(_doc_get(doc, "filters_json") or "{}")
 		requested_by = _doc_get(doc, "requested_by")
@@ -927,6 +1079,8 @@ def run_profit_csv_export(export_log_name):
 				_remove_file_quietly(path)
 		raise
 	finally:
+		if heartbeat is not None:
+			heartbeat.close()
 		for path in temporary_paths:
 			_remove_file_quietly(path)
 		frappe.set_user(previous_user)
