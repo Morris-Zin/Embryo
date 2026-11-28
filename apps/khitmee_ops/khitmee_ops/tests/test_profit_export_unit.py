@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from datetime import datetime, timedelta
@@ -626,7 +627,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 
 		self.assertTrue(heartbeat._run_iteration())
 		self.assertIsNone(heartbeat.failure)
-		now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS
+		now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
 
 		self.assertFalse(heartbeat._run_iteration())
 
@@ -638,10 +639,8 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 	def test_worker_self_fails_when_heartbeat_failure_is_persistent(self):
 		doc = self.make_log(status="Queued", artifact_published=0)
 
-		def raise_heartbeat_failure():
-			raise export_service.ProfitExportHeartbeatError(export_service.EXPORT_HEARTBEAT_FAILURE_REASON)
-
-		heartbeat = types.SimpleNamespace(close=lambda: None, raise_if_failed=raise_heartbeat_failure)
+		heartbeat, _, _, heartbeat_now = self.make_heartbeat_harness(doc, [])
+		heartbeat_now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
 		self.start_heartbeat.return_value = heartbeat
 
 		def write(filters, path, **kwargs):
@@ -656,6 +655,48 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(doc["status"], "Failed")
 		self.assertEqual(doc["error"], export_service.EXPORT_HEARTBEAT_FAILURE_REASON)
 		self.assertFalse(os.path.exists(self.artifact_path()))
+
+	def test_blocked_heartbeat_update_is_judged_on_worker_clock(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		entered = threading.Event()
+		release = threading.Event()
+		now = [0]
+
+		class Cursor:
+			rowcount = 0
+
+			def execute(self, query, params):
+				entered.set()
+				release.wait()
+				doc["modified"] = params[0]
+				self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def cursor(self):
+				return Cursor()
+
+			def commit(self):
+				pass
+
+			def rollback(self):
+				pass
+
+		database = types.SimpleNamespace(_conn=Connection(), close=lambda: None)
+		heartbeat = export_service._ExportHeartbeat(doc["name"], database, now=lambda: self.state.now, monotonic=lambda: now[0])
+		heartbeat.start()
+		try:
+			self.assertTrue(entered.wait(2))
+			now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
+			with self.assertRaisesRegex(
+				export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON
+			):
+				heartbeat.raise_if_failed()
+		finally:
+			release.set()
+			heartbeat.close()
 
 	def test_missing_rq_job_recovers_an_old_queued_export(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})
