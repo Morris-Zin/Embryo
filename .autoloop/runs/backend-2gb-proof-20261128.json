@@ -68,6 +68,41 @@
           "fast_check.py/ruff_and_dev_deps": 0.072,
           "fast_check.py/zizmor_workflows": 0.275
         }
+      },
+      {
+        "at": "2026-11-28T12:26:20Z",
+        "head_sha": "29fc9f0590a3701579772271655ee79ea8ccf1d6",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 9.47,
+          "fast_check.py": 5.009,
+          "fast_check.py/autoloop_lint": 2.327,
+          "fast_check.py/bash": 0.154,
+          "fast_check.py/compose": 0.226,
+          "fast_check.py/guardrails": 3.253,
+          "fast_check.py/javascript": 0.062,
+          "fast_check.py/knip": 1.85,
+          "fast_check.py/python": 4.916,
+          "fast_check.py/ruff_and_dev_deps": 0.07,
+          "fast_check.py/zizmor_workflows": 0.375
+        }
+      },
+      {
+        "at": "2026-11-28T12:34:08Z",
+        "head_sha": "ea7409afdfed8b75ec54d5555232a58edf4ef67a",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 5.035,
+          "fast_check.py/autoloop_lint": 2.824,
+          "fast_check.py/bash": 0.192,
+          "fast_check.py/compose": 0.206,
+          "fast_check.py/guardrails": 3.026,
+          "fast_check.py/javascript": 0.134,
+          "fast_check.py/knip": 2.191,
+          "fast_check.py/python": 4.932,
+          "fast_check.py/ruff_and_dev_deps": 0.116,
+          "fast_check.py/zizmor_workflows": 0.368
+        }
       }
     ],
     "shard:cashier_correctness": [
@@ -145,6 +180,61 @@
           "fast_check.py/ruff_and_dev_deps": 0.086,
           "fast_check.py/zizmor_workflows": 0.364
         }
+      },
+      {
+        "at": "2026-11-28T12:34:12Z",
+        "head_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
+        "passed": true,
+        "steps": {
+          "docs #1: python -B tools/autoloop/cli.py lint": 0.348,
+          "fast_check.py": 2.205,
+          "fast_check.py/autoloop_lint": 1.797,
+          "fast_check.py/bash": 0.098,
+          "fast_check.py/compose": 0.206,
+          "fast_check.py/guardrails": 2.101,
+          "fast_check.py/javascript": 0.052,
+          "fast_check.py/knip": 1.507,
+          "fast_check.py/python": 2.057,
+          "fast_check.py/ruff_and_dev_deps": 0.09,
+          "fast_check.py/zizmor_workflows": 0.343
+        }
+      }
+    ],
+    "shard:report_paths": [
+      {
+        "at": "2026-11-28T12:34:18Z",
+        "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 2.666,
+          "fast_check.py/autoloop_lint": 1.867,
+          "fast_check.py/bash": 0.156,
+          "fast_check.py/compose": 0.198,
+          "fast_check.py/guardrails": 2.533,
+          "fast_check.py/javascript": 0.042,
+          "fast_check.py/knip": 1.552,
+          "fast_check.py/python": 2.565,
+          "fast_check.py/ruff_and_dev_deps": 0.15,
+          "fast_check.py/zizmor_workflows": 0.342
+        }
+      },
+      {
+        "at": "2026-11-28T12:35:51Z",
+        "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.515,
+          "fast_check.py/autoloop_lint": 1.681,
+          "fast_check.py/bash": 0.106,
+          "fast_check.py/compose": 0.214,
+          "fast_check.py/guardrails": 2.409,
+          "fast_check.py/javascript": 0.045,
+          "fast_check.py/knip": 1.575,
+          "fast_check.py/python": 2.29,
+          "fast_check.py/ruff_and_dev_deps": 0.084,
+          "fast_check.py/zizmor_workflows": 0.317,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.465
+        }
       }
     ],
     "shard:runtime_profile": [
@@ -165,26 +255,27 @@
           "fast_check.py/zizmor_workflows": 0.833,
           "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.054
         }
+      },
+      {
+        "at": "2026-11-28T12:34:15Z",
+        "head_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.523,
+          "fast_check.py/autoloop_lint": 2.04,
+          "fast_check.py/bash": 0.147,
+          "fast_check.py/compose": 0.305,
+          "fast_check.py/guardrails": 2.336,
+          "fast_check.py/javascript": 0.111,
+          "fast_check.py/knip": 1.463,
+          "fast_check.py/python": 2.396,
+          "fast_check.py/ruff_and_dev_deps": 0.099,
+          "fast_check.py/zizmor_workflows": 0.382,
+          "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.047
+        }
       }
     ],
     "shard:verify_tooling": [
-      {
-        "at": "2026-11-28T11:56:12Z",
-        "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 5.014,
-          "fast_check.py/autoloop_lint": 1.878,
-          "fast_check.py/bash": 0.737,
-          "fast_check.py/compose": 3.167,
-          "fast_check.py/guardrails": 1.293,
-          "fast_check.py/javascript": 0.257,
-          "fast_check.py/knip": 3.614,
-          "fast_check.py/python": 4.773,
-          "fast_check.py/ruff_and_dev_deps": 0.074,
-          "fast_check.py/zizmor_workflows": 0.326
-        }
-      },
       {
         "at": "2026-11-28T11:57:36Z",
         "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
@@ -254,6 +345,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.035,
           "fast_check.py/zizmor_workflows": 0.288,
           "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.883
+        }
+      },
+      {
+        "at": "2026-11-28T12:35:47Z",
+        "head_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.685,
+          "fast_check.py/autoloop_lint": 1.514,
+          "fast_check.py/bash": 0.59,
+          "fast_check.py/compose": 0.508,
+          "fast_check.py/guardrails": 1.141,
+          "fast_check.py/javascript": 0.07,
+          "fast_check.py/knip": 0.912,
+          "fast_check.py/python": 3.603,
+          "fast_check.py/ruff_and_dev_deps": 0.046,
+          "fast_check.py/zizmor_workflows": 0.273,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.358
         }
       }
     ]
@@ -413,6 +522,110 @@
       "event": "shard-passed",
       "shard": "cashier_correctness",
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:26:20Z",
+      "code_tree_sha256": "9e933f55ad6662f7cbac1e5be388eee3e98a861be2871fc6d9e8d871078ff589",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:26:31Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
+      "shard": "docs",
+      "signature": "verify-untampered::UNKNOWN::apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:26:33Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
+      "shard": "runtime_profile",
+      "signature": "verify-untampered::UNKNOWN::apps/khitmee_ops/khitmee_ops/tests/test_catalog_unit.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:26:39Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
+      "shard": "docs",
+      "signature": "verify-untampered::UNKNOWN::apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:34:08Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "ea7409afdfed8b75ec54d5555232a58edf4ef67a",
+      "shard": "autoloop_meta",
+      "signature": "fast_check.py::AssertionError::tools/autoloop/test_autoloop.py:test_current_memory_hooks_stub_matches_the_legacy_baseline",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:34:12Z",
+      "code_tree_sha256": "12efcf4b30d21046e10f9721913538431a447024ca35c63d537f900c4898fbf0",
+      "event": "shard-passed",
+      "shard": "docs",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:34:15Z",
+      "code_tree_sha256": "029f216bd2bab448a10069a68eb6d0d9e0d73f39511e83cc64a511f74094aa11",
+      "event": "shard-passed",
+      "shard": "runtime_profile",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:34:18Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
+      "shard": "report_paths",
+      "signature": "fast_check.py::EXIT_1::fast_check.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:35:47Z",
+      "code_tree_sha256": "6c08a6bf33375aa627f77baf4ad7cd8af443e80f84488868125c6bf9b056c737",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:35:51Z",
+      "code_tree_sha256": "25b74b8b0797619135acad0fe1c929feaf75a2ab24dea90f92cdcba8af3e70b4",
+      "event": "shard-passed",
+      "shard": "report_paths",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -459,21 +672,12 @@
         "python -B -m unittest tools/autoloop/test_autoloop.py"
       ],
       "goal": "",
-      "has_passed_individually": true,
-      "last_green_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
-      "passed_code_tree_sha256": "9f361fb63f8f70babf1d31241322885721f2aaf4e2566f26a17a93586debc64a",
-      "passed_tooling": {
-        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-        "fast_check_ran": true,
-        "policy_shas": {
-          "verify_tooling": "d2f2d708a4006597f4bc5359c76c494ef5bd156d"
-        },
-        "sha256": "cdac36c833d637026ef2bb7764eb9178f6420e7ac92068675cc7a5e03c61a60b"
-      },
-      "pending_dead_end_sig": null,
+      "has_passed_individually": false,
+      "last_green_sha": "29fc9f0590a3701579772271655ee79ea8ccf1d6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": "fast_check.py::AssertionError::tools/autoloop/test_autoloop.py:test_current_memory_hooks_stub_matches_the_legacy_baseline",
       "retry_scope": null,
-      "status": "passed",
-      "trusted_policy_pass_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/autoloop_meta"
     },
@@ -529,21 +733,26 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "d09e77dd8027655f0f279437faf477afaa6b6c44",
-      "passed_code_tree_sha256": "ee73041c3cd358603509bec7474e038ccb24414a9bb046f7fb951eaa276556fe",
+      "last_green_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
+      "passed_code_tree_sha256": "12efcf4b30d21046e10f9721913538431a447024ca35c63d537f900c4898fbf0",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
-          "verify_tooling": "d2f2d708a4006597f4bc5359c76c494ef5bd156d"
+          "verify_tooling": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8"
         },
-        "sha256": "a590f966f79f54eb81ee51e65d68e52932a22ee73239965c8876d82df7aa6910"
+        "sha256": "7b47b515ae33d4284c82e608d2276fff49b494660b9255afe6869485b4d4c55d",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {},
+          "warning_count": 0
+        }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "d09e77dd8027655f0f279437faf477afaa6b6c44",
+      "trusted_policy_pass_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/docs"
     },
@@ -577,11 +786,27 @@
         "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "1efc5d44071699c065ca1f495790193c3f444929",
+      "passed_code_tree_sha256": "25b74b8b0797619135acad0fe1c929feaf75a2ab24dea90f92cdcba8af3e70b4",
+      "passed_tooling": {
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "verify_tooling": "5b0d690bfd8e6214387456a3a179759574ecc995"
+        },
+        "sha256": "d26e1a5a7aa19d8902da79971677697c43b7646e0ee41cc957d9e0a1aba173eb",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
       "pending_dead_end_sig": null,
-      "status": "in_progress",
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "1efc5d44071699c065ca1f495790193c3f444929",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
     },
@@ -598,21 +823,26 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "81616b3033dc38720f16879ae8d5684b6c7ae11b",
-      "passed_code_tree_sha256": "7250dd29b757201b51cfd0361c2405ba0db0d492f8373338d1e842337fcbf700",
+      "last_green_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
+      "passed_code_tree_sha256": "029f216bd2bab448a10069a68eb6d0d9e0d73f39511e83cc64a511f74094aa11",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
-          "verify_tooling": "d2f2d708a4006597f4bc5359c76c494ef5bd156d"
+          "verify_tooling": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8"
         },
-        "sha256": "a590f966f79f54eb81ee51e65d68e52932a22ee73239965c8876d82df7aa6910"
+        "sha256": "7b47b515ae33d4284c82e608d2276fff49b494660b9255afe6869485b4d4c55d",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {},
+          "warning_count": 0
+        }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "81616b3033dc38720f16879ae8d5684b6c7ae11b",
+      "trusted_policy_pass_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/runtime_profile"
     },
@@ -648,25 +878,29 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8",
-      "passed_code_tree_sha256": "4fa13b53c576c804b6cf618648f54534c0cd9cea7c9d0bff28b60bf83db8f8a1",
+      "last_green_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
+      "passed_code_tree_sha256": "6c08a6bf33375aa627f77baf4ad7cd8af443e80f84488868125c6bf9b056c737",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
-        "policy_shas": {
-          "autoloop_meta": "5dd94f0ac08747f5c73324bf66891d9a68f5f287"
-        },
-        "sha256": "d6e553803413dc400be0bafc01183da681d25211665ff70073b571e0bc4fdb42"
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {},
+          "warning_count": 0
+        }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8",
+      "trusted_policy_pass_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T12:25:12Z"
+  "updated_at": "2026-11-28T12:35:51Z"
 }
