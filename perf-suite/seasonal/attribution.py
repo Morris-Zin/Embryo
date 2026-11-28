@@ -289,6 +289,8 @@ def metric_count(metric):
         containers.append(metric["values"])
     for container in containers:
         for key in ("count", "value"):
+            if key not in container:
+                continue
             try:
                 return int(container.get(key) or 0)
             except (TypeError, ValueError):
