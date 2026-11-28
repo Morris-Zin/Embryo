@@ -367,6 +367,18 @@ class QualifyEntryPointTests(unittest.TestCase):
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
+    def test_real_k6_console_fixture_window_markers_are_parsed(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixture = ROOT / "fixtures" / "real" / "k6-console.log"
+        start, end = module.measured_window_from_log(fixture)
+        self.assertIsNotNone(start)
+        self.assertIsNotNone(end)
+        self.assertGreater(end, start)
+        parsed_events = verify_run.parse_events(fixture)["events"]
+        self.assertEqual(sum(1 for event in parsed_events if event.get("event") == "search_complete"), 4)
+
     def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
         module = importlib.util.module_from_spec(spec)

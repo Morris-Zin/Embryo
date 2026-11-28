@@ -14,8 +14,15 @@ import math
 import pathlib
 import re
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
+
+try:
+    import verify_run
+except ModuleNotFoundError:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import verify_run
 
 PROJECT = "khitmee-perf"
 # At least 95% of nginx upstream rows must join to a Gunicorn application
@@ -330,16 +337,10 @@ def measured_window_from_log(path):
     start = None
     end = None
     try:
-        lines = pathlib.Path(path).read_text(errors="replace").splitlines()
+        parsed = verify_run.parse_events(path)
     except Exception:
         return None, None
-    for line in lines:
-        if "KHITMEE_SEASONAL_EVENT" not in line:
-            continue
-        try:
-            event = json.loads(line.split("KHITMEE_SEASONAL_EVENT", 1)[1].strip())
-        except Exception:
-            continue
+    for event in parsed.get("events") or []:
         if event.get("event") == "measured_window_start":
             start = parse_iso_time(event.get("at"))
         elif event.get("event") == "measured_window_end":
