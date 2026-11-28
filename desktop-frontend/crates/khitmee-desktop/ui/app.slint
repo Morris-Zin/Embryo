@@ -241,6 +241,7 @@ component VoucherLineRow inherits Rectangle {
     callback increase(string);
     callback decrease(string);
     callback quantity-edited(string, string);
+    callback quantity-editing(string, string);
     height: 48px;
     property <length> qty-x: root.width * 0.28;
 
@@ -259,6 +260,9 @@ component VoucherLineRow inherits Rectangle {
         accessible-role: text-input;
         accessible-label: "Quantity";
         horizontal-alignment: center;
+        edited => {
+            root.quantity-editing(line.item-code, self.text);
+        }
         changed has-focus => {
             if (!self.has-focus) { root.quantity-edited(line.item-code, self.text); }
         }
@@ -312,6 +316,8 @@ component CounterScreen inherits FocusScope {
     in property <string> total-qty-text;
     in property <string> subtotal-text;
     in-out property <bool> clear-scan-after-accept;
+    property <string> editing-quantity-code: "";
+    property <string> editing-quantity-text: "";
     callback navigate(int);
     callback warehouse-selected(string);
     callback customer-selected(string);
@@ -330,6 +336,14 @@ component CounterScreen inherits FocusScope {
     callback clear-lines();
     callback submit-print();
 
+    function commit-quantity-edit() {
+        if (root.editing-quantity-code != "") {
+            root.line-quantity-edited(root.editing-quantity-code, root.editing-quantity-text);
+            root.editing-quantity-code = "";
+            root.editing-quantity-text = "";
+        }
+    }
+
     init => {
         root.content-y = -root.initial-scroll-offset;
         item-search.focus();
@@ -339,6 +353,7 @@ component CounterScreen inherits FocusScope {
             item-search.focus();
             accept
         } else if event.text == Key.F9 {
+            root.commit-quantity-edit();
             root.submit-print();
             accept
         } else if event.text == Key.DownArrow && root.search-open && root.search-results.length > 0 {
@@ -526,7 +541,17 @@ component CounterScreen inherits FocusScope {
                 remove(code) => { root.remove-line(code); }
                 increase(code) => { root.increase-line(code); }
                 decrease(code) => { root.decrease-line(code); }
-                quantity-edited(code, value) => { root.line-quantity-edited(code, value); }
+                quantity-editing(code, value) => {
+                    root.editing-quantity-code = code;
+                    root.editing-quantity-text = value;
+                }
+                quantity-edited(code, value) => {
+                    root.line-quantity-edited(code, value);
+                    if (root.editing-quantity-code == code) {
+                        root.editing-quantity-code = "";
+                        root.editing-quantity-text = "";
+                    }
+                }
             }
         }
     }
@@ -584,7 +609,7 @@ component CounterScreen inherits FocusScope {
             overflow: elide;
             accessible-live-region: polite;
         }
-        BrowserButton { x: root.width - 218.8125px; y: 12px; width: 186.8125px; height: 48px; text: "Submit & Print  F9"; primary: true; enabled: root.voucher-lines.length > 0; clicked => { root.submit-print(); } }
+        BrowserButton { x: root.width - 218.8125px; y: 12px; width: 186.8125px; height: 48px; text: "Submit & Print  F9"; primary: true; enabled: root.voucher-lines.length > 0; clicked => { root.commit-quantity-edit(); root.submit-print(); } }
     }
 }
 
