@@ -706,6 +706,9 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-detail-item-select(int);
     callback invoice-detail-item-delete();
     callback invoice-detail-validation-close();
+    callback invoice-detail-cancel();
+    callback invoice-detail-cancel-yes();
+    callback invoice-detail-cancel-no();
     background: #f4f5f7;
 
     Rectangle { x: 0px; y: 0px; width: 240px; height: parent.height; background: #f8fafc; }
@@ -1239,7 +1242,11 @@ component InvoiceDetailScreen inherits Rectangle {
     in property <string> detail-error-text: "";
     in property <string> detail-validation-text: "";
     in property <string> detail-validation-title: "";
+    in property <string> detail-confirm-text: "";
     callback detail-validation-close();
+    callback detail-cancel();
+    callback detail-cancel-yes();
+    callback detail-cancel-no();
     callback back-to-list();
     callback detail-field-edited(string, string);
     callback detail-save();
@@ -1284,12 +1291,12 @@ component InvoiceDetailScreen inherits Rectangle {
     }
     Text { x: root.content-x + 107px; y: 66px; width: 190px; height: 22px; text: root.detail-name; color: Design.muted; font-size: 11px; vertical-alignment: center; accessible-label: root.detail-name; }
     BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; visible: root.detail-error-text == ""; }
+    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; visible: root.detail-error-text == "" && root.detail-status != "Cancelled"; }
     BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
     BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
     BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
     BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft" && root.detail-status != "Cancelled"; clicked => { root.detail-cancel(); } }
     Rectangle {
         x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
         border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;
@@ -1308,6 +1315,14 @@ component InvoiceDetailScreen inherits Rectangle {
         x: root.content-x + 20px; y: 126px; width: root.content-width - 40px; height: parent.height - 146px;
         background: #ffffff; border-color: #e4e7ec; border-width: 1px;
         Text { width: parent.width; height: 160px; text: root.detail-error-text; accessible-label: root.detail-error-text; color: Design.text; font-size: 16px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+    }
+    if root.detail-confirm-text != "": Rectangle {
+        x: root.content-x + (root.content-width - 390px) / 2; y: 190px; width: 390px; height: 145px;
+        background: #ffffff; border-color: #d0d5dd; border-width: 1px; border-radius: 8px;
+        Text { x: 20px; y: 14px; width: parent.width - 40px; height: 24px; text: "Confirm"; accessible-label: "Confirm"; color: Design.text; font-size: 15px; font-weight: 750; vertical-alignment: center; }
+        Text { x: 20px; y: 45px; width: parent.width - 40px; height: 42px; text: root.detail-confirm-text; accessible-label: root.detail-confirm-text; color: Design.text; font-size: 12px; vertical-alignment: center; wrap: word-wrap; }
+        BrowserButton { x: parent.width - 152px; y: parent.height - 43px; width: 62px; height: 30px; text: "No"; clicked => { root.detail-cancel-no(); } }
+        BrowserButton { x: parent.width - 82px; y: parent.height - 43px; width: 62px; height: 30px; text: "Yes"; primary: true; clicked => { root.detail-cancel-yes(); } }
     }
     if root.detail-validation-text != "": Rectangle {
         x: root.content-x + (root.content-width - 430px) / 2; y: 190px; width: 430px; height: 170px;
@@ -1408,6 +1423,7 @@ export component AppWindow inherits Window {
     in property <string> invoice-detail-error-text: "";
     in property <string> invoice-detail-validation-text: "";
     in property <string> invoice-detail-validation-title: "";
+    in property <string> invoice-detail-confirm-text: "";
     in property <int> invoice-detail-editing-index: -1;
     in property <string> invoice-detail-title: "Sales Invoice";
     in property <string> invoice-detail-name: "";
@@ -1462,6 +1478,9 @@ export component AppWindow inherits Window {
     callback invoice-detail-item-select(int);
     callback invoice-detail-item-delete();
     callback invoice-detail-validation-close();
+    callback invoice-detail-cancel();
+    callback invoice-detail-cancel-yes();
+    callback invoice-detail-cancel-no();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1551,6 +1570,10 @@ export component AppWindow inherits Window {
         detail-dirty: root.invoice-detail-dirty;
         detail-error-text: root.invoice-detail-error-text;
         detail-validation-text: root.invoice-detail-validation-text;
+        detail-confirm-text: root.invoice-detail-confirm-text;
+        detail-cancel => { root.invoice-detail-cancel(); }
+        detail-cancel-yes => { root.invoice-detail-cancel-yes(); }
+        detail-cancel-no => { root.invoice-detail-cancel-no(); }
         detail-validation-title: root.invoice-detail-validation-title;
         detail-validation-close => { root.invoice-detail-validation-close(); }
         detail-editing-index: root.invoice-detail-editing-index;

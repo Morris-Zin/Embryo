@@ -174,6 +174,13 @@ impl ErpClient {
         self.post_method("frappe.client.submit", &json!({ "doc": doc.to_string() }))
     }
 
+    pub fn cancel_sales_invoice(&self, name: &str) -> ErpResult<Value> {
+        self.post_method(
+            "frappe.client.cancel",
+            &json!({ "doctype": "Sales Invoice", "name": name }),
+        )
+    }
+
     pub fn sales_invoice_count(&self, filter: &str) -> ErpResult<usize> {
         let filters = if filter.trim().is_empty() {
             json!([])

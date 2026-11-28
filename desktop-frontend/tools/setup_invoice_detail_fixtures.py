@@ -174,4 +174,12 @@ def ensure_editable_multi_draft(side):
 web_multi_draft = ensure_editable_multi_draft("web")
 native_multi_draft = ensure_editable_multi_draft("native")
 
-print(json.dumps({"multi_item": multi_name, "draft": draft_name, "multi_draft": multi_draft_name, "paid": paid_name, "overdue": overdue_name, "web_draft": web_draft, "native_draft": native_draft, "web_multi_draft": web_multi_draft, "native_multi_draft": native_multi_draft}))
+def ensure_submitted_pair_invoice(side):
+    import time
+    unique_marker = f"migration-detail-cancel-{side}-v1-{time.time_ns()}"
+    return ensure_invoice(unique_marker, [("KM-00001", 1, 18.46)], submit=True)
+
+web_submitted = ensure_submitted_pair_invoice("web")
+native_submitted = ensure_submitted_pair_invoice("native")
+
+print(json.dumps({"multi_item": multi_name, "draft": draft_name, "multi_draft": multi_draft_name, "paid": paid_name, "overdue": overdue_name, "web_draft": web_draft, "native_draft": native_draft, "web_multi_draft": web_multi_draft, "native_multi_draft": native_multi_draft, "web_submitted": web_submitted, "native_submitted": native_submitted}))

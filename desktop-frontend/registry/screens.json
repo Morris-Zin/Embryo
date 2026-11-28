@@ -566,6 +566,7 @@
         "evidence/journeys/invoice-detail-row-add-delete.json",
         "evidence/journeys/invoice-detail-item-code-add.json",
         "evidence/journeys/invoice-detail-keyboard-edit.json",
+        "evidence/journeys/invoice-detail-cancel.json",
         "evidence/journeys/invoice-detail-item-rate-edit.json",
         "evidence/journeys/invoice-detail-paid.json",
         "evidence/journeys/invoice-list-permission-denied.json",
@@ -575,7 +576,7 @@
       ],
       "failures": [
         "comprehensive server-side validation matrix pending",
-        "detail tabs and non-save document actions pending",
+        "detail tabs and remaining document actions pending",
         "form focus-order and comprehensive visual-state evidence pending",
         "performance evidence pending"
       ],

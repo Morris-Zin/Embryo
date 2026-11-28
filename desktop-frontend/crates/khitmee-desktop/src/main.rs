@@ -1258,6 +1258,39 @@ fn delete_invoice_detail_items(app: &AppWindow, state: &mut PilotState) {
     app.set_status_text("Deleted invoice item row; save before submitting.".into());
 }
 
+fn request_cancel_invoice_detail(app: &AppWindow, state: &PilotState) {
+    let Some(doc) = state.invoice_detail_doc.as_ref() else {
+        return;
+    };
+    let name = detail_string(doc, "name");
+    app.set_invoice_detail_confirm_text(format!("Permanently Cancel {name}?").into());
+}
+
+fn close_cancel_invoice_detail(app: &AppWindow) {
+    app.set_invoice_detail_confirm_text("".into());
+}
+
+fn confirm_cancel_invoice_detail(app: &AppWindow, state: &mut PilotState) {
+    let Some(client) = detail_login(app, state) else {
+        return;
+    };
+    let Some(doc) = state.invoice_detail_doc.clone() else {
+        return;
+    };
+    let name = detail_string(&doc, "name");
+    app.set_invoice_detail_confirm_text("".into());
+    app.set_status_text(format!("Cancelling Sales Invoice {name}…").into());
+    match client.cancel_sales_invoice(&name) {
+        Ok(_) => {
+            refresh_invoice_detail(app, state, &name);
+            app.set_status_text(format!("Cancelled Sales Invoice {name}").into());
+        }
+        Err(error) => {
+            app.set_status_text(format!("Sales Invoice cancel failed: {error}").into());
+        }
+    }
+}
+
 fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
     let Some(client) = detail_login(app, state) else {
         return;
@@ -2234,6 +2267,34 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             delete_invoice_detail_items(&app, &mut state);
+        }
+    });
+
+    app.on_invoice_detail_cancel({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let state = state.borrow();
+            request_cancel_invoice_detail(&app, &state);
+        }
+    });
+
+    app.on_invoice_detail_cancel_no({
+        let app = app.as_weak();
+        move || {
+            let app = app.unwrap();
+            close_cancel_invoice_detail(&app);
+        }
+    });
+
+    app.on_invoice_detail_cancel_yes({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            confirm_cancel_invoice_detail(&app, &mut state);
         }
     });
 
