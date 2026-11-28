@@ -123,7 +123,6 @@ fn money(value: f64) -> String {
     format!("{value:.2}")
 }
 
-
 fn edited_quantity(value: &str) -> Option<f64> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -2585,7 +2584,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     app.run()
 }
-
 
 #[cfg(test)]
 mod tests {
