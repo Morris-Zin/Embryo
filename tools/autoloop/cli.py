@@ -34,7 +34,9 @@ from autoloop.guard import (
     verify_pr_integrity,
     verify_untampered,
 )
-from autoloop.leases import LeaseError, acquire_lease, lease_status, release_lease, renew_lease, resource_lock_dir
+from autoloop.leases import (
+    LeaseError, acquire_lease, lease_status, release_lease, renew_lease, resource_lease_key, resource_lock_dir,
+)
 from autoloop.lessons import LESSON_KINDS, matching_lessons, record_lesson
 from autoloop.routing import NUMBER_FIELDS, OPTIONAL_FIELDS, REQUIRED_FIELDS, record_attempt, routing_report
 from autoloop.state import (
@@ -432,6 +434,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lease = sub.add_parser("lease", help="Acquire, renew, or release a cross-platform resource lease")
     p_lease.add_argument("action", choices=("acquire", "renew", "release", "status"))
     p_lease.add_argument("--resource", required=True)
+    p_lease.add_argument("--compose-project", help="Compose project for a Docker stack lease")
+    p_lease.add_argument("--docker-host", help="Canonical Docker endpoint for a stack lease (default: local)")
     p_lease.add_argument("--owner")
     p_lease.add_argument("--ttl", type=float, default=300.0)
     p_lease.add_argument("--holder-pid", type=int, default=None)
@@ -755,13 +759,16 @@ def main(argv: list[str] | None = None) -> int:
                     handle.write(f"shard_matrix_json={matrix_json}\n")
             _emit(result)
         elif cmd == "lease":
-            lock_dir = resource_lock_dir(repo)
+            lock_dir = resource_lock_dir()
+            resource = args.resource
+            if args.compose_project is not None or args.docker_host is not None:
+                resource = resource_lease_key(resource, compose_project=args.compose_project, docker_host=args.docker_host)
             if args.action != "status" and not args.owner:
                 raise LeaseError(f"lease {args.action} requires --owner")
             if args.action == "acquire":
                 _emit(
                     acquire_lease(
-                        args.resource,
+                        resource,
                         args.owner,
                         ttl_s=args.ttl,
                         holder_pid=args.holder_pid,
@@ -772,13 +779,13 @@ def main(argv: list[str] | None = None) -> int:
             elif args.action == "renew":
                 if not args.token:
                     raise LeaseError("lease renew requires --token")
-                _emit(renew_lease(args.resource, args.owner, ttl_s=args.ttl, token=args.token, lock_dir=lock_dir))
+                _emit(renew_lease(resource, args.owner, ttl_s=args.ttl, token=args.token, lock_dir=lock_dir))
             elif args.action == "release":
                 if not args.token:
                     raise LeaseError("lease release requires --token")
-                _emit({"released": release_lease(args.resource, args.owner, token=args.token, lock_dir=lock_dir)})
+                _emit({"released": release_lease(resource, args.owner, token=args.token, lock_dir=lock_dir)})
             else:
-                _emit(lease_status(args.resource, lock_dir=lock_dir))
+                _emit({**lease_status(resource, lock_dir=lock_dir), "resource": args.resource})
         elif cmd == "lint":
             violations = lint_repo(repo, tree_ish=args.tree)
             if violations:
