@@ -1876,20 +1876,28 @@ def make_handler(state):
             started = time.monotonic()
             active = state.metrics.begin()
             body = self.read_body()
+            endpoint = "nonmanager"
             try:
                 if self.command == "GET" and self.path.split("?", 1)[0] == "/__manager_offload_health":
                     self.handle_health(started, active)
                     return
                 if self.path.split("?", 1)[0] == "/api/method/login":
+                    endpoint = "login"
                     self.handle_login(body, started, active)
                     return
                 if self.command == "GET" and self.path.split("?", 1)[0].rstrip("/") in ("/app", "/desk"):
+                    endpoint = "auth_bootstrap"
                     self.proxy_auth_bootstrap(started, active)
                     return
                 if self.path.startswith("/api/method/"):
                     parsed_method = self.path.split("?", 1)[0][len("/api/method/"):]
-                    manager_methods = {QUERY_METHOD, state.req["manager_workload"]["export_enqueue_method"], state.req["manager_workload"]["export_download_method"]}
+                    manager_methods = {
+                        QUERY_METHOD: "query_report",
+                        state.req["manager_workload"]["export_enqueue_method"]: "export_enqueue",
+                        state.req["manager_workload"]["export_download_method"]: "export_download",
+                    }
                     if parsed_method in manager_methods:
+                        endpoint = manager_methods[parsed_method]
                         self.handle_manager(body, started, active)
                         return
                 if state.req["integration"]["mode"] == "reverse-proxy-shim":
@@ -1897,7 +1905,7 @@ def make_handler(state):
                 else:
                     self.reject(404, "split-manager-url mode only serves configured manager endpoints", "nonmanager_reject", "nonmanager", started, active)
             except (OSError, http.client.HTTPException, TimeoutError) as exc:
-                self.reject(502, f"upstream connection failed: {type(exc).__name__}", "upstream_error", "upstream", started, active)
+                self.reject(502, f"upstream connection failed: {type(exc).__name__}", "upstream_error", endpoint, started, active)
 
     return OffloadHandler
 
@@ -1972,7 +1980,17 @@ def verify(req):
     metrics_path = artifact_dir / "service-metrics.json"
     metrics = load_json(metrics_path) if metrics_path.is_file() else {}
     external_by_key = {}
+    failures = []
+    export_endpoints = {"export_enqueue", "export_download"}
+    manager_endpoints = export_endpoints | {"query_report", "manager", "upstream"}
     for event in events:
+        endpoint = event.get("endpoint")
+        status = event.get("status")
+        if endpoint == "export_download" and event.get("event") == "external_response" and status == 409:
+            # A pending poll is followed by a separately required successful download.
+            continue
+        if endpoint in manager_endpoints and (status != 200 or event.get("cache") == "reject"):
+            failures.append({"event": event.get("event"), "endpoint": endpoint, "status": status})
         if event.get("event") == "external_response" and event.get("cache_key"):
             external_by_key.setdefault(event["cache_key"], []).append(event)
     comparisons = []
@@ -2018,8 +2036,11 @@ def verify(req):
     export_unsupported = [row for row in unsupported if row.get("event") in export_events or row.get("group") == "export_complete"]
     export_rows = [row for row in comparisons if row["group"] == "export_complete"]
     export_exact = bool(export_rows) and all(row["exact"] for row in export_rows)
-    export_capability_passed = export_exact and not export_unsupported
-    measured_passed = coverage_ok and all_exact and not timed_unsupported
+    timed_failures = [row for row in failures if export_in_timed_load or row["endpoint"] not in export_endpoints]
+    export_capability_passed = export_exact and not export_unsupported and not any(
+        row["endpoint"] in export_endpoints for row in failures
+    )
+    measured_passed = coverage_ok and all_exact and not timed_unsupported and not timed_failures
     verdict = {
         "schema_version": "manager-parity-verdict-v1",
         "generated_at": utc_now(),
@@ -2038,6 +2059,8 @@ def verify(req):
         "comparisons": comparisons,
         "parity_rejects": unsupported,
         "timed_parity_rejects": timed_unsupported,
+        "manager_request_failures": failures,
+        "timed_request_failures": timed_failures,
         "export_parity_rejects": export_unsupported,
         "freshness": capture.get("freshness"),
         "metrics": {

@@ -241,7 +241,8 @@ class ManagerOffloadTests(unittest.TestCase):
             thread.join(timeout=2)
 
         verdict = mo.verify(req)
-        self.assertTrue(verdict["passed"], verdict)
+        self.assertFalse(verdict["passed"], verdict)
+        self.assertEqual([r["status"] for r in verdict["timed_request_failures"]], [403, 403])
         self.assertEqual(verdict["detail_pages_exact"], 2)
         self.assertTrue(verdict["all_oracle_observations_exact"])
 
@@ -340,6 +341,14 @@ class ManagerOffloadTests(unittest.TestCase):
         capture["observations"][-1] = {"ok": True, "group": "export_complete", "cache_key": "export", "sha256": "e"}
         mo.atomic_write_json(artifact / "oracle-capture.json", capture)
         self.assertTrue(mo.verify(req)["measured_scope_passed"])
+        events_path = artifact / "external-events.jsonl"
+        original = events_path.read_bytes()
+        for endpoint, expected in (("query_report", False), ("upstream", False), ("export_enqueue", True)):
+            with self.subTest(endpoint=endpoint):
+                failure = {"event": "upstream_error", "endpoint": endpoint, "status": 502}
+                events_path.write_bytes(original + (mo.json_dumps(failure) + "\n").encode())
+                self.assertEqual(mo.verify(req)["passed"], expected)
+        events_path.write_bytes(original)
         with (artifact / "external-events.jsonl").open("a") as handle:
             handle.write(mo.json_dumps(dict(events[0], sha256="wrong")) + "\n")
         self.assertFalse(mo.verify(req)["passed"])
