@@ -78,7 +78,7 @@ Same-day isolated-stack comparison (normal profile):
 
 The remaining sustained heap growth is dominated by bounded/intentional or browser-owned objects: the scan cache is capped at 100 entries, resource-timing/performance entries are browser-capped, and compiled-code/network internals fluctuate independently. The final 400-scan heap diff contains 100 cached item objects (the configured cap), not unbounded row or editor objects.
 
-Profiler-guided experiments not retained: cloning a static row template did not improve script/layout time; `content-visibility` on table rows or cells did not reduce layout because internal table boxes still participate in table layout; CSS-grid row emulation only reduced 100-row layout by about 6% and was not worth table-semantics risk; replacing the search input flattened node counts but did not remove editor undo retention.
+Profiler-guided experiments not retained in the third iteration: `content-visibility` on unmodified internal table boxes did not reduce layout because those boxes still participate in table layout, and replacing the search input flattened node counts but did not remove editor undo retention. The fifth iteration below revisits row rendering with explicit grid rows plus intrinsic-size estimation, which is what makes off-screen rendering deferral effective while retaining table elements and the browser accessibility table role.
 
 ## Fourth iteration: compounding DOM-write reductions
 
@@ -96,3 +96,25 @@ Same-day isolated-stack comparison (normal profile):
 The scan path was already dominated by necessary table row layout rather than select initialization; the main compounding win is therefore lower initialization mutation volume plus lower recurring row-update query cost, not another large scan-layout reduction.
 
 Regression evidence: `bash tools/khitmee-dev.sh browser-perf-check` passed 10/10 Playwright assertions, and `bash tools/khitmee-dev.sh fast-check` passed Python, JavaScript, Bash, Compose, and knip gates.
+
+## Fifth iteration: profiler-guided layout, paint, and hot-path compounding
+
+Function-level CPU and trace analysis showed three remaining compounding costs: scanner key handling repeated timer/listener work, totals were recalculated over every invoice line for each appended line (O(n²) across a scan-build load), and off-screen invoice rows still participated in paint/layout because `content-visibility` is ineffective on internal table boxes. The fifth iteration keeps the semantic `<table>` markup but lays rows out as CSS grid rows, applies `content-visibility: auto` with `contain-intrinsic-size` only to body rows, merges the scanner/navigation keydown paths, avoids redundant selection writes, clones a static row template instead of reparsing row HTML, and maintains running totals for append-only scans while fully recomputing totals after any in-place quantity edit or removal. Append-order floating-point behavior is therefore preserved for the optimized path.
+
+Same-day isolated-stack comparison against the fourth-iteration code, both measured on the same VM/browser stack (normal profile, 200-line scan-build):
+
+| measurement | fourth iteration | fifth iteration | change |
+|---|---:|---:|---:|
+| Script duration | 208.53 ms | 193.64 ms | -7.1% |
+| Layout duration | 365.04 ms | 222.02 ms | -39.2% |
+| Script+layout duration | 573.57 ms | 415.66 ms | -27.5% |
+| DOM mutation records | 604 | 604 | unchanged |
+| Trace paint duration | 435.8 ms | about 103 ms | about -76% |
+| Trace render lifecycle duration | 996.9 ms | about 471 ms | about -53% |
+| End-to-end scan median | 59.5 ms | 58.3 ms | automation-floor limited |
+
+The end-to-end scan median barely moves because the benchmark includes Playwright input dispatch plus double-requestAnimationFrame confirmation, which creates a high measurement floor; main-thread layout/paint counters are the meaningful frontend comparison here.
+
+Sustained memory after the fifth iteration, 40 cycles x 10 scan/clear operations (400 scans): JS heap grew from 2,219,144 B to 2,618,176 B (+392,636 B total) while the bounded scan cache warmed, then stayed flat within 2,760 B over cycles 33-40; DOM nodes grew by only 3. This is lower than the prior 2.92 MB ending heap and still shows no unbounded row/editor retention.
+
+Accessibility check: Chrome's accessibility tree still exposes the invoice structure as `table` with row/cell/columnheader roles after the grid-row display change, and column headers now carry explicit `scope="col"`.
