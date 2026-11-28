@@ -66,6 +66,10 @@ Record each delegated attempt with `record-attempt --task-id <id> --attempt 1 --
 
 ## Phase 4: Independent Review & Layered Safeguards
 
+Register confirmed incidents, gate failures, and inherited review findings as soon as they are known.
+`python tools/autoloop/cli.py record-finding --run-id <id> --finding-id <id> --severity P1 --source incident --summary "<bug>" --evidence "<log, review, or commit>" [--fixed-by <commit>]`
+Use `--fixed-by` for a fix already committed. Review requires that commit in the gated tree. For an open finding, fix it and use `resolve-finding` before submission. A finding recorded during or after review reopens submission.
+
 1. Once all shards reach `passed` at the same `code_tree_sha256` (`gate_passed`), run:
    `python tools/autoloop/cli.py submit-for-review --run-id <id>`
    (If both cloud and deep reviewers are explicitly disabled, this routes directly to `safeguard_pending` or `ready_to_merge` when there are no open oracle mismatches.)
@@ -77,6 +81,7 @@ Record each delegated attempt with `record-attempt --task-id <id> --attempt 1 --
    2. `layer_2_type` (compile/schema/type boundary)
    3. `layer_3_static_lint` (AST/config static rule in `.autoloop/rules/`)
    4. `layer_4_runtime_test` (requires non-empty `--why-not-static` justification; 15-line prose cap)
+   For layer 3, set `--artifact .autoloop/rules/<module>.py` and use `--rule-id <registered-id>` if it differs from the finding ID. Commit bad examples under `.autoloop/rules/fixtures/<rule-id>/<repo-relative-target>`. Check out the gated rule in the coordinator checkout. Registration runs that rule on the gated tree and then with the bad example substituted for its target. Record the safeguard again after any change to the rule module or its fixtures.
 4. If a safeguard commit modifies code after review, run `check --run-id <id> --all-shards`, re-submit (`submit-for-review`), and re-record review on the new `code_tree_sha256` (existing finding/safeguard records are preserved).
 5. Once `status == ready_to_merge`, verify with `verify-untampered` before opening/updating the PR. CI verifies `autoloop-preflight` -> (`autoloop-candidate-checks` + per-shard isolated `autoloop-shard-checks` matrix) -> `autoloop-integrity --mode finalize`, and `autoloop-comment-refresh.yml` re-runs the bound PR gate when owner contract/approval comments change.
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from hashlib import sha256
 import importlib.util
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -22,6 +24,29 @@ class RuleViolation:
 
 
 RuleFn = Callable[[dict[str, bytes]], list[RuleViolation] | list[dict[str, Any]]]
+_RULE_FILE = re.compile(r"\.autoloop/rules/[A-Za-z0-9][A-Za-z0-9_-]*\.py")
+_RULE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+
+
+def _load_rule_file(rule_file: Path, source: bytes) -> list[tuple[str, RuleFn]]:
+    module_name = f"_autoloop_trusted_rule_{rule_file.stem}"
+    spec = importlib.util.spec_from_file_location(module_name, rule_file)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"failed to load rule module {rule_file}")
+    module = importlib.util.module_from_spec(spec)
+    exec(compile(source, str(rule_file), "exec"), module.__dict__)
+    rules = getattr(module, "RULES", None)
+    if not isinstance(rules, (list, tuple)):
+        raise RuntimeError(f"rule module {rule_file.name} must define RULES list/tuple")
+    loaded = []
+    for entry in rules:
+        if isinstance(entry, tuple) and len(entry) == 2:
+            rule_id, fn = entry
+        else:
+            fn = entry
+            rule_id = getattr(fn, "rule_id", getattr(fn, "__name__", "unknown-rule"))
+        loaded.append((str(rule_id), fn))
+    return loaded
 
 
 def load_rules_from_dir(rules_dir: Path) -> list[tuple[str, RuleFn]]:
@@ -32,29 +57,18 @@ def load_rules_from_dir(rules_dir: Path) -> list[tuple[str, RuleFn]]:
     for rule_file in sorted(rules_dir.glob("*.py")):
         if rule_file.name.startswith("_"):
             continue
-        module_name = f"_autoloop_trusted_rule_{rule_file.stem}"
-        spec = importlib.util.spec_from_file_location(module_name, rule_file)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"failed to load rule module {rule_file}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        rules = getattr(module, "RULES", None)
-        if not isinstance(rules, (list, tuple)):
-            raise RuntimeError(f"rule module {rule_file.name} must define RULES list/tuple")
-        for entry in rules:
-            if isinstance(entry, tuple) and len(entry) == 2:
-                rule_id, fn = entry
-            else:
-                fn = entry
-                rule_id = getattr(fn, "rule_id", getattr(fn, "__name__", "unknown-rule"))
-            loaded.append((str(rule_id), fn))
+        loaded.extend(_load_rule_file(rule_file, rule_file.read_bytes()))
     return loaded
 
 
 def evaluate_file_map(rules_dir: Path, file_map: dict[str, bytes]) -> list[RuleViolation]:
     """Evaluate all registered rules against a full `dict[posix_path, bytes]` file map."""
+    return _evaluate_rules(load_rules_from_dir(rules_dir), file_map)
+
+
+def _evaluate_rules(rules: list[tuple[str, RuleFn]], file_map: dict[str, bytes]) -> list[RuleViolation]:
     violations: list[RuleViolation] = []
-    for rule_id, fn in load_rules_from_dir(rules_dir):
+    for rule_id, fn in rules:
         results = fn(file_map) or []
         for item in results:
             if isinstance(item, RuleViolation):
@@ -72,6 +86,58 @@ def evaluate_file_map(rules_dir: Path, file_map: dict[str, bytes]) -> list[RuleV
                 raise TypeError(f"rule {rule_id} returned unsupported violation item: {type(item)!r}")
     violations.sort(key=lambda v: (v.rule_id, v.path, v.line, v.message))
     return violations
+
+
+def rule_fixture_proof(file_map: dict[str, bytes], artifact: str, rule_id: str) -> dict[str, Any]:
+    """Describe the exact committed rule and mirrored fixture inputs."""
+    from .guard import GuardError
+
+    if not _RULE_FILE.fullmatch(artifact) or artifact not in file_map:
+        raise GuardError(f"static safeguard needs a committed rule module under .autoloop/rules/: {artifact!r}")
+    if not _RULE_ID.fullmatch(rule_id) or ".." in rule_id:
+        raise GuardError(f"invalid static safeguard rule ID {rule_id!r}")
+    prefix = f".autoloop/rules/fixtures/{rule_id}/"
+    fixtures = {path: raw for path, raw in sorted(file_map.items()) if path.startswith(prefix)}
+    if not fixtures:
+        raise GuardError(f"missing bad-example fixture under {prefix}")
+    for path in fixtures:
+        target = path.removeprefix(prefix)
+        if target not in file_map or target.startswith(".autoloop/"):
+            raise GuardError(f"bad-example fixture {path!r} must mirror a gated source path")
+    return {
+        "rule_id": rule_id,
+        "rule_sha256": sha256(file_map[artifact]).hexdigest(),
+        "fixture_sha256": {path: sha256(raw).hexdigest() for path, raw in fixtures.items()},
+    }
+
+
+def verify_rule_fixture(repo: Path, tree_ish: str, artifact: str, rule_id: str) -> dict[str, Any]:
+    """Require the named rule to pass clean code and flag its committed bad example."""
+    from .guard import GuardError, assert_safe_local_path, git_read_tree_blobs
+
+    file_map = git_read_tree_blobs(repo, tree_ish)
+    proof = rule_fixture_proof(file_map, artifact, rule_id)
+    rule_file = repo / artifact
+    assert_safe_local_path(repo, rule_file, allow_missing_leaf=False)
+    # Execute the coordinator's checked-out rule, only if identical to the gated source.
+    if not rule_file.is_file() or (source := rule_file.read_bytes()) != file_map[artifact]:
+        raise GuardError(f"check out the gated rule module {artifact!r} before recording its safeguard")
+    try:
+        rules = [entry for entry in _load_rule_file(rule_file, source) if entry[0] == rule_id]
+        if len(rules) != 1:
+            raise GuardError(f"expected exactly one registered rule {rule_id!r} in {artifact!r}")
+        if _evaluate_rules(rules, file_map):
+            raise GuardError(f"rule {rule_id!r} fails on the gated tree")
+        prefix = f".autoloop/rules/fixtures/{rule_id}/"
+        examples = {path.removeprefix(prefix): file_map[path] for path in proof["fixture_sha256"]}
+        violations = _evaluate_rules(rules, {**file_map, **examples})
+    except GuardError:
+        raise
+    except (OSError, RuntimeError, SyntaxError, TypeError, ValueError) as exc:
+        raise GuardError(f"could not evaluate static safeguard {rule_id!r}: {exc}") from exc
+    if not any(v.rule_id == rule_id and v.path in examples for v in violations):
+        raise GuardError(f"rule {rule_id!r} does not flag its bad-example fixture")
+    return proof
 
 
 def load_working_tree_file_map(repo: Path, max_blob_bytes: int = 10_000_000) -> dict[str, bytes]:

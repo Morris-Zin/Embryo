@@ -368,7 +368,7 @@ def _run_git(repo: Path, args: list[str], *, check: bool = True) -> subprocess.C
 
 
 def git_rev_parse(repo: Path, rev: str) -> str:
-    proc = _run_git(repo, ["rev-parse", "--verify", f"{rev}^{{commit}}"])
+    proc = _run_git(repo, ["rev-parse", "--verify", "--end-of-options", f"{rev}^{{commit}}"])
     return proc.stdout.decode("utf-8").strip()
 
 
@@ -1429,6 +1429,8 @@ def _verify_safeguard_artifact(
         raise GuardError(f"finding {fid!r} safeguard artifact {artifact!r} does not exist in candidate commit tree")
 
     if layer == "layer_3_static_lint":
+        from .static_rules import rule_fixture_proof
+
         if not (artifact.startswith(".autoloop/rules/") and artifact.endswith(".py")):
             raise GuardError(
                 f"finding {fid!r} layer_3_static_lint safeguard artifact {artifact!r} must live under .autoloop/rules/*.py"
@@ -1437,6 +1439,9 @@ def _verify_safeguard_artifact(
             raise GuardError(
                 f"finding {fid!r} layer_3_static_lint safeguard artifact {artifact!r} was not introduced or updated in this PR"
             )
+        proof = rule_fixture_proof(merge_file_map, artifact, str(sg.get("rule_id") or ""))
+        if any(sg.get(key) != value for key, value in proof.items()):
+            raise GuardError(f"finding {fid!r} static rule or fixture changed since safeguard recording")
     elif layer == "layer_4_runtime_test":
         if not why_not_static:
             raise GuardError(f"finding {fid!r} layer_4_runtime_test safeguard requires non-empty why_not_static")

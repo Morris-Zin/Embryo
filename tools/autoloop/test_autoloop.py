@@ -87,6 +87,7 @@ from autoloop.state import (
     publish_contract,
     record_all_shards_pass,
     record_check_timings,
+    record_finding,
     record_review,
     record_safeguard,
     record_shard_pass,
@@ -99,7 +100,7 @@ from autoloop.state import (
     start_shard,
     submit_for_review,
 )
-from autoloop.static_rules import evaluate_file_map, lint_repo, load_working_tree_file_map
+from autoloop.static_rules import evaluate_file_map, lint_repo, load_rules_from_dir, load_working_tree_file_map
 
 
 def _git(repo: Path, *args: str, env_extra: dict[str, str] | None = None) -> str:
@@ -691,6 +692,122 @@ class TestScenario3FindingsSafeguardsAndZeroReviewer(unittest.TestCase):
         self.assertEqual(st["status"], "ready_to_merge")
         self.assertEqual(resume_run(self.repo, run_id)["status"], "ready_to_merge")
 
+    def test_external_findings_use_review_lifecycle_and_reopen_readiness(self) -> None:
+        run_id = "external-findings"
+        init_run(self.repo, run_id, "Fix incidents", base_sha=self.main_sha, lock_dir=self.lock_dir)
+        complete_grill(self.repo, run_id, summary="Single shard", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+        record_shard_pass(self.repo, run_id, "s1", head_sha=self.main_sha, lock_dir=self.lock_dir)
+        state = record_finding(
+            self.repo, run_id, "incident", severity="P0", source="incident",
+            summary="Operator reported a bug", evidence="incident-1", lock_dir=self.lock_dir,
+        )
+        self.assertEqual(state["findings"]["incident"]["status"], "open")
+        with self.assertRaisesRegex(IllegalTransitionError, "open findings"):
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        resolve_finding(self.repo, run_id, "incident", fix_summary="Fix", lock_dir=self.lock_dir)
+
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 42\n")
+        _git(self.repo, "commit", "-am", "Fix inherited finding")
+        fixed_by = _git(self.repo, "rev-parse", "HEAD")
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(cli_main([
+                "--repo", str(self.repo), "record-finding", "--run-id", run_id, "--finding-id", "inherited",
+                "--severity", "P1", "--source", "inherited_review", "--summary", "Prior review issue",
+                "--evidence", "prior-review", "--fixed-by", fixed_by[:12],
+            ]), 0)
+        finding = load_run(self.repo, run_id)["findings"]["inherited"]
+        self.assertEqual((finding["status"], finding["fixed_by"], finding["evidence"]),
+                         ("fixed_pending_review", fixed_by, "prior-review"))
+        with self.assertRaisesRegex(IllegalTransitionError, "already exists"):
+            record_finding(
+                self.repo, run_id, "inherited", severity="P1", source="review",
+                summary="Duplicate", evidence="prior-review", lock_dir=self.lock_dir,
+            )
+        with self.assertRaisesRegex(IllegalTransitionError, "missing from the gated commit"):
+            submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        record_shard_pass(self.repo, run_id, "s1", head_sha=fixed_by, lock_dir=self.lock_dir)
+        state = submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        code_hash = state["shards"]["s1"]["passed_code_tree_sha256"]
+        for stage in ("cloud", "deep"):
+            state = record_review(
+                self.repo, run_id, stage=stage, verdict="pass", reviewer=f"{stage}-reviewer",
+                code_tree_sha256=code_hash, lock_dir=self.lock_dir,
+            )
+        self.assertEqual(state["status"], "safeguard_pending")
+        for fid, expected in (("incident", "safeguard_pending"), ("inherited", "ready_to_merge")):
+            self.assertEqual(state["findings"][fid]["status"], "closed_needs_safeguard")
+            state = record_safeguard(
+                self.repo, run_id, fid, layer="layer_1_architecture", artifact="src/a.py",
+                summary="Use the shared boundary", lock_dir=self.lock_dir,
+            )
+            self.assertEqual(state["status"], expected)
+        state = record_finding(
+            self.repo, run_id, "failure", severity="P2", source="gate_failure",
+            summary="Another finding", evidence="gate log", fixed_by=fixed_by, lock_dir=self.lock_dir,
+        )
+        self.assertEqual(state["status"], "gate_passed")
+        self.assertEqual(submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)["status"], "awaiting_cloud_review")
+
+    def test_static_safeguard_requires_registered_rule_and_committed_bad_example(self) -> None:
+        run_id = "static-proof"
+        fixture = ".autoloop/rules/fixtures/no-bad/src/a.py"
+        artifact = ".autoloop/rules/fixture_demo.py"
+        _write_lf(self.repo / artifact, (
+            "def check(files):\n"
+            "    return [{'path': 'src/a.py', 'line': 1, 'message': 'bad'}]"
+            " if b'BAD' in files['src/a.py'] else []\n"
+            "RULES = [('no-bad', check)]\n"
+        ))
+        _git(self.repo, "add", artifact)
+        _git(self.repo, "commit", "-m", "Add rule")
+        init_run(
+            self.repo, run_id, "Verify fixture", base_sha=self.main_sha,
+            cloud_review=False, deep_review=False, lock_dir=self.lock_dir,
+        )
+        complete_grill(self.repo, run_id, summary="Single shard", shards={"s1": ["src/a.py"]}, lock_dir=self.lock_dir)
+        lock_run(self.repo, run_id, lock_dir=self.lock_dir)
+        start_shard(self.repo, run_id, "s1", lock_dir=self.lock_dir)
+        record_shard_pass(self.repo, run_id, "s1", head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        record_finding(
+            self.repo, run_id, "F1", severity="P1", source="incident", summary="Bad input",
+            evidence="log", fixed_by=self.main_sha, lock_dir=self.lock_dir,
+        )
+        submit_for_review(self.repo, run_id, lock_dir=self.lock_dir)
+        options = {
+            "layer": "layer_3_static_lint", "artifact": artifact, "summary": "Reject bad input",
+            "rule_id": "no-bad", "lock_dir": self.lock_dir,
+        }
+        _write_lf(self.repo / fixture, "BAD\n")
+        with self.assertRaisesRegex(GuardError, "missing bad-example fixture"):
+            record_safeguard(self.repo, run_id, "F1", **options)
+        _write_lf(self.repo / fixture, "GOOD\n")
+        _git(self.repo, "add", fixture)
+        _git(self.repo, "commit", "-m", "Add ineffective fixture")
+        record_shard_pass(self.repo, run_id, "s1", head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        with self.assertRaisesRegex(GuardError, "does not flag"):
+            record_safeguard(self.repo, run_id, "F1", **options)
+        _write_lf(self.repo / artifact, "RULES = []\n")
+        with self.assertRaisesRegex(GuardError, "check out the gated rule"):
+            record_safeguard(self.repo, run_id, "F1", **options)
+        _git(self.repo, "restore", artifact)
+        _write_lf(self.repo / fixture, "BAD\n")
+        _git(self.repo, "commit", "-am", "Make fixture exercise the rule")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        record_shard_pass(self.repo, run_id, "s1", head_sha=head, lock_dir=self.lock_dir)
+        state = record_safeguard(self.repo, run_id, "F1", **options)
+        self.assertEqual(state["status"], "ready_to_merge")
+        proof = state["findings"]["F1"]["safeguard"]
+        self.assertEqual(proof["rule_id"], "no-bad")
+        self.assertEqual(set(proof["fixture_sha256"]), {fixture})
+        candidate = git_read_tree_blobs(self.repo, head)
+        finding = state["findings"]["F1"]
+        _verify_safeguard_artifact(self.repo, head, candidate, run_id, "F1", finding, 15)
+        candidate[fixture] = b"GOOD\n"
+        with self.assertRaisesRegex(GuardError, "changed since safeguard recording"):
+            _verify_safeguard_artifact(self.repo, head, candidate, run_id, "F1", finding, 15)
+
     def test_zero_reviewer_direct_route_and_replan_human_resolve(self) -> None:
         run_id = "run-zero-rev"
         init_run(
@@ -1063,8 +1180,8 @@ class TestScenario6AllSevenEmbryoCoreRules(unittest.TestCase):
             grouped.setdefault(v.rule_id, []).append(v)
         return grouped
 
-    def test_live_repo_has_zero_violations(self) -> None:
-        self.assertEqual(lint_repo(REPO_ROOT), [])
+    def test_live_repo_has_zero_embryo_core_violations(self) -> None:
+        self.assertEqual(lint_repo(REPO_ROOT, rules_dir=_get_template_repo() / ".autoloop/rules"), [])
 
     def test_rule1_no_frappe_init_in_preload(self) -> None:
         # Positive: *preload*.py calling frappe.init
@@ -1258,9 +1375,77 @@ class TestScenario6AllSevenEmbryoCoreRules(unittest.TestCase):
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "lint"]), 0)
+            self.assertEqual(cli_main(["--repo", str(_get_template_repo()), "lint"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "sync-skill", "--dry-run"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "bootstrap-repo", "--dry-run"]), 0)
+
+
+class TestBackendSafeguardRules(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.rules_dir = REPO_ROOT / ".autoloop/rules"
+        cls.rules = dict(load_rules_from_dir(cls.rules_dir))
+
+    def test_each_backend_rule_flags_its_bad_example(self) -> None:
+        fixture_root = self.rules_dir / "fixtures"
+        backend_rules = {path.name for path in fixture_root.iterdir() if path.is_dir()}
+        self.assertTrue({
+            "fastpath-must-keep-upstream-validation", "stock-row-locks-only-in-stock-locks",
+            "no-chmod-on-operator-paths", "report-columns-have-fieldname-or-key",
+            "bench-results-typed-gated", "wsl-scripts-lf", "test-stubs-restored",
+        } <= backend_rules)
+        for directory in sorted(fixture_root.iterdir()):
+            if not directory.is_dir():
+                continue
+            with self.subTest(rule=directory.name):
+                examples = {
+                    path.relative_to(directory).as_posix(): path.read_bytes()
+                    for path in directory.rglob("*") if path.is_file()
+                }
+                hits = self.rules[directory.name](examples)
+                self.assertTrue(any(hit["path"] in examples for hit in hits))
+
+    def test_stubs_allow_patches_and_matching_cleanups(self) -> None:
+        path = "apps/khitmee_ops/khitmee_ops/tests/test_new.py"
+        source = b"""
+import frappe as f
+import unittest
+from unittest.mock import patch
+
+class TestReport(unittest.TestCase):
+    def setUp(self):
+        previous = f.throw
+        self.addCleanup(setattr, f, "throw", previous)
+        f.throw = lambda message: None
+        self.install()
+
+    def install(self):
+        self.old_db = f.db
+        f.db = object()
+        self.addCleanup(self.restore_db)
+
+    def restore_db(self):
+        f.db = self.old_db
+
+    def test_report(self):
+        with patch.object(f, "get_doc"):
+            pass
+"""
+        rule = self.rules["test-stubs-restored"]
+        self.assertEqual(rule({path: source}), [])
+        hits = rule({path: source.replace(b' "throw", previous', b' "get_doc", previous')})
+        self.assertEqual(len(hits), 1)
+        self.assertIn("frappe.throw", hits[0]["message"])
+
+    def test_wsl_attributes_reject_nested_overrides(self) -> None:
+        attrs = (REPO_ROOT / ".gitattributes").read_bytes()
+        files = {".gitattributes": attrs, "tools/script.sh": b"#!/bin/sh\n"}
+        rule = self.rules["wsl-scripts-lf"]
+        self.assertEqual(rule(files), [])
+        self.assertEqual(
+            [hit["path"] for hit in rule({**files, "tools/.gitattributes": b"*.sh text eol=crlf\n"})],
+            ["tools/script.sh"],
+        )
 
 
 class TestScenario7ReviewFixRegressions(unittest.TestCase):
@@ -2754,7 +2939,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "lint"]), 0)
+            self.assertEqual(cli_main(["--repo", str(_get_template_repo()), "lint"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "sync-skill", "--dry-run"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "bootstrap-repo", "--dry-run"]), 0)
 

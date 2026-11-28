@@ -51,6 +51,9 @@ from autoloop.state import (
     record_check_timings,
     record_oracle_mismatch,
     record_review,
+    FINDING_SEVERITIES,
+    FINDING_SOURCES,
+    record_finding,
     record_safeguard,
     record_shard_pass,
     refresh_base,
@@ -498,8 +501,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sub = sub.add_parser("submit-for-review", help="Submit a gate_passed run for review (or direct zero-reviewer route)")
     p_sub.add_argument("--run-id", required=True)
 
+    p_finding = sub.add_parser("record-finding", help="Register a confirmed finding from any source")
+    for flag in ("run-id", "finding-id", "summary", "evidence"):
+        p_finding.add_argument("--" + flag, required=True)
+    p_finding.add_argument("--severity", choices=FINDING_SEVERITIES, required=True)
+    p_finding.add_argument("--source", choices=FINDING_SOURCES, required=True)
+    p_finding.add_argument("--fixed-by", help="Commit containing an already implemented fix")
+
     # resolve-finding
-    p_rf = sub.add_parser("resolve-finding", help="Mark an open review finding as fixed_pending_review")
+    p_rf = sub.add_parser("resolve-finding", help="Mark an open finding as fixed_pending_review")
     p_rf.add_argument("--run-id", required=True)
     p_rf.add_argument("--finding-id", required=True)
     p_rf.add_argument("--fix-summary", required=True)
@@ -529,6 +539,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_sg.add_argument("--artifact", required=True)
     p_sg.add_argument("--summary", required=True)
+    p_sg.add_argument("--rule-id", help="Registered static rule ID (defaults to the finding ID)")
     p_sg.add_argument("--why-not-static", default=None)
 
     # resume
@@ -827,6 +838,11 @@ def main(argv: list[str] | None = None) -> int:
                 repo, args.run_id, args.shard, upstream_ref=args.upstream_ref, summary=args.summary,
                 why_ours_is_correct=args.why_ours_is_correct, test=args.test,
             ))
+        elif cmd == "record-finding":
+            _emit(record_finding(
+                repo, args.run_id, args.finding_id, severity=args.severity, source=args.source,
+                summary=args.summary, evidence=args.evidence, fixed_by=args.fixed_by,
+            ))
         elif cmd == "resolve-finding":
             _emit(resolve_finding(repo, args.run_id, args.finding_id, fix_summary=args.fix_summary))
         elif cmd == "record-review":
@@ -853,6 +869,7 @@ def main(argv: list[str] | None = None) -> int:
                     layer=args.layer,
                     artifact=args.artifact,
                     summary=args.summary,
+                    rule_id=args.rule_id,
                     why_not_static=args.why_not_static,
                 )
             )

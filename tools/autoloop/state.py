@@ -30,6 +30,7 @@ from .guard import (
 )
 from .leases import acquire_mutex, atomic_write_json, default_lock_dir, resource_key_hash
 from .lessons import globs_overlap, record_lesson
+from .static_rules import verify_rule_fixture
 
 RUN_STATES = (
     "draft",
@@ -64,6 +65,9 @@ FINDING_STATES = (
     "closed_needs_safeguard",
     "safeguarded",
 )
+
+FINDING_SEVERITIES = ("P0", "P1", "P2")
+FINDING_SOURCES = ("inherited_review", "incident", "gate_failure", "review")
 
 SAFEGUARD_LAYERS = (
     "layer_1_architecture",
@@ -1181,6 +1185,13 @@ def human_resolve(
         return state
 
 
+def _gated_head(state: dict[str, Any]) -> str | None:
+    shards = state["shards"]
+    if len(shards) == 1:
+        return next(iter(shards.values())).get("last_green_sha")
+    return state.get("last_integrated_sha")
+
+
 def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
@@ -1194,6 +1205,12 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
             raise IllegalTransitionError(
                 f"cannot submit-for-review with open findings: {', '.join(sorted(open_findings))}"
             )
+        gate_head = _gated_head(state)
+        for fid, finding in (state.get("findings") or {}).items():
+            fixed_by = finding.get("fixed_by")
+            if finding["status"] == "fixed_pending_review" and fixed_by:
+                if not gate_head or not git_is_ancestor(repo, fixed_by, gate_head):
+                    raise IllegalTransitionError(f"finding {fid!r} fix {fixed_by} is missing from the gated commit")
         reviewers = state.get("reviewers") or {}
         cloud_enabled = bool(reviewers.get("cloud", True))
         deep_enabled = bool(reviewers.get("deep", True))
@@ -1201,11 +1218,6 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
         code_hash = next(iter(passed_hashes)) if len(passed_hashes) == 1 else None
         open_mismatches = open_oracle_mismatches(state, code_hash)
         if state.get("oracle_mismatches"):
-            shards = state["shards"]
-            gate_head = (
-                next(iter(shards.values())).get("last_green_sha") if len(shards) == 1
-                else state.get("last_integrated_sha")
-            )
             for record in state["oracle_mismatches"].values():
                 if not gate_head or git_read_blob(repo, gate_head, record["test"]) is None:
                     raise IllegalTransitionError(f"oracle mismatch test {record['test']!r} is missing at the gated commit")
@@ -1220,6 +1232,7 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
             for fdata in (state.get("findings") or {}).values():
                 if fdata.get("status") == "fixed_pending_review":
                     fdata["status"] = "closed_needs_safeguard"
+                    fdata["verified_at"] = utc_now()
             state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
 
         state["history"].append({"at": utc_now(), "event": "submit-for-review", "status": state["status"]})
@@ -1253,6 +1266,59 @@ def record_oracle_mismatch(
             state["history"].append({"at": utc_now(), "event": "record-oracle-mismatch", "id": mismatch_id})
             _save_run_unlocked(repo, run_id, state)
         return {**state, "oracle_mismatch_id": mismatch_id}
+
+
+def record_finding(
+    repo: Path,
+    run_id: str,
+    finding_id: str,
+    *,
+    severity: str,
+    source: str,
+    summary: str,
+    evidence: str,
+    fixed_by: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    finding_id, summary, evidence = finding_id.strip(), summary.strip(), evidence.strip()
+    if not finding_id or not summary or not evidence:
+        raise IllegalTransitionError("record-finding requires a non-empty finding ID, summary, and evidence")
+    if severity not in FINDING_SEVERITIES or source not in FINDING_SOURCES:
+        raise IllegalTransitionError(f"invalid finding severity or source: {severity!r}, {source!r}")
+    if fixed_by is not None:
+        if not fixed_by.strip():
+            raise IllegalTransitionError("--fixed-by requires a commit")
+        # Resolve an object name only, without interpreting option-like input.
+        fixed_by = git_rev_parse(repo, fixed_by.strip())
+
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        if state["status"] == "terminated":
+            raise IllegalTransitionError("cannot record-finding when run status is 'terminated'")
+        findings = state.setdefault("findings", {})
+        if finding_id in findings:
+            raise IllegalTransitionError(f"finding {finding_id!r} already exists")
+        now = utc_now()
+        finding = {
+            "finding_id": finding_id,
+            "severity": severity,
+            "source": source,
+            "summary": summary,
+            "evidence": evidence,
+            "status": "open",
+            "opened_at": now,
+        }
+        if fixed_by is not None:
+            finding.update(status="fixed_pending_review", fixed_by=fixed_by, resolved_at=now)
+        findings[finding_id] = finding
+        if state["status"] in ("awaiting_cloud_review", "awaiting_deep_review", "safeguard_pending", "ready_to_merge"):
+            state["status"] = "gate_passed"
+        state["history"].append({
+            "at": now, "event": "record-finding", "finding_id": finding_id, "source": source,
+            "fixed_by": fixed_by, "status": state["status"],
+        })
+        _save_run_unlocked(repo, run_id, state)
+        return state
 
 
 def resolve_finding(
@@ -1337,15 +1403,19 @@ def record_review(
                 desc = str(item.get("summary") or "").strip()
                 if not fid or not desc:
                     raise IllegalTransitionError("each finding requires non-empty finding_id and summary")
+                previous = state["findings"].get(fid, {})
                 state["findings"][fid] = {
                     "finding_id": fid,
                     "stage": stage,
                     "reviewer": reviewer,
                     "summary": desc,
-                    "severity": str(item.get("severity") or "P1"),
+                    "severity": str(item.get("severity") or previous.get("severity", "P1")),
+                    "source": previous.get("source", "review"),
                     "status": "open",
                     "opened_at": utc_now(),
                 }
+                if item.get("evidence") or previous.get("evidence"):
+                    state["findings"][fid]["evidence"] = str(item.get("evidence") or previous["evidence"])
             # Re-open execution so worker must fix and re-pass gates
             for sdata in state["shards"].values():
                 sdata["status"] = "in_progress"
@@ -1391,6 +1461,7 @@ def record_safeguard(
     layer: str,
     artifact: str,
     summary: str,
+    rule_id: str | None = None,
     why_not_static: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -1402,12 +1473,14 @@ def record_safeguard(
         raise IllegalTransitionError(
             "layer_4_runtime_test requires non-empty --why-not-static justification"
         )
-    if not artifact.strip():
-        raise IllegalTransitionError("safeguard requires a non-empty artifact reference")
+    if not artifact.strip() or not summary.strip():
+        raise IllegalTransitionError("safeguard requires a non-empty artifact reference and summary")
+    if layer != "layer_3_static_lint" and rule_id is not None:
+        raise IllegalTransitionError("--rule-id applies only to layer_3_static_lint")
 
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
-        _require_status(state, ("safeguard_pending",), "record-safeguard")
+        _require_status(state, ("safeguard_pending", "ready_to_merge"), "record-safeguard")
         limits = state.get("limits") or _limits_from_repo(repo)
         max_prose = int(limits.get("max_safeguard_prose_lines", DEFAULT_MAX_PROSE_LINES))
 
@@ -1421,7 +1494,11 @@ def record_safeguard(
         if finding_id not in findings:
             raise IllegalTransitionError(f"unknown finding_id {finding_id!r}")
         finding = findings[finding_id]
-        if finding.get("status") != "closed_needs_safeguard":
+        refreshing_static_proof = (
+            finding.get("status") == "safeguarded"
+            and finding.get("safeguard", {}).get("layer") == layer == "layer_3_static_lint"
+        )
+        if finding.get("status") != "closed_needs_safeguard" and not refreshing_static_proof:
             raise IllegalTransitionError(
                 f"cannot record safeguard for finding {finding_id!r} in status {finding.get('status')!r} "
                 "(expected 'closed_needs_safeguard')"
@@ -1429,6 +1506,12 @@ def record_safeguard(
 
         shard_hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
         current_code_hash = next(iter(shard_hashes)) if len(shard_hashes) == 1 else None
+        proof = {}
+        if layer == "layer_3_static_lint":
+            gate_head = _gated_head(state)
+            if not gate_head or not current_code_hash:
+                raise IllegalTransitionError("static safeguard requires a gated commit")
+            proof = verify_rule_fixture(repo, gate_head, artifact, rule_id or finding_id)
         finding["status"] = "safeguarded"
         finding["safeguard"] = {
             "layer": layer,
@@ -1437,6 +1520,7 @@ def record_safeguard(
             "why_not_static": why_not_static,
             "safeguard_code_tree_sha256": current_code_hash,
             "recorded_at": utc_now(),
+            **proof,
         }
         state["safeguards"].append({"finding_id": finding_id, **finding["safeguard"]})
 
