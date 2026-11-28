@@ -104,6 +104,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
     fixture_restore = load_json(artifact / 'fixture-restore.json')
+    load_generator = load_json(artifact / 'load-generator-attestation.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -168,6 +169,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         evidence_problems.append('ADR guest envelope attestation missing, failed, or changed')
     if not oracle_ok:
         evidence_problems.append(oracle_problem)
+    load_generator_ok = load_generator.get('schema_version') == 'seasonal-load-generator-attestation-v1' and load_generator.get('passed') is True and load_generator.get('off_guest') is True
+    if not load_generator_ok:
+        evidence_problems.append('off-guest k6 load-generator attestation missing, failed, or diagnostic only')
     actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
     fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
@@ -227,6 +231,10 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'managers_enabled': managers_enabled,
         'guest_attestation_ok': guest_attestation_ok,
         'oracle_evidence_ok': oracle_ok,
+        'load_generator_ok': load_generator_ok,
+        'load_generator_attestation': load_generator.get('attestation'),
+        'load_generator_endpoint': load_generator.get('generator_endpoint'),
+        'load_generator_daemon_identity': load_generator.get('generator_daemon_identity'),
         'resource_window_ok': resource_window_ok,
         'resource_window_problems': window['problems'],
         'qualification_resource_measurement_ok': resource_measurement_ok,

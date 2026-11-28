@@ -368,6 +368,9 @@ if [[ -f "$ARTIFACT_DIR/lease-renew.failed" ]]; then
   exit 6
 fi
 
+echo "Attesting k6 load-generator placement"
+python3 -B "$SCRIPT_DIR/load_generator_attestation.py"   --runtime "$K6_RUNTIME"   --docker-host "${K6_DOCKER_HOST:-}"   --output "$ARTIFACT_DIR/load-generator-attestation.json"   >"$ARTIFACT_DIR/load-generator-attestation.stdout" 2>&1 || true
+
 K6_SCENARIO="seasonal"
 if [[ "$PREFLIGHT_ONLY" == "1" ]]; then
   K6_SCENARIO="seasonal_preflight"

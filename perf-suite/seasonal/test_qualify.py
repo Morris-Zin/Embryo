@@ -337,6 +337,14 @@ class QualifyEntryPointTests(unittest.TestCase):
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "seasonal-verification.json": {"by_type": {}},
+            "load-generator-attestation.json": {
+                "schema_version": "seasonal-load-generator-attestation-v1",
+                "passed": True,
+                "off_guest": True,
+                "attestation": "qualifying",
+                "generator_endpoint": "tcp://builder.example:2375",
+                "generator_daemon_identity": {"daemon_id": "remote-daemon", "name": "builder"},
+            },
         }.items():
             (artifact / name).write_text(json.dumps(value))
         (artifact / "resource-proof-after.exit").write_text("0" + chr(10))
@@ -388,6 +396,52 @@ class QualifyEntryPointTests(unittest.TestCase):
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+    def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
+        spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        identities = {
+            "": {"daemon_id": "local-daemon", "name": "guest-docker"},
+            "tcp://builder.example:2375": {"daemon_id": "remote-daemon", "name": "builder"},
+        }
+        remote = module.attest("docker", "tcp://builder.example:2375", info_reader=lambda endpoint: identities[endpoint])
+        self.assertTrue(remote["passed"], remote["problems"])
+        self.assertTrue(remote["off_guest"])
+        self.assertEqual(remote["generator_daemon_identity"]["daemon_id"], "remote-daemon")
+
+        local = module.attest("docker", "", info_reader=lambda endpoint: identities[endpoint])
+        self.assertFalse(local["passed"])
+        self.assertEqual(local["attestation"], "diagnostic")
+        same_daemon = module.attest(
+            "docker",
+            "tcp://builder.example:2375",
+            info_reader=lambda endpoint: {"daemon_id": "same-daemon", "name": "forwarded"},
+        )
+        self.assertFalse(same_daemon["passed"])
+        self.assertIn("same Docker daemon", " ".join(same_daemon["problems"]))
+
+        decision = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "load-generator-attestation.json").write_text(json.dumps(local))
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["load_generator_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("off-guest k6", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "load-generator-attestation.json").unlink()
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("off-guest k6", " ".join(result["qualification_evidence_problems"]))
+
+        runner = (ROOT.parent / "k6" / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn('K6_DOCKER_HOST="${K6_DOCKER_HOST:-}"', runner)
+        self.assertIn('k6_docker network inspect', runner)
+        self.assertIn('k6_docker "${DOCKER_CMD[@]}"', runner)
 
     def test_smoke_workload_pass_can_never_qualify_as_2gb(self):
         module = self.decision_module()
