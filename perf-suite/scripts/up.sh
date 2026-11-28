@@ -268,7 +268,7 @@ site_has_app() {
 }
 
 read_khitmee_ops_migrated_tree_hash() {
-  compose exec -T backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY' 2>/dev/null
+  compose run --rm --no-deps -T backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY' 2>/dev/null
 import sys
 
 import frappe
@@ -288,7 +288,7 @@ PY
 
 record_khitmee_ops_migrated_tree_hash() {
   local tree_hash="$1"
-  compose exec -T backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" "$tree_hash" <<'PY'
+  compose run --rm --no-deps -T backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" "$tree_hash" <<'PY'
 import sys
 
 import frappe
@@ -353,7 +353,7 @@ ensure_khitmee_ops_database_objects() {
   [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
 
   echo "Ensuring khitmee_ops composite indexes and fast report settings..."
-  if ! compose exec -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
+  if ! compose run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
 import sys
 
 import frappe
