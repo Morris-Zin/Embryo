@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import json
 import binascii
+import os
 import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zlib
 from pathlib import Path
 
 import architecture_lint
+from benchmark_native import benchmark_environment
 from png_codec import PNG_SIGNATURE, write_png_rgba
 
 
@@ -162,6 +165,22 @@ class VerifyHarnessTest(unittest.TestCase):
                 self.assertIn("tauri-ui", architecture_lint.manifest_dependency_names(manifest))
             finally:
                 architecture_lint.tomllib = original
+
+    def test_benchmark_environment_forces_fixture_mode_in_live_shell(self):
+        with unittest.mock.patch.dict(
+            os.environ,
+            {
+                "KHITMEE_ERP_URL": "http://erp.example",
+                "KHITMEE_ERP_WAREHOUSE": "Stores",
+                "KHITMEE_ERP_PASSWORD": "secret",
+            },
+        ):
+            env = benchmark_environment(10, 5, 49600)
+        self.assertNotIn("KHITMEE_ERP_URL", env)
+        self.assertNotIn("KHITMEE_ERP_WAREHOUSE", env)
+        self.assertNotIn("KHITMEE_ERP_PASSWORD", env)
+        self.assertEqual(env["KHITMEE_CATALOG_ROWS"], "10")
+        self.assertEqual(env["KHITMEE_INVOICE_ROWS"], "5")
 
     def test_missing_behavioral_keyboard_evidence_fails(self):
         with tempfile.TemporaryDirectory() as raw:
