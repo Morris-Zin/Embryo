@@ -25,10 +25,12 @@ doc_events = {
 		"after_rename": "khitmee_ops.api.search.invalidate_item_search_cache",
 	},
 	"Purchase Invoice": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_invoice_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Purchase Receipt": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_receipt_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},

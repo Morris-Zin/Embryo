@@ -270,17 +270,33 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 		self.assertEqual(doc.payments[0].amount, 100)
 		self.assertEqual(doc.paid_amount, 100)
+		self.assertEqual(doc.base_paid_amount, 100)
+		self.assertEqual(doc.outstanding_amount, 0.0)
+		self.assertEqual(doc.change_amount, 0.0)
+		self.assertEqual(doc.base_change_amount, 0.0)
 		self.assertEqual(doc.payments[0].account, "Cash - Cash")
 		self.assertEqual(
 			doc.events,
 			[
 				"set_paid_amount",
 				"set_account_for_mode_of_payment",
-				"calculate_taxes_and_totals",
 				"validate_pos",
 				"validate_pos_paid_amount",
 			],
 		)
+
+	def test_counter_autopay_falls_back_to_recalculate_for_multicurrency_or_advances(self):
+		for extra in ({"conversion_rate": 1.25}, {"total_advance": 10}, {"write_off_amount": 1}):
+			doc = FakeSalesInvoice(payable_total=100)
+			doc.is_pos = 1
+			doc.flags.khitmee_counter_autopay = True
+			doc.payments = [FakePayment("Cash", 0)]
+			for key, val in extra.items():
+				setattr(doc, key, val)
+
+			vouchers.sync_counter_autopay_payment(doc)
+
+			self.assertIn("calculate_taxes_and_totals", doc.events)
 
 	def test_counter_autopay_validate_hook_leaves_credit_and_unflagged_invoices_untouched(self):
 		for is_pos, flagged in ((0, True), (1, False)):
@@ -382,6 +398,12 @@ class TestIdempotencyLockCleanup(unittest.TestCase):
 
 
 class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
+	def setUp(self):
+		if not hasattr(vouchers.frappe.db, "rollback"):
+			vouchers.frappe.db.rollback = Mock()
+		if not hasattr(vouchers.frappe.db, "exists"):
+			vouchers.frappe.db.exists = lambda *args, **kwargs: True
+
 	def test_load_idempotent_document_for_update_uses_locking_read_and_locked_get_doc(self):
 		existing = AttrDict(reference_doctype="Sales Invoice", reference_name="SI-LOCK-1")
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-LOCK-1")
@@ -448,7 +470,7 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 		rollback.assert_called_once_with()
 		sleep.assert_called_once_with(0.03)
 
-	def test_deadlock_retry_is_bounded_to_one_retry(self):
+	def test_deadlock_retry_is_bounded_to_three_retries_by_default(self):
 		calls = []
 
 		def always_deadlocked():
@@ -463,7 +485,7 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 			with self.assertRaises(vouchers.frappe.QueryDeadlockError):
 				vouchers._execute_with_deadlock_retry(always_deadlocked)
 
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(calls), 4)
 
 	def test_validation_errors_are_never_retried_as_deadlocks(self):
 		calls = []
@@ -516,7 +538,10 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 class TestPermissionDeduplication(unittest.TestCase):
 	def test_validate_items_checks_permissions_once_per_unique_item_code(self):
-		with patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission:
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=True),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
 			cleaned = vouchers._validate_items(
 				[
 					{"item_code": "ITEM-1", "qty": 1},
@@ -527,8 +552,26 @@ class TestPermissionDeduplication(unittest.TestCase):
 			)
 
 		self.assertEqual(len(cleaned), 4)
-		item_calls = [call.kwargs.get("doc") for call in has_permission.call_args_list if call.args[0] == "Item"]
+		item_calls = [
+			call.kwargs.get("doc")
+			for call in has_permission.call_args_list
+			if call.args[0] == "Item" and call.kwargs.get("doc") is not None
+		]
 		self.assertEqual(item_calls, ["ITEM-1", "ITEM-2"])
+
+	def test_validate_items_skips_per_item_permission_checks_when_unrestricted(self):
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=False),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
+			cleaned = vouchers._validate_items(
+				[{"item_code": f"ITEM-{i}", "qty": 1} for i in range(10)]
+			)
+
+		self.assertEqual(len(cleaned), 10)
+		self.assertEqual(has_permission.call_count, 1)
+		self.assertEqual(has_permission.call_args.args, ("Item",))
+		self.assertIsNone(has_permission.call_args.kwargs.get("doc"))
 
 	def test_voucher_read_permission_reuses_the_loaded_document_object(self):
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-0001")
