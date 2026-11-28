@@ -376,7 +376,7 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertIsNotNone(start)
         self.assertIsNotNone(end)
         self.assertGreater(end, start)
-        parsed_events = verify_run.parse_events(fixture)["events"]
+        parsed_events = module.verify_run.parse_events(fixture)["events"]
         self.assertEqual(sum(1 for event in parsed_events if event.get("event") == "search_complete"), 4)
 
     def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
