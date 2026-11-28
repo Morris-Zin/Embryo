@@ -774,7 +774,7 @@ def worker_main():
     parser.add_argument("--snapshot-id", default="")
     args = parser.parse_args()
 
-    out = Path(args.out)
+    out = Path(args.out).resolve()
     filters = json.loads(args.filters_json)
     global CREDENTIALS_BY_USER
     raw_credentials = json.loads(Path(args.credentials).read_text(encoding="utf-8"))
@@ -1662,13 +1662,16 @@ def main():
     if bool(args.stock_reference_manifest) != bool(args.stock_reference_cache):
         raise RuntimeError("--stock-reference-manifest and --stock-reference-cache must be supplied together")
 
-    out = Path(args.out)
+    out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    if args.stock_reference_manifest:
+        args.stock_reference_manifest = Path(args.stock_reference_manifest).resolve()
+        args.stock_reference_cache = Path(args.stock_reference_cache).resolve()
     global CREDENTIALS_BY_USER, RUNTIME_SITE, RUNTIME_CREDENTIALS, RUNTIME_SNAPSHOT_ID
     RUNTIME_SITE = args.site
-    RUNTIME_CREDENTIALS = args.credentials
+    RUNTIME_CREDENTIALS = str(Path(args.credentials).resolve())
     RUNTIME_SNAPSHOT_ID = args.snapshot_id
-    raw_credentials = json.loads(Path(args.credentials).read_text(encoding="utf-8"))
+    raw_credentials = json.loads(Path(RUNTIME_CREDENTIALS).read_text(encoding="utf-8"))
     CREDENTIALS_BY_USER = {entry["user"]: entry for entry in raw_credentials.values() if isinstance(entry, dict) and entry.get("user")}
     if frappe is None:
         raise RuntimeError("oracle comparison requires a bench environment with frappe installed")

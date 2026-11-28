@@ -53,7 +53,12 @@ def serialize_csv_record(values) -> bytes:
 
 
 def column_fieldnames(columns):
-    return [str(column.get("fieldname") or column.get("label") or index) for index, column in enumerate(columns or [])]
+    fields = []
+    for index, column in enumerate(columns or []):
+        label = str(column.get("label") or "")
+        scrubbed = label.replace(" ", "_").replace("-", "_").lower()
+        fields.append(str(column.get("fieldname") or scrubbed or index))
+    return fields
 
 
 def column_headers(columns):
