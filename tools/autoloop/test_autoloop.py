@@ -1455,6 +1455,17 @@ class TestReport(unittest.TestCase):
         path = "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py"
         self.assertEqual(self.rules["test-stubs-restored"]({path: (REPO_ROOT / path).read_bytes()}), [])
 
+    def test_wsl_missing_root_directive_counts_once_even_when_a_shard_adds_scripts(self) -> None:
+        rule = self.rules["wsl-scripts-lf"]
+        attrs = (REPO_ROOT / ".gitattributes").read_bytes().replace(b"*.py text eol=lf", b"*.py text eol=crlf")
+        files = {".gitattributes": attrs, "perf-suite/old.py": b"pass\n"}
+        inherited = rule(files)
+        self.assertEqual([hit["path"] for hit in inherited], [".gitattributes"])
+        files["perf-suite/new.py"] = b"pass\n"
+        self.assertEqual(rule(files), inherited)
+        files["perf-suite/.gitattributes"] = b"new.py text eol=crlf\n"
+        self.assertEqual([hit["path"] for hit in rule(files)], [".gitattributes", "perf-suite/new.py"])
+
 
 class TestScenario7ReviewFixRegressions(unittest.TestCase):
     """Regression suite covering all 13 Astra findings & 15 PR review threads."""

@@ -433,22 +433,28 @@ def rule_wsl_lf(file_map):
     for path, raw in sorted(file_map.items()):
         if path.startswith(".autoloop/rules/fixtures/"):
             continue
-        if not any(fnmatch.fnmatchcase(path, pattern) for pattern in required) and not raw.startswith(b"#!"):
+        script_pattern = next((pattern for pattern in required if fnmatch.fnmatchcase(path, pattern)), None)
+        if not script_pattern and not raw.startswith(b"#!"):
             continue
-        entries = [(pattern, attrs, path) for pattern, attrs in root_entries]
+        entries = [(pattern, attrs, path, True) for pattern, attrs in root_entries]
         for attr_file, nested in sorted(attr_files.items(), key=lambda entry: entry[0].count("/")):
             prefix = attr_file.removesuffix(".gitattributes")
             if path.startswith(prefix):
-                entries.extend((pattern, attrs, path.removeprefix(prefix)) for pattern, attrs in nested)
+                entries.extend((pattern, attrs, path.removeprefix(prefix), False) for pattern, attrs in nested)
         eol = text = None
-        for pattern, attrs, relative in entries:
+        eol_override = False
+        for pattern, attrs, relative, is_root in entries:
             if attribute_matches(relative, pattern):
                 for attr in attrs:
                     if attr.startswith("eol=") or attr in {"-eol", "!eol"}:
                         eol = attr
+                        eol_override = not (is_root and pattern == script_pattern)
                     if attr.startswith("text=") or attr in {"text", "-text", "!text", "binary"}:
                         text = attr
-        if eol != "eol=lf" or text in {"-text", "binary"}:
+        # A missing root directive is one configuration error regardless of
+        # how many scripts inherit it. Explicit overrides still affect paths.
+        bad_eol = eol != "eol=lf" and (script_pattern not in missing or eol_override)
+        if bad_eol or text in {"-text", "binary"}:
             issues.append(violation(path, None, "WSL script must have effective eol=lf in Git attributes"))
     return issues
 
