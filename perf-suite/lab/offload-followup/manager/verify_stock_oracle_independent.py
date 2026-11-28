@@ -106,13 +106,14 @@ def main():
     ap.add_argument("--credentials-env", default="MANAGER_ORACLE_CREDENTIALS_JSON")
     args = ap.parse_args()
     req = load_json(args.request)
+    cache = Path(args.cache_dir).resolve()
+    output = Path(args.output).resolve()
     creds = json.loads(os.environ[args.credentials_env])
     os.chdir("/home/frappe/frappe-bench/sites")
     import frappe
     frappe.init(site=req["site"])
     frappe.connect()
     from frappe.desk.query_report import run
-    cache = Path(args.cache_dir)
     window = req["report_windows"]["year_to_date"]
     workload = req["manager_workload"]
     results = []
@@ -166,11 +167,11 @@ def main():
         verdict = {"schema_version": "independent-stock-oracle-verification-v1", "passed": all(r["ordered_exact_equal"] for r in results), "scope": "year_to_date Warehouse/Monthly summaries and first two ordered detail pages", "window": dict(window), "stock_detail_rows_sha256": detail_full_rows_sha256, "stock_detail_row_count": source_count, "results": results}
     finally:
         frappe.destroy()
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w", encoding="utf-8") as f:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8") as f:
         json.dump(verdict, f, indent=2, sort_keys=True)
         f.write("\n")
-    print(json.dumps({"passed": verdict["passed"], "checks": len(results), "output": args.output}, sort_keys=True))
+    print(json.dumps({"passed": verdict["passed"], "checks": len(results), "output": str(output)}, sort_keys=True))
     return 0 if verdict["passed"] else 1
 
 

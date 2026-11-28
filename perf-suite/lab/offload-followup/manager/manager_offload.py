@@ -505,7 +505,7 @@ def inprocess_login(base_url, user, password, site=None):
         return inprocess_response_payload({"error": type(exc).__name__}, 500), ""
 
 
-def inprocess_call(method, fields, sid, site=None):
+def inprocess_call(method, fields, sid, site=None, *, mutating=False):
     frappe = inprocess_connect(site)
     user = INPROCESS_SESSIONS.get(sid)
     if not user:
@@ -526,9 +526,16 @@ def inprocess_call(method, fields, sid, site=None):
         if hasattr(result, "get_data") and hasattr(result, "status_code"):
             body = result.get_data()
             headers = [(key, value) for key, value in result.headers.items()]
-            return HttpResponse(result.status_code, getattr(result, "status", "OK"), headers, body)
-        return inprocess_response_payload({"message": result})
+            response = HttpResponse(result.status_code, getattr(result, "status", "OK"), headers, body)
+        else:
+            response = inprocess_response_payload({"message": result})
+        if mutating and 200 <= response.status < 300:
+            frappe.db.commit()
+        else:
+            frappe.db.rollback()
+        return response
     except Exception as exc:
+        frappe.db.rollback()
         status = 500
         permission_error = getattr(frappe, "PermissionError", None)
         does_not_exist = getattr(frappe, "DoesNotExistError", None)
@@ -559,7 +566,7 @@ def frappe_login(base_url, user, password, timeout=30, site=None):
 
 def frappe_post_method(base_url, method, fields, sid="", timeout=120, site=None):
     if inprocess_oracle(base_url):
-        return inprocess_call(method, dict(fields), sid, site=site)
+        return inprocess_call(method, dict(fields), sid, site=site, mutating=method != QUERY_METHOD)
     headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
     if sid:
         headers["Cookie"] = "sid=" + sid

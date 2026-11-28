@@ -163,6 +163,19 @@ class ManagerOffloadTests(unittest.TestCase):
             "export_timeout_seconds": 2,
         }
 
+    def test_inprocess_export_transaction(self):
+        frappe = mock.Mock(PermissionError=PermissionError, DoesNotExistError=KeyError)
+        frappe.get_attr.return_value.return_value = {"export_log_name": "EXP-1"}
+        with mock.patch.object(mo, "inprocess_connect", return_value=frappe), mock.patch.dict(mo.INPROCESS_SESSIONS, {"sid": "actor"}):
+            def enqueue():
+                return mo.frappe_post_method("inprocess://oracle", "unit.enqueue", {}, "sid")
+            self.assertEqual(enqueue().status, 200)
+            frappe.db.commit.assert_called_once()
+            frappe.get_attr.return_value.side_effect = PermissionError()
+            self.assertEqual(enqueue().status, 403)
+            frappe.db.rollback.assert_called_once()
+            frappe.db.commit.assert_called_once()
+
     def test_canonical_hash_matches_seasonal_contract(self):
         value = {"a": 1, "b": [2, {"a": "x"}]}
         self.assertEqual(mo.canonical_json_sha256(value), "2c77e8e42231c5a2b199e37b8c1225614c241a3b2e7623a7ebd6f17815a4a738")
@@ -343,6 +356,16 @@ class ManagerOffloadTests(unittest.TestCase):
         self.assertTrue(mo.verify(req)["measured_scope_passed"])
         events_path = artifact / "external-events.jsonl"
         original = events_path.read_bytes()
+        req["manager_workload"]["export_in_timed_load"] = True
+        pending = dict(events[0], endpoint="export_download", cache_key="export", status=409, sha256="pending")
+        complete = dict(pending, status=200, sha256="e")
+        with events_path.open("a") as handle:
+            handle.write(mo.json_dumps(pending) + "\n")
+        self.assertFalse(mo.verify(req)["passed"])
+        with events_path.open("a") as handle:
+            handle.write(mo.json_dumps(complete) + "\n")
+        self.assertTrue(mo.verify(req)["passed"])
+        req["manager_workload"]["export_in_timed_load"] = False
         for endpoint, expected in (("query_report", False), ("upstream", False), ("export_enqueue", True)):
             with self.subTest(endpoint=endpoint):
                 failure = {"event": "upstream_error", "endpoint": endpoint, "status": 502}
