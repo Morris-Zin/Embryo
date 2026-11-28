@@ -50,7 +50,7 @@
 			return {};
 		});
 		if (!response.ok) {
-			const message = data._error_message || data.exception || data.message || response.statusText || "Request failed";
+			const message = data.exception || data.message || response.statusText || "Request failed";
 			throw new Error(Array.isArray(message) ? message.join("\n") : message);
 		}
 		return data.message !== undefined ? data.message : data;
@@ -300,29 +300,6 @@
 			}
 		}
 
-		function catalogSearch(term, warehouse, priceList, limit) {
-			const bridge = window.KhitmeeCatalogBridge;
-			if (!bridge || typeof bridge.search !== "function" || bridge.mode() === "off") return null;
-			return bridge.search({
-				term: term,
-				warehouse: warehouse,
-				priceList: priceList,
-				limit: limit,
-				token: state.context && state.context.desktop_token,
-			});
-		}
-
-		function prepareCatalog() {
-			const bridge = window.KhitmeeCatalogBridge;
-			if (!bridge || typeof bridge.prepare !== "function" || bridge.mode() === "off") return;
-			const priceList = els.priceList && els.priceList.value ? els.priceList.value : state.context && state.context.default_price_list;
-			bridge.prepare({
-				warehouse: searchWarehouse(),
-				priceList: priceList,
-				token: state.context && state.context.desktop_token,
-			});
-		}
-
 		async function searchItems(options) {
 			const term = els.search.value.trim();
 			if (!term || !searchWarehouse()) {
@@ -362,23 +339,14 @@
 				requestPromise = flight.promise;
 			} else {
 				requestId = ++state.searchRequestId;
-				const serverSearch = function () {
-					return apiGet("khitmee_ops.api.search.search_items", {
-						q: term,
-						warehouse: searchWarehouse(),
-						price_list: priceList,
-						customer: customer || null,
-						limit: 10,
-						include_rates: config.showRates ? 1 : 0,
-					});
-				};
-				const localSearch = catalogSearch(term, searchWarehouse(), priceList, 10);
-				requestPromise = localSearch
-					? localSearch.then(function (localResult) {
-						if (localResult && Array.isArray(localResult.items) && localResult.items.length) return localResult;
-						return serverSearch();
-					})
-					: serverSearch();
+				requestPromise = apiGet("khitmee_ops.api.search.search_items", {
+					q: term,
+					warehouse: searchWarehouse(),
+					price_list: priceList,
+					customer: customer || null,
+					limit: 10,
+					include_rates: config.showRates ? 1 : 0,
+				});
 				flight = { requestId: requestId, promise: requestPromise, render: shouldRender };
 				state.inflightSearches.set(searchKey, flight);
 			}
@@ -712,13 +680,9 @@
 				els.outgoingStockEntry.required = receive;
 			});
 		}
-		if (els.warehouse) {
-			els.warehouse.addEventListener("change", prepareCatalog);
-		}
 
 		loadContext()
 			.then(function () {
-				prepareCatalog();
 				renderLines();
 				els.search.focus();
 				setStatus("Ready. Scan a barcode or press F2 to search.", "success");

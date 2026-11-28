@@ -3,7 +3,6 @@ from frappe.utils import get_file_timestamp
 
 COUNTER_ASSETS = (
 	"css/counter.css",
-	"js/catalog_bridge.js",
 	"js/counter_core.js",
 	"js/print_bridge.js",
 	"js/sales_counter.js",
