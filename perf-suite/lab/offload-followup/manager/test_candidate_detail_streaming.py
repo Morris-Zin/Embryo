@@ -9,7 +9,7 @@ from pathlib import Path
 import candidate_stock_oracle_compare as c
 
 
-SNAPSHOT = "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+SNAPSHOT = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
 ACTOR = "detail-reader@seasonal.invalid"
 FILTERS = {"company": "Khit Me Distribution", "from_date": "2026-01-01", "to_date": "2026-01-02", "group_by": "Invoice"}
 COLUMNS = [{"fieldname": "sales_invoice"}, {"fieldname": "amount"}]

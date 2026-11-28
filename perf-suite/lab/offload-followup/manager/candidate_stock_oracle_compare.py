@@ -35,7 +35,7 @@ from stock_oracle_reference import ReferenceValidationError, validate_reference_
 from verify_stock_oracle_independent import authenticate, canonical, normalize_frappe, sha256_text, type_shape
 
 CANDIDATE_COMMIT = "d1be4a691bea7c0557b89d2a59e7fec9df89bae3"
-PINNED_SNAPSHOT_ID = "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+PINNED_SNAPSHOT_ID = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
 STOCK_REPORT = "Gross Profit"
 CANDIDATE_REPORT = "Fast Gross Profit"
 CREDENTIALS_BY_USER = {}

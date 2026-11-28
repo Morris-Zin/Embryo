@@ -10,7 +10,7 @@ PERF_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd -- "$PERF_ROOT/.." && pwd)"
 DOCKER_DIR="$PERF_ROOT/docker"
 PROJECT="khitmee-perf"
-PINNED_FIXTURE_SHA="8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+PINNED_FIXTURE_SHA="0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
 DEFAULT_FIXTURE="/srv/khitmee-lab/operator/fixtures/${PINNED_FIXTURE_SHA}.tar.gz"
 DEFAULT_ACTORS="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seasonal-actor-env.json"
 DEFAULT_MANIFEST="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seed_manifest.json"
@@ -19,6 +19,7 @@ RUNTIME_PROFILE="gunicorn-1x12"
 SEASONAL_PROFILE_VALUE="${SEASONAL_PROFILE:-smoke}"
 FIXTURE="$DEFAULT_FIXTURE"
 FIXTURE_SHA="$PINNED_FIXTURE_SHA"
+FIXTURE_MANIFEST=""
 ACTORS="$DEFAULT_ACTORS"
 MANIFEST="$DEFAULT_MANIFEST"
 OWNER="seasonal_harness"
@@ -39,6 +40,7 @@ Options:
   --seasonal-profile smoke|acceptance           Workload length (default smoke)
   --fixture PATH                                Pinned cold-volume fixture archive
   --fixture-sha SHA256                          Expected archive digest
+  --fixture-manifest PATH                       Archive manifest (default companion beside --fixture)
   --actors PATH                                 JSON actor environment for the pinned fixture
   --seed-manifest PATH                          Pinned seed manifest
   --owner NAME                                  Lease owner (default seasonal_harness)
@@ -60,6 +62,8 @@ while (($#)); do
     --fixture=*) FIXTURE="${1#*=}"; shift ;;
     --fixture-sha) FIXTURE_SHA="${2:?}"; shift 2 ;;
     --fixture-sha=*) FIXTURE_SHA="${1#*=}"; shift ;;
+    --fixture-manifest) FIXTURE_MANIFEST="${2:?}"; shift 2 ;;
+    --fixture-manifest=*) FIXTURE_MANIFEST="${1#*=}"; shift ;;
     --actors) ACTORS="${2:?}"; shift 2 ;;
     --actors=*) ACTORS="${1#*=}"; shift ;;
     --seed-manifest) MANIFEST="${2:?}"; shift 2 ;;
@@ -83,6 +87,14 @@ done
 case "$RUNTIME_PROFILE" in gunicorn-1x12|gunicorn-2x1) ;; *) echo "invalid runtime profile" >&2; exit 2 ;; esac
 case "$SEASONAL_PROFILE_VALUE" in smoke|acceptance) ;; *) echo "invalid seasonal profile" >&2; exit 2 ;; esac
 [[ -f "$FIXTURE" ]] || { echo "pinned fixture missing: $FIXTURE" >&2; exit 2; }
+if [[ -z "$FIXTURE_MANIFEST" ]]; then
+  if [[ "$FIXTURE" == *.tar.gz ]]; then
+    FIXTURE_MANIFEST="${FIXTURE%.tar.gz}.manifest.json"
+  else
+    FIXTURE_MANIFEST="${FIXTURE}.manifest.json"
+  fi
+fi
+[[ -f "$FIXTURE_MANIFEST" ]] || { echo "pinned fixture manifest missing: $FIXTURE_MANIFEST" >&2; exit 2; }
 [[ -f "$ACTORS" ]] || { echo "actor environment missing: $ACTORS" >&2; exit 2; }
 [[ -f "$MANIFEST" ]] || { echo "seed manifest missing: $MANIFEST" >&2; exit 2; }
 [[ "${WSL_DISTRO_NAME:-}" == "KhitmeeERPNext" ]] || { echo "run inside WSL distro KhitmeeERPNext" >&2; exit 2; }
@@ -242,6 +254,7 @@ run_bash_script "$PERF_ROOT/scripts/down.sh" >"$ARTIFACT_DIR/down.log" 2>&1
 echo "Restoring pinned fixture $FIXTURE_SHA"
 python3 -B "$SCRIPT_DIR/fixture_restore.py" "$FIXTURE" \
   --expected-sha256 "$FIXTURE_SHA" \
+  --fixture-manifest "$FIXTURE_MANIFEST" \
   --docker-dir "$DOCKER_DIR" \
   --output "$ARTIFACT_DIR/fixture-restore.json" | tee "$ARTIFACT_DIR/fixture-restore.stdout"
 

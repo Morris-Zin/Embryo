@@ -82,6 +82,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_before = load_json(artifact / 'guest-attestation-before.json')
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
+    fixture_restore = load_json(artifact / 'fixture-restore.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -146,6 +147,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         evidence_problems.append('ADR guest envelope attestation missing, failed, or changed')
     if not oracle_ok:
         evidence_problems.append(oracle_problem)
+    fixture_restore_ok = (
+        fixture_restore.get('passed') is True
+        and len(str(fixture_restore.get('fixture_sha256') or '')) == 64
+        and fixture_restore.get('archive_format') == 'cold-named-volume-tar/v1'
+        and len(str(fixture_restore.get('fixture_manifest_sha256') or '')) == 64
+    )
+    if not fixture_restore_ok:
+        evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
     if not candidate.get('app_commit_sha') or not candidate.get('app_tree_hash'):
         evidence_problems.append('candidate commit/tree evidence missing')
     if migration.get('exit_code') != 0:
@@ -192,6 +201,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'resource_budget_problems_before': before.get('budget_problems', []),
         'resource_budget_problems_after': after.get('budget_problems', []),
         'workload_exit': workload_exit,
+        'fixture_sha256': fixture_restore.get('fixture_sha256'),
+        'fixture_archive': fixture_restore.get('archive'),
+        'fixture_archive_format': fixture_restore.get('archive_format'),
+        'fixture_manifest_path': fixture_restore.get('fixture_manifest_path'),
+        'fixture_manifest_sha256': fixture_restore.get('fixture_manifest_sha256'),
+        'fixture_restore_passed': fixture_restore.get('passed') is True,
+        'fixture_evidence_ok': fixture_restore_ok,
+        'fixture_restore_artifact': str(artifact / 'fixture-restore.json'),
         'app_checkout': candidate.get('app_checkout'),
         'app_ref': candidate.get('app_ref'),
         'app_commit_sha': candidate.get('app_commit_sha'),

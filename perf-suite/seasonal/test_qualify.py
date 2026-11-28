@@ -15,6 +15,13 @@ def load_foreign_load_module():
     return module
 
 
+def load_fixture_restore_module():
+    spec = importlib.util.spec_from_file_location("fixture_restore", ROOT / "fixture_restore.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class QualifyEntryPointTests(unittest.TestCase):
     def test_windows_lease_interop_and_lifecycle_are_fail_closed(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
@@ -84,6 +91,60 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertIn("mem_limit: 512m", alternate)
         self.assertIn("mem_limit: 544m", alternate)
 
+
+
+    def test_fixture_repin_manifest_and_final_result_evidence(self):
+        source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        restore_source = (ROOT / "fixture_restore.py").read_text(encoding="utf-8")
+        new_pin = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
+        self.assertIn('PINNED_FIXTURE_SHA="' + new_pin + '"', source)
+        self.assertIn('PINNED_FIXTURE_SHA256 = "' + new_pin + '"', restore_source)
+        self.assertIn("--fixture-manifest", source)
+        self.assertIn("validate_fixture_manifest", restore_source)
+        self.assertLess(restore_source.index("fixture digest mismatch"), restore_source.index("validate_fixture_manifest(manifest_arg, digest)"))
+        self.assertLess(restore_source.index("validate_fixture_manifest(manifest_arg, digest)"), restore_source.index('docker("ps"'))
+        self.assertLess(restore_source.index("validate_fixture_manifest(manifest_arg, digest)"), restore_source.index("tarfile.open"))
+        self.assertNotIn("8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19", source + restore_source)
+        active_repin_files = [
+            ROOT.parent / "lab" / "seasonal-smoke" / "mixed_minute.py",
+            ROOT.parent / "lab" / "offload-followup" / "manager" / "candidate_stock_oracle_compare.py",
+            ROOT.parent / "lab" / "offload-followup" / "manager" / "stock_oracle_reference.py",
+            ROOT.parent / "lab" / "offload-followup" / "manager" / "test_candidate_detail_streaming.py",
+            ROOT.parent / "lab" / "offload-followup" / "manager" / "trial-request.example.json",
+        ]
+        for active in active_repin_files:
+            text = active.read_text(encoding="utf-8")
+            self.assertIn(new_pin, text, active)
+            self.assertNotIn("8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19", text, active)
+
+        module = load_fixture_restore_module()
+        digest = new_pin
+        with tempfile.TemporaryDirectory() as td:
+            manifest = Path(td) / (digest + ".manifest.json")
+            manifest.write_text(json.dumps({
+                "schema_version": "fixture-build-v1",
+                "archive": {"sha256": digest, "format": "cold-named-volume-tar/v1"},
+            }))
+            validated = module.validate_fixture_manifest(manifest, digest)
+            self.assertEqual(validated["archive_format"], "cold-named-volume-tar/v1")
+            self.assertEqual(len(validated["sha256"]), 64)
+            self.assertEqual(module.companion_manifest_path(Path(td) / (digest + ".tar.gz")), manifest)
+            manifest.write_text(json.dumps({"artifacts": {"cold_volume": {"sha256": digest, "format": "cold-named-volume-tar/v1"}}}))
+            module.validate_fixture_manifest(manifest, digest)
+
+            bad_digest = json.loads(json.dumps({"archive": {"sha256": digest, "format": "cold-named-volume-tar/v1"}}))
+            bad_digest["archive"]["sha256"] = "0" * 64
+            manifest.write_text(json.dumps(bad_digest))
+            with self.assertRaisesRegex(RuntimeError, "digest mismatch"):
+                module.validate_fixture_manifest(manifest, digest)
+
+            bad_format = {"archive": {"sha256": digest, "format": "db-only-tar/v1"}}
+            manifest.write_text(json.dumps(bad_format))
+            with self.assertRaisesRegex(RuntimeError, "format"):
+                module.validate_fixture_manifest(manifest, digest)
+            manifest.unlink()
+            with self.assertRaisesRegex(RuntimeError, "missing"):
+                module.validate_fixture_manifest(manifest, digest)
 
     def test_candidate_tree_preflight_migration_and_attribution_are_wired(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
@@ -202,6 +263,14 @@ class QualifyEntryPointTests(unittest.TestCase):
             "foreign-load-start.json": {"foreign_count": 0, "foreign_containers": [], "baseline_containers": []},
             "foreign-load-end.json": {"foreign_count": 0, "foreign_containers": [], "baseline_containers": []},
             "candidate-deployment.json": {"app_commit_sha": "a" * 40, "app_tree_hash": "b" * 40},
+            "fixture-restore.json": {
+                "passed": True,
+                "archive": "/srv/khitmee-lab/operator/fixtures/0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd.tar.gz",
+                "fixture_sha256": "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd",
+                "archive_format": "cold-named-volume-tar/v1",
+                "fixture_manifest_path": "/srv/khitmee-lab/operator/fixtures/0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd.manifest.json",
+                "fixture_manifest_sha256": "c" * 64,
+            },
             "candidate-migration.json": {"required": True, "exit_code": 0},
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0"},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0"},
@@ -259,6 +328,9 @@ class QualifyEntryPointTests(unittest.TestCase):
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertTrue(result["qualification_evidence"], result["qualification_evidence_problems"])
             self.assertEqual(result["qualified"], "GO")
+            self.assertEqual(result["fixture_sha256"], "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd")
+            self.assertEqual(result["fixture_manifest_sha256"], "c" * 64)
+            self.assertTrue(result["fixture_restore_passed"])
         with tempfile.TemporaryDirectory() as td:
             self.write_decision_artifact(td, oracle=False)
             result = module.decide(td, 0, "run-1", "acceptance")
