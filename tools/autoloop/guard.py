@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ctypes
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from enum import Enum
 import hashlib
@@ -70,6 +70,46 @@ FINDINGS_LIST_RE = re.compile(
 
 class GuardError(RuntimeError):
     exit_code = EXIT_POLICY_OR_INTEGRITY
+
+
+class ShadowOnlyError(GuardError):
+    """An operation is deferred until Phase 2b."""
+
+
+def require_phase2b(feature: str) -> None:
+    raise ShadowOnlyError(f"{feature} is disabled in this shadow-only release. See issue #22.")
+
+
+def refuse_enforcement(mode: Any) -> None:
+    if mode == "enforce":
+        require_phase2b("Verification enforcement")
+
+
+def shadow_diagnostic(stage: str, exc: BaseException) -> str:
+    try:
+        detail = str(exc)
+    except BaseException:
+        detail = ""
+    diagnostic = f"{stage}: {type(exc).__name__}" + (f": {detail}" if detail else "")
+    try:
+        print(f"shadow_error: {diagnostic}", file=sys.stderr)
+    except BaseException:
+        pass  # Even a broken diagnostic stream must not abort a legacy operation.
+    return diagnostic
+
+
+def run_shadow(stage: str, operation: Callable[[], Any]) -> Any:
+    """Isolate optional work, including a service that tries to exit the process."""
+    try:
+        return operation()
+    except BaseException as exc:
+        return {"shadow_error": shadow_diagnostic(stage, exc)}
+
+
+def checked_shadow_decision(result: Any) -> dict[str, Any]:
+    if not isinstance(result, dict) or type(result.get("ok")) is not bool:
+        raise ValueError("malformed verification decision")
+    return json.loads(canonical_json_bytes(result))
 
 
 class CheckCommandError(GuardError):
@@ -548,29 +588,26 @@ def advise_test_integrity(repo: Path, base: str, head: str, *, now: str) -> None
     """Report protected test changes from committed trees without affecting the legacy gate."""
     from .proofs import ProtectedKind, evaluate_integrity, trusted_manifest_for_files
 
-    try:
-        kinds = {}
-        for change in git_diff_tree_entries(repo, base, head):
-            path = Path(change.path)
-            if path.suffix not in (".py", ".js", ".mjs", ".ts", ".jsx", ".tsx"):
-                continue
-            if path.name in {"fast_check.py", "perf_parity.py", "perf_eval_ledger.py"}:
-                kinds[change.path] = ProtectedKind.EVALUATOR
-            elif "tests" in path.parts or path.name.startswith("test_") or ".test." in path.name or ".spec." in path.name:
-                kinds[change.path] = ProtectedKind.TEST
-        if not kinds:
-            return
-        base_files = git_read_tree_blobs(repo, base, tree_entries=[
-            entry for entry in git_ls_tree(repo, base) if entry.path in kinds
-        ])
-        candidate = git_read_tree_blobs(repo, head, tree_entries=[
-            entry for entry in git_ls_tree(repo, head) if entry.path in kinds
-        ])
-        report = evaluate_integrity(base_files, candidate, trusted_manifest_for_files(base_files, kinds), now=now)
-        for violation in report.violations:
-            print(f"SHADOW-INTEGRITY {violation.rule_id} {violation.path}: {violation.message}", file=sys.stderr)
-    except (OSError, ValueError, RuntimeError) as exc:
-        print(f"SHADOW-INTEGRITY unavailable: {exc}", file=sys.stderr)
+    kinds = {}
+    for change in git_diff_tree_entries(repo, base, head):
+        path = Path(change.path)
+        if path.suffix not in (".py", ".js", ".mjs", ".ts", ".jsx", ".tsx"):
+            continue
+        if path.name in {"fast_check.py", "perf_parity.py", "perf_eval_ledger.py"}:
+            kinds[change.path] = ProtectedKind.EVALUATOR
+        elif "tests" in path.parts or path.name.startswith("test_") or ".test." in path.name or ".spec." in path.name:
+            kinds[change.path] = ProtectedKind.TEST
+    if not kinds:
+        return
+    base_files = git_read_tree_blobs(repo, base, tree_entries=[
+        entry for entry in git_ls_tree(repo, base) if entry.path in kinds
+    ])
+    candidate = git_read_tree_blobs(repo, head, tree_entries=[
+        entry for entry in git_ls_tree(repo, head) if entry.path in kinds
+    ])
+    report = evaluate_integrity(base_files, candidate, trusted_manifest_for_files(base_files, kinds), now=now)
+    for violation in report.violations:
+        print(f"SHADOW-INTEGRITY {violation.rule_id} {violation.path}: {violation.message}", file=sys.stderr)
 
 
 def git_is_ancestor(repo: Path, ancestor_sha: str, descendant_sha: str) -> bool:
@@ -900,11 +937,12 @@ def verify_phase2(
     observed_at = int(time.time())
     code_hash = compute_code_tree_sha256(repo, head, run_id=run["run_id"])
     evidence_error = None
+    failure_diagnostic = None
     try:
         signed = _authenticated_snapshots(contract, envelope)
     except (OSError, ValueError, KeyError, TypeError, GuardError, subprocess.TimeoutExpired) as exc:
         signed = {}
-        evidence_error = str(exc)
+        failure_diagnostic = evidence_error = shadow_diagnostic("verification evidence", exc)
     decisions = {}
     for sid in ids:
         shard = run["shards"][sid]
@@ -974,6 +1012,8 @@ def verify_phase2(
     result["digest"] = contract_sha256(result)
     if evidence_error is not None:
         result["evidence_error"] = evidence_error
+    if failure_diagnostic is not None:
+        result["shadow_error"] = failure_diagnostic
     if legacy_ok is not None and result["ok"] != legacy_ok:
         print(f"SHADOW-DIVERGENCE {obligation}: legacy={legacy_ok} verification={result['ok']} "
               f"digest={result['digest']}", file=sys.stderr)
@@ -1758,6 +1798,7 @@ def load_verified_local_contract(
         raise GuardError("local FrozenContractV1 revision mismatch")
     if run_data.get("contract_sha256") != contract_sha256(contract):
         raise GuardError("run checkpoint contract_sha256 does not match FrozenContractV1")
+    refuse_enforcement(contract.get("verification_mode"))
     if run_data.get("base_branch", "main") != contract.get("base_branch", "main"):
         raise GuardError("run checkpoint base_branch does not match FrozenContractV1")
     if run_data.get("oracle_mismatches", {}) != contract.get("oracle_mismatches", {}):
@@ -1777,6 +1818,19 @@ def load_verified_local_contract(
         if list(cshard_k.get("checks") or []) != list(rshard_k.get("checks") or []):
             raise GuardError(f"run checkpoint shard {sid_k!r} checks tampered vs FrozenContractV1")
     return run_data, contract
+
+
+def refuse_local_enforcement(repo: Path, run_id: str) -> None:
+    """Recognize a frozen opt-in without requiring a contract for legacy commands."""
+    try:
+        load_verified_local_contract(repo, run_id)
+    except ShadowOnlyError:
+        raise
+    except (GuardError, OSError, ValueError, TypeError, AttributeError):
+        # Legacy commands still decide whether they require a valid local contract.
+        return
+    except BaseException as exc:
+        shadow_diagnostic("verification contract discovery", exc)
 
 
 def _dropped_scope_changes(diff, contract, run_id, *, shard_id=None):
@@ -1938,6 +1992,7 @@ def verify_pr_integrity(
     pr_body: str = "",
     shadow_verification: bool = False,
     shadow_envelope: dict[str, Any] | None = None,
+    shadow_evidence_path: Path | None = None,
 ) -> dict[str, Any]:
     """V3 trusted PR integrity verifier (read-only over Git blobs, zero candidate code execution)."""
     if mode not in ("preflight", "finalize"):
@@ -2222,6 +2277,7 @@ def verify_pr_integrity(
     expected_contract_sha = contract_sha256(contract)
     if run_data.get("contract_sha256") != expected_contract_sha:
         raise GuardError("run checkpoint contract_sha256 does not match authoritative FrozenContractV1")
+    refuse_enforcement(contract.get("verification_mode"))
 
     # Sticky PR-to-run binding MUST live in owner-authenticated contract (never fall back to candidate JSON)
     contract_pr = contract.get("pr_number")
@@ -2304,21 +2360,25 @@ def verify_pr_integrity(
             "shard_checks": shard_checks_payload,
         }
         if shadow_verification:
-            auto_merge_approved = None
-            if contract.get("merge_mode") == "auto" or "allow-auto-merge" in label_set:
-                auto_merge_approved = (
-                    "allow-auto-merge" in label_set
-                    and _has_owner_label_event(pr_events, "allow-auto-merge", trusted_owners)
-                    and _has_owner_comment_match(
-                        pr_comments, AUTO_MERGE_APPROVAL_RE, (str(pr_number), resolved_head), trusted_owners,
+            def shadow_decision(target: str) -> dict[str, Any]:
+                auto_merge_approved = None
+                if contract.get("merge_mode") == "auto" or "allow-auto-merge" in label_set:
+                    auto_merge_approved = (
+                        "allow-auto-merge" in label_set
+                        and _has_owner_label_event(pr_events, "allow-auto-merge", trusted_owners)
+                        and _has_owner_comment_match(
+                            pr_comments, AUTO_MERGE_APPROVAL_RE, (str(pr_number), resolved_head), trusted_owners,
+                        )
                     )
-                )
-            envelope = shadow_envelope or verification_comment_envelope(pr_comments, trusted_owners)
-            for target in ("integrated", "merge_eligibility"):
-                result[f"shadow_{target}"] = verify_phase2(
+                envelope = (verification_envelope(shadow_evidence_path) if shadow_evidence_path is not None
+                            else shadow_envelope or verification_comment_envelope(pr_comments, trusted_owners))
+                return checked_shadow_decision(verify_phase2(
                     repo, run_data, contract, obligation=target, head=resolved_head, base=resolved_base,
                     envelope=envelope, auto_merge_approved=auto_merge_approved,
-                )
+                ))
+
+            for target in ("integrated", "merge_eligibility"):
+                result[f"shadow_{target}"] = run_shadow(f"PR {target}", lambda: shadow_decision(target))
         return result
 
     # --- Finalize Mode: Independent Shard Results, Review & Safeguard Artifacts ---
