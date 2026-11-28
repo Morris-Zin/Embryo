@@ -165,6 +165,15 @@ def loaded_invoice_count(client: McpClient, handle: str) -> int | None:
         return None
 
 
+def visible_invoice_list_items(client: McpClient, root_handle: str) -> list[str]:
+    tree = client.tool("get_element_tree", {"elementHandle": root_handle, "maxElements": 1200})
+    return [
+        element.get("accessibleLabel") or ""
+        for element in tree.get("elements") or []
+        if element.get("accessibleRole") == "ListItem"
+    ]
+
+
 def measure_workload(
     executable: Path,
     workload: str,
@@ -264,7 +273,7 @@ def measure_workload(
             latencies.append((time.perf_counter() - action_started) * 1000)
             if workload == "invoice" and iteration % 10 == 9:
                 use_filtered_page = len(click_latencies) % 2 == 0
-                verification_term = "customer" if use_filtered_page else ""
+                verification_term = "customer 000" if use_filtered_page else ""
                 edit_started = time.perf_counter()
                 client.tool("set_element_value", {"elementHandle": target, "value": verification_term})
                 latencies.append((time.perf_counter() - edit_started) * 1000)
@@ -275,7 +284,16 @@ def measure_workload(
                 client.tool("click_element", {"elementHandle": load_more})
                 click_latencies.append((time.perf_counter() - click_started) * 1000)
                 after_count = loaded_invoice_count(client, count_target)
-                if before_count is not None and after_count == before_count + 20:
+                appended_rows = before_count is not None and after_count == before_count + 20
+                filtered_content_matches = True
+                if use_filtered_page and filtered_load_more_attempts == 1:
+                    visible_rows = visible_invoice_list_items(client, handles["root"])
+                    filtered_content_matches = bool(visible_rows) and all(
+                        verification_term in row.split("|", 1)[0].lower()
+                        for row in visible_rows
+                    )
+                    result["filteredLoadMoreContentChecked"] = filtered_content_matches
+                if appended_rows and filtered_content_matches:
                     verified_load_more_clicks += 1
                     if use_filtered_page:
                         filtered_load_more_verified += 1
@@ -386,6 +404,8 @@ def main() -> int:
             )
         if label == "invoice" and not run.get("filteredLoadMoreAttempts"):
             failures.append(f"{label}: filtered Load More paging was not exercised")
+        if label == "invoice" and not run.get("filteredLoadMoreContentChecked"):
+            failures.append(f"{label}: filtered Load More visible rows did not all match the active filter")
 
     report = {
         "schemaVersion": 1,
