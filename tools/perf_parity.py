@@ -12,6 +12,7 @@ import inspect
 import json
 import os
 import random
+import stat
 import subprocess
 import sys
 import time
@@ -2244,8 +2245,6 @@ def clear_document_cache(frappe):
 
 
 def capture_with_rollback(frappe, label, pairs, build_document, capture_document):
-    savepoint = "khitmee_perf_parity_case"
-    frappe.db.sql(f"SAVEPOINT {savepoint}")
     try:
         before = bin_rows(frappe, pairs)
         result = build_document()
@@ -2255,7 +2254,7 @@ def capture_with_rollback(frappe, label, pairs, build_document, capture_document
         snapshot = capture_document(frappe, name, before)
         return name, snapshot
     finally:
-        frappe.db.sql(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        frappe.db.rollback()
         clear_document_cache(frappe)
 
 
@@ -2791,6 +2790,77 @@ def prepare_sidecar_oracle_cache_dir(
     return str(cache_path)
 
 
+SHARED_SYSTEM_DIRS = frozenset({"/", "/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"})
+
+
+def prepare_sidecar_oracle_manifest_dir(
+    manifest_path,
+    cache_dir,
+    target_uid=1000,
+    target_gid=1000,
+    *,
+    is_posix=None,
+    geteuid=None,
+    chown_fn=None,
+    chmod_fn=None,
+    stat_fn=None,
+):
+    """Validate and prepare a dedicated non-sticky parent dir for --oracle-manifest."""
+    mpath = Path(manifest_path).resolve(strict=False)
+    cpath = Path(cache_dir).resolve(strict=False)
+    try:
+        inside = mpath.is_relative_to(cpath)
+    except AttributeError:
+        inside = str(mpath).startswith(str(cpath) + os.sep)
+    if inside:
+        raise OracleCacheDriftError(
+            f"--oracle-manifest must be rooted outside --oracle-cache-dir ({mpath})"
+        )
+
+    manifest_dir = mpath.parent
+    raw_parent_posix = Path(manifest_path).parent.as_posix().rstrip("/") or "/"
+    resolved_parent_posix = manifest_dir.as_posix().rstrip("/") or "/"
+    if (
+        raw_parent_posix in SHARED_SYSTEM_DIRS
+        or resolved_parent_posix in SHARED_SYSTEM_DIRS
+        or manifest_dir == manifest_dir.parent
+    ):
+        raise OracleCacheDriftError(
+            f"refusing shared/system directory {manifest_dir} as --oracle-manifest parent; "
+            "use a dedicated subdirectory (e.g. /tmp/khitmee-oracle-manifest/manifest.json)"
+        )
+
+    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
+    if posix:
+        st_fn = stat_fn if stat_fn is not None else os.stat
+        if manifest_dir.exists() or stat_fn is not None:
+            try:
+                mode = st_fn(manifest_dir).st_mode
+            except OSError:
+                mode = 0
+            if mode & stat.S_ISVTX:
+                raise OracleCacheDriftError(
+                    f"refusing sticky directory {manifest_dir} as --oracle-manifest parent; "
+                    "use a dedicated subdirectory"
+                )
+
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    if posix:
+        euid_fn = geteuid if geteuid is not None else getattr(os, "geteuid", lambda: target_uid)
+        chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
+        chmod = chmod_fn if chmod_fn is not None else os.chmod
+        try:
+            if euid_fn() == 0 and chown is not None:
+                chown(manifest_dir, target_uid, target_gid)
+            else:
+                chmod(manifest_dir, 0o777)
+        except OSError as exc:
+            raise OracleCacheDriftError(
+                f"failed to prepare oracle manifest dir {manifest_dir}: {exc}"
+            )
+    return str(manifest_dir), mpath.name
+
+
 def build_sidecar_command(
     backend,
     image,
@@ -2931,32 +3001,19 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
             oracle_cache_mount = (host_cache, container_cache)
             inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-cache-dir", container_cache)
         if parsed_host.oracle_manifest:
-            manifest_path = Path(parsed_host.oracle_manifest).resolve(strict=False)
-            cache_path = Path(parsed_host.oracle_cache_dir).resolve(strict=False)
             try:
-                inside = manifest_path.is_relative_to(cache_path)
-            except AttributeError:
-                inside = str(manifest_path).startswith(str(cache_path) + os.sep)
-            if inside:
-                print(
-                    f"refusing parity run: --oracle-manifest must be rooted outside --oracle-cache-dir ({manifest_path})",
-                    file=sys.stderr,
+                manifest_dir_str, manifest_name = prepare_sidecar_oracle_manifest_dir(
+                    parsed_host.oracle_manifest,
+                    parsed_host.oracle_cache_dir,
+                    target_uid=target_uid,
+                    target_gid=target_gid,
                 )
+            except OracleCacheDriftError as exc:
+                print(f"refusing parity run: {exc}", file=sys.stderr)
                 return 3
-            manifest_dir = manifest_path.parent
-            manifest_dir.mkdir(parents=True, exist_ok=True)
-            if os.name != "nt":
-                try:
-                    if getattr(os, "geteuid", lambda: target_uid)() == 0:
-                        os.chown(manifest_dir, target_uid, target_gid)
-                    else:
-                        os.chmod(manifest_dir, 0o777)
-                except OSError as exc:
-                    print(f"failed to prepare oracle manifest dir {manifest_dir}: {exc}", file=sys.stderr)
-                    return 3
             container_mdir = "/tmp/khitmee-oracle-manifest"
-            oracle_manifest_mount = (str(manifest_dir), container_mdir)
-            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-manifest", f"{container_mdir}/{manifest_path.name}")
+            oracle_manifest_mount = (manifest_dir_str, container_mdir)
+            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-manifest", f"{container_mdir}/{manifest_name}")
         command = build_sidecar_command(
             backend,
             image,

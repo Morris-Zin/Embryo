@@ -576,6 +576,109 @@ class OracleCacheAndTimingTests(unittest.TestCase):
         self.assertIn("SUM(actual_qty)", joined)
         self.assertIn("MAX(creation)", joined)
 
+    def test_capture_with_rollback_tolerates_inner_db_rollback_without_savepoint(self):
+        class FakeDB:
+            def __init__(self):
+                self.rollbacks = 0
+
+            def sql(self, query, *args, **kwargs):
+                if "SAVEPOINT" in str(query).upper():
+                    raise AssertionError("SAVEPOINT must not be used in capture_with_rollback")
+                return []
+
+            def get_value(self, *args, **kwargs):
+                return {}
+
+            def rollback(self):
+                self.rollbacks += 1
+
+        class FakeLocal:
+            def __init__(self):
+                self.document_cache = {"k": "v"}
+
+        class FakeFrappe:
+            def __init__(self):
+                self.db = FakeDB()
+                self.local = FakeLocal()
+
+        frappe = FakeFrappe()
+
+        def build_doc():
+            frappe.db.rollback()
+            return {"voucher_no": "SINV-0001"}
+
+        name, snap = perf_parity.capture_with_rollback(
+            frappe,
+            "test-sale",
+            [("KM-001", "Shop 1")],
+            build_doc,
+            lambda f, n, before: {"voucher": n},
+        )
+        self.assertEqual(name, "SINV-0001")
+        self.assertEqual(snap, {"voucher": "SINV-0001"})
+        self.assertEqual(frappe.db.rollbacks, 2)
+        self.assertEqual(frappe.local.document_cache, {})
+
+    def test_prepare_sidecar_oracle_manifest_dir_rejects_shared_and_sticky_dirs(self):
+        import stat as stat_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "cache"
+            mutated = []
+
+            # Shared system directories (/tmp, /var/tmp) must be rejected without mutation.
+            for shared in ("/tmp/manifest.json", "/var/tmp/manifest.json"):
+                with self.subTest(shared=shared):
+                    with self.assertRaises(perf_parity.OracleCacheDriftError):
+                        perf_parity.prepare_sidecar_oracle_manifest_dir(
+                            shared,
+                            cache_dir,
+                            is_posix=True,
+                            geteuid=lambda: 0,
+                            chown_fn=lambda *a: mutated.append(a),
+                            chmod_fn=lambda *a: mutated.append(a),
+                        )
+            self.assertEqual(mutated, [])
+
+            # Sticky directory (S_ISVTX) must be rejected without mutation.
+            sticky_dir = Path(tmpdir) / "sticky-parent"
+            sticky_dir.mkdir()
+
+            class StickyStat:
+                st_mode = stat_mod.S_IFDIR | stat_mod.S_ISVTX | 0o777
+
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_manifest_dir(
+                    sticky_dir / "manifest.json",
+                    cache_dir,
+                    is_posix=True,
+                    geteuid=lambda: 0,
+                    chown_fn=lambda *a: mutated.append(a),
+                    chmod_fn=lambda *a: mutated.append(a),
+                    stat_fn=lambda _p: StickyStat(),
+                )
+            self.assertEqual(mutated, [])
+
+            # Dedicated non-sticky subdirectory succeeds.
+            dedicated = Path(tmpdir) / "dedicated-trust-root" / "manifest.json"
+            class NormalStat:
+                st_mode = stat_mod.S_IFDIR | 0o755
+
+            mdir, mname = perf_parity.prepare_sidecar_oracle_manifest_dir(
+                dedicated,
+                cache_dir,
+                target_uid=1000,
+                target_gid=1000,
+                is_posix=True,
+                geteuid=lambda: 0,
+                chown_fn=lambda *a: mutated.append(a),
+                chmod_fn=lambda *a: mutated.append(a),
+                stat_fn=lambda _p: NormalStat(),
+            )
+            self.assertEqual(mname, "manifest.json")
+            self.assertTrue(Path(mdir).is_dir())
+            self.assertEqual(len(mutated), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
