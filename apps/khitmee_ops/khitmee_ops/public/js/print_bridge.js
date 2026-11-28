@@ -75,9 +75,12 @@
 			dialog = document.createElement("dialog");
 			dialog.id = "print-fallback-dialog";
 			dialog.className = "print-fallback-dialog";
+			dialog.addEventListener("close", function () {
+				document.body.classList.remove("print-fallback-open");
+			});
 			document.body.appendChild(dialog);
 		}
-		dialog.innerHTML = "";
+		dialog.replaceChildren();
 		const actions = document.createElement("div");
 		actions.className = "print-fallback-actions no-print";
 		if (opts.notice) {
@@ -97,15 +100,12 @@
 		dialog.appendChild(actions);
 		dialog.appendChild(buildReceipt(payload));
 
-		printButton.addEventListener("click", function () {
+		printButton.onclick = function () {
 			window.print();
-		});
-		closeButton.addEventListener("click", function () {
+		};
+		closeButton.onclick = function () {
 			dialog.close();
-		});
-		dialog.addEventListener("close", function () {
-			document.body.classList.remove("print-fallback-open");
-		});
+		};
 
 		document.body.classList.add("print-fallback-open");
 		if (typeof dialog.showModal === "function") dialog.showModal();

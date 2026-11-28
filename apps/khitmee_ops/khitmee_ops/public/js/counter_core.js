@@ -116,6 +116,9 @@
 		const state = {
 			context: null,
 			lines: [],
+			lineIndexByItemCode: new Map(),
+			totalQty: 0,
+			subtotal: 0,
 			searchItems: [],
 			activeIndex: -1,
 			searchKey: "",
@@ -146,10 +149,11 @@
 
 		function fillSelect(select, rows, labeler, value) {
 			if (!select || !rows) return;
-			select.innerHTML = "";
+			const fragment = document.createDocumentFragment();
 			rows.forEach(function (row) {
-				select.appendChild(option(labeler(row), row.name));
+				fragment.appendChild(option(labeler(row), row.name));
 			});
+			select.replaceChildren(fragment);
 			if (value) select.value = value;
 		}
 
@@ -163,10 +167,12 @@
 		function refillCustomers(rows, append) {
 			if (!els.customer) return;
 			const selected = els.customer.value;
-			if (!append) els.customer.innerHTML = "";
+			const fragment = document.createDocumentFragment();
 			rows.forEach(function (row) {
-				els.customer.appendChild(option(row.customer_name || row.name, row.name));
+				fragment.appendChild(option(row.customer_name || row.name, row.name));
 			});
+			if (!append) els.customer.replaceChildren(fragment);
+			else els.customer.appendChild(fragment);
 			if (selected) {
 				if (!els.customer.querySelector('option[value="' + selected + '"]')) {
 					els.customer.insertBefore(option(selected, selected), els.customer.firstChild);
@@ -389,12 +395,24 @@
 
 		const searchDebouncer = createDebouncer(searchItems, 100);
 
-		function addItem(item) {
-			const existingIndex = state.lines.findIndex(function (line) {
-				return line.item_code === item.item_code;
+		function recomputeTotals() {
+			let totalQty = 0;
+			let subtotal = 0;
+			state.lines.forEach(function (line) {
+				totalQty += line.qty;
+				subtotal += lineTotal(line);
 			});
+			state.totalQty = totalQty;
+			state.subtotal = subtotal;
+		}
+
+		function addItem(item) {
+			const existingIndex = state.lineIndexByItemCode.has(item.item_code)
+				? state.lineIndexByItemCode.get(item.item_code)
+				: -1;
 			if (existingIndex >= 0) {
 				state.lines[existingIndex].qty += 1;
+				recomputeTotals();
 				updateLineRow(els.linesBody.children[existingIndex], state.lines[existingIndex], existingIndex);
 			} else {
 				const line = {
@@ -406,19 +424,28 @@
 					actual_qty: Number(item.actual_qty || 0),
 				};
 				state.lines.push(line);
+				state.totalQty += line.qty;
+				state.subtotal += lineTotal(line);
+				state.lineIndexByItemCode.set(line.item_code, state.lines.length - 1);
 				els.linesBody.appendChild(createLineRow(line, state.lines.length - 1));
 			}
 			els.search.value = "";
+			scannerUndoEntries.length = 0;
+			scannerRedoEntries.length = 0;
 			hideResults();
 			renderTotals();
 			els.search.focus();
 		}
 
 		function removeLine(index) {
+			const removed = state.lines[index];
 			state.lines.splice(index, 1);
+			if (removed) state.lineIndexByItemCode.delete(removed.item_code);
+			recomputeTotals();
 			const row = els.linesBody.children[index];
 			if (row) row.remove();
 			for (let position = index; position < state.lines.length; position += 1) {
+				state.lineIndexByItemCode.set(state.lines[position].item_code, position);
 				updateLineRow(els.linesBody.children[position], state.lines[position], position);
 			}
 			renderTotals();
@@ -433,6 +460,7 @@
 				removeLine(index);
 				return;
 			}
+			recomputeTotals();
 			updateLineRow(els.linesBody.children[index], line, index);
 			renderTotals();
 		}
@@ -445,6 +473,7 @@
 				removeLine(index);
 				return;
 			}
+			recomputeTotals();
 			updateLineRow(els.linesBody.children[index], line, index);
 			renderTotals();
 		}
@@ -453,32 +482,52 @@
 			return line.qty * line.rate;
 		}
 
+		const lineRowTemplate = document.createElement("tr");
+		lineRowTemplate.innerHTML =
+			"<td class='line-item'><strong></strong><span></span></td>" +
+			"<td class='line-qty'><div class='qty-stepper'>" +
+			"<button type='button' data-action='dec' aria-label='Decrease quantity'>−</button>" +
+			"<input inputmode='decimal' data-action='qty' aria-label='Quantity' />" +
+			"<button type='button' data-action='inc' aria-label='Increase quantity'>+</button>" +
+			"</div></td>" +
+			"<td class='line-uom'></td>" +
+			"<td class='line-rate numeric'></td>" +
+			"<td class='line-amount numeric'></td>" +
+			"<td class='line-actions'><button type='button' class='icon-button' data-action='remove' aria-label='Remove line'>×</button></td>";
+
 		function createLineRow(line, index) {
-			const tr = document.createElement("tr");
-			tr.innerHTML =
-				"<td class='line-item'><strong></strong><span></span></td>" +
-				"<td class='line-qty'><div class='qty-stepper'>" +
-				"<button type='button' data-action='dec' aria-label='Decrease quantity'>−</button>" +
-				"<input inputmode='decimal' data-action='qty' aria-label='Quantity' />" +
-				"<button type='button' data-action='inc' aria-label='Increase quantity'>+</button>" +
-				"</div></td>" +
-				"<td class='line-uom'></td>" +
-				"<td class='line-rate numeric'></td>" +
-				"<td class='line-amount numeric'></td>" +
-				"<td class='line-actions'><button type='button' class='icon-button' data-action='remove' aria-label='Remove line'>×</button></td>";
+			const tr = lineRowTemplate.cloneNode(true);
 			updateLineRow(tr, line, index);
 			return tr;
+		}
+
+		const lineRowRefs = new WeakMap();
+		function refsForLineRow(tr) {
+			let refs = lineRowRefs.get(tr);
+			if (!refs) {
+				refs = {
+					itemCode: tr.querySelector("strong"),
+					itemName: tr.querySelector(".line-item span"),
+					qtyInput: tr.querySelector("input"),
+					uom: tr.querySelector(".line-uom"),
+					rate: tr.querySelector(".line-rate"),
+					amount: tr.querySelector(".line-amount"),
+				};
+				lineRowRefs.set(tr, refs);
+			}
+			return refs;
 		}
 
 		function updateLineRow(tr, line, index) {
 			if (!tr) return;
 			tr.dataset.index = index;
-			const itemCode = tr.querySelector("strong");
-			const itemName = tr.querySelector(".line-item span");
-			const qtyInput = tr.querySelector("input");
-			const uom = tr.querySelector(".line-uom");
-			const rate = tr.querySelector(".line-rate");
-			const amount = tr.querySelector(".line-amount");
+			const refs = refsForLineRow(tr);
+			const itemCode = refs.itemCode;
+			const itemName = refs.itemName;
+			const qtyInput = refs.qtyInput;
+			const uom = refs.uom;
+			const rate = refs.rate;
+			const amount = refs.amount;
 			const qtyText = String(line.qty);
 			const uomText = line.uom || "";
 			const rateText = config.showRates ? formatMoney(line.rate) : "—";
@@ -492,6 +541,7 @@
 		}
 
 		function renderLines() {
+			recomputeTotals();
 			if (!state.lines.length) {
 				els.linesBody.replaceChildren();
 				renderTotals();
@@ -512,19 +562,17 @@
 		}
 
 		function renderTotals() {
-			let totalQty = 0;
-			let subtotal = 0;
-			state.lines.forEach(function (line) {
-				totalQty += line.qty;
-				subtotal += lineTotal(line);
-			});
-			els.totalQty.textContent = formatQty(totalQty);
-			els.subtotal.textContent = config.showRates ? formatMoney(subtotal) : formatQty(totalQty);
-			els.submit.disabled = !state.lines.length || state.submitting;
+			const totalQtyText = formatQty(state.totalQty);
+			const subtotalText = config.showRates ? formatMoney(state.subtotal) : totalQtyText;
+			const submitDisabled = !state.lines.length || state.submitting;
+			if (els.totalQty.textContent !== totalQtyText) els.totalQty.textContent = totalQtyText;
+			if (els.subtotal.textContent !== subtotalText) els.subtotal.textContent = subtotalText;
+			if (els.submit.disabled !== submitDisabled) els.submit.disabled = submitDisabled;
 		}
 
 		function resetLines() {
 			state.lines = [];
+			state.lineIndexByItemCode.clear();
 			state.clientVoucherId = uuid();
 			renderLines();
 		}
@@ -596,7 +644,147 @@
 			const item = state.searchItems[Number(li.dataset.index)];
 			if (item) addItem(item);
 		});
-		els.search.addEventListener("input", function () {
+		let scannerBuffer = "";
+		let scannerFlushTimer = null;
+		let scannerInputEventActive = false;
+		const scannerUndoEntries = [];
+		const scannerRedoEntries = [];
+		function dispatchScannerInput(inputType, data) {
+			const inputEvent = new InputEvent("input", {
+				bubbles: true,
+				inputType: inputType,
+				data: data,
+			});
+			scannerInputEventActive = true;
+			try {
+				els.search.dispatchEvent(inputEvent);
+			} finally {
+				scannerInputEventActive = false;
+			}
+		}
+		function flushScannerInput() {
+			if (scannerFlushTimer !== null) {
+				window.clearTimeout(scannerFlushTimer);
+				scannerFlushTimer = null;
+			}
+			if (!scannerBuffer) return;
+			const inserted = scannerBuffer;
+			scannerBuffer = "";
+			const oldValue = els.search.value;
+			const start = els.search.selectionStart ?? oldValue.length;
+			const end = els.search.selectionEnd ?? oldValue.length;
+			scannerUndoEntries.push({
+				start: start,
+				end: end,
+				before: oldValue.slice(start, end),
+				inserted: inserted,
+			});
+			if (scannerUndoEntries.length > 32) scannerUndoEntries.shift();
+			scannerRedoEntries.length = 0;
+			els.search.value = oldValue.slice(0, start) + inserted + oldValue.slice(end);
+			const caret = start + inserted.length;
+			if (start !== end || end !== oldValue.length) {
+				els.search.setSelectionRange(caret, caret);
+			}
+			dispatchScannerInput("insertText", inserted);
+		}
+		function undoScannerInput() {
+			const entry = scannerUndoEntries.pop();
+			if (!entry) return false;
+			const value = els.search.value;
+			const insertedEnd = entry.start + entry.inserted.length;
+			if (value.slice(entry.start, insertedEnd) !== entry.inserted) {
+				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
+				return false;
+			}
+			els.search.value = value.slice(0, entry.start) + entry.before + value.slice(insertedEnd);
+			if (entry.before) {
+				els.search.setSelectionRange(entry.start, entry.start + entry.before.length);
+			} else {
+				els.search.setSelectionRange(entry.start, entry.start);
+			}
+			scannerRedoEntries.push(entry);
+			dispatchScannerInput("deleteContentBackward", null);
+			return true;
+		}
+		function redoScannerInput() {
+			const entry = scannerRedoEntries.pop();
+			if (!entry) return false;
+			const value = els.search.value;
+			const beforeEnd = entry.start + entry.before.length;
+			if (value.slice(entry.start, beforeEnd) !== entry.before) {
+				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
+				return false;
+			}
+			els.search.value = value.slice(0, entry.start) + entry.inserted + value.slice(beforeEnd);
+			const caret = entry.start + entry.inserted.length;
+			els.search.setSelectionRange(caret, caret);
+			scannerUndoEntries.push(entry);
+			dispatchScannerInput("insertText", entry.inserted);
+			return true;
+		}
+		els.search.addEventListener("keydown", function (event) {
+			// Scanner output is normally uppercase alphanumeric plus separators.
+			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+				flushScannerInput();
+				if (!state.searchItems.length) return;
+				event.preventDefault();
+				const delta = event.key === "ArrowDown" ? 1 : -1;
+				state.activeIndex = (state.activeIndex + delta + state.searchItems.length) % state.searchItems.length;
+				els.search.setAttribute("aria-activedescendant", "search-option-" + state.activeIndex);
+				updateResultSelection();
+				return;
+			}
+			if (event.key === "Enter") {
+				event.preventDefault();
+				flushScannerInput();
+				// Hardware scanners type and hit Enter faster than the debounce; cancel
+				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
+				searchDebouncer.cancel();
+				searchItems({ cache: true, render: false }).then(function () {
+					const item = state.activeIndex >= 0 ? state.searchItems[state.activeIndex] : null;
+					if (item) addItem(item);
+				});
+				return;
+			}
+			if (event.key === "Escape") {
+				flushScannerInput();
+				hideResults();
+				return;
+			}
+			// Preventing those keydowns keeps Chromium from constructing editor undo commands per scan;
+			// lowercase/manual typing keeps the browser's normal editing path. Buffering to
+			// a trailing 16 ms quiet window avoids one input-element mutation for every scanner key.
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "z") {
+				flushScannerInput();
+				const handled = event.shiftKey ? redoScannerInput() : undoScannerInput();
+				if (handled) event.preventDefault();
+				return;
+			}
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "y") {
+				flushScannerInput();
+				if (redoScannerInput()) event.preventDefault();
+				return;
+			}
+			const keyCode = event.key.length === 1 ? event.key.charCodeAt(0) : 0;
+			const isScannerKey =
+				(keyCode >= 48 && keyCode <= 57) || (keyCode >= 65 && keyCode <= 90) || keyCode === 45;
+			if (event.ctrlKey || event.metaKey || event.altKey || !isScannerKey) {
+				flushScannerInput();
+				return;
+			}
+			event.preventDefault();
+			scannerBuffer += event.key;
+			if (scannerFlushTimer !== null) window.clearTimeout(scannerFlushTimer);
+			scannerFlushTimer = window.setTimeout(flushScannerInput, 16);
+		});
+		function handleSearchInput() {
+			if (!scannerInputEventActive) {
+				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
+			}
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
@@ -605,29 +793,9 @@
 			state.activeIndex = -1;
 			hideResults();
 			searchDebouncer.schedule();
-		});
-		els.search.addEventListener("keydown", function (event) {
-			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-				if (!state.searchItems.length) return;
-				event.preventDefault();
-				const delta = event.key === "ArrowDown" ? 1 : -1;
-				state.activeIndex = (state.activeIndex + delta + state.searchItems.length) % state.searchItems.length;
-				els.search.setAttribute("aria-activedescendant", "search-option-" + state.activeIndex);
-				updateResultSelection();
-			} else if (event.key === "Enter") {
-				event.preventDefault();
-				// Hardware scanners type and hit Enter faster than the debounce; cancel
-				// any pending search and resolve the current input, reusing only a bounded fresh scan cache entry.
-				searchDebouncer.cancel();
-				searchItems({ cache: true, render: false }).then(function () {
-					const item = state.activeIndex >= 0 ? state.searchItems[state.activeIndex] : null;
-					if (item) addItem(item);
-				});
-			} else if (event.key === "Escape") {
-				hideResults();
-			}
-		});
-
+		}
+		els.search.addEventListener("input", handleSearchInput);
+		els.search.addEventListener("beforeinput", flushScannerInput);
 		if (els.customerSearch) {
 			els.customerSearch.addEventListener("input", function () {
 				customerDebouncer.schedule();

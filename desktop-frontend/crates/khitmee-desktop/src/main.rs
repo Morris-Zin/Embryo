@@ -2,9 +2,9 @@
 use khitmee_catalog::{hex_key, load_or_create_key, EncryptedStore};
 use khitmee_catalog::{CatalogIndex, CatalogItem};
 use khitmee_erp::{ErpClient, SaleItem};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::rc::Rc;
 
@@ -21,6 +21,9 @@ struct PilotState {
     catalog_size: usize,
     lines: Vec<LineState>,
     invoices: Vec<InvoiceSeed>,
+    invoice_row_model: Option<Rc<VecModel<InvoiceRow>>>,
+    invoice_list_start: usize,
+    invoice_list_stale: bool,
     invoice_filter: String,
     invoice_limit: usize,
     invoice_sort_ascending: bool,
@@ -49,12 +52,12 @@ struct PilotState {
 
 #[derive(Clone)]
 struct InvoiceSeed {
-    name: String,
-    customer: String,
-    posting_date: String,
-    due_date: String,
+    name: SharedString,
+    customer: SharedString,
+    posting_date: SharedString,
+    due_date: SharedString,
     total: f64,
-    status: String,
+    status: SharedString,
 }
 
 fn new_client_voucher_id() -> String {
@@ -380,14 +383,16 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
                 };
             }
             InvoiceSeed {
-                name: format!("FIXTURE-SINV-{}", fixture_invoice_suffix(index)),
+                name: format!("FIXTURE-SINV-{}", fixture_invoice_suffix(index)).into(),
                 customer: if index % 1000 == 0 {
                     format!("မြတ်သူ {:04}", index % 1000)
                 } else {
                     format!("Customer {:04}", index % 997)
-                },
-                posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28),
-                due_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + ((index + 14) % 28)),
+                }
+                .into(),
+                posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28).into(),
+                due_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + ((index + 14) % 28))
+                    .into(),
                 total: 1000.0 + ((index * 173) % 85_000) as f64 / 2.0,
                 status: match index % 5 {
                     0 => "Paid",
@@ -488,64 +493,70 @@ fn filtered_invoice_rows<'a>(
         .take(limit)
 }
 
-fn invoice_model(rows: &[InvoiceSeed], filter: &str, limit: usize) -> ModelRc<InvoiceRow> {
-    let rows = filtered_invoice_rows(rows, filter, limit)
-        .map(|row| InvoiceRow {
-            name: row.name.clone().into(),
-            customer: row.customer.clone().into(),
-            posting_date: row.posting_date.clone().into(),
-            due_date: row.due_date.clone().into(),
-            total_text: money(row.total).into(),
-            status: row.status.clone().into(),
-            customer_width: match row.customer.as_str() {
-                "Khit Customer 0006" => 134.125,
-                "Khit Customer 0005" => 134.0,
-                "Khit Customer 0004" => 134.5625,
-                "Khit Customer 0003" => 134.234375,
-                "Khit Customer 0002" => 133.890625,
-                "Khit Customer 0030" => 134.234375,
-                "Khit Customer 0029" => 133.578125,
-                "Khit Customer 0028" => 133.5625,
-                "Khit Customer 0027" => 132.703125,
-                "Khit Customer 0026" => 133.578125,
-                "Khit Customer 0025" => 133.453125,
-                "Khit Customer 0024" => 133.796875,
-                "Khit Customer 0023" => 133.6875,
-                "Khit Customer 0022" => 133.34375,
-                "Khit Customer 0021" => 130.53125,
-                "Khit Customer 0020" => 133.890625,
-                "Khit Customer 0019" => 130.78125,
-                "Khit Customer 0018" => 130.75,
-                "Khit Customer 0017" => 129.90625,
-                "Khit Customer 0016" => 130.78125,
-                _ => 134.0,
-            },
-            name_width: match row.name.as_str() {
-                "ACC-SINV-RET-2026-00114" => 186.890625,
-                "ACC-SINV-RET-2026-00113" => 186.5625,
-                "ACC-SINV-RET-2026-00112" => 186.21875,
-                "ACC-SINV-RET-2026-00111" => 183.40625,
-                "ACC-SINV-RET-2026-00110" => 186.765625,
-                "ACC-SINV-2026-04921" => 157.125,
-                "ACC-SINV-2026-04920" => 160.484375,
-                "ACC-SINV-2026-04919" => 157.359375,
-                "ACC-SINV-2026-04918" => 157.34375,
-                "ACC-SINV-2026-04917" => 156.484375,
-                "ACC-SINV-2026-04916" => 157.359375,
-                "ACC-SINV-2026-04915" => 157.234375,
-                "ACC-SINV-2026-04914" => 157.796875,
-                "ACC-SINV-2026-04913" => 157.46875,
-                "ACC-SINV-2026-04912" => 157.125,
-                "ACC-SINV-2026-04911" => 154.3125,
-                "ACC-SINV-2026-04910" => 157.671875,
-                "ACC-SINV-2026-04909" => 160.71875,
-                "ACC-SINV-2026-04908" => 160.703125,
-                "ACC-SINV-2026-04907" => 159.578125,
-                _ => 157.0,
-            },
-        })
+fn invoice_row_data(row: &InvoiceSeed) -> InvoiceRow {
+    InvoiceRow {
+        name: row.name.clone().into(),
+        customer: row.customer.clone().into(),
+        posting_date: row.posting_date.clone().into(),
+        due_date: row.due_date.clone().into(),
+        total_text: money(row.total).into(),
+        status: row.status.clone().into(),
+        customer_width: match row.customer.as_str() {
+            "Khit Customer 0006" => 134.125,
+            "Khit Customer 0005" => 134.0,
+            "Khit Customer 0004" => 134.5625,
+            "Khit Customer 0003" => 134.234375,
+            "Khit Customer 0002" => 133.890625,
+            "Khit Customer 0030" => 134.234375,
+            "Khit Customer 0029" => 133.578125,
+            "Khit Customer 0028" => 133.5625,
+            "Khit Customer 0027" => 132.703125,
+            "Khit Customer 0026" => 133.578125,
+            "Khit Customer 0025" => 133.453125,
+            "Khit Customer 0024" => 133.796875,
+            "Khit Customer 0023" => 133.6875,
+            "Khit Customer 0022" => 133.34375,
+            "Khit Customer 0021" => 130.53125,
+            "Khit Customer 0020" => 133.890625,
+            "Khit Customer 0019" => 130.78125,
+            "Khit Customer 0018" => 130.75,
+            "Khit Customer 0017" => 129.90625,
+            "Khit Customer 0016" => 130.78125,
+            _ => 134.0,
+        },
+        name_width: match row.name.as_str() {
+            "ACC-SINV-RET-2026-00114" => 186.890625,
+            "ACC-SINV-RET-2026-00113" => 186.5625,
+            "ACC-SINV-RET-2026-00112" => 186.21875,
+            "ACC-SINV-RET-2026-00111" => 183.40625,
+            "ACC-SINV-RET-2026-00110" => 186.765625,
+            "ACC-SINV-2026-04921" => 157.125,
+            "ACC-SINV-2026-04920" => 160.484375,
+            "ACC-SINV-2026-04919" => 157.359375,
+            "ACC-SINV-2026-04918" => 157.34375,
+            "ACC-SINV-2026-04917" => 156.484375,
+            "ACC-SINV-2026-04916" => 157.359375,
+            "ACC-SINV-2026-04915" => 157.234375,
+            "ACC-SINV-2026-04914" => 157.796875,
+            "ACC-SINV-2026-04913" => 157.46875,
+            "ACC-SINV-2026-04912" => 157.125,
+            "ACC-SINV-2026-04911" => 154.3125,
+            "ACC-SINV-2026-04910" => 157.671875,
+            "ACC-SINV-2026-04909" => 160.71875,
+            "ACC-SINV-2026-04908" => 160.703125,
+            "ACC-SINV-2026-04907" => 159.578125,
+            _ => 157.0,
+        },
+    }
+}
+
+fn install_invoice_model(app: &AppWindow, state: &mut PilotState, filter: &str) {
+    let rows = filtered_invoice_rows(&state.invoices, filter, state.invoice_limit)
+        .map(invoice_row_data)
         .collect::<Vec<_>>();
-    Rc::new(VecModel::from(rows)).into()
+    let model = Rc::new(VecModel::from(rows));
+    app.set_invoice_rows(model.clone().into());
+    state.invoice_row_model = Some(model);
 }
 
 fn add_item_to_draft(state: &mut PilotState, item: CatalogItem) {
@@ -589,17 +600,32 @@ fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
                 .filter_map(|row| {
                     let columns = row.as_array()?;
                     Some(InvoiceSeed {
-                        name: columns.first()?.as_str()?.to_owned(),
-                        customer: columns.get(1)?.as_str()?.to_owned(),
-                        status: columns.get(2)?.as_str()?.to_owned(),
-                        posting_date: columns.get(3)?.as_str()?.to_owned(),
-                        due_date: columns.get(4)?.as_str()?.to_owned(),
+                        name: columns.first()?.as_str()?.into(),
+                        customer: columns.get(1)?.as_str()?.into(),
+                        status: columns.get(2)?.as_str()?.into(),
+                        posting_date: columns.get(3)?.as_str()?.into(),
+                        due_date: columns.get(4)?.as_str()?.into(),
                         total: columns.get(5)?.as_f64()?,
                     })
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn invoice_result_row_count(payload: &serde_json::Value) -> usize {
+    payload
+        .get("values")
+        .and_then(|value| value.as_array())
+        .map(Vec::len)
+        .unwrap_or_default()
+}
+
+fn unique_invoice_rows(rows: Vec<InvoiceSeed>) -> Vec<InvoiceSeed> {
+    let mut seen = HashSet::new();
+    rows.into_iter()
+        .filter(|row| seen.insert(row.name.clone()))
+        .collect()
 }
 
 fn detail_string(doc: &serde_json::Value, key: &str) -> String {
@@ -637,15 +663,11 @@ fn detail_check(doc: &serde_json::Value, key: &str) -> String {
 }
 
 fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name: &str) {
-    let Some(config) = state.runtime_config.clone() else {
+    if state.runtime_config.is_none() {
         app.set_status_text("Sales Invoice detail requires live ERP configuration".into());
         return;
-    };
-    if state.erp_client.is_none() {
-        state.erp_client =
-            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
     }
-    let Some(client) = state.erp_client.clone() else {
+    let Some(client) = invoice_erp_client(state) else {
         app.set_status_text("ERP login failed while loading Sales Invoice detail".into());
         return;
     };
@@ -1185,7 +1207,7 @@ fn edit_invoice_detail_item_code(app: &AppWindow, state: &mut PilotState, index:
         return;
     }
     let item_code = value.trim().to_owned();
-    let Some(catalog_item) = state.catalog.get_by_item_code(&item_code).cloned() else {
+    let Some(catalog_item) = state.catalog.get_by_item_code(&item_code) else {
         return;
     };
     let Some(doc) = state.invoice_detail_doc.as_mut() else {
@@ -1447,6 +1469,7 @@ fn confirm_cancel_invoice_detail(app: &AppWindow, state: &mut PilotState) {
     app.set_status_text(format!("Cancelling Sales Invoice {name}…").into());
     match client.cancel_sales_invoice(&name) {
         Ok(_) => {
+            state.invoice_list_stale = true;
             refresh_invoice_detail(app, state, &name);
             app.set_status_text(format!("Cancelled Sales Invoice {name}").into());
         }
@@ -1552,6 +1575,7 @@ In Payment Schedule, Due Date is required in every row.";
     };
     match result {
         Ok(_) => {
+            state.invoice_list_stale = true;
             app.set_invoice_detail_validation_title("".into());
             app.set_invoice_detail_validation_text("".into());
             state.invoice_detail_dirty = false;
@@ -1589,6 +1613,98 @@ In Payment Schedule, Due Date is required in every row.";
     }
 }
 
+fn invoice_erp_client(state: &mut PilotState) -> Option<ErpClient> {
+    let config = state.runtime_config.clone()?;
+    if state.erp_client.is_none() {
+        state.erp_client =
+            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
+    }
+    state.erp_client.clone()
+}
+
+fn set_invoice_count(app: &AppWindow, client: &ErpClient, state: &PilotState) {
+    if let Ok(count) = client.sales_invoice_count(&state.invoice_filter) {
+        let total = if count > 1000 {
+            "1,000+".to_owned()
+        } else {
+            count.to_string()
+        };
+        app.set_invoice_count_text(format!("{} of {}", state.invoices.len(), total).into());
+    }
+}
+
+fn set_fixture_invoice_count(app: &AppWindow, state: &PilotState) {
+    let loaded = state
+        .invoice_row_model
+        .as_ref()
+        .map(|model| model.row_count())
+        .unwrap_or_default();
+    let total = filtered_invoice_rows(&state.invoices, &state.invoice_filter, usize::MAX).count();
+    app.set_invoice_count_text(format!("{loaded} of {total}").into());
+}
+
+fn append_invoice_rows(app: &AppWindow, state: &mut PilotState) {
+    if state.runtime_config.is_none() {
+        let Some(model) = state.invoice_row_model.clone() else {
+            refresh_invoice_rows(app, state);
+            return;
+        };
+        let existing = model.row_count();
+        model.extend(
+            filtered_invoice_rows(&state.invoices, &state.invoice_filter, state.invoice_limit)
+                .skip(existing)
+                .map(invoice_row_data),
+        );
+        app.set_invoice_error_text("".into());
+        set_fixture_invoice_count(app, state);
+        return;
+    }
+
+    let Some(client) = invoice_erp_client(state) else {
+        app.set_invoice_error_text("ERP login failed while loading Sales Invoices".into());
+        app.set_status_text("ERP login failed while loading Sales Invoices".into());
+        return;
+    };
+    let Some(model) = state.invoice_row_model.clone() else {
+        refresh_invoice_rows(app, state);
+        return;
+    };
+    let start = state.invoice_list_start;
+    let page_length = state.invoice_limit.saturating_sub(start);
+    if page_length == 0 {
+        app.set_invoice_error_text("".into());
+        return;
+    }
+    match client.sales_invoice_list(
+        &state.invoice_filter,
+        start,
+        page_length,
+        state.invoice_sort_ascending,
+    ) {
+        Ok(payload) => {
+            state.invoice_list_start += invoice_result_row_count(&payload);
+            let mut seen = state
+                .invoices
+                .iter()
+                .map(|row| row.name.clone())
+                .collect::<HashSet<_>>();
+            let rows = parse_invoice_rows(&payload)
+                .into_iter()
+                .filter(|row| seen.insert(row.name.clone()))
+                .collect::<Vec<_>>();
+            model.extend(rows.iter().map(invoice_row_data));
+            state.invoices.extend(rows);
+            app.set_invoice_error_text("".into());
+            set_invoice_count(app, &client, state);
+        }
+        Err(error) => {
+            let text = invoice_error_text(error.as_ref());
+            app.set_invoice_error_text(text.clone().into());
+            app.set_status_text(text.into());
+        }
+    }
+}
+
 fn invoice_error_text(error: &dyn std::error::Error) -> String {
     let message = error.to_string();
     let lower = message.to_ascii_lowercase();
@@ -1604,16 +1720,13 @@ fn invoice_error_text(error: &dyn std::error::Error) -> String {
 
 fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     let filter = state.invoice_filter.clone();
-    let Some(config) = state.runtime_config.clone() else {
-        app.set_invoice_rows(invoice_model(&state.invoices, &filter, state.invoice_limit));
+    if state.runtime_config.is_none() {
+        install_invoice_model(app, state, &filter);
         app.set_invoice_error_text("".into());
+        set_fixture_invoice_count(app, state);
         return;
-    };
-    if state.erp_client.is_none() {
-        state.erp_client =
-            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
     }
-    let Some(client) = state.erp_client.clone() else {
+    let Some(client) = invoice_erp_client(state) else {
         app.set_invoice_error_text("ERP login failed while loading Sales Invoices".into());
         app.set_status_text("ERP login failed while loading Sales Invoices".into());
         return;
@@ -1625,17 +1738,12 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
         state.invoice_sort_ascending,
     ) {
         Ok(payload) => {
-            state.invoices = parse_invoice_rows(&payload);
-            app.set_invoice_rows(invoice_model(&state.invoices, "", state.invoice_limit));
+            state.invoice_list_start = invoice_result_row_count(&payload);
+            state.invoices = unique_invoice_rows(parse_invoice_rows(&payload));
+            state.invoice_list_stale = false;
+            install_invoice_model(app, state, "");
             app.set_invoice_error_text("".into());
-            if let Ok(count) = client.sales_invoice_count(&filter) {
-                let total = if count > 1000 {
-                    "1,000+".to_owned()
-                } else {
-                    count.to_string()
-                };
-                app.set_invoice_count_text(format!("{} of {}", state.invoices.len(), total).into());
-            }
+            set_invoice_count(app, &client, state);
         }
         Err(error) => {
             let text = invoice_error_text(error.as_ref());
@@ -1648,7 +1756,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
 #[cfg(feature = "encrypted-catalog")]
 fn load_fixture_catalog(
     rows: usize,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
     let data_dir = env::var("KHITMEE_NATIVE_DATA_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| env::temp_dir().join("khitmee-native-pilot"));
@@ -1657,23 +1765,26 @@ fn load_fixture_catalog(
     let key = load_or_create_key(&key_path)?;
     let store = EncryptedStore::open(&db_path, &hex_key(&key))?;
     let scope = format!("fixture:{rows}");
-    let fixture_rows = fixture_catalog(rows);
-    let first = fixture_rows.first().expect("non-empty fixture catalog");
+    let first = seed_fixture_items()
+        .into_iter()
+        .next()
+        .expect("non-empty fixture catalog");
     let sync_token = format!(
         "fixture-v3:{rows}:{}:{}:{}",
         first.item_code, first.actual_qty, first.rate
     );
     if store.sync_token(&scope)? != sync_token || store.item_count(&scope)? != rows {
+        let fixture_rows = fixture_catalog(rows);
         store.apply_sync(&scope, true, &sync_token, &fixture_rows)?;
     }
-    store.rows(&scope)
+    store.index(&scope)
 }
 
 #[cfg(not(feature = "encrypted-catalog"))]
 fn load_fixture_catalog(
     rows: usize,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(fixture_catalog(rows))
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(CatalogIndex::rebuild(fixture_catalog(rows)))
 }
 
 #[cfg(feature = "encrypted-catalog")]
@@ -1681,7 +1792,7 @@ fn load_live_catalog_scoped(
     config: &ErpRuntimeConfig,
     warehouse: &str,
     customer: Option<&str>,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
     let data_dir = env::var("KHITMEE_NATIVE_DATA_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| env::temp_dir().join("khitmee-native-pilot"));
@@ -1724,13 +1835,13 @@ fn load_live_catalog_scoped(
         .and_then(|value| value.as_str())
         .unwrap_or_default();
     store.apply_sync(&scope, reset, sync_token, &items)?;
-    store.rows(&scope)
+    store.index(&scope)
 }
 
 #[cfg(feature = "encrypted-catalog")]
 fn load_live_catalog(
     config: &ErpRuntimeConfig,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
     load_live_catalog_scoped(config, &config.warehouse, None)
 }
 
@@ -1746,12 +1857,12 @@ fn refresh_context_catalog(
     } else {
         Some(state.customer.as_str())
     };
-    let rows = load_live_catalog_scoped(&config, &state.warehouse, customer)?;
-    state.catalog_size = rows.len();
-    state.catalog = CatalogIndex::rebuild(rows);
+    let catalog = load_live_catalog_scoped(&config, &state.warehouse, customer)?;
+    state.catalog_size = catalog.len();
+    state.catalog = catalog;
     for line in &mut state.lines {
         if let Some(current) = state.catalog.get_by_item_code(&line.item.item_code) {
-            line.item = current.clone();
+            line.item = current;
         }
     }
     Ok(())
@@ -1760,7 +1871,7 @@ fn refresh_context_catalog(
 #[cfg(feature = "encrypted-catalog")]
 fn load_catalog(
     catalog_rows: usize,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
     if let Some(config) = ErpRuntimeConfig::from_env() {
         return load_live_catalog(&config);
     }
@@ -1770,8 +1881,8 @@ fn load_catalog(
 #[cfg(not(feature = "encrypted-catalog"))]
 fn load_catalog(
     catalog_rows: usize,
-) -> Result<Vec<CatalogItem>, Box<dyn std::error::Error + Send + Sync>> {
-    fixture_catalog(catalog_rows)
+) -> Result<CatalogIndex, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(CatalogIndex::rebuild(fixture_catalog(catalog_rows)))
 }
 
 fn label_model(rows: &[(String, String)]) -> ModelRc<SharedString> {
@@ -1923,6 +2034,15 @@ fn load_counter_context(
     )
 }
 
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn release_allocator_cache() {
+    // Catalog decoding leaves reusable glibc arenas; return unused pages before idle operation.
+    unsafe { libc::malloc_trim(0) };
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+fn release_allocator_cache() {}
+
 fn main() -> Result<(), slint::PlatformError> {
     let catalog_rows = env::var("KHITMEE_CATALOG_ROWS")
         .ok()
@@ -1933,9 +2053,8 @@ fn main() -> Result<(), slint::PlatformError> {
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(10_000);
 
-    let stored_rows = load_catalog(catalog_rows)
+    let catalog = load_catalog(catalog_rows)
         .unwrap_or_else(|error| panic!("open the encrypted catalog store: {error}"));
-    let catalog = CatalogIndex::rebuild(stored_rows);
     let runtime_config = ErpRuntimeConfig::from_env();
     let (warehouses, customers, payment_modes, price_list, print_endpoint, print_token) =
         load_counter_context(runtime_config.as_ref());
@@ -1948,6 +2067,9 @@ fn main() -> Result<(), slint::PlatformError> {
         catalog,
         lines: Vec::new(),
         invoices: fixture_invoices(invoice_rows),
+        invoice_row_model: None,
+        invoice_list_start: 0,
+        invoice_list_stale: false,
         invoice_filter: String::new(),
         invoice_limit: 20,
         invoice_sort_ascending: false,
@@ -2016,7 +2138,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 state_ref
                     .invoices
                     .first()
-                    .map(|invoice| invoice.name.clone())
+                    .map(|invoice| invoice.name.to_string())
             });
         if let Some(invoice_name) = invoice_name {
             refresh_invoice_detail(&app, &mut state_ref, &invoice_name);
@@ -2153,7 +2275,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             app.set_search_open(false);
-            if let Some(item) = state.catalog.get_by_item_code(code.as_str()).cloned() {
+            if let Some(item) = state.catalog.get_by_item_code(code.as_str()) {
                 add_item_to_draft(&mut state, item);
             } else {
                 app.set_status_text("Item no longer exists in the local catalog snapshot".into());
@@ -2409,7 +2531,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             state.invoice_limit += 20;
-            refresh_invoice_rows(&app, &mut state);
+            append_invoice_rows(&app, &mut state);
         }
     });
 
@@ -2580,21 +2702,37 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    app.on_invoice_back_to_list({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            if state.invoice_list_stale {
+                refresh_invoice_rows(&app, &mut state);
+            }
+        }
+    });
+
+    release_allocator_cache();
     app.run()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{edited_quantity, filtered_invoice_rows, InvoiceSeed};
+    use super::{
+        edited_quantity, filtered_invoice_rows, invoice_result_row_count, unique_invoice_rows,
+        InvoiceSeed,
+    };
 
     fn invoice_seed(name: &str, customer: &str) -> InvoiceSeed {
         InvoiceSeed {
-            name: name.to_string(),
-            customer: customer.to_string(),
-            posting_date: "2026-11-27".to_string(),
-            due_date: "2026-12-11".to_string(),
+            name: name.into(),
+            customer: customer.into(),
+            posting_date: "2026-11-27".into(),
+            due_date: "2026-12-11".into(),
             total: 10.0,
-            status: "Paid".to_string(),
+            status: "Paid".into(),
         }
     }
 
@@ -2619,7 +2757,7 @@ mod tests {
             .map(|index| invoice_seed(&format!("ACC-SINV-{index:05}"), "Khit Customer"))
             .collect();
         let visible: Vec<String> = filtered_invoice_rows(&rows, "", 20)
-            .map(|row| row.name.clone())
+            .map(|row| row.name.to_string())
             .collect();
         assert_eq!(visible.len(), 20);
         assert_eq!(visible[0], "ACC-SINV-00000");
@@ -2634,8 +2772,26 @@ mod tests {
             invoice_seed("ACC-SINV-00003", "Alpha Wholesale"),
         ];
         let visible: Vec<String> = filtered_invoice_rows(&rows, "alpha", 2)
-            .map(|row| row.name.clone())
+            .map(|row| row.name.to_string())
             .collect();
         assert_eq!(visible, vec!["ACC-SINV-00001", "ACC-SINV-00003"]);
+    }
+
+    #[test]
+    fn invoice_result_count_includes_rows_the_display_parser_skips() {
+        let payload = serde_json::json!({"values": [["ACC-SINV-00001"], null]});
+        assert_eq!(invoice_result_row_count(&payload), 2);
+    }
+
+    #[test]
+    fn unique_invoice_rows_retain_the_first_copy_like_frappe_list_data() {
+        let rows = unique_invoice_rows(vec![
+            invoice_seed("ACC-SINV-00001", "first"),
+            invoice_seed("ACC-SINV-00001", "duplicate"),
+            invoice_seed("ACC-SINV-00002", "second"),
+        ]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].customer, "first");
+        assert_eq!(rows[1].customer, "second");
     }
 }

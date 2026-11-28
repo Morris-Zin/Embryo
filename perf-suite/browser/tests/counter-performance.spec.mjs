@@ -308,6 +308,54 @@ test.describe("cashier counter performance regressions", () => {
     expect(preservedOptions, "arrow-key navigation should update selection state without rebuilding the autocomplete list").toBeGreaterThanOrEqual(2);
   });
 
+  test("customer filtering preserves selection and load more appends options", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    const customer = page.locator("#customer");
+    const customerMore = page.locator("#customer-more");
+    await expect(customerMore).toBeVisible();
+    await customer.selectOption("KM-CUST-0001");
+    const initialCount = await customer.locator("option").count();
+
+    await customerMore.click();
+    await expect.poll(async () => customer.locator("option").count()).toBeGreaterThan(initialCount);
+    await expect(customer).toHaveValue("KM-CUST-0001");
+
+    const filterResponse = page.waitForResponse((response) => response.url().includes("/api/method/khitmee_ops.api.search.search_customers"));
+    await page.locator("#customer-search").fill("Khit Customer 0002");
+    await filterResponse;
+    await expect.poll(async () => customer.locator("option").count()).toBe(2);
+    await expect(customer.locator('option[value="KM-CUST-0002"]')).toHaveCount(1);
+    await expect(customer).toHaveValue("KM-CUST-0001");
+    expect(await customer.locator("option").first().getAttribute("value")).toBe("KM-CUST-0001");
+  });
+
+  test("scanner-style input undo redo restores selection and stops at native edit boundaries", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    const input = page.locator("#item-search");
+    await input.focus();
+    await input.pressSequentially("AB", { delay: 30 });
+    await input.selectText();
+    await input.pressSequentially("K", { delay: 30 });
+    await expect(input).toHaveValue("K");
+
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("AB");
+    expect(await input.evaluate((node) => [node.selectionStart, node.selectionEnd]), "undoing a replacement reselects restored text").toEqual([0, 2]);
+    await page.keyboard.press("Control+Shift+z");
+    await expect(input).toHaveValue("K");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("AB");
+    await page.keyboard.press("Control+y");
+    await expect(input).toHaveValue("K");
+
+    await input.pressSequentially("c", { delay: 30 });
+    await expect(input).toHaveValue("Kc");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("K");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("K");
+  });
+
   test("repeated scan-and-clear cycles do not retain invoice row memory", async ({ page }) => {
     await openAuthenticatedCounter(page);
     const cdp = await page.context().newCDPSession(page);

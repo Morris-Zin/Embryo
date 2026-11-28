@@ -53,7 +53,7 @@ That oracle caught one pre-existing parity defect on the fresh seed: ERPNext's i
 
 ## Reproduction
 
-Build the two executables, copying them aside before rebuilding the other revision:
+Build the two pinned executables, copying them aside before rebuilding the other revision. These pinned revisions already compile the Slint MCP server into the default binary; `--features ui-mcp` applies only to later revisions that make it optional:
 
 ```bash
 # baseline

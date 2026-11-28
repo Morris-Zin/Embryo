@@ -119,7 +119,7 @@ def measure_run(executable: Path, rows: int, invoice_rows: int, port: int, hold_
         "exitCodeBeforeStop": process.poll(),
     }
     if startup_ms is None:
-        result["error"] = "application did not expose the Slint MCP server within 15 seconds"
+        result["error"] = "application did not expose the Slint MCP server within 15 seconds; rebuild with --features ui-mcp for benchmark automation"
     process.kill()
     stdout, stderr = process.communicate(timeout=5)
     result["stdoutTail"] = stdout.decode(errors="replace")[-1000:]

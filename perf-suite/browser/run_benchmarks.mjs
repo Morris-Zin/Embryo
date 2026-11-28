@@ -45,8 +45,9 @@ Options:
   --label <name>          Artifact label (default: baseline)
   --url <url>             Benchmark stack URL (default: ${DEFAULT_BASE_URL})
   --profiles <list>       normal,throttled or one profile (default: normal,throttled)
-  --scenarios <list>      search,scan,repeat-scan,inflight-scan,keyboard,lines,memory,page-load (default: search,scan,repeat-scan,keyboard,lines,memory)
+  --scenarios <list>      search,scan,repeat-scan,inflight-scan,keyboard,lines,memory,print-memory,page-load (default: search,scan,repeat-scan,keyboard,lines,memory)
   --line-counts <list>    Invoice sizes for the lines scenario (default: 10,50,200)
+  --memory-cycles <n>     Scan/clear cycles in the memory scenario (default: 6)
   --repeat <n>            Repetitions for search/scan/keyboard scenarios (default: 1)
   --headed                Run Chrome headed
   --help                  Show this help
@@ -262,7 +263,7 @@ async function linesScenario(page, lineCount, itemOffset) {
   };
 }
 
-async function memoryScenario(page, cdp, outputDir, label, profile) {
+async function memoryScenario(page, cdp, outputDir, label, profile, cycles = 6) {
   const heapBeforeFile = path.join(outputDir, artifactName(label, profile, "memory-before", ".heapsnapshot"));
   const heapAfterFile = path.join(outputDir, artifactName(label, profile, "memory-after", ".heapsnapshot"));
   await clearLines(page);
@@ -271,7 +272,7 @@ async function memoryScenario(page, cdp, outputDir, label, profile) {
   await takeHeapSnapshot(cdp, heapBeforeFile);
   const heapSeries = [{ cycle: 0, jsHeapUsedSize: beforeMetrics.JSHeapUsedSize || 0 }];
 
-  for (let cycle = 1; cycle <= 6; cycle += 1) {
+  for (let cycle = 1; cycle <= cycles; cycle += 1) {
     let rows = 0;
     for (let index = 0; index < 10; index += 1) {
       await measureBarcodeScan(page, itemCode((cycle - 1) * 10 + index), rows);
@@ -288,7 +289,7 @@ async function memoryScenario(page, cdp, outputDir, label, profile) {
   const afterMetrics = await performanceMetrics(cdp);
   const growth = (afterMetrics.JSHeapUsedSize || 0) - (beforeMetrics.JSHeapUsedSize || 0);
   return {
-    cycles: 6,
+    cycles,
     itemsPerCycle: 10,
     heapSeries,
     heapGrowthBytes: Math.round(growth),
@@ -300,6 +301,39 @@ async function memoryScenario(page, cdp, outputDir, label, profile) {
   };
 }
 
+async function printMemoryScenario(page, cdp, cycles = 20) {
+  await page.evaluate(() => {
+    window.print = () => {};
+  });
+  const cycle = async () => page.evaluate(async () => {
+    const payload = {
+      title: "Receipt",
+      shop_name: "Shop",
+      voucher_no: "V-1",
+      date: "2026-01-01",
+      lines: [{ name: "Item", qty: 1, rate: 2, amount: 2 }],
+      total: 2,
+    };
+    await window.KhitmeePrintBridge.printReceipt(payload, null, "http://127.0.0.1:1/print");
+    const dialog = document.getElementById("print-fallback-dialog");
+    if (dialog?.open) dialog.close();
+  });
+  await cycle();
+  await collectGarbage(page, cdp);
+  const before = await performanceMetrics(cdp);
+  for (let index = 0; index < cycles; index += 1) await cycle();
+  await page.waitForTimeout(100);
+  await collectGarbage(page, cdp);
+  const after = await performanceMetrics(cdp);
+  const delta = metricDelta(before, after);
+  return {
+    cycles,
+    heapGrowthBytes: Math.round(delta.JSHeapUsedSize || 0),
+    nodeGrowth: delta.Nodes || 0,
+    listenerGrowth: delta.JSEventListeners || 0,
+  };
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -308,6 +342,7 @@ async function main() {
       profiles: { type: "string", default: "normal,throttled" },
       scenarios: { type: "string", default: "search,scan,repeat-scan,inflight-scan,keyboard,lines,memory" },
       "line-counts": { type: "string", default: "10,50,200" },
+      "memory-cycles": { type: "string", default: "6" },
       repeat: { type: "string", default: "1" },
       headed: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
@@ -333,6 +368,7 @@ async function main() {
   const requestedProfiles = parseList(values.profiles);
   const scenarios = parseList(values.scenarios);
   const lineCounts = parseList(values["line-counts"]).map((value) => Number(value)).filter((value) => value > 0);
+  const memoryCycles = Math.max(1, Number(values["memory-cycles"]) || 6);
   const repeat = Math.max(1, Number(values.repeat) || 1);
   const results = [];
   const browser = await launchBrowser({ headless: !values.headed });
@@ -395,9 +431,14 @@ async function main() {
               itemOffset += count;
             }
           }
+          if (scenarios.includes("print-memory") && iteration === 1) {
+            await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "print-memory", false, () =>
+              printMemoryScenario(harness.page, harness.cdp),
+            ));
+          }
           if (scenarios.includes("memory") && iteration === 1) {
             await recordScenario(runMeasuredScenario(harness, outputDir, values.label + iterationSuffix, profile, "memory", false, () =>
-              memoryScenario(harness.page, harness.cdp, outputDir, values.label + iterationSuffix, profile),
+              memoryScenario(harness.page, harness.cdp, outputDir, values.label + iterationSuffix, profile, memoryCycles),
             ));
           }
         } finally {

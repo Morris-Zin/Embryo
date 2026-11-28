@@ -290,18 +290,26 @@ kbd {
 }
 
 .lines-table {
+	display: block;
 	inline-size: 100%;
 	min-inline-size: 42rem;
 	border-collapse: collapse;
-	table-layout: fixed;
 }
 
-.lines-table th:nth-child(1) { inline-size: 27%; }
-.lines-table th:nth-child(2) { inline-size: 29%; }
-.lines-table th:nth-child(3) { inline-size: 7%; }
-.lines-table th:nth-child(4) { inline-size: 12%; }
-.lines-table th:nth-child(5) { inline-size: 16%; }
-.lines-table th:nth-child(6) { inline-size: 9%; }
+.lines-table thead,
+.lines-table tbody {
+	display: block;
+}
+
+.lines-table tr {
+	display: grid;
+	grid-template-columns: 27% 29% 7% 12% 16% 9%;
+}
+
+.lines-table tbody tr {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 3.65rem;
+}
 
 .lines-table th,
 .lines-table td {
