@@ -20,8 +20,8 @@ services:
       - --key-buffer-size=1M
       - --innodb-flush-log-at-trx-commit=1
       - --innodb-flush-method=O_DIRECT
-      - --max-connections=40
-      - --thread-cache-size=20
+      - --max-connections=60
+      - --thread-cache-size=32
       - --table-open-cache=400
       - --table-definition-cache=400
       - --tmp-table-size=16M
@@ -44,7 +44,7 @@ services:
       - /home/frappe/frappe-bench/env/bin/gunicorn
       - --chdir=/home/frappe/frappe-bench/sites
       - --bind=0.0.0.0:8000
-      - --threads=4
+      - --threads=12
       - --workers=1
       - --worker-class=gthread
       - --worker-tmp-dir=/dev/shm

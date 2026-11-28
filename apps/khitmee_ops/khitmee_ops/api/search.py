@@ -397,9 +397,27 @@ def _catalog_item_metadata(catalog, item_codes):
 	return rows
 
 
+def _cached_user_permissions(user):
+	permissions_mod = getattr(frappe, "permissions", None)
+	get_user_permissions = getattr(permissions_mod, "get_user_permissions", None)
+	if not callable(get_user_permissions):
+		defaults_mod = getattr(frappe, "defaults", None)
+		get_user_permissions = getattr(defaults_mod, "get_user_permissions", None)
+	if not callable(get_user_permissions):
+		return None
+	try:
+		perms = get_user_permissions(user)
+	except Exception:
+		return None
+	return perms if isinstance(perms, dict) else None
+
+
 def _user_has_restricted_item_permissions(user):
 	if not user or user == "Administrator":
 		return False
+	cached_perms = _cached_user_permissions(user)
+	if cached_perms is not None:
+		return any(cached_perms.get(doctype) for doctype in ("Item", "Item Group", "Brand"))
 	return bool(
 		frappe.db.sql(
 			"""
@@ -603,9 +621,16 @@ def _fetch_rates_and_quantities(rows, warehouse, price_list, customer=None, uom=
 		return rows
 
 	placeholders = ", ".join(["%s"] * len(item_codes))
-	price_rows = frappe.db.sql(
+	combined_rows = frappe.db.sql(
 		f"""
-		SELECT item_code, price_list_rate, uom, customer
+		SELECT
+			'price' AS row_kind,
+			item_code,
+			price_list_rate,
+			uom,
+			customer,
+			NULL AS actual_qty,
+			modified
 		FROM `tabItem Price`
 		WHERE price_list = %s
 			AND selling = 1
@@ -614,16 +639,30 @@ def _fetch_rates_and_quantities(rows, warehouse, price_list, customer=None, uom=
 			AND (valid_upto IS NULL OR valid_upto >= CURDATE())
 			AND (batch_no IS NULL OR batch_no = '')
 			AND (customer IS NULL OR customer = '' OR customer = %s)
+		UNION ALL
+		SELECT
+			'bin' AS row_kind,
+			item_code,
+			NULL AS price_list_rate,
+			NULL AS uom,
+			NULL AS customer,
+			actual_qty,
+			NULL AS modified
+		FROM `tabBin`
+		WHERE warehouse = %s AND item_code IN ({placeholders})
 		ORDER BY modified DESC
 		""",
-		[price_list, *item_codes, customer or ""],
+		[price_list, *item_codes, customer or "", warehouse, *item_codes],
 		as_dict=True,
 	)
 	price_candidates = {}
-	for price in price_rows:
-		price_candidates.setdefault(price.item_code, []).append(price)
+	quantities = {}
+	for entry in combined_rows:
+		if entry.row_kind == "bin":
+			quantities[entry.item_code] = entry.actual_qty
+		else:
+			price_candidates.setdefault(entry.item_code, []).append(entry)
 
-	quantities = _fetch_quantities(rows, warehouse)
 	for row in rows:
 		price = _pick_price(price_candidates.get(row.item_code) or [], uom, row.stock_uom, customer)
 		row.rate = price.price_list_rate if price else 0
@@ -723,16 +762,11 @@ def search_items(q, warehouse, price_list=None, limit=15, customer=None, uom=Non
 	candidate_codes = _permitted_catalog_item_codes(
 		_ranked_item_codes(term, limit, catalog=catalog, folded_term=folded_term)
 	)
-	metadata = _catalog_item_metadata(catalog, candidate_codes)
 	metadata = [
 		row
-		for row in metadata
+		for row in _catalog_item_metadata(catalog, candidate_codes)
 		if _catalog_item_matches_term(catalog, row.item_code, folded_term)
-	]
-
-	order = {item_code: index for index, item_code in enumerate(candidate_codes)}
-	metadata.sort(key=lambda row: order.get(row.item_code, len(order)))
-	metadata = metadata[:limit]
+	][:limit]
 	if include_rates:
 		_fetch_rates_and_quantities(metadata, warehouse, price_list, customer=customer, uom=uom)
 	else:

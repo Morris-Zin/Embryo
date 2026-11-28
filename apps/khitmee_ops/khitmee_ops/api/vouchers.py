@@ -9,10 +9,20 @@ from erpnext.stock.doctype.stock_entry.stock_entry import make_stock_in_entry
 from erpnext.stock.get_item_details import get_conversion_factor
 
 from khitmee_ops.api.payloads import (
+	RECEIPT_PRINTER_TYPES,
 	idempotency_key,
 	make_receipt_payload,
 	normalize_client_voucher_id,
 	request_fingerprint,
+)
+from khitmee_ops.api.stock_locks import (
+	lock_stock_coordinates,
+	sale_bin_pairs,
+	transfer_bin_pairs,
+)
+from khitmee_ops.api.voucher_fastpath import (
+	proven_empty_future_sle_fastpath,
+	voucher_transaction_read_cache,
 )
 
 IDEMPOTENCY_TABLE = "tabKhitmee Idempotency Log"
@@ -28,9 +38,57 @@ def _require_logged_in():
 		frappe.throw(_("Please log in to use the counter."), frappe.PermissionError)
 
 
+def _validate_printer_type(printer_type):
+	if printer_type not in RECEIPT_PRINTER_TYPES:
+		raise ValueError("printer_type must be 'voucher' or 'a4'")
+
+
+def _item_permission_restrictions_active():
+	user = getattr(getattr(frappe, "session", None), "user", None)
+	if user == "Administrator":
+		return False
+	get_hook = getattr(frappe, "get_hook", None) or getattr(frappe, "get_hooks", None)
+	if not callable(get_hook):
+		return True
+	try:
+		hooks = get_hook("permission_query_conditions", {}) or {}
+	except TypeError:
+		hooks = get_hook("permission_query_conditions") or {}
+	if hooks.get("Item"):
+		return True
+	permissions_mod = getattr(frappe, "permissions", None)
+	get_user_permissions = getattr(permissions_mod, "get_user_permissions", None)
+	if not callable(get_user_permissions):
+		defaults_mod = getattr(frappe, "defaults", None)
+		get_user_permissions = getattr(defaults_mod, "get_user_permissions", None)
+	if callable(get_user_permissions):
+		try:
+			perms = get_user_permissions(user)
+			if isinstance(perms, dict):
+				return any(perms.get(doctype) for doctype in ("Item", "Item Group", "Brand"))
+		except Exception:
+			pass
+	if not user:
+		return True
+	return bool(
+		frappe.db.sql(
+			"""
+			SELECT 1
+			FROM `tabUser Permission`
+			WHERE `user` = %s AND `allow` IN ('Item', 'Item Group', 'Brand')
+			LIMIT 1
+			""",
+			(user,),
+		)
+	)
+
+
 def _validate_items(items):
 	if not isinstance(items, list | tuple) or not items:
 		frappe.throw(_("At least one item is required"))
+
+	frappe.has_permission("Item", ptype="read", throw=True)
+	check_per_item = _item_permission_restrictions_active()
 
 	cleaned = []
 	permitted_item_codes = set()
@@ -43,7 +101,7 @@ def _validate_items(items):
 			frappe.throw(_("Item Code is required in every row"))
 		if qty <= 0:
 			frappe.throw(_("Qty must be positive for item {0}").format(item_code))
-		if item_code not in permitted_item_codes:
+		if check_per_item and item_code not in permitted_item_codes:
 			frappe.has_permission("Item", ptype="read", doc=item_code, throw=True)
 			permitted_item_codes.add(item_code)
 		cleaned.append(
@@ -139,7 +197,7 @@ def _wait_for_idempotent_document(key, fingerprint, attempts=10):
 	return None
 
 
-def _execute_with_deadlock_retry(callable_fn, retries=1):
+def _execute_with_deadlock_retry(callable_fn, retries=3):
 	deadlock_exc = getattr(frappe, "QueryDeadlockError", None)
 	for attempt in range(retries + 1):
 		try:
@@ -147,7 +205,8 @@ def _execute_with_deadlock_retry(callable_fn, retries=1):
 		except Exception as exc:
 			if deadlock_exc is not None and isinstance(exc, deadlock_exc) and attempt < retries:
 				frappe.db.rollback()
-				time.sleep(random.uniform(0.02, 0.08))
+				base_delay = min(0.02 * (2**attempt), 0.16)
+				time.sleep(random.uniform(base_delay, min(base_delay * 2, 0.25)))
 				continue
 			raise
 
@@ -342,7 +401,7 @@ def _validate_sale_inputs(customer, price_list, payment_mode):
 		frappe.throw(_("A valid enabled selling Price List is required"))
 	frappe.has_permission("Price List", ptype="read", doc=price_list, throw=True)
 	if payment_mode:
-		if not frappe.db.exists("Mode of Payment", payment_mode):
+		if not frappe.get_cached_value("Mode of Payment", payment_mode, "name"):
 			frappe.throw(_("Mode of Payment {0} does not exist").format(payment_mode))
 		frappe.has_permission("Mode of Payment", ptype="read", doc=payment_mode, throw=True)
 
@@ -407,8 +466,27 @@ def _create_sales_invoice(
 		doc.flags.ignore_pricing_rule = True
 
 	doc.docstatus = 1
-	doc.insert()
+	lock_result = lock_stock_coordinates(sale_bin_pairs(warehouse, cleaned_items))
+	item_codes = [row["item_code"] for row in cleaned_items]
+	with (
+		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"]),
+	):
+		doc.insert()
 	return doc
+
+
+def _can_fast_sync_autopay_totals(doc, payable_total):
+	if len(getattr(doc, "payments", None) or ()) != 1:
+		return False
+	conversion_rate = flt(getattr(doc, "conversion_rate", 1) or 1)
+	if abs(conversion_rate - 1.0) > 1e-6:
+		return False
+	if flt(getattr(doc, "total_advance", 0)) != 0 or flt(getattr(doc, "write_off_amount", 0)) != 0:
+		return False
+	if cint(getattr(doc, "is_return", 0)):
+		return False
+	return _sales_invoice_payments_match_total(doc, payable_total)
 
 
 def sync_counter_autopay_payment(doc, method=None):
@@ -422,10 +500,22 @@ def sync_counter_autopay_payment(doc, method=None):
 	if not autopay or not getattr(doc, "payments", None):
 		return
 
-	doc.payments[0].amount = flt(doc.rounded_total or doc.grand_total)
+	payable_total = _sales_invoice_payable_total(doc)
+	doc.payments[0].amount = payable_total
 	doc.set_paid_amount()
 	doc.set_account_for_mode_of_payment()
-	doc.calculate_taxes_and_totals()
+	if _can_fast_sync_autopay_totals(doc, payable_total):
+		if flt(getattr(doc, "base_paid_amount", 0)) == 0 and payable_total != 0:
+			doc.base_paid_amount = (
+				flt(getattr(doc, "base_rounded_total", 0))
+				or flt(getattr(doc, "base_grand_total", 0))
+				or flt(doc.paid_amount)
+			)
+		doc.outstanding_amount = 0.0
+		doc.change_amount = 0.0
+		doc.base_change_amount = 0.0
+	else:
+		doc.calculate_taxes_and_totals()
 	doc.validate_pos()
 	if hasattr(doc, "validate_pos_paid_amount"):
 		doc.validate_pos_paid_amount()
@@ -459,17 +549,7 @@ def submit_sale(
 	try:
 		normalize_client_voucher_id(client_voucher_id)
 		items = frappe.parse_json(items)
-		make_receipt_payload(
-			printer_type=printer_type,
-			voucher_no="validation",
-			title="validation",
-			shop_name="validation",
-			date="",
-			party="",
-			lines=[],
-			total=0,
-			footer="",
-		)
+		_validate_printer_type(printer_type)
 	except ValueError as exc:
 		frappe.throw(str(exc), frappe.ValidationError)
 
@@ -575,7 +655,15 @@ def _create_direct_or_dispatch_transfer(
 		}
 	)
 	doc.docstatus = 1
-	doc.insert()
+	lock_result = lock_stock_coordinates(
+		transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items)
+	)
+	item_codes = [row["item_code"] for row in cleaned_items]
+	with (
+		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"]),
+	):
+		doc.insert()
 	return doc
 
 
@@ -682,6 +770,7 @@ def _create_receive_transfer(
 	mapped.to_warehouse = target_warehouse
 	mapped.from_warehouse = source_warehouse
 	mapped.docstatus = 1
+	lock_stock_coordinates(transfer_bin_pairs(source_warehouse, target_warehouse, new_rows))
 	mapped.insert()
 	return mapped
 
@@ -717,17 +806,7 @@ def submit_transfer(
 	try:
 		normalize_client_voucher_id(client_voucher_id)
 		items = frappe.parse_json(items)
-		make_receipt_payload(
-			printer_type=printer_type,
-			voucher_no="validation",
-			title="validation",
-			shop_name="validation",
-			date="",
-			party="",
-			lines=[],
-			total=0,
-			footer="",
-		)
+		_validate_printer_type(printer_type)
 	except ValueError as exc:
 		frappe.throw(str(exc), frappe.ValidationError)
 
