@@ -8,6 +8,8 @@ from frappe.utils import cint, cstr, flt, nowdate, nowtime, random_string
 from erpnext.stock.doctype.stock_entry.stock_entry import make_stock_in_entry
 from erpnext.stock.get_item_details import get_conversion_factor
 
+from khitmee_ops.api.invoice_series import counter_series_reservation
+
 from khitmee_ops.api.payloads import (
 	RECEIPT_PRINTER_TYPES,
 	idempotency_key,
@@ -16,12 +18,22 @@ from khitmee_ops.api.payloads import (
 	request_fingerprint,
 )
 from khitmee_ops.api.stock_locks import (
+	StockLockRestart,
+	acquire_stock_plan,
 	clear_transaction_stock_locks,
+	document_bin_pairs,
+	document_item_codes,
 	lock_stock_coordinates,
+	plan_stock_locks,
 	sale_bin_pairs,
+	set_stock_retry_items,
+	stock_attempt_pending,
+	stock_lock_protocol,
+	stock_retry_items,
 	transfer_bin_pairs,
 )
 from khitmee_ops.api.voucher_fastpath import (
+	cache_locked_item_links,
 	proven_empty_future_sle_fastpath,
 	voucher_transaction_read_cache,
 )
@@ -230,16 +242,28 @@ def _wait_for_idempotent_document(key, fingerprint, attempts=10):
 
 def _execute_with_deadlock_retry(callable_fn, retries=3):
 	deadlock_exc = getattr(frappe, "QueryDeadlockError", None)
-	for attempt in range(retries + 1):
-		try:
-			return callable_fn()
-		except Exception as exc:
-			if deadlock_exc is not None and isinstance(exc, deadlock_exc) and attempt < retries:
+	previous_items = stock_retry_items()
+	try:
+		for attempt in range(retries + 1):
+			try:
+				return callable_fn()
+			except Exception as exc:
+				lock_restart = isinstance(exc, StockLockRestart) and getattr(exc, "retryable", False)
+				deadlocked = (
+					deadlock_exc is not None and isinstance(exc, deadlock_exc)
+					and (stock_lock_protocol() == "legacy" or getattr(exc, "khitmee_retryable", False))
+				)
+				if attempt == retries or not (lock_restart or deadlocked):
+					raise
 				frappe.db.rollback()
+				if stock_attempt_pending():
+					raise
+				if lock_restart:
+					set_stock_retry_items(stock_retry_items() | exc.items)
 				base_delay = min(0.02 * (2**attempt), 0.16)
 				time.sleep(random.uniform(base_delay, min(base_delay * 2, 0.25)))
-				continue
-			raise
+	finally:
+		set_stock_retry_items(previous_items)
 
 
 def _cache_client():
@@ -333,7 +357,9 @@ def _run_idempotent(
 	# Clear any REPEATABLE READ MVCC snapshot opened by pre-lock reads ONLY when
 	# the outer transaction has no uncommitted writes; otherwise fail closed by
 	# passing fresh_snapshot=False so the future-SLE fastpath is disabled safely.
-	fresh_snapshot = cint(getattr(frappe.db, "transaction_writes", 0)) == 0
+	fresh_snapshot = (
+		cint(getattr(frappe.db, "transaction_writes", 0)) == 0 and not stock_attempt_pending()
+	)
 	if fresh_snapshot:
 		frappe.db.rollback()
 		clear_transaction_stock_locks()
@@ -364,7 +390,16 @@ def _run_idempotent(
 				)
 			)
 
-		doc = create_document(prepared, fresh_snapshot) if callable(prepare) else create_document()
+		try:
+			doc = create_document(prepared, fresh_snapshot) if callable(prepare) else create_document()
+		except StockLockRestart as exc:
+			exc.retryable = fresh_snapshot and callable(prepare)
+			raise
+		except Exception as exc:
+			deadlock = getattr(frappe, "QueryDeadlockError", None)
+			if deadlock is not None and isinstance(exc, deadlock):
+				exc.khitmee_retryable = fresh_snapshot and callable(prepare)
+			raise
 		_bind_reservation(key, doc.doctype, doc.name)
 		_release_lock_after_transaction(lock)
 		lock_handled = True
@@ -462,14 +497,26 @@ def _sales_invoice_payments_match_total(doc, total):
 	)
 
 
-def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode):
+def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items):
 	warehouse_row = _validate_warehouse(warehouse, _("Warehouse"))
 	_validate_sale_inputs(customer, price_list, payment_mode)
+	pairs = sale_bin_pairs(warehouse, cleaned_items, company=warehouse_row.company, is_pos=bool(payment_mode))
+	plan = (
+		plan_stock_locks(
+			pairs,
+			ordinary_sale=pairs == transfer_bin_pairs(warehouse, warehouse, cleaned_items),
+			company=warehouse_row.company,
+		)
+		if stock_lock_protocol() == "adr0003"
+		else None
+	)
 	return {
 		"company": warehouse_row.company,
 		"company_currency": frappe.get_cached_value("Company", warehouse_row.company, "default_currency"),
 		"customer_currency": frappe.get_cached_value("Customer", customer, "default_currency"),
 		"price_list_currency": frappe.get_cached_value("Price List", price_list, "currency"),
+		"stock_pairs": pairs,
+		"stock_plan": plan,
 	}
 
 
@@ -484,9 +531,11 @@ def _create_sales_invoice(
 	prepared=None,
 	fresh_snapshot=True,
 ):
-	meta = prepared if prepared is not None else _prepare_sale_metadata(
-		warehouse, customer, price_list, payment_mode
-	)
+	if prepared is None:
+		prepared = _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items)
+		# The preflight opened a read snapshot before we acquired stock locks.
+		fresh_snapshot = False
+	meta = prepared
 	company = meta["company"]
 	company_currency = meta["company_currency"]
 	customer_currency = meta["customer_currency"]
@@ -504,7 +553,11 @@ def _create_sales_invoice(
 			item["rate"] = row["rate"]
 		invoice_items.append(item)
 
-	lock_result = lock_stock_coordinates(sale_bin_pairs(warehouse, cleaned_items))
+	plan = meta.get("stock_plan")
+	lock_result = (
+		acquire_stock_plan(plan, fresh_snapshot=fresh_snapshot)
+		if plan is not None else lock_stock_coordinates(meta["stock_pairs"])
+	)
 	posting_date = nowdate()
 	posting_time = nowtime()
 
@@ -528,6 +581,7 @@ def _create_sales_invoice(
 		invoice_payload["price_list_currency"] = price_list_currency or company_currency
 	doc = frappe.get_doc(invoice_payload)
 	doc.flags.ignore_pos_profile = True
+	doc.flags.khitmee_stock_prelocked = True
 	if payment_mode:
 		doc.flags.khitmee_counter_autopay = True
 	if override_rate:
@@ -536,8 +590,18 @@ def _create_sales_invoice(
 	doc.docstatus = 1
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
-		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
-		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
+		cache_locked_item_links(lock_result.get("item_link_rows") if fresh_snapshot else ()),
+		voucher_transaction_read_cache(
+			doc,
+			item_codes=item_codes if plan is None else (),
+			locked_pairs=lock_result["pairs"] if plan is None else (),
+			locked_bins=lock_result["bins"],
+			fresh_snapshot=fresh_snapshot,
+		),
+		# Cancellation and repost can write SLEs before taking a Bin lock
+		# in either protocol. Leave the absence proof off until qualified.
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=False),
+		counter_series_reservation(doc, client_voucher_id, fresh_snapshot=fresh_snapshot),
 	):
 		doc.insert()
 	return doc
@@ -668,7 +732,7 @@ def submit_sale(
 				prepared=prepared,
 				fresh_snapshot=fresh_snapshot,
 			),
-			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode),
+			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items),
 		)
 	)
 	_check_voucher_read_permission(doc)
@@ -716,21 +780,30 @@ def _transfer_response(doc, printer_type):
 	}
 
 
-def _prepare_direct_transfer_metadata(source_warehouse, target_warehouse):
+def _prepare_direct_transfer_metadata(source_warehouse, target_warehouse, cleaned_items=()):
 	source_row = _validate_warehouse(source_warehouse, _("Source Warehouse"))
 	_validate_warehouse(target_warehouse, _("Target Warehouse"))
-	return {"company": source_row.company}
+	plan = (
+		plan_stock_locks(transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items))
+		if stock_lock_protocol() == "adr0003"
+		else None
+	)
+	return {"company": source_row.company, "stock_plan": plan}
 
 
 def _create_direct_or_dispatch_transfer(
 	source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=None, fresh_snapshot=True
 ):
-	meta = prepared if prepared is not None else _prepare_direct_transfer_metadata(
-		source_warehouse, target_warehouse
-	)
+	if prepared is None:
+		prepared = _prepare_direct_transfer_metadata(source_warehouse, target_warehouse, cleaned_items)
+		fresh_snapshot = False
+	meta = prepared
 
-	lock_result = lock_stock_coordinates(
-		transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items)
+	plan = meta.get("stock_plan")
+	lock_result = (
+		acquire_stock_plan(plan, fresh_snapshot=fresh_snapshot)
+		if plan is not None
+		else lock_stock_coordinates(transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items))
 	)
 	posting_date = nowdate()
 	posting_time = nowtime()
@@ -760,10 +833,15 @@ def _create_direct_or_dispatch_transfer(
 		}
 	)
 	doc.docstatus = 1
+	if plan is not None:
+		doc.flags.khitmee_stock_prelocked = True
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
-		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
-		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
+		voucher_transaction_read_cache(
+			doc, item_codes=item_codes, locked_pairs=lock_result["pairs"] if plan is None else (),
+			fresh_snapshot=fresh_snapshot,
+		),
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=False),
 	):
 		doc.insert()
 	return doc
@@ -788,7 +866,7 @@ def _is_tracked_row(row_data):
 	)
 
 
-def _create_receive_transfer(
+def _prepare_receive_transfer(
 	source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items
 ):
 	if not outgoing_stock_entry or not frappe.db.exists("Stock Entry", outgoing_stock_entry):
@@ -866,9 +944,26 @@ def _create_receive_transfer(
 	mapped.items = []
 	for row_data in new_rows:
 		mapped.append("items", row_data)
-	lock_stock_coordinates(transfer_bin_pairs(source_warehouse, target_warehouse, new_rows))
-	mapped.posting_date = nowdate()
-	mapped.posting_time = nowtime()
+	mapped.to_warehouse = target_warehouse
+	mapped.from_warehouse = source_warehouse
+	return mapped
+
+
+def _create_receive_transfer(
+	source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items, *, plan=None, fresh_snapshot=False
+):
+	if plan is not None:
+		acquire_stock_plan(plan, fresh_snapshot=fresh_snapshot)
+		posting_date, posting_time = nowdate(), nowtime()
+	mapped = _prepare_receive_transfer(source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items)
+	if plan is None:
+		lock_stock_coordinates(document_bin_pairs(mapped), document_item_codes(mapped))
+		posting_date, posting_time = nowdate(), nowtime()
+	else:
+		lock_stock_coordinates(document_bin_pairs(mapped), document_item_codes(mapped), require_prelocked=True)
+		mapped.flags.khitmee_stock_prelocked = True
+	mapped.posting_date = posting_date
+	mapped.posting_time = posting_time
 	mapped.set_posting_time = 1
 	mapped.to_warehouse = target_warehouse
 	mapped.from_warehouse = source_warehouse
@@ -897,7 +992,8 @@ def _create_transfer(
 		)
 	if transfer_mode == "receive":
 		return _create_receive_transfer(
-			source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items
+			source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items,
+			plan=prepared.get("stock_plan") if prepared else None, fresh_snapshot=fresh_snapshot,
 		)
 	frappe.throw(_("transfer_mode must be direct, dispatch, or receive"))
 
@@ -933,10 +1029,14 @@ def submit_transfer(
 	)
 
 	prepare_fn = (
-		(lambda: _prepare_direct_transfer_metadata(source_warehouse, target_warehouse))
+		(lambda: _prepare_direct_transfer_metadata(source_warehouse, target_warehouse, cleaned_items))
 		if transfer_mode in {"direct", "dispatch"}
 		else None
 	)
+	if transfer_mode == "receive" and stock_lock_protocol() == "adr0003":
+		def prepare_fn():
+			doc = _prepare_receive_transfer(source_warehouse, target_warehouse, outgoing_stock_entry, cleaned_items)
+			return {"stock_plan": plan_stock_locks(document_bin_pairs(doc), document_item_codes(doc))}
 	doc, _created = _execute_with_deadlock_retry(
 		lambda: _run_idempotent(
 			client_voucher_id,

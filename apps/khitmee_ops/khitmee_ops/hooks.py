@@ -18,6 +18,7 @@ doc_events = {
 		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
 		"on_cancel": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
+		"on_trash": "khitmee_ops.api.invoice_series.install_series_dispatchers",
 	},
 	"Item": {
 		"after_insert": "khitmee_ops.api.search.invalidate_item_search_cache",
@@ -71,3 +72,7 @@ scheduler_events = {
 }
 
 after_request = ["khitmee_ops.api.memory.maybe_trim_heap"]
+before_request = ["khitmee_ops.api.invoice_series.install_series_dispatchers"]
+before_job = ["khitmee_ops.api.invoice_series.install_series_dispatchers"]
+after_install = "khitmee_ops.setup.invoice_series.ensure_invoice_series_audit"
+after_migrate = "khitmee_ops.setup.invoice_series.ensure_invoice_series_audit"

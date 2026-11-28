@@ -13,8 +13,8 @@ if str(APP_ROOT) not in sys.path:
 
 def _install_frappe_and_erpnext_stubs():
 	try:
-		import frappe  # noqa: F401
-		import erpnext  # noqa: F401
+		import frappe
+		import erpnext
 		return
 	except ImportError:
 		pass
@@ -87,7 +87,7 @@ def _install_frappe_and_erpnext_stubs():
 
 _install_frappe_and_erpnext_stubs()
 
-from khitmee_ops.api import vouchers
+from khitmee_ops.api import stock_locks, vouchers
 from khitmee_ops.api.payloads import (
 	idempotency_key,
 	make_receipt_payload,
@@ -189,7 +189,7 @@ class FakeStockEntry:
 		self.docstatus = 1
 
 
-def create_invoice(doc, payment_mode="Cash"):
+def create_invoice(doc, payment_mode="Cash", item_code="ITEM-1"):
 	with (
 		patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
 		patch.object(vouchers, "_validate_sale_inputs", return_value=None),
@@ -200,7 +200,7 @@ def create_invoice(doc, payment_mode="Cash"):
 			"Main Warehouse",
 			"Customer",
 			"Standard Selling",
-			[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+			[{"item_code": item_code, "qty": 1, "uom": "Nos", "rate": 100}],
 			payment_mode,
 			False,
 		)
@@ -208,6 +208,50 @@ def create_invoice(doc, payment_mode="Cash"):
 
 
 class TestSinglePassVoucherSubmit(unittest.TestCase):
+	def test_bundle_components_are_locked_with_parent_before_submit(self):
+		warehouse = "Main Warehouse"
+		doc = FakeSalesInvoice()
+		doc.update_stock = 1
+		doc.set_warehouse = warehouse
+		doc.items = [{"item_code": "Z-BUNDLE", "warehouse": warehouse}]
+		lock_queries = []
+
+		def submit():
+			# ERPNext builds the packed table before running the hook.
+			doc.packed_items = [
+				{"item_code": "A-COMP", "warehouse": warehouse},
+				{"item_code": "B-COMP", "warehouse": "Service Warehouse"},
+			]
+			stock_locks.lock_stock_voucher_before_submit(doc)
+
+		def sql(query, params=()):
+			if "JOIN `tabProduct Bundle Item`" in query:
+				return [("B-COMP", "Service Warehouse"), ("A-COMP", warehouse), ("A-COMP", warehouse)]
+			if "FOR UPDATE" in query:
+				lock_queries.append(params)
+			return []
+
+		stock_locks.clear_transaction_stock_locks()
+		self.addCleanup(stock_locks.clear_transaction_stock_locks)
+		after_commit, after_rollback = [], []
+		with (
+			patch.object(doc, "insert", side_effect=submit),
+			patch.object(vouchers.frappe.db, "sql", side_effect=sql),
+			patch.object(stock_locks.frappe.db, "after_commit", SimpleNamespace(add=after_commit.append), create=True),
+			patch.object(stock_locks.frappe.db, "after_rollback", SimpleNamespace(add=after_rollback.append), create=True),
+		):
+			create_invoice(doc, payment_mode=None, item_code="Z-BUNDLE")
+
+		self.assertEqual(after_commit, [stock_locks.clear_transaction_stock_locks])
+		self.assertEqual(after_rollback, after_commit)
+		self.assertEqual(
+			lock_queries,
+			[
+				("A-COMP", "B-COMP", "Z-BUNDLE"),
+				("A-COMP", warehouse, "B-COMP", "Service Warehouse", "Z-BUNDLE", warehouse),
+			],
+		)
+
 	def test_sales_invoice_currency_defaults_come_from_cached_metadata(self):
 		doc = FakeSalesInvoice(payable_total=100)
 		cached_values = {
@@ -612,6 +656,25 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 		rollback.assert_called_once_with()
 		sleep.assert_called_once_with(0.03)
 
+	def test_stock_restart_carries_exclusive_hint_only_after_rollback(self):
+		events = []
+
+		def attempt():
+			events.append(stock_locks.stock_retry_items())
+			if not stock_locks.stock_retry_items():
+				error = stock_locks.StockLockRestart(["ITEM-1"])
+				error.retryable = True
+				raise error
+			return "created"
+
+		with (
+			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback")),
+			patch.object(vouchers.time, "sleep", side_effect=lambda _: events.append("jitter")),
+		):
+			self.assertEqual(vouchers._execute_with_deadlock_retry(attempt), "created")
+		self.assertEqual(events, [set(), "rollback", "jitter", {"ITEM-1"}])
+		self.assertEqual(stock_locks.stock_retry_items(), set())
+
 	def test_deadlock_retry_is_bounded_to_three_retries_by_default(self):
 		calls = []
 
@@ -642,6 +705,54 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 		self.assertEqual(len(calls), 1)
 		rollback.assert_not_called()
+
+	def test_failure_after_naming_rolls_back_voucher_and_reuses_next_stock_serial(self):
+		committed_series = 41
+		pending = {}
+		lock = TestIdempotencyLockCleanup.Lock()
+
+		def stock_allocate():
+			pending["series"] = pending.get("series", committed_series) + 1
+			return f"ACC-SINV-2026-{pending['series']:05d}"
+
+		def create_invoice():
+			name = stock_allocate()
+			pending["invoice"] = name
+			pending["stock_ledger"] = name
+			pending["general_ledger"] = name
+			return SimpleNamespace(doctype="Sales Invoice", name=name)
+
+		def reserve(key, fingerprint):
+			pending["idempotency"] = key
+			return True
+
+		def fail_after_naming(key, doctype, name):
+			self.assertEqual(name, stock_name)
+			self.assertEqual(set(pending), {"series", "invoice", "stock_ledger", "general_ledger", "idempotency"})
+			raise RuntimeError("injected after naming")
+
+		with (
+			patch.object(vouchers.frappe.db, "commit", side_effect=AssertionError("request owns commit"), create=True) as commit,
+			patch.object(vouchers.frappe.db, "rollback", side_effect=pending.clear),
+			patch.object(vouchers, "_lookup_idempotency", return_value=None),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=reserve),
+			patch.object(vouchers, "_bind_reservation", side_effect=fail_after_naming),
+		):
+			stock_name = stock_allocate()
+			vouchers.frappe.db.rollback()
+			with self.assertRaisesRegex(RuntimeError, "injected after naming"):
+				try:
+					vouchers._run_idempotent("client-1", "sale", "Sales Invoice", "fingerprint", create_invoice)
+				except RuntimeError:
+					# Model the surrounding Frappe request's exception rollback.
+					vouchers.frappe.db.rollback()
+					raise
+
+			self.assertEqual(pending, {})
+			self.assertEqual(stock_allocate(), stock_name)
+			commit.assert_not_called()
+			self.assertEqual(lock.release_calls, 1)
 
 	def test_submit_sale_runs_voucher_creation_through_deadlock_retry_helper(self):
 		with (

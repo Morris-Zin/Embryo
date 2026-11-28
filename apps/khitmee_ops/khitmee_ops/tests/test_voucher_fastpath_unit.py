@@ -4,6 +4,7 @@ import sys
 import threading
 import types
 import unittest
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -97,12 +98,19 @@ def _ensure_stubs():
 		"erpnext.stock.doctype.packed_item",
 		"erpnext.stock.doctype.stock_reservation_entry",
 		"erpnext.stock.doctype.stock_entry",
+		"erpnext.stock.utils",
 	):
 		sys.modules.setdefault(mod_name, types.ModuleType(mod_name))
 
 	stock_ledger = sys.modules.setdefault("erpnext.stock.stock_ledger", types.ModuleType("erpnext.stock.stock_ledger"))
 	if not hasattr(stock_ledger, "update_qty_in_future_sle"):
 		stock_ledger.update_qty_in_future_sle = lambda args, **kwargs: ("upstream", args.get("item_code"))
+	if not hasattr(stock_ledger, "get_combine_datetime"):
+		stock_ledger.get_combine_datetime = lambda date, time: datetime.datetime.fromisoformat(
+			f"{date} {voucher_fastpath._normalize_posting_time(time)}"
+		)
+	if not hasattr(stock_ledger, "validate_negative_qty_in_future_sle"):
+		stock_ledger.validate_negative_qty_in_future_sle = lambda args, allow_negative_stock=False: None
 
 	stock_entry = sys.modules.setdefault(
 		"erpnext.stock.doctype.stock_entry.stock_entry",
@@ -135,6 +143,8 @@ def _ensure_stubs():
 	)
 	if not hasattr(packed_item, "is_product_bundle"):
 		packed_item.is_product_bundle = lambda item_code: False
+	if not hasattr(packed_item, "get_product_bundle_items"):
+		packed_item.get_product_bundle_items = lambda item_code: []
 
 	sre = sys.modules.setdefault(
 		"erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry",
@@ -393,6 +403,7 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 	def setUp(self):
 		self.dim_calls = 0
 		self.bundle_calls = []
+		self.bundle_item_calls = []
 		self.sre_calls = []
 		self.pos_calls = 0
 
@@ -404,6 +415,10 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 			self.bundle_calls.append(item_code)
 			return item_code == "BUNDLE-EXTRA"
 
+		def orig_bundle_items(item_code):
+			self.bundle_item_calls.append(item_code)
+			return [{"item_code": "COMPONENT-1"}]
+
 		def orig_sre(item_code, warehouse=None):
 			self.sre_calls.append((item_code, warehouse))
 			return 5.0
@@ -414,17 +429,20 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 
 		self.orig_dims = strict_get_accounting_dimensions
 		self.orig_bundle = orig_bundle
+		self.orig_bundle_items = orig_bundle_items
 		self.orig_sre = orig_sre
 		self.orig_pos = orig_pos
 
 		ACC_DIM_MOD.get_accounting_dimensions = self.orig_dims
 		PACKED_ITEM_MOD.is_product_bundle = self.orig_bundle
+		PACKED_ITEM_MOD.get_product_bundle_items = self.orig_bundle_items
 		SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse = self.orig_sre
 		GET_ITEM_DETAILS_MOD.get_pos_profile = self.orig_pos
 
 	def tearDown(self):
 		ACC_DIM_MOD.get_accounting_dimensions = self.orig_dims
 		PACKED_ITEM_MOD.is_product_bundle = self.orig_bundle
+		PACKED_ITEM_MOD.get_product_bundle_items = self.orig_bundle_items
 		SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse = self.orig_sre
 		GET_ITEM_DETAILS_MOD.get_pos_profile = self.orig_pos
 		self.assertIsNone(getattr(voucher_fastpath._READ_CACHE_STATE, "context", None))
@@ -460,6 +478,14 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 				self.assertTrue(PACKED_ITEM_MOD.is_product_bundle("BUNDLE-EXTRA"))
 				self.assertEqual(self.bundle_calls, ["BUNDLE-EXTRA"])
 
+				empty_bundle = PACKED_ITEM_MOD.get_product_bundle_items("ITEM-1")
+				empty_bundle.append("mutated")
+				self.assertEqual(PACKED_ITEM_MOD.get_product_bundle_items(item_code="ITEM-1"), [])
+				self.assertEqual(
+					PACKED_ITEM_MOD.get_product_bundle_items("ITEM-BUNDLE"), [{"item_code": "COMPONENT-1"}]
+				)
+				self.assertEqual(self.bundle_item_calls, ["ITEM-BUNDLE"])
+
 				# SRE reserved qty: bulk prefetched (0 upstream calls) + fallback for unlocked pair
 				self.assertEqual(SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse("ITEM-1", "WH-1"), 3.5)
 				self.assertEqual(SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse("ITEM-BUNDLE", "WH-1"), 0.0)
@@ -479,6 +505,8 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		before_dims = self.dim_calls
 		self.assertEqual(ACC_DIM_MOD.get_accounting_dimensions(), ["shop"])
 		self.assertEqual(self.dim_calls, before_dims + 1)
+		PACKED_ITEM_MOD.get_product_bundle_items("ITEM-1")
+		self.assertEqual(self.bundle_item_calls, ["ITEM-BUNDLE", "ITEM-1"])
 
 	def test_lazy_import_during_context_never_poisons_worker_after_exit(self):
 		# Simulate a caller module lazily binding get_accounting_dimensions INSIDE the context
@@ -494,6 +522,73 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertEqual(lazily_bound_fn(), ["shop"])
 		self.assertEqual(lazily_bound_fn(), ["shop"])
 		self.assertEqual(self.dim_calls, 3)
+
+	def test_bin_cache_reuses_only_existing_locked_bins_in_fresh_snapshot(self):
+		stock_utils = sys.modules["erpnext.stock.utils"]
+		upstream = Mock(return_value="upstream-bin")
+
+		def get_or_make_bin(item_code, warehouse):
+			return upstream(item_code, warehouse)
+
+		locked_bins = [{"item_code": "ITEM-1", "warehouse": "WH-1", "name": "BIN-1"}]
+		with (
+			patch.object(stock_utils, "get_or_make_bin", get_or_make_bin, create=True),
+			patch.object(STOCK_LEDGER_MOD, "get_or_make_bin", get_or_make_bin, create=True),
+		):
+			with voucher_fastpath.voucher_transaction_read_cache(locked_bins=locked_bins):
+				bin_lookup = STOCK_LEDGER_MOD.get_or_make_bin
+				self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "BIN-1")
+				upstream.assert_not_called()
+				self.assertEqual(bin_lookup("ITEM-1", "OTHER"), "upstream-bin")
+			with voucher_fastpath.voucher_transaction_read_cache(locked_bins=locked_bins, fresh_snapshot=False):
+				self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
+			self.assertEqual(bin_lookup("ITEM-1", "WH-1"), "upstream-bin")
+
+	def test_locked_item_links_seed_only_the_exact_native_fields_and_clear_on_exit(self):
+		cache = defaultdict(lambda: defaultdict(dict))
+		fields = ("name", "has_batch_no", "has_serial_no")
+		prior = [{"name": "EXISTING"}]
+		cache["Item"]["EXISTING"][fields] = prior
+		with (
+			patch.object(voucher_fastpath.frappe.db, "value_cache", cache, create=True),
+			patch.object(voucher_fastpath.frappe, "_dict", dict, create=True),
+			voucher_fastpath.cache_locked_item_links([("A", 0, 1), ("EXISTING", 0, 0)]),
+		):
+			self.assertEqual(cache["Item"]["A"][fields], [{"name": "A", "has_batch_no": 0, "has_serial_no": 1}])
+			self.assertIs(cache["Item"]["EXISTING"][fields], prior)
+			self.assertEqual(cache["Item"]["NATIVE-UNCACHED"], {})
+		self.assertNotIn(fields, cache["Item"]["A"])
+		self.assertIs(cache["Item"]["EXISTING"][fields], prior)
+
+	def test_accounting_checks_are_memoized_without_sharing_mutable_rows(self):
+		upstream = Mock(return_value=[{"fieldname": "branch"}])
+
+		def get_checks():
+			return upstream()
+
+		with patch.object(ACC_DIM_MOD, "get_checks_for_pl_and_bs_accounts", get_checks, create=True):
+			with voucher_fastpath.voucher_transaction_read_cache():
+				checks = ACC_DIM_MOD.get_checks_for_pl_and_bs_accounts()
+				checks[0]["fieldname"] = "changed"
+				self.assertEqual(ACC_DIM_MOD.get_checks_for_pl_and_bs_accounts(), [{"fieldname": "branch"}])
+			upstream.assert_called_once_with()
+
+	def test_schema_filter_cache_preserves_order_and_leaves_child_rows_live(self):
+		schema = [object(), object()]
+		children = [object()]
+		upstream = Mock(side_effect=lambda data, filters, limit: list(data[:limit]))
+		dispatch = voucher_fastpath._make_schema_filter_dispatcher(upstream)
+		ctx = voucher_fastpath.VoucherReadCacheContext(active=True, schema_fields={id(schema): schema})
+
+		with patch.object(voucher_fastpath._READ_CACHE_STATE, "context", ctx, create=True):
+			first = dispatch(schema, {"reqd": True})
+			first.reverse()
+			self.assertEqual(dispatch(schema, {"reqd": True}), schema)
+			self.assertEqual(dispatch(schema, {"reqd": 1}, 1), schema[:1])
+			self.assertEqual(dispatch(children, {"reqd": True}), children)
+			children.append(object())
+			self.assertEqual(dispatch(children, {"reqd": True}), children)
+		self.assertEqual(upstream.call_count, 4)
 
 	def test_read_cache_thread_isolation_and_exception_cleanup(self):
 		barrier = threading.Barrier(2)
@@ -559,7 +654,7 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertEqual(calls, [("ITEM-OTHER", True, False)])
 
 
-	def test_future_sle_fastpath_falls_back_when_allow_negative_stock_or_reserved_stock(self):
+	def test_future_sle_fastpath_falls_back_when_allow_negative_stock(self):
 		calls = []
 		orig_fn = STOCK_LEDGER_MOD.update_qty_in_future_sle
 
@@ -579,13 +674,54 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 							"voucher_type": "Sales Invoice",
 							"voucher_no": "SI-0001",
 							"posting_date": "2026-11-28",
-							"posting_time": "10:00:00",
+							"posting_time": doc.posting_time,
 						},
 						allow_negative_stock=True,
 					)
 			self.assertEqual(calls, [("ITEM-1", True, False)])
 		finally:
 			STOCK_LEDGER_MOD.update_qty_in_future_sle = orig_fn
+
+	def test_latest_outgoing_sle_uses_stock_reservation_validation(self):
+		doc = _sale_doc([{"item_code": "ITEM-1", "warehouse": "WH-1"}])
+		args = {
+			"item_code": "ITEM-1",
+			"warehouse": "WH-1",
+			"voucher_type": doc.doctype,
+			"voucher_no": doc.name,
+			"posting_date": doc.posting_date,
+			"posting_time": doc.posting_time,
+			"actual_qty": -2,
+			"reserved_stock": 4,
+		}
+		item_allows_negative, global_allows_negative = True, False
+		balance_after_sale = 3
+		error = voucher_fastpath.frappe.ValidationError
+
+		def validate(sle, allow_negative_stock):
+			self.assertIs(sle, args)
+			self.assertEqual(sle["posting_datetime"], datetime.datetime(2026, 11, 28, 9, 5))
+			if (
+				item_allows_negative
+				and not (global_allows_negative or allow_negative_stock)
+				and sle["actual_qty"] < 0
+				and balance_after_sale < sle["reserved_stock"]
+			):
+				raise error("Reserved Stock: 1.0 units of ITEM-1 needed in WH-1")
+
+		update = Mock()
+		with (
+			patch.object(STOCK_LEDGER_MOD, "update_qty_in_future_sle", lambda *args, **kw: update(*args, **kw)),
+			patch.object(STOCK_LEDGER_MOD, "validate_negative_qty_in_future_sle", side_effect=validate) as validator,
+			patch.object(voucher_fastpath, "find_pairs_with_future_sle", return_value=set()),
+			voucher_fastpath.proven_empty_future_sle_fastpath(doc, [("ITEM-1", "WH-1")]) as ctx,
+			self.assertRaisesRegex(error, r"Reserved Stock: 1\.0 units of ITEM-1 needed in WH-1"),
+		):
+			STOCK_LEDGER_MOD.update_qty_in_future_sle(args, False)
+
+		validator.assert_called_once_with(args, False)
+		self.assertEqual(ctx.skipped_count, 1)
+		update.assert_not_called()
 
 
 if __name__ == "__main__":
