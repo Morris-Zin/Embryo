@@ -11,10 +11,17 @@ leave at least 256 MiB for the kernel and runtime.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import math
 from pathlib import Path
 import re
+import sys
+import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 DOCKER_DIR = Path(__file__).resolve().parent
 TOTAL_MEMORY_MIB = 2048
@@ -486,7 +493,11 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertIn("python_services+=(cashier)", up)
         self.assertIn("wait_for_service_running cashier 180", up)
         self.assertIn("khitmee-ops-guest.yaml", up)
+        self.assertIn("khitmee-migration-transient.yaml", up)
+        self.assertIn("compose_transient run --rm --no-deps -T backend", up)
         self.assertIn("verify_guest_cgroup.sh", up)
+        migration = parse_compose_services(DOCKER_DIR / "khitmee-migration-transient.yaml")
+        self.assertEqual("384m", migration["backend"].get("mem_limit"))
         routes = (DOCKER_DIR.parent / "scripts" / "check_guest_routes.sh").read_text(encoding="utf-8")
         self.assertIn("upstream_name=general", routes)
         self.assertIn("upstream_name=cashier", routes)
@@ -494,6 +505,145 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertIn("profile-2gb-guest.yaml", down)
         self.assertIn("cashier:", overlay)
         self.assertIn("PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops", overlay)
+
+
+    def test_guest_cpuset_selection_supports_exclusive_and_dedicated_modes(self):
+        setup = (DOCKER_DIR.parent / "scripts" / "guest_cgroup_setup.sh").read_text(encoding="utf-8")
+        match = re.search(r"python3 - .*?<<'PY'\n(.*?)\nPY\n\)", setup, re.S)
+        self.assertIsNotNone(match)
+        embedded = match.group(1)
+
+        def run_selector(online_text, requested="", forced="0"):
+            def fake_open(path, *args, **kwargs):
+                path = str(path)
+                if path == "/sys/devices/system/cpu/online":
+                    return io.StringIO(online_text)
+                if "/topology/thread_siblings_list" in path:
+                    cpu = re.search(r"/cpu(\d+)/", path).group(1)
+                    return io.StringIO(cpu)
+                raise FileNotFoundError(path)
+
+            stdout = io.StringIO()
+            old_argv = sys.argv[:]
+            try:
+                sys.argv = ["selector", requested, forced]
+                with mock.patch("builtins.open", fake_open), contextlib.redirect_stdout(stdout):
+                    exec(compile(embedded, "cpuset-selector", "exec"), {})
+            finally:
+                sys.argv = old_argv
+            return stdout.getvalue().splitlines()
+
+        dedicated = run_selector("0-1")
+        self.assertEqual(["0-1", "", "0-1", "1"], dedicated)
+        forced = run_selector("0-7", forced="1")
+        self.assertEqual(["0-7", "", "0-7", "1"], forced)
+        exclusive = run_selector("0-7", requested="2-3")
+        self.assertEqual(["2-3", "0-1,4-7", "0-7", "0"], exclusive)
+
+        self.assertIn("--dedicated-guest", setup)
+        self.assertIn("dedicated-guest", setup)
+        self.assertIn("exclusive-cpuset", setup)
+
+    def test_guest_verifier_rejects_stopped_cashier_with_all_containers_present(self):
+        verify = (DOCKER_DIR.parent / "scripts" / "verify_guest_cgroup.sh").read_text(encoding="utf-8")
+        match = re.search(r"python3 - <<'PY'\n(.*?)\nPY\n\s*$", verify, re.S)
+        self.assertIsNotNone(match)
+        embedded = match.group(1)
+
+        services = {
+            "configurator": (64, 100, 1024),
+            "db": (544, 300, 4050),
+            "backend": (224, 100, 1024),
+            "cashier": (416, 300, 4050),
+            "queue": (256, 50, 416),
+            "scheduler": (96, 30, 212),
+            "redis-cache": (64, 150, 1703),
+            "redis-queue": (32, 120, 1284),
+            "websocket": (72, 40, 311),
+            "frontend": (24, 100, 1024),
+        }
+
+        def run_verifier(cashier_running):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                sysroot = root / "sys"
+                cgroup = sysroot / "fs" / "cgroup"
+                procroot = root / "proc"
+                online = root / "online"
+                cgroup.mkdir(parents=True)
+                procroot.mkdir()
+                online.write_text("0-1", encoding="utf-8")
+                (cgroup / "cgroup.controllers").write_text("cpu memory", encoding="utf-8")
+                slice_dir = cgroup / "khitmeeperf.slice"
+                slice_dir.mkdir()
+                (slice_dir / "cpuset.cpus.effective").write_text("0-1", encoding="utf-8")
+                (slice_dir / "cpu.max").write_text("200000 100000", encoding="utf-8")
+                (slice_dir / "memory.max").write_text("2147483648", encoding="utf-8")
+                (slice_dir / "memory.swap.max").write_text("0", encoding="utf-8")
+
+                ids = []
+                inspected = []
+                for index, (service, (memory_mib_value, weight, shares)) in enumerate(sorted(services.items()), start=1):
+                    full_id = f"{index:064x}"
+                    ids.append(full_id)
+                    running = service != "configurator" and (service != "cashier" or cashier_running)
+                    pid = 1000 + index if running else 0
+                    inspected.append({
+                        "Id": full_id,
+                        "Name": f"/khitmee-perf-{service}-1",
+                        "State": {"Status": "running" if running else "exited", "Pid": pid, "ExitCode": 0 if service == "configurator" else (0 if running else 1)},
+                        "HostConfig": {
+                            "CgroupParent": "khitmeeperf.slice",
+                            "NanoCpus": 0,
+                            "Memory": memory_mib_value * 1024 * 1024,
+                            "CpuShares": shares,
+                        },
+                    })
+                    if running:
+                        scope = slice_dir / f"docker-{full_id}.scope"
+                        scope.mkdir()
+                        (scope / "cpu.weight").write_text(str(weight), encoding="utf-8")
+                        (scope / "cpu.max").write_text("max 100000", encoding="utf-8")
+                        (scope / "memory.max").write_text(str(memory_mib_value * 1024 * 1024), encoding="utf-8")
+                        (scope / "cpuset.cpus.effective").write_text("0-1", encoding="utf-8")
+                        (scope / "cgroup.procs").write_text(f"{pid}\n", encoding="utf-8")
+                        proc = procroot / str(pid)
+                        proc.mkdir()
+                        (proc / "stat").write_text(f"{pid} (svc) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0", encoding="utf-8")
+
+                def fake_check_output(args, **kwargs):
+                    if args[:2] == ["docker", "ps"]:
+                        return "\n".join(ids) + "\n"
+                    if args[:2] == ["docker", "inspect"]:
+                        return json.dumps(inspected)
+                    raise AssertionError(args)
+
+                code = embedded.replace("/sys/fs/cgroup", cgroup.as_posix()).replace('Path("/proc")', f'Path({str(procroot)!r})').replace("/sys/devices/system/cpu/online", online.as_posix())
+                import subprocess as real_subprocess
+                fake_subprocess = SimpleNamespace(check_output=fake_check_output, CalledProcessError=real_subprocess.CalledProcessError, PIPE=-1)
+                old_subprocess = sys.modules.get("subprocess")
+                sys.modules["subprocess"] = fake_subprocess
+                stdout = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
+                        try:
+                            exec(compile(code, "guest-verifier", "exec"), {"__name__": "__main__"})
+                            return 0, stdout.getvalue()
+                        except SystemExit as exc:
+                            return int(exc.code or 0), stdout.getvalue()
+                finally:
+                    if old_subprocess is None:
+                        del sys.modules["subprocess"]
+                    else:
+                        sys.modules["subprocess"] = old_subprocess
+
+        good_rc, good_out = run_verifier(True)
+        self.assertEqual(0, good_rc, good_out)
+        self.assertIn("mode=dedicated-guest", good_out)
+        self.assertIn("PASS[dedicated-guest]", good_out)
+        bad_rc, bad_out = run_verifier(False)
+        self.assertEqual(1, bad_rc, bad_out)
+        self.assertIn("long-lived service status='exited'", bad_out)
 
     def test_mariadb_image_is_opt_in_overridable(self):
         db = parse_compose_services(DOCKER_DIR / "compose.base.yaml")["db"]
