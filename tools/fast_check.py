@@ -258,9 +258,13 @@ def core_change_violations(names):
 	return violations
 
 
+def _git_safe_dir(root):
+	return Path(root).as_posix()
+
+
 def _git_names(root, args):
 	output = subprocess.check_output(
-		["git", "-c", "safe.directory=" + str(root), *args],
+		["git", "-c", "safe.directory=" + _git_safe_dir(root), *args],
 		cwd=root,
 	).decode("utf-8", errors="replace")
 	return [name for name in output.split("\0") if name]
@@ -268,7 +272,7 @@ def _git_names(root, args):
 
 def _git_ref_exists(root, ref):
 	return subprocess.run(
-		["git", "-c", "safe.directory=" + str(root), "rev-parse", "--verify", "--quiet", ref],
+		["git", "-c", "safe.directory=" + _git_safe_dir(root), "rev-parse", "--verify", "--quiet", ref],
 		cwd=root,
 		stdout=subprocess.DEVNULL,
 		stderr=subprocess.DEVNULL,
@@ -287,7 +291,7 @@ def _merge_base(root):
 		if not _git_ref_exists(root, ref):
 			continue
 		result = subprocess.run(
-			["git", "-c", "safe.directory=" + str(root), "merge-base", ref, "HEAD"],
+			["git", "-c", "safe.directory=" + _git_safe_dir(root), "merge-base", ref, "HEAD"],
 			cwd=root,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
@@ -658,7 +662,7 @@ def unittest_parallel_command(root, suite="tools"):
 		"-m",
 		"unittest_parallel",
 		"-s",
-		str(root / suite),
+		(Path(root) / suite).as_posix(),
 		"-p",
 		"test_*.py",
 		"--level",
@@ -694,7 +698,7 @@ def check(root):
 		def serial_suites():
 			for suite in PYTHON_TEST_SERIAL_SUITES:
 				output = run(
-					[sys.executable, "-B", "-m", "unittest", "discover", "-s", str(root / suite), "-p", "test_*.py"],
+					[sys.executable, "-B", "-m", "unittest", "discover", "-s", (Path(root) / suite).as_posix(), "-p", "test_*.py"],
 					root,
 				)
 				assert_tests_ran(suite, output)
@@ -708,7 +712,7 @@ def check(root):
 				future.result()
 
 	def bash_syntax():
-		files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files",
+		files = subprocess.check_output(["git", "-c", "safe.directory=" + _git_safe_dir(root), "ls-files",
 										"--cached", "--others", "--exclude-standard", "-z", "--", "*.sh"],
 										cwd=root).decode().split("\0")
 		for name in sorted(set(filter(None, files))):
@@ -725,7 +729,7 @@ def check(root):
 	node = shutil.which("node") or shutil.which("node.exe")
 
 	def javascript():
-		files = subprocess.check_output(["git", "-c", "safe.directory=" + str(root), "ls-files", "-co",
+		files = subprocess.check_output(["git", "-c", "safe.directory=" + _git_safe_dir(root), "ls-files", "-co",
 										"--exclude-standard", "--", "apps/khitmee_ops/**/*.js",
 										"perf-suite/k6/**/*.js", "perf-suite/browser/*.mjs"], cwd=root, text=True).splitlines()
 		if not files:
@@ -775,7 +779,7 @@ def check(root):
 
 	def compose():
 		for size in ("2gb", "4gb"):
-			base = ["docker", "compose", "--env-file", "/dev/null", "-p", "khitmee-perf",
+			base = ["docker", "compose", "--env-file", os.devnull, "-p", "khitmee-perf",
 					"-f", "compose.base.yaml", "-f", f"profile-{size}.yaml"]
 			for extra in ([], ["-f", f"khitmee-ops-{size}.yaml"]):
 				run(base + extra + ["config", "--quiet"], perf / "docker", DB_PASSWORD="config-only")

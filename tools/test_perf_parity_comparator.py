@@ -1,5 +1,7 @@
 import copy
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -359,6 +361,101 @@ class OracleSidecarRunnerTests(unittest.TestCase):
         self.assertEqual(command[command.index("--network") + 1], "khitmee-perf_default")
         self.assertEqual(command[-3:], ["-", "--inside-backend", "--require-db"])
         self.assertNotIn("khitmee-erpnext", " ".join(command))
+
+    def test_sidecar_mounts_oracle_cache_dir_when_provided(self):
+        command = perf_parity.build_sidecar_command(
+            "khitmee-perf-backend-1",
+            "frappe/erpnext:v16",
+            "khitmee-perf_default",
+            "1536m",
+            ["--oracle-cache-dir", "/tmp/khitmee-oracle-cache"],
+            "p2",
+            oracle_cache_mount=("/host/oracle-cache", "/tmp/khitmee-oracle-cache"),
+        )
+        self.assertIn("-v", command)
+        self.assertEqual(command[command.index("-v") + 1], "/host/oracle-cache:/tmp/khitmee-oracle-cache")
+
+
+class OracleCacheAndTimingTests(unittest.TestCase):
+    def _sample_key(self, **overrides):
+        key = {
+            "db_fingerprint": "dbfp-abc123",
+            "erpnext_source_sha256": "srcsha-def456",
+            "report": "Gross Profit",
+            "filters": {"company": "Khit Me Distribution", "from_date": "2026-10-27", "to_date": "2026-11-26", "group_by": "Warehouse"},
+            "user": "Administrator",
+            "precision_settings": {"currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"},
+        }
+        key.update(overrides)
+        return key
+
+    def test_cli_parser_default_oracle_cache_dir_is_none(self):
+        args_default = perf_parity.build_parser().parse_args([])
+        self.assertIsNone(args_default.oracle_cache_dir)
+        args_set = perf_parity.build_parser().parse_args(["--oracle-cache-dir", "/tmp/oc"])
+        self.assertEqual(args_set.oracle_cache_dir, "/tmp/oc")
+
+    def test_oracle_cache_roundtrip_hit_and_clean_miss(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = perf_parity.ParityOracleCache(tmpdir)
+            key = self._sample_key()
+            self.assertIsNone(cache.get(key))
+            cols = WAREHOUSE_COLUMNS
+            rows = warehouse_group_rows()
+            cache.put(key, cols, rows)
+
+            # Reordered filter keys still hit the same canonical entry.
+            reordered = self._sample_key(
+                filters={"group_by": "Warehouse", "to_date": "2026-11-26", "from_date": "2026-10-27", "company": "Khit Me Distribution"}
+            )
+            hit = cache.get(
+                reordered,
+                expected_db_fingerprint="dbfp-abc123",
+                expected_source_sha256="srcsha-def456",
+                expected_precision=key["precision_settings"],
+            )
+            self.assertIsNotNone(hit)
+            cached_cols, cached_rows = hit
+            self.assertEqual(cached_cols, cols)
+            self.assertEqual(cached_rows, rows)
+
+    def test_oracle_cache_fails_closed_on_drift_and_tampering(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = perf_parity.ParityOracleCache(tmpdir)
+            key = self._sample_key()
+            entry = cache.put(key, WAREHOUSE_COLUMNS, warehouse_group_rows())
+
+            # DB fingerprint drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_db_fingerprint="dbfp-different")
+
+            # ERPNext source SHA-256 drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_source_sha256="srcsha-modified")
+
+            # Precision drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_precision={"currency_precision": 2, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"})
+
+            # Payload byte tampering fails closed.
+            payload_path = Path(tmpdir) / entry["payload_path"]
+            original = payload_path.read_text(encoding="utf-8")
+            payload_path.write_text(original.replace("100.0", "100.1", 1), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+            # Restore payload and tamper manifest root hash -> fails closed.
+            payload_path.write_text(original, encoding="utf-8")
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["entries_root_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+    def test_format_section_timings(self):
+        formatted = perf_parity.format_section_timings({"voucher": 1.2345, "gp": 0.4567}, 1.7001)
+        self.assertEqual(formatted, {"sections": {"gp": 0.457, "voucher": 1.234}, "total_seconds": 1.7})
 
 
 if __name__ == "__main__":
