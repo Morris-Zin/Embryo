@@ -417,6 +417,7 @@ def aggregate_summary_rows(
 	currency_precision=3,
 	float_precision=2,
 	warehouse_scope=None,
+	stored_rows_are_grouped=False,
 ) -> dict:
 	"""Aggregate stored and live/replay rows using exact Python Decimal arithmetic.
 
@@ -454,13 +455,14 @@ def aggregate_summary_rows(
 
 	for stored in stored_rows or []:
 		warehouse = str(stored.get("warehouse") or "")
-		if not warehouse_allowed(warehouse):
+		if not stored_rows_are_grouped and not warehouse_allowed(warehouse):
 			continue
 		group_id = _group_id_for_row(group_by, warehouse, stored.get("posting_date"))
 		for prefix, has_field in (("normal", "normal_has_rows"), ("unlinked_return", "unlinked_return_has_rows")):
 			if prefix == "unlinked_return" and not include_unlinked:
 				continue
-			if not int(stored.get(has_field) or 0):
+			bucket_count = int(stored.get(has_field) or 0)
+			if not bucket_count:
 				continue
 			qty, base_amount, buying_amount, abs_qty, abs_base, abs_buying, first_key = bucket_values(stored, prefix)
 			group = groups.setdefault(group_id, _new_group(group_id, stored.get("posting_date")))
@@ -473,7 +475,7 @@ def aggregate_summary_rows(
 			group["abs_buying_sum"] += abs_buying
 			if first_key and (group["first_seen_key"] is None or str(first_key) < group["first_seen_key"]):
 				group["first_seen_key"] = str(first_key)
-			input_row_count += 1
+			input_row_count += bucket_count if stored_rows_are_grouped else 1
 
 	for row in contributions or []:
 		posting_date = _as_date_string(row.get("posting_date"))
@@ -706,7 +708,14 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 			meta=_meta_from_decision(precheck, precheck_counts),
 		)
 
-	stored_rows = store.get_shop_day_rows(company, clean_days)
+	warehouse_scope = expand_warehouse_scope(filters.get("warehouse"))
+	stored_rows = store.get_shop_day_groups(
+		company,
+		clean_days,
+		filters.get("group_by"),
+		warehouse_scope=warehouse_scope if filters.get("warehouse") else None,
+		include_returns=bool(filters.get("include_returned_invoices")),
+	)
 	live_batches = _collect_live_batches(filters, live_days)
 	live_set_b_ids = _live_set_b_invoice_ids(live_batches)
 	replay_ids = sorted(set(clean_replay_ids) | set(live_set_b_ids))
@@ -744,7 +753,6 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 		1 for row in live_work_contributions if _as_date_string(row.get("posting_date")) not in today_or_future
 	)
 
-	warehouse_scope = expand_warehouse_scope(filters.get("warehouse"))
 	aggregation = aggregate_summary_rows(
 		stored_rows,
 		all_contributions,
@@ -752,6 +760,7 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 		currency_precision=currency_precision,
 		float_precision=float_precision,
 		warehouse_scope=warehouse_scope,
+		stored_rows_are_grouped=True,
 	)
 	counts = _empty_budget_counts("summary")
 	counts.update(

@@ -292,6 +292,76 @@ class TestBudget(unittest.TestCase):
 
 
 class TestPrecisionAndOrdering(unittest.TestCase):
+	def test_clean_day_sql_groups_match_the_original_exact_fold(self):
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.row_factory = sqlite3.Row
+		db.execute("CREATE TABLE `tabDaily Profit by Shop` (" + ", ".join(store.SHOP_DAY_FIELDS) + ")")
+		dates = ["2025-12-01", "2025-12-02", "2025-12-03", "2026-01-01"]
+		stored_rows = []
+		for index, (day, warehouse, bucket, qty) in enumerate(
+			[
+				(dates[0], "W", "unlinked_return", -9),
+				(dates[1], "W", "normal", 10),
+				(dates[1], "w", "normal", 3),
+				(dates[2], "W", "normal", 0),
+				(dates[2], "", "normal", 4),
+				(dates[2], " ", "normal", 5),
+				(dates[3], "W", "normal", 2),
+				("2026-01-02", "W", "normal", 99),
+			]
+		):
+			row = dict.fromkeys(store.SHOP_DAY_FIELDS, 0)
+			row.update(company="C", posting_date=day, warehouse=warehouse)
+			row[f"{bucket}_has_rows"] = 1
+			row[f"{bucket}_first_seen_key"] = f"1|{day}|{9 - index:012d}"
+			for field, value in (("qty", qty), ("base_amount", 3 * qty), ("buying_amount", 2 * qty)):
+				row[f"{bucket}_{field}"] = value
+			row[f"{bucket}_abs_qty_sum"] = abs(qty)
+			row[f"{bucket}_abs_base_sum"] = abs(3 * qty)
+			row[f"{bucket}_abs_buying_sum"] = abs(2 * qty)
+			stored_rows.append(row)
+		db.executemany(
+			"INSERT INTO `tabDaily Profit by Shop` VALUES (" + ", ".join(f":{field}" for field in store.SHOP_DAY_FIELDS) + ")",
+			stored_rows,
+		)
+
+		def sql(statement, params, *, as_dict):
+			self.assertTrue(as_dict)
+			statement = (
+				statement.replace("%s", "?")
+				.replace("AS BINARY", "AS BLOB")
+				.replace("CHAR_LENGTH", "LENGTH")
+				.replace("EXTRACT(YEAR_MONTH FROM `posting_date`)", "substr(`posting_date`, 1, 7)")
+			)
+			if " AS BLOB) IN " in statement:
+				params = [value.encode() if value in {"W", "w"} else value for value in params]
+			return [dict(row) for row in db.execute(statement, params)]
+
+		with patch.object(FRAPPE.db, "sql", sql):
+			for group_by in ("Warehouse", "Monthly"):
+				for scope in (None, {"W"}, set()):
+					for include_returns in (False, True):
+						with self.subTest(group_by=group_by, scope=scope, include_returns=include_returns):
+							filters = {
+								"group_by": group_by,
+								"warehouse": "Root" if scope is not None else None,
+								"include_returned_invoices": include_returns,
+							}
+							baseline = query.aggregate_summary_rows(stored_rows[:-1], [], filters, warehouse_scope=scope or set())
+							grouped = store.get_shop_day_groups(
+								"C", dates, group_by, warehouse_scope=scope, include_returns=include_returns
+							)
+							result = query.aggregate_summary_rows(
+								grouped, [], filters, warehouse_scope=scope or set(), stored_rows_are_grouped=True
+							)
+							self.assertEqual(result["input_row_count"], baseline["input_row_count"])
+							self.assertEqual(result["cap_exceeded"], baseline["cap_exceeded"])
+							self.assertEqual(
+								query.format_summary_groups(result["groups"], filters),
+								query.format_summary_groups(baseline["groups"], filters),
+							)
+
 	def test_max_safe_abs_sum_formula(self):
 		self.assertEqual(MAX_SAFE_ABS_SUM(3), 100_000_000_000)
 		self.assertEqual(MAX_SAFE_ABS_SUM(6), 100_000_000)
@@ -931,7 +1001,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 			"evaluate_summary_eligibility",
 			return_value={"eligible": True, "reason": "eligible", "match_conditions_safe": True, "has_blocking_repost": False, "dirty_days": [], "replay_invoices": 0},
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", return_value=[]
+			store, "get_shop_day_groups", return_value=[]
 		), patch.object(store, "get_replay_candidates", return_value=replay_rows), patch.object(
 			replay, "collect_replay_contributions", side_effect=AssertionError("must fail fast before replay collect")
 		):
@@ -975,7 +1045,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 				day = live_filters["from_date"]
 				return batch([contribution("LIVE", posting_date=day, first_seen_key=f"1|{day}|100000000000")])
 
-		def fake_shop_rows(company, dates):
+		def fake_shop_rows(company, dates, group_by, **kwargs):
 			read_dates["shop"] = list(dates)
 			return [stored] if dates else []
 
@@ -989,7 +1059,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
 			store, "current_day_flags", return_value={"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", side_effect=fake_shop_rows
+			store, "get_shop_day_groups", side_effect=fake_shop_rows
 		), patch.object(store, "get_replay_candidates", side_effect=fake_replay_rows), patch.object(
 			query, "_fast_gross_profit_module", return_value=FakeFast()
 		), patch.object(query, "_site_today", return_value="2026-01-03"):
@@ -1035,7 +1105,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
 			store, "current_day_flags", return_value={"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", return_value=[]
+			store, "get_shop_day_groups", return_value=[]
 		), patch.object(store, "get_replay_candidates", return_value=[]), patch.object(
 			query, "_fast_gross_profit_module", return_value=fake_fast
 		), patch.object(replay, "_fast_gross_profit_module", return_value=fake_fast), patch.object(
@@ -1090,7 +1160,7 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		with patch.object(query, "partition_request_days", return_value=partition), patch.object(
 			query, "_collect_live_batches", side_effect=AssertionError("must not extract live rows")
 		), patch.object(store, "get_replay_candidates", return_value=[]), patch.object(
-			store, "get_shop_day_rows", side_effect=AssertionError("must not read stored rows")
+			store, "get_shop_day_groups", side_effect=AssertionError("must not read stored rows")
 		):
 			result = query._query_summary_in_snapshot(filters, {"eligible": True})
 		self.assertEqual(result["mode"], "pending")

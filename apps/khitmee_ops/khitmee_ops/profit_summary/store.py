@@ -548,6 +548,54 @@ def get_shop_day_rows(company: str, posting_dates: Iterable[str]):
 	return result
 
 
+def get_shop_day_groups(company, posting_dates, group_by, *, warehouse_scope=None, include_returns=False):
+	"""Fold the certified clean days before sending exact Decimal values to Python."""
+	dates = sorted(set(_as_date_string(value) for value in posting_dates))
+	if not dates or (warehouse_scope is not None and not warehouse_scope):
+		return []
+
+	db = _require_frappe().db
+	group_key = "CAST(`warehouse` AS BINARY)" if group_by == "Warehouse" else "EXTRACT(YEAR_MONTH FROM `posting_date`)"
+	warehouse_column = "MIN(`warehouse`)" if group_by == "Warehouse" else "''"
+	columns = ["MIN(`posting_date`) AS `posting_date`", f"{warehouse_column} AS `warehouse`"]
+	warehouse_conditions = []
+	scope = sorted(warehouse_scope or ())
+	if group_by == "Warehouse":
+		warehouse_conditions.append("CHAR_LENGTH(`warehouse`) > 0")
+	if warehouse_scope is not None:
+		scope_placeholders = ", ".join(["%s"] * len(scope))
+		warehouse_conditions.append(f"CAST(`warehouse` AS BINARY) IN ({scope_placeholders})")
+	for bucket in ("normal", "unlinked_return"):
+		present = f"`{bucket}_has_rows` <> 0"
+		columns.append(f"COUNT(CASE WHEN {present} THEN 1 END) AS `{bucket}_has_rows`")
+		for suffix in ("qty", "base_amount", "buying_amount", "abs_qty_sum", "abs_base_sum", "abs_buying_sum"):
+			field = f"`{bucket}_{suffix}`"
+			columns.append(f"SUM(CASE WHEN {present} THEN {field} ELSE 0 END) AS {field}")
+		key = f"`{bucket}_first_seen_key`"
+		columns.append(f"MIN(CASE WHEN {present} THEN NULLIF({key}, '') END) AS {key}")
+
+	present = "`normal_has_rows` <> 0"
+	if include_returns:
+		present = f"({present} OR `unlinked_return_has_rows` <> 0)"
+	result = []
+	for chunk in batched(dates):
+		day_placeholders = ", ".join(["%s"] * len(chunk))
+		conditions = [f"`posting_date` IN ({day_placeholders})", present, *warehouse_conditions]
+		result.extend(
+			db.sql(
+				f"""
+				SELECT {', '.join(columns)}
+				FROM `tabDaily Profit by Shop`
+				WHERE `company` = %s AND {' AND '.join(conditions)}
+				GROUP BY {group_key}
+				""",
+				[company, *chunk, *scope],
+				as_dict=True,
+			)
+		)
+	return result
+
+
 def get_replay_candidates(company: str, posting_dates: Iterable[str]):
 	dates = sorted(set(_as_date_string(value) for value in posting_dates if value))
 	if not dates:
