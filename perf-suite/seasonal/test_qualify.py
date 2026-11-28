@@ -363,6 +363,31 @@ class QualifyEntryPointTests(unittest.TestCase):
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
+    def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Red/green: empty input used to produce a benign-looking zero lock
+        # delta. The snapshot status must make that collection failure explicit.
+        zero_delta = module.delta_locks("", "")
+        self.assertEqual(zero_delta["row_lock_waits_delta"], 0)
+        good = {"db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": "Innodb_row_lock_waits" + chr(9) + "7" + chr(10)}}
+        empty = {"db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": ""}}
+        failed = {"db_innodb_row_locks": {"ok": False, "rc": 1, "stdout": "", "stderr": "mariadb unavailable"}}
+        self.assertTrue(module.db_lock_snapshot_status(good, "start")["passed"])
+        for label, snapshot in (("empty", empty), ("failed", failed), ("missing", {})):
+            status = module.db_lock_snapshot_status(snapshot, "start")
+            self.assertFalse(status["passed"], label)
+            self.assertIn("failed or returned no rows", status["problem"])
+        problems = [module.db_lock_snapshot_status(empty, "start")["problem"], module.db_lock_snapshot_status(failed, "end")["problem"]]
+        status = module.collection_status(10, 10, 10, problems)
+        self.assertFalse(status["collection_passed"])
+        self.assertIn("MariaDB InnoDB row-lock start snapshot", " ".join(status["collection_problems"]))
+        self.assertIn("MariaDB InnoDB row-lock end snapshot", " ".join(status["collection_problems"]))
+        source = (ROOT / "attribution.py").read_text(encoding="utf-8")
+        self.assertIn('"db_lock_snapshots": db_lock_snapshots', source)
+
     def test_preflight_evaluator_requires_every_step_status_and_denial(self):
         spec = importlib.util.spec_from_file_location("evaluate_preflight", ROOT / "evaluate_preflight.py")
         module = importlib.util.module_from_spec(spec)

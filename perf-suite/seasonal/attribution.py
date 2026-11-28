@@ -375,6 +375,21 @@ def nginx_window_coverage(nginx_rows, measured_start, measured_end, tolerance_se
     return result
 
 
+def db_lock_snapshot_status(snapshot, label):
+    evidence = (snapshot or {}).get("db_innodb_row_locks") or {}
+    stdout = str(evidence.get("stdout") or "")
+    rows_present = bool(stdout.strip())
+    ok = evidence.get("ok") is True and rows_present
+    return {
+        "label": label,
+        "command_ok": evidence.get("ok") is True,
+        "returncode": evidence.get("rc"),
+        "rows_present": rows_present,
+        "passed": ok,
+        "problem": "" if ok else f"MariaDB InnoDB row-lock {label} snapshot failed or returned no rows",
+    }
+
+
 def collection_status(nginx_count, gunicorn_count, joined_count=None, extra_problems=None):
     problems = list(extra_problems or [])
     if joined_count is None:
@@ -442,6 +457,11 @@ def cmd_finish(args):
         coverage_problems.append("k6 summary is missing per-endpoint-class http_reqs counts")
     coverage_problems.extend(coverage["problems"])
     coverage_problems.extend(window["problems"])
+    db_lock_snapshots = {
+        "start": db_lock_snapshot_status(start, "start"),
+        "end": db_lock_snapshot_status(end, "end"),
+    }
+    coverage_problems.extend(row["problem"] for row in db_lock_snapshots.values() if row["problem"])
     status = collection_status(len(nginx_rows), len(gunicorn_rows), joined_count, coverage_problems)
     collection_passed = status["collection_passed"]
     collection_problems = status["collection_problems"]
@@ -460,6 +480,7 @@ def cmd_finish(args):
         "k6_endpoint_request_counts": expected_counts,
         "endpoint_coverage": coverage["classes"],
         "window_coverage": window,
+        "db_lock_snapshots": db_lock_snapshots,
         "redis_cache_commandstats_delta": delta_commandstats((start.get("redis_cache_commandstats") or {}).get("stdout", ""), (end.get("redis_cache_commandstats") or {}).get("stdout", "")),
         "redis_queue_commandstats_delta": delta_commandstats((start.get("redis_queue_commandstats") or {}).get("stdout", ""), (end.get("redis_queue_commandstats") or {}).get("stdout", "")),
         "redis_cache_latency_end": latency_snapshot((end.get("redis_cache_latency") or {}).get("stdout", "") + (end.get("redis_cache_latency") or {}).get("stderr", "")),
