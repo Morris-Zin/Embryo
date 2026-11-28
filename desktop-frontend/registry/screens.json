@@ -531,6 +531,22 @@
             "Sales Invoice read"
           ],
           "mutation": false
+        },
+        {
+          "endpoint": "frappe.client.save",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice write"
+          ],
+          "mutation": true
+        },
+        {
+          "endpoint": "frappe.client.submit",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice submit"
+          ],
+          "mutation": true
         }
       ],
       "native_component": "InvoiceDetailScreen",
@@ -540,13 +556,14 @@
         "evidence/journeys/invoice-detail-multi-item.json",
         "evidence/journeys/invoice-detail-return.json",
         "evidence/journeys/invoice-detail-draft.json",
+        "evidence/journeys/invoice-detail-editable-draft.json",
         "evidence/journeys/invoice-list-permission-denied.json",
         "evidence/visual/invoice-detail-composite-list.png",
         "evidence/visual/invoice-detail-composite-detail.png",
         "experiments/0008-sales-invoice-detail-qualification.md"
       ],
       "failures": [
-        "editable draft save validation submit and item-grid interactions pending",
+        "draft validation and item-grid interactions pending",
         "detail tabs and document actions pending",
         "permission/keyboard/visual/performance evidence pending",
         "multi-item return paid and overdue invoice states pending"

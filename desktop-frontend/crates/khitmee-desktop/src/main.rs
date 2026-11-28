@@ -587,11 +587,14 @@ fn detail_string(doc: &serde_json::Value, key: &str) -> String {
 }
 
 fn detail_time(doc: &serde_json::Value, key: &str) -> String {
-    detail_string(doc, key)
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .to_owned()
+    let raw = detail_string(doc, key);
+    let time = raw.split('.').next().unwrap_or_default();
+    let parts = time.split(':').collect::<Vec<_>>();
+    if parts.len() == 3 {
+        format!("{:0>2}:{:0>2}:{:0>2}", parts[0], parts[1], parts[2])
+    } else {
+        time.to_owned()
+    }
 }
 
 fn detail_number(doc: &serde_json::Value, key: &str) -> f64 {
@@ -624,7 +627,16 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
         return;
     };
     match client.sales_invoice_detail(invoice_name) {
-        Ok(doc) => {
+        Ok(mut doc) => {
+            if let Some(time) = doc
+                .get("posting_time")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned)
+            {
+                let normalized =
+                    detail_time(&serde_json::json!({"posting_time": time}), "posting_time");
+                doc["posting_time"] = serde_json::json!(normalized);
+            }
             state.invoice_detail_doc = Some(doc.clone());
             state.invoice_detail_dirty = false;
             app.set_invoice_detail_dirty(false);

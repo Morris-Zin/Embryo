@@ -90,9 +90,7 @@ draft_name = ensure_invoice(
 )
 
 def ensure_editable_draft(side):
-    marker = f"migration-detail-editable-{side}-v1"
-    if existing := find_draft_invoice(marker):
-        return existing
+    marker = f"migration-detail-editable-{side}-v2"
     import time
     unique_marker = f"{marker}-{time.time_ns()}"
     return ensure_invoice(unique_marker, [("KM-00001", 1, 18.46)], submit=False)
