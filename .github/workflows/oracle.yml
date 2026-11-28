@@ -53,6 +53,18 @@ jobs:
             *) echo "invalid gp_1y" >&2; exit 2 ;;
           esac
 
+      # The runner distro shares one WSL VM (and its RAM) with the production
+      # distro.  The perf stack plus the 1.5 GiB oracle sidecar need ~3.5 GiB;
+      # refuse to start rather than push the VM into swap/OOM.
+      - name: Check available memory
+        run: |
+          avail_mib="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
+          echo "MemAvailable: ${avail_mib} MiB"
+          if [ "$avail_mib" -lt 3800 ]; then
+            echo "Not enough free memory in the WSL VM for the oracle gate" >&2
+            exit 2
+          fi
+
       # up.sh generates fresh passwords when perf-suite/docker/.env is missing,
       # which would not match the seeded MariaDB volume.  Reuse the runner's
       # persistent env file (the one used to provision and seed the stack).
@@ -86,5 +98,32 @@ jobs:
       # Fail-closed: tools/perf_parity.py --require-db exits non-zero when the bench
       # database is unavailable, executed_cases == 0, skipped_cases > 0, or
       # failed_cases > 0.
+      # Re-check right before the 1.5 GiB oracle sidecar starts: the stack is up
+      # now and production shares the same VM memory.
+      - name: Check memory for the oracle sidecar
+        run: |
+          avail_mib="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
+          echo "MemAvailable: ${avail_mib} MiB"
+          if [ "$avail_mib" -lt 1800 ]; then
+            echo "Not enough free memory for the 1.5 GiB oracle sidecar" >&2
+            exit 2
+          fi
+
       - name: Run required ERPNext oracle parity suite
         run: python3 tools/perf_parity.py --require-db --profile 2gb --gp-1y "$GP_1Y"
+
+      # Free the shared WSL VM's memory again; keeps the seeded volumes.
+      - name: Stop the perf stack
+        if: always()
+        run: |
+          # The oracle sidecar is a standalone `docker run`, outside Compose;
+          # remove any left behind by a cancelled or failed run first.
+          # A --rm sidecar may vanish between listing and removal; never let that
+          # skip the Compose teardown below.
+          sidecars="$(docker ps -aq --filter label=khitmee.perf.parity-sidecar=1 || true)"
+          if [ -n "$sidecars" ]; then docker rm -f $sidecars || true; fi
+          bash perf-suite/scripts/down.sh
+          if [ -n "$(docker ps -q --filter label=khitmee.perf.parity-sidecar=1)" ]; then
+            echo "oracle sidecar still running after teardown" >&2
+            exit 1
+          fi

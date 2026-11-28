@@ -134,7 +134,8 @@ services:
       PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-120}
       CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-50m}
     ports:
-      - "127.0.0.1:18086:8080"
+      # PERF_HTTP_PORT lets a second WSL distro (shared network) run the stack.
+      - "127.0.0.1:${PERF_HTTP_PORT:-18086}:8080"
     volumes:
       - perf-sites:/home/frappe/frappe-bench/sites
       - ./nginx-frappe.conf.template:/templates/nginx/frappe.conf.template:ro
