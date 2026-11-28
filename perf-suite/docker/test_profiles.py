@@ -15,8 +15,11 @@ import contextlib
 import io
 import json
 import math
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -652,6 +655,93 @@ class ProfileBudgetTest(unittest.TestCase):
     def test_budget_arithmetic_matches_adr_table(self):
         self.assertEqual(1568, sum(budget for budget in COMPONENT_MEMORY_BUDGETS_MIB.values()))
         self.assertEqual(2048, STEADY_STATE_MEMORY_BUDGET_MIB + OS_HEADROOM_MIB)
+
+
+_FAKE_CURL = r"""#!/usr/bin/env bash
+out=/dev/null; url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -w|-H|-b|-c|-X|--max-time|--data-urlencode) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+cat >/dev/null 2>&1 || true
+case "$url" in
+  */api/method/ping) code="$FAKE_PING" ;;
+  */api/method/login) code="$FAKE_LOGIN" ;;
+  *search_items*) code="$FAKE_SEARCH"; printf '%s' "$FAKE_SEARCH_BODY" > "$out" ;;
+esac
+printf '%s' "$code"
+"""
+
+_FAKE_DOCKER = r"""#!/usr/bin/env bash
+case "$1" in
+  ps) echo abc123 ;;
+  logs)
+    echo 'GET /api/method/ping 200 upstream_name=general'
+    echo 'GET /api/method/khitmee_ops.api.search.search_items 200 upstream_name=cashier'
+    ;;
+esac
+"""
+
+
+@unittest.skipUnless(sys.platform != "win32" and shutil.which("bash"), "needs POSIX bash")
+class GuestRouteVerifierBehaviourTest(unittest.TestCase):
+    """Finding route-verifier-accepts-failed-requests: nginx pool names alone must not PASS."""
+
+    def _run(self, ping="200", login="200", search="200", body='{"message": []}'):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "scripts").mkdir()
+            (root / "docker").mkdir()
+            (root / "bin").mkdir()
+            script = root / "scripts" / "check_guest_routes.sh"
+            script.write_bytes((DOCKER_DIR.parent / "scripts" / "check_guest_routes.sh").read_bytes())
+            (root / "docker" / ".env").write_text("ADMIN_PASSWORD=x\n", encoding="utf-8")
+            for name, text in (("curl", _FAKE_CURL), ("docker", _FAKE_DOCKER)):
+                exe = root / "bin" / name
+                exe.write_text(text, encoding="utf-8", newline="\n")
+                exe.chmod(0o755)
+            env = dict(os.environ)
+            env.update(
+                PATH=f"{root / 'bin'}{os.pathsep}{env.get('PATH', '')}",
+                FAKE_PING=ping,
+                FAKE_LOGIN=login,
+                FAKE_SEARCH=search,
+                FAKE_SEARCH_BODY=body,
+            )
+            return subprocess.run(
+                ["bash", str(script)],
+                env=env,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+    def test_all_routes_ok_passes(self):
+        result = self._run()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("PASS", result.stdout)
+
+    def test_failed_login_and_forbidden_search_fail_despite_pool_names(self):
+        result = self._run(login="401", search="403", body='{"exc_type": "PermissionError"}')
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("PASS", result.stdout)
+        self.assertIn("/api/method/login returned HTTP 401", result.stderr)
+
+    def test_failed_ping_fails(self):
+        result = self._run(ping="502")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("/api/method/ping returned HTTP 502", result.stderr)
+
+    def test_search_error_payload_fails_even_with_http_200(self):
+        result = self._run(body='{"exc_type": "ValidationError"}')
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("successful Frappe message payload", result.stderr)
 
 
 if __name__ == "__main__":

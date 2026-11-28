@@ -30,10 +30,19 @@ cleanup() {
 trap cleanup EXIT
 chmod 600 "$cookie_jar" "$search_response" 2>/dev/null || true
 
+require_http_ok() {
+  local route="$1" status="$2"
+  if [[ "$status" != "200" ]]; then
+    echo "FAIL: $route returned HTTP $status (expected 200)" >&2
+    exit 1
+  fi
+}
+
 general_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
   -H "Host: $SITE_NAME" \
   "$base_url/api/method/ping")"
 printf 'general_route=/api/method/ping status=%s\n' "$general_status"
+require_http_ok /api/method/ping "$general_status"
 
 login_status="$(printf '%s' "$ADMIN_PASSWORD" | curl -sS --max-time 10 -X POST \
   -o /dev/null -w '%{http_code}' \
@@ -43,6 +52,7 @@ login_status="$(printf '%s' "$ADMIN_PASSWORD" | curl -sS --max-time 10 -X POST \
   --data-urlencode "pwd@-" \
   "$base_url/api/method/login")"
 printf 'login_route=/api/method/login status=%s\n' "$login_status"
+require_http_ok /api/method/login "$login_status"
 
 search_url="$base_url/api/method/khitmee_ops.api.search.search_items?q=KM-00001&warehouse=Shop%201%20-%20KMD&price_list=Standard%20Selling&limit=5"
 cashier_status="$(curl -sS --max-time 15 -o "$search_response" -w '%{http_code}' \
@@ -50,6 +60,11 @@ cashier_status="$(curl -sS --max-time 15 -o "$search_response" -w '%{http_code}'
   -b "$cookie_jar" \
   "$search_url")"
 printf 'cashier_route=/api/method/khitmee_ops.api.search.search_items status=%s\n' "$cashier_status"
+require_http_ok /api/method/khitmee_ops.api.search.search_items "$cashier_status"
+if ! grep -q '"message"' "$search_response" || grep -q '"exc_type"' "$search_response"; then
+  echo "FAIL: cashier search did not return a successful Frappe message payload" >&2
+  exit 1
+fi
 
 frontend_id="$(docker ps \
   --filter "label=com.docker.compose.project=$PROJECT_NAME" \
