@@ -788,10 +788,15 @@ class TestScenario3FindingsSafeguardsAndZeroReviewer(unittest.TestCase):
         record_shard_pass(self.repo, run_id, "s1", head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
         with self.assertRaisesRegex(GuardError, "does not flag"):
             record_safeguard(self.repo, run_id, "F1", **options)
+        rule_source = (self.repo / artifact).read_text(encoding="utf-8")
         _write_lf(self.repo / artifact, "RULES = []\n")
         with self.assertRaisesRegex(GuardError, "check out the gated rule"):
             record_safeguard(self.repo, run_id, "F1", **options)
-        _git(self.repo, "restore", artifact)
+        _git(self.repo, "commit", "-am", "Remove the named rule")
+        record_shard_pass(self.repo, run_id, "s1", head_sha=_git(self.repo, "rev-parse", "HEAD"), lock_dir=self.lock_dir)
+        with self.assertRaisesRegex(GuardError, "expected exactly one registered rule"):
+            record_safeguard(self.repo, run_id, "F1", **options)
+        _write_lf(self.repo / artifact, rule_source)
         _write_lf(self.repo / fixture, "BAD\n")
         _git(self.repo, "commit", "-am", "Make fixture exercise the rule")
         head = _git(self.repo, "rev-parse", "HEAD")

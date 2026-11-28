@@ -1,4 +1,5 @@
 # Enforce LF line endings on autonomous loop tooling, rules, skills, workflows, and agent instructions.
+.gitattributes text eol=lf
 tools/autoloop/** text eol=lf
 .autoloop/** text eol=lf
 .devin/skills/autoloop/** text eol=lf
