@@ -18,6 +18,10 @@ import time
 from datetime import datetime, timezone
 
 PROJECT = "khitmee-perf"
+# At least 95% of nginx upstream rows must join to a Gunicorn application
+# record. This allows a small amount of infrastructure/probe noise while
+# rejecting disjoint request-id streams or systematically unparsed app logs.
+MIN_JOIN_RATIO = 0.95
 
 
 def utcnow():
@@ -249,11 +253,25 @@ def delta_locks(before_text, after_text):
     }
 
 
-def collection_status(nginx_count, gunicorn_count):
+def collection_status(nginx_count, gunicorn_count, joined_count=None):
     problems = []
+    if joined_count is None:
+        joined_count = min(nginx_count, gunicorn_count)
+    join_ratio = (joined_count / nginx_count) if nginx_count else 0.0
+    if not nginx_count:
+        problems.append("nginx attribution log missing, unreadable, or contains no upstream rows")
     if nginx_count and not gunicorn_count:
         problems.append("nginx upstream attribution rows exist but zero Gunicorn application records parsed")
-    return {"collection_passed": not problems, "collection_problems": problems}
+    if nginx_count and joined_count <= 0:
+        problems.append("zero nginx upstream requests joined to Gunicorn application records")
+    if nginx_count and join_ratio < MIN_JOIN_RATIO:
+        problems.append(f"request-id join ratio {join_ratio:.3f} is below required minimum {MIN_JOIN_RATIO:.2f}")
+    return {
+        "collection_passed": not problems,
+        "collection_problems": problems,
+        "join_ratio": join_ratio,
+        "minimum_join_ratio": MIN_JOIN_RATIO,
+    }
 
 
 def cmd_start(args):
@@ -288,17 +306,20 @@ def cmd_finish(args):
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(joined)
-    status = collection_status(len(nginx_rows), len(gunicorn_rows))
+    joined_count = len(joined) - missing
+    status = collection_status(len(nginx_rows), len(gunicorn_rows), joined_count)
     collection_passed = status["collection_passed"]
     collection_problems = status["collection_problems"]
     summary = {
         "schema_version": "seasonal-request-attribution-v2",
         "collection_passed": collection_passed,
         "collection_problems": collection_problems,
+        "join_ratio": status["join_ratio"],
+        "minimum_join_ratio": status["minimum_join_ratio"],
         "queue_time_semantics": "estimated_dispatch_to_entry_ms = nginx upstream_response_time minus Gunicorn service duration; includes transport/proxy dispatch and is not a true nginx upstream_queue_time",
         "nginx_rows": len(nginx_rows),
         "gunicorn_rows": len(gunicorn_rows),
-        "joined_rows": len(joined) - missing,
+        "joined_rows": joined_count,
         "unjoined_nginx_rows": missing,
         "endpoint_classes": endpoint_summary(joined),
         "redis_cache_commandstats_delta": delta_commandstats((start.get("redis_cache_commandstats") or {}).get("stdout", ""), (end.get("redis_cache_commandstats") or {}).get("stdout", "")),

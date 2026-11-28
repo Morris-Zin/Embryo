@@ -275,10 +275,30 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(locks["row_lock_time_ms_delta"], 900)
             (root / "gunicorn.log").write_text("r1|search|GET|api/method/search|q=x|200|100000|not-a-pid" + chr(10))
             self.assertEqual(module.parse_gunicorn_log(root / "gunicorn.log"), {})
-            status = module.collection_status(1, 0)
+            status = module.collection_status(1, 0, 0)
             self.assertFalse(status["collection_passed"])
             self.assertIn("zero Gunicorn application records", status["collection_problems"][0])
             self.assertIn("return 0 if collection_passed else 1", (ROOT / "attribution.py").read_text(encoding="utf-8"))
+
+            # Red/green join evidence: the old collector accepted zero joined
+            # rows whenever at least one app record parsed, while the new
+            # collector requires positive joins and a documented 95% ratio.
+            old_zero_join_predicate_passed = bool(10 and 10)
+            self.assertTrue(old_zero_join_predicate_passed)
+            fully_joined = module.collection_status(10, 10, 10)
+            self.assertTrue(fully_joined["collection_passed"])
+            disjoint = module.collection_status(10, 10, 0)
+            self.assertFalse(disjoint["collection_passed"])
+            self.assertIn("zero nginx upstream requests joined", " ".join(disjoint["collection_problems"]))
+            partial = module.collection_status(20, 20, 18)
+            self.assertAlmostEqual(partial["join_ratio"], 0.9)
+            self.assertFalse(partial["collection_passed"])
+            self.assertIn("below required minimum 0.95", " ".join(partial["collection_problems"]))
+            passing = module.collection_status(20, 20, 19)
+            self.assertTrue(passing["collection_passed"], passing["collection_problems"])
+            empty = module.collection_status(0, 0, 0)
+            self.assertFalse(empty["collection_passed"])
+            self.assertIn("missing, unreadable, or contains no upstream rows", " ".join(empty["collection_problems"]))
 
 
     def test_preflight_evaluator_requires_every_step_status_and_denial(self):
@@ -356,6 +376,19 @@ class QualifyEntryPointTests(unittest.TestCase):
             }))
         config = {"profile": profile, "managers_enabled": True, "phases": [{"name": "baseline", "phase": "baseline", "duration_seconds": 3600}]}
         (artifact / "k6.log").write_text("noise KHITMEE_SEASONAL_EVENT " + json.dumps({"event": "config", "config": config}) + chr(10))
+        attribution_dir = artifact / "attribution"
+        attribution_dir.mkdir(exist_ok=True)
+        (attribution_dir / "attribution-summary.json").write_text(json.dumps({
+            "schema_version": "seasonal-request-attribution-v2",
+            "collection_passed": True,
+            "collection_problems": [],
+            "nginx_rows": 20,
+            "gunicorn_rows": 20,
+            "joined_rows": 20,
+            "unjoined_nginx_rows": 0,
+            "join_ratio": 1.0,
+            "minimum_join_ratio": 0.95,
+        }))
 
     def decision_module(self):
         spec = importlib.util.spec_from_file_location("qualification_decision", ROOT / "qualification_decision.py")
@@ -442,6 +475,29 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertIn('K6_DOCKER_HOST="${K6_DOCKER_HOST:-}"', runner)
         self.assertIn('k6_docker network inspect', runner)
         self.assertIn('k6_docker "${DOCKER_CMD[@]}"', runner)
+
+    def test_failed_or_missing_attribution_collection_blocks_qualification(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            summary = Path(td) / "attribution" / "attribution-summary.json"
+            data = json.loads(summary.read_text())
+            data["collection_passed"] = False
+            data["collection_problems"] = ["zero Gunicorn application records parsed"]
+            summary.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["attribution_collection_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("attribution collection", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            # The pre-fix decision had no attribution input at all, so this
+            # missing file shape would not have blocked qualification.
+            (Path(td) / "attribution" / "attribution-summary.json").unlink()
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["attribution_collection_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_smoke_workload_pass_can_never_qualify_as_2gb(self):
         module = self.decision_module()

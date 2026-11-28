@@ -120,6 +120,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     oracle = load_json(artifact / 'oracle-evidence.json')
     fixture_restore = load_json(artifact / 'fixture-restore.json')
     load_generator = load_json(artifact / 'load-generator-attestation.json')
+    attribution = load_json(artifact / 'attribution' / 'attribution-summary.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -187,6 +188,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     load_generator_ok = load_generator.get('schema_version') == 'seasonal-load-generator-attestation-v1' and load_generator.get('passed') is True and load_generator.get('off_guest') is True
     if not load_generator_ok:
         evidence_problems.append('off-guest k6 load-generator attestation missing, failed, or diagnostic only')
+    attribution_ok = attribution.get('collection_passed') is True
+    if not attribution_ok:
+        evidence_problems.append('request attribution collection evidence missing or failed')
     actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
     fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
@@ -250,6 +254,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'load_generator_attestation': load_generator.get('attestation'),
         'load_generator_endpoint': load_generator.get('generator_endpoint'),
         'load_generator_daemon_identity': load_generator.get('generator_daemon_identity'),
+        'attribution_collection_ok': attribution_ok,
+        'attribution_collection_problems': attribution.get('collection_problems', []),
+        'attribution_join_ratio': attribution.get('join_ratio'),
         'resource_window_ok': resource_window_ok,
         'resource_window_problems': window['problems'],
         'qualification_resource_measurement_ok': resource_measurement_ok,
