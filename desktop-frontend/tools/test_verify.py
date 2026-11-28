@@ -3,13 +3,36 @@
 from __future__ import annotations
 
 import json
+import binascii
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
-from png_codec import write_png_rgba
+from png_codec import PNG_SIGNATURE, write_png_rgba
+
+
+
+def png_chunk(kind: bytes, payload: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(payload))
+        + kind
+        + payload
+        + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
+    )
+
+
+def write_rgb_png(path: Path, red: int, green: int, blue: int, transparent: bool) -> None:
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    chunks = [png_chunk(b"IHDR", ihdr)]
+    if transparent:
+        chunks.append(png_chunk(b"tRNS", struct.pack(">HHH", red, green, blue)))
+    chunks.append(png_chunk(b"IDAT", zlib.compress(b"\x00" + bytes((red, green, blue)))))
+    chunks.append(png_chunk(b"IEND", b""))
+    path.write_bytes(PNG_SIGNATURE + b"".join(chunks))
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,6 +123,29 @@ class VerifyHarnessTest(unittest.TestCase):
             visual = report["results"][0]["states"][0]["checks"]["visual-comparison"]
             self.assertFalse(visual["passed"])
             self.assertEqual(visual["failedPixels"], 1)
+
+    def test_rgb_transparency_key_is_a_visual_difference(self):
+        with tempfile.TemporaryDirectory() as raw:
+            tmp = Path(raw)
+            reference = tmp / "reference.png"
+            native = tmp / "native.png"
+            write_rgb_png(reference, 255, 0, 0, transparent=True)
+            write_rgb_png(native, 255, 0, 0, transparent=False)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "compare_screenshots.py"),
+                    str(reference),
+                    str(native),
+                    "--report",
+                    str(tmp / "compare.json"),
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stderr + result.stdout)
+            report = json.loads((tmp / "compare.json").read_text())
+            self.assertEqual(report["failedPixels"], 1)
 
     def test_missing_behavioral_keyboard_evidence_fails(self):
         with tempfile.TemporaryDirectory() as raw:

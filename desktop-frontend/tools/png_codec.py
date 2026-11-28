@@ -115,13 +115,18 @@ def read_png_rgba(path: Path) -> tuple[int, int, bytes]:
     for y, row in enumerate(rows):
         out = y * width * 4
         if color_type == 0:
+            transparent_gray = struct.unpack(">H", transparency[:2])[0] if len(transparency) >= 2 else None
             for x, gray in enumerate(row):
-                rgba[out : out + 4] = bytes((gray, gray, gray, 255))
+                alpha = 0 if transparent_gray == gray else 255
+                rgba[out : out + 4] = bytes((gray, gray, gray, alpha))
                 out += 4
         elif color_type == 2:
+            transparent_rgb = struct.unpack(">HHH", transparency[:6]) if len(transparency) >= 6 else None
             for x in range(width):
                 src = x * 3
-                rgba[out : out + 4] = row[src : src + 3] + b"\xff"
+                rgb = row[src : src + 3]
+                alpha = 0 if transparent_rgb == tuple(rgb) else 255
+                rgba[out : out + 4] = rgb + bytes((alpha,))
                 out += 4
         elif color_type == 3:
             if not palette:
