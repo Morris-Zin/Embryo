@@ -674,61 +674,68 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                     true,
                 ),
                 (
-                    "Update Stock",
-                    detail_check(&doc, "update_stock"),
-                    2,
-                    1,
+                    "Scan Barcode",
+                    String::new(),
+                    0,
+                    0,
                     false,
                 ),
                 (
                     "Source Warehouse",
                     detail_string(&doc, "set_warehouse"),
+                    1,
                     0,
+                    false,
+                ),
+                (
+                    "Update Stock",
+                    detail_check(&doc, "update_stock"),
                     2,
+                    0,
                     false,
                 ),
                 (
                     "Total Quantity",
                     qty(detail_number(&doc, "total_qty")),
-                    1,
-                    2,
+                    0,
+                    0,
                     true,
                 ),
-                ("Total (USD)", detail_money(&doc, "total"), 2, 2, true),
+                ("Total (USD)", detail_money(&doc, "total"), 2, 0, true),
                 (
                     "Grand Total (USD)",
                     detail_money(&doc, "grand_total"),
                     0,
-                    3,
+                    1,
                     true,
                 ),
-                ("In Words", detail_string(&doc, "in_words"), 1, 3, false),
+                ("In Words", detail_string(&doc, "in_words"), 1, 1, false),
                 (
                     "Rounding Adjustment (USD)",
                     detail_money(&doc, "rounding_adjustment"),
                     2,
-                    3,
+                    1,
                     false,
                 ),
                 (
                     "Rounded Total (USD)",
                     detail_money(&doc, "rounded_total"),
                     0,
-                    4,
+                    2,
                     true,
                 ),
                 (
                     "Total Advance (USD)",
                     detail_money(&doc, "total_advance"),
                     1,
-                    4,
+                    2,
                     false,
                 ),
                 (
                     "Outstanding Amount (USD)",
                     detail_money(&doc, "outstanding_amount"),
                     2,
-                    4,
+                    2,
                     true,
                 ),
             ]
@@ -738,6 +745,23 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                 value: value.into(),
                 column,
                 row,
+                section: if matches!(label, "Scan Barcode" | "Source Warehouse" | "Update Stock") {
+                    1
+                } else if matches!(
+                    label,
+                    "Total Quantity"
+                        | "Total (USD)"
+                        | "Grand Total (USD)"
+                        | "In Words"
+                        | "Rounding Adjustment (USD)"
+                        | "Rounded Total (USD)"
+                        | "Total Advance (USD)"
+                        | "Outstanding Amount (USD)"
+                ) {
+                    2
+                } else {
+                    0
+                },
                 emphasized,
                 editable: detail_number(&doc, "docstatus") == 0.0
                     && matches!(

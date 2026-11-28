@@ -573,7 +573,11 @@
         "evidence/visual/invoice-detail-composite-list.png",
         "evidence/visual/invoice-detail-composite-detail.png",
         "experiments/0008-sales-invoice-detail-qualification.md",
-        "evidence/benchmarks/invoice-detail-comparison.json"
+        "evidence/benchmarks/invoice-detail-comparison.json",
+        "evidence/journeys/invoice-detail-layout-regression.json",
+        "evidence/visual/invoice-detail-web-current.png",
+        "evidence/visual/invoice-detail-native-current.png",
+        "evidence/visual/invoice-detail-composite-current.png"
       ],
       "failures": [
         "comprehensive server-side validation matrix pending",

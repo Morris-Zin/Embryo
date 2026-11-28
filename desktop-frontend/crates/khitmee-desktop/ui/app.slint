@@ -34,6 +34,7 @@ export struct DetailField {
     value: string,
     column: int,
     row: int,
+    section: int,
     emphasized: bool,
     editable: bool,
 }
@@ -1265,8 +1266,16 @@ component InvoiceDetailScreen inherits Rectangle {
     property <length> content-x: 240px;
     property <length> content-width: root.width - root.content-x;
     property <length> column-width: (root.content-width - 88px) / 3;
-    property <length> items-top: 410px;
-    property <length> detail-content-height: 535px + root.detail-items.length * 38px + (root.detail-editing-index >= 0 ? 48px : 0px);
+    property <length> items-top: 150px;
+    property <length> scan-top: root.items-top + 34px;
+    property <length> grid-header-top: root.scan-top + 58px;
+    property <length> row-top: root.grid-header-top + 34px;
+    property <length> row-extra: root.detail-editing-index >= 0 ? 48px : 0px;
+    property <length> actions-top: root.row-top + root.detail-items.length * 38px + root.row-extra + 8px;
+    property <length> taxes-top: root.actions-top + 44px;
+    property <length> totals-heading-top: root.taxes-top + 44px;
+    property <length> totals-top: root.totals-heading-top + 30px;
+    property <length> detail-content-height: root.totals-top + 176px;
     property <string> display-status: root.detail-dirty ? "Not Saved" : root.detail-status;
 
     Rectangle { x: 0px; y: 0px; width: 57px; height: parent.height; background: #ffffff; border-color: #e4e7ec; border-width: 1px; }
@@ -1281,8 +1290,14 @@ component InvoiceDetailScreen inherits Rectangle {
     DetailNavItem { x: 61px; y: 228px; width: 171px; text: "Journal Entry"; }
 
     Rectangle { x: root.content-x; y: 0px; width: root.content-width; height: parent.height; background: #ffffff; }
-    Text { x: root.content-x + 20px; y: 10px; width: 170px; height: 28px; text: root.detail-title; color: Design.text; font-size: 16px; font-weight: 700; vertical-alignment: center; accessible-label: root.detail-title; }
-    Text { x: root.content-x + 20px; y: 39px; width: 280px; height: 24px; text: root.detail-customer-title; color: Design.text; font-size: 15px; font-weight: 650; vertical-alignment: center; accessible-label: root.detail-customer-title; }
+    Rectangle {
+        x: root.content-x + 14px; y: 10px; width: 32px; height: 32px;
+        border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;
+        touch := TouchArea { clicked => { root.back-to-list(); } }
+        Text { width: parent.width; height: parent.height; text: "‹"; color: Design.text; font-size: 20px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+    Text { x: root.content-x + 58px; y: 10px; width: 170px; height: 28px; text: root.detail-title; color: Design.text; font-size: 16px; font-weight: 700; vertical-alignment: center; accessible-label: root.detail-title; }
+    Text { x: root.content-x + 58px; y: 39px; width: 280px; height: 24px; text: root.detail-customer-title; color: Design.text; font-size: 15px; font-weight: 650; vertical-alignment: center; accessible-label: root.detail-customer-title; }
     Rectangle {
         x: root.content-x + 20px; y: 66px; width: 78px; height: 22px;
         border-radius: 11px; background: #fff1f3; border-color: #fecdd3; border-width: 1px;
@@ -1290,19 +1305,13 @@ component InvoiceDetailScreen inherits Rectangle {
         Text { width: parent.width; height: parent.height; text: root.display-status; color: #c01048; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
     }
     Text { x: root.content-x + 107px; y: 66px; width: 190px; height: 22px; text: root.detail-name; color: Design.muted; font-size: 11px; vertical-alignment: center; accessible-label: root.detail-name; }
-    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; visible: root.detail-error-text == "" && root.detail-status != "Cancelled"; }
-    BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft" && root.detail-status != "Cancelled"; clicked => { root.detail-cancel(); } }
-    Rectangle {
-        x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
-        border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;
-        touch := TouchArea { clicked => { root.back-to-list(); } }
-        Text { width: parent.width; height: parent.height; text: "Back"; color: Design.text; font-size: 12px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
-    }
+    BrowserButton { x: root.content-x + root.content-width - 164px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 428px; y: 13px; width: 86px; height: 32px; text: "Create"; visible: root.detail-error-text == "" && root.detail-status != "Cancelled"; }
+    BrowserButton { x: root.content-x + root.content-width - 336px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 242px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 76px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
+    BrowserButton { x: root.content-x + root.content-width - 76px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
+    BrowserButton { x: root.content-x + root.content-width - 76px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft" && root.detail-status != "Cancelled"; clicked => { root.detail-cancel(); } }
 
     Rectangle { x: root.content-x + 18px; y: 91px; width: root.content-width - 36px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 7px; }
     for tab[index] in ["Details", "Payments", "Address & Contact", "Terms", "More Info", "Connections"]: Text {
@@ -1343,21 +1352,22 @@ component InvoiceDetailScreen inherits Rectangle {
             field: field;
             column-width: root.column-width;
             x: 20px + field.column * (root.column-width + 12px);
-            y: 12px + field.row * 58px;
+            y: field.section == 0 ? 12px + field.row * 58px : field.section == 1 ? root.scan-top + field.row * 44px : root.totals-top + field.row * 58px;
             edited(label, value) => { root.detail-field-edited(label, value); }
         }
 
-        Text { x: 20px; y: 303px; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
-        Rectangle { x: 20px; y: 331px; width: root.content-width - 40px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
-        Text { x: 28px; y: 331px; width: 34px; height: 34px; text: "No."; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
-        Text { x: 70px; y: 331px; width: root.column-width + 70px; height: 34px; text: "Item"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
-        Text { x: root.content-width - 430px; y: 331px; width: 70px; height: 34px; text: "Quantity"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
-        Text { x: root.content-width - 350px; y: 331px; width: 88px; height: 34px; text: "Rate (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
-        Text { x: root.content-width - 252px; y: 331px; width: 96px; height: 34px; text: "Amount (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
-        Text { x: root.content-width - 146px; y: 331px; width: 120px; height: 34px; text: "Warehouse"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: 20px; y: 124px; width: 240px; height: 24px; text: "Currency and Price List  ›"; color: Design.text; font-size: 13px; font-weight: 650; vertical-alignment: center; accessible-label: "Currency and Price List"; }
+        Text { x: 20px; y: root.items-top; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
+        Rectangle { x: 20px; y: root.grid-header-top; width: root.content-width - 40px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
+        Text { x: 28px; y: root.grid-header-top; width: 34px; height: 34px; text: "No."; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: 70px; y: root.grid-header-top; width: root.column-width + 70px; height: 34px; text: "Item"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: root.content-width - 430px; y: root.grid-header-top; width: 70px; height: 34px; text: "Quantity"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+        Text { x: root.content-width - 350px; y: root.grid-header-top; width: 88px; height: 34px; text: "Rate (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
+        Text { x: root.content-width - 252px; y: root.grid-header-top; width: 96px; height: 34px; text: "Amount (USD)"; color: Design.muted; font-size: 11px; font-weight: 700; horizontal-alignment: right; vertical-alignment: center; }
+        Text { x: root.content-width - 146px; y: root.grid-header-top; width: 120px; height: 34px; text: "Warehouse"; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
 
         for item[index] in root.detail-items: Rectangle {
-            x: 20px; y: 365px + index * 38px + (root.detail-editing-index >= 0 && index > root.detail-editing-index ? 48px : 0px); width: root.content-width - 40px; height: root.detail-editing-index == index ? 86px : 38px;
+            x: 20px; y: root.row-top + index * 38px + (root.detail-editing-index >= 0 && index > root.detail-editing-index ? 48px : 0px); width: root.content-width - 40px; height: root.detail-editing-index == index ? 86px : 38px;
             background: #ffffff; border-color: #eef2f6; border-width: 1px;
             accessible-role: list-item;
             accessible-label: "\{item.index-text} \{item.item-text} \{item.qty-text} \{item.rate-text} \{item.amount-text} \{item.warehouse}";
@@ -1393,7 +1403,7 @@ component InvoiceDetailScreen inherits Rectangle {
         }
 
         if root.detail-status == "Draft" && root.detail-error-text == "": Rectangle {
-            x: 20px; y: 373px + root.detail-items.length * 38px + (root.detail-editing-index >= 0 ? 48px : 0px); width: root.content-width - 40px; height: 42px;
+            x: 20px; y: root.actions-top; width: root.content-width - 40px; height: 42px;
             BrowserButton { x: 0px; y: 0px; width: 86px; height: 30px; text: "Add row"; visible: !root.detail-item-selected; clicked => { root.detail-item-add(); } }
             BrowserButton { x: 94px; y: 0px; width: 112px; height: 30px; text: "Add multiple"; visible: !root.detail-item-selected; enabled: false; }
             BrowserButton { x: 0px; y: 0px; width: 100px; height: 30px; text: "Delete row"; visible: root.detail-item-selected; clicked => { root.detail-item-delete(); } }
@@ -1402,6 +1412,9 @@ component InvoiceDetailScreen inherits Rectangle {
             BrowserButton { x: 214px; y: 0px; width: 78px; height: 30px; text: "Upload"; visible: !root.detail-item-selected; enabled: false; }
             BrowserButton { x: 328px; y: 0px; width: 78px; height: 30px; text: "Upload"; visible: root.detail-item-selected; enabled: false; }
         }
+
+        Text { x: 20px; y: root.taxes-top; width: 240px; height: 26px; text: "Taxes and Charges  ›"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Taxes and Charges"; }
+        Text { x: 20px; y: root.totals-heading-top; width: 240px; height: 26px; text: "Totals (USD)"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Totals (USD)"; }
     }
 }
 
