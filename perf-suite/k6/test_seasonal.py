@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "seasonal"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -385,8 +386,9 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         events = []
         for phase in ("baseline", "margin", "recovery"):
             for voucher_type in ("sale", "transfer", "purchase_receipt", "purchase_invoice"):
-                line_count = 200 if voucher_type == "sale" else 10
-                events.append(complete_event(f"{phase}-{voucher_type}", "V-1", voucher_type, line_count, phase))
+                line_counts = (10, 50, 200) if voucher_type == "sale" else (50,)
+                for line_count in line_counts:
+                    events.append(complete_event(f"{phase}-{voucher_type}-{line_count}", "V-1", voucher_type, line_count, phase))
             events.append({
                 "event": "manager_detail_reject",
                 "phase": phase,
@@ -671,6 +673,91 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         )
         self.assertEqual(evaluate_seasonal.canonical_json_text({"n": 1.0}), '{"n":1}')
 
+
+    def test_sale_basket_latency_classes_are_independent_and_missing_classes_fail(self):
+        def sale_events():
+            events = []
+            for phase in ("baseline", "margin", "recovery"):
+                for line_count in (10, 200):
+                    events.append(complete_event(f"{phase}-sale-{line_count}", "V", "sale", line_count, phase))
+                for index in range(20):
+                    event = complete_event(f"{phase}-sale-50-{index}", "V", "sale", 50, phase)
+                    event["duration_ms"] = 2000 if index >= 18 else 100
+                    events.append(event)
+                for voucher_type in ("transfer", "purchase_receipt", "purchase_invoice"):
+                    events.append(complete_event(f"{phase}-{voucher_type}", "V", voucher_type, 50, phase))
+            return events
+
+        gate = evaluate_seasonal.voucher_latency_gate(events_bundle(sale_events()))
+        self.assertEqual(gate.status, "FAIL", gate)
+        self.assertIn("sale/50-lines", gate.detail)
+        self.assertIn("baseline/sale/50-lines: 2000.0 ms (n=20)", gate.observed)
+
+        missing_50 = [event for event in sale_events() if not (event["type"] == "sale" and event["line_count"] == 50)]
+        missing_gate = evaluate_seasonal.voucher_latency_gate(events_bundle(missing_50))
+        self.assertEqual(missing_gate.status, "FAIL", missing_gate)
+        self.assertIn("sale/50-lines: no data (n=0)", missing_gate.observed)
+
+    def test_cashier_only_cli_verdict_uses_shared_actor_gate(self):
+        config = {
+            "run_prefix": "K6S-test-",
+            "managers_enabled": False,
+            "export_enabled": False,
+            "actors": {"cashier": {"actor": "cashier", "user": "cashier@test.invalid", "authorization": "submit"}},
+            "report_windows": self.report_windows(),
+            "phases": [],
+        }
+        mismatch = {"event": "voucher_start", "actor": "cashier", "actor_user": "wrong@test.invalid", "client_voucher_id": "x"}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            log = root / "k6.log"
+            log.write_text(
+                "noise KHITMEE_SEASONAL_EVENT " + json.dumps({"event": "config", "config": config}) + chr(10)
+                + "noise KHITMEE_SEASONAL_EVENT " + json.dumps(mismatch) + chr(10)
+            )
+            summary = root / "summary.json"
+            summary.write_text('{"metrics": {}}')
+            stats = root / "stats.csv"
+            stats.write_text('')
+            args = SimpleNamespace(
+                k6_log=str(log), k6_summary=str(summary), stats_csv=str(stats), verification=None,
+                attribution=None, cashier_only=True, run_label="actor-regression",
+            )
+
+            def passing_gate(*_args, **_kwargs):
+                return evaluate_seasonal.Gate("pass", "PASS", "ok", "required")
+
+            originals = {}
+            replacements = {
+                "discovery_gate": passing_gate,
+                "report_window_gate": passing_gate,
+                "offered_counts_gate": lambda *_a, **_k: (evaluate_seasonal.Gate("counts", "PASS", "ok", "required"), []),
+                "per_minute_mix_gate": passing_gate,
+                "approved_margin_rate_gate": passing_gate,
+                "voucher_latency_gate": passing_gate,
+                "contention_gate": passing_gate,
+                "latency_gate": lambda name, *_a, **_k: evaluate_seasonal.Gate(name, "PASS", "ok", "required"),
+                "correctness_gate": passing_gate,
+                "retry_identity_gate": passing_gate,
+                "workflow_completion_gate": passing_gate,
+                "overload_failure_gate": passing_gate,
+                "recovery_gate": passing_gate,
+                "memory_gates": lambda *_a, **_k: [],
+                "summary_gate": passing_gate,
+                "detail_gate": passing_gate,
+                "export_gate": passing_gate,
+                "comparable_manager_output_gate": passing_gate,
+            }
+            for name, replacement in replacements.items():
+                originals[name] = getattr(evaluate_seasonal, name)
+                setattr(evaluate_seasonal, name, replacement)
+            try:
+                verdict, _markdown = evaluate_seasonal.evaluate(args)
+            finally:
+                for name, original in originals.items():
+                    setattr(evaluate_seasonal, name, original)
+        self.assertEqual(verdict, "NO-GO")
+        self.assertIn("Authorized exact distinct actor users", evaluate_seasonal.CASHIER_REQUIRED_GATE_NAMES)
 
 class SeasonalPlanNodeTests(unittest.TestCase):
     def context(self):

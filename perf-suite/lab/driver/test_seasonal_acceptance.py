@@ -53,3 +53,13 @@ class SeasonalEvidenceTests(unittest.TestCase):
         events[0]["result_sha256"] = "c"*64
         with self.assertRaisesRegex(ValueError, "stock report mismatch"):
             acceptance.compare_manager_outputs(reference, req, events)
+
+    def test_sale_baskets_are_not_pooled_in_acceptance_metrics(self):
+        done = [{"event": "voucher_complete", "type": "sale", "line_count": 10, "duration_ms": 100} for _ in range(54)]
+        done += [{"event": "voucher_complete", "type": "sale", "line_count": 50, "duration_ms": 100} for _ in range(18)]
+        done += [{"event": "voucher_complete", "type": "sale", "line_count": 50, "duration_ms": 2000} for _ in range(2)]
+        done += [{"event": "voucher_complete", "type": "sale", "line_count": 200, "duration_ms": 100} for _ in range(4)]
+        metrics = acceptance.sale_basket_p95(done)
+        self.assertEqual(metrics[10], 100)
+        self.assertEqual(metrics[50], 2000)
+        self.assertEqual(metrics[200], 100)

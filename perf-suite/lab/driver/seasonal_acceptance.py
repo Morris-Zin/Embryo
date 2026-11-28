@@ -59,6 +59,14 @@ def p95(values):
     return sorted(values)[math.ceil(.95 * len(values)) - 1]
 
 
+def sale_basket_p95(done):
+    """Independent sale-basket p95 values; pooling them masks slow medium/large baskets."""
+    return {
+        lines: p95([e["duration_ms"] for e in done if e["type"] == "sale" and e["line_count"] == lines])
+        for lines in (10, 50, 200)
+    }
+
+
 def score(events):
     configs = [e["config"] for e in events if e["event"] == "config"]
     need(len(configs) == 1 and configs[0]["profile"] == "acceptance", "expected full acceptance workload")
@@ -90,11 +98,13 @@ def score(events):
             minute_docs = [e for e in done if e["minute"] == minute]
             shops = {e["warehouse"] for e in minute_docs if e["contention"] and e["type"] == "sale"}
             need(len(shops) == 6, "missing six-shop contention burst")
-        for kind, field in (("sale","sale"), ("transfer","transfer"), ("purchase_receipt","receipt"),
+        basket = sale_basket_p95(done)
+        for lines in (10, 50, 200):
+            latency.setdefault(f"sale_{lines}_p95_ms", []).append(basket[lines])
+        for kind, field in (("transfer","transfer"), ("purchase_receipt","receipt"),
                             ("purchase_invoice","purchase_invoice")):
             latency.setdefault(field + "_p95_ms", []).append(p95([e["duration_ms"] for e in done if e["type"] == kind]))
-        latency.setdefault("large_sale_p95_ms", []).append(p95([e["duration_ms"] for e in done
-                                                              if e["type"] == "sale" and e["line_count"] == 200]))
+        latency.setdefault("large_sale_p95_ms", []).append(basket[200])
         for event, field, key, minimum in (("search_complete","search","duration_ms",count*80),
                                            ("manager_detail","detail","first_50_duration_ms",count*2)):
             values = [e[key] for e in window if e["event"] == event]

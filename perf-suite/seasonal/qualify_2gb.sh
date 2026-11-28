@@ -25,6 +25,8 @@ OWNER="seasonal_harness"
 APP_TREE="$REPO_ROOT"
 APP_REF=""
 PREFLIGHT_ONLY=0
+ORACLE_COMMAND=""
+CGROUP_PARENT="/sys/fs/cgroup/khitmee-2gb.slice"
 
 usage() {
   cat <<'EOF'
@@ -43,6 +45,8 @@ Options:
   --app-tree PATH                               Clean git checkout containing apps/khitmee_ops (default this checkout)
   --app-ref REF                                 Commit/ref inside --app-tree to deploy (default HEAD)
   --preflight                                   Run one idle end-to-end request of each class, then stop before load
+  --oracle-command CMD                          Paired stock-oracle command; must write oracle-evidence.json in the artifact dir
+  --cgroup-parent PATH                          ADR parent cgroup to attest (default /sys/fs/cgroup/khitmee-2gb.slice)
 EOF
 }
 
@@ -67,6 +71,10 @@ while (($#)); do
     --app-ref) APP_REF="${2:?}"; shift 2 ;;
     --app-ref=*) APP_REF="${1#*=}"; shift ;;
     --preflight) PREFLIGHT_ONLY=1; shift ;;
+    --oracle-command) ORACLE_COMMAND="${2:?}"; shift 2 ;;
+    --oracle-command=*) ORACLE_COMMAND="${1#*=}"; shift ;;
+    --cgroup-parent) CGROUP_PARENT="${2:?}"; shift 2 ;;
+    --cgroup-parent=*) CGROUP_PARENT="${1#*=}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -354,6 +362,9 @@ if [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("wi
   echo "Runtime profile is outside the ADR workload budget; continuing only as informative non-qualification evidence." >&2
 fi
 
+echo "Attesting ADR guest envelope before workload"
+python3 -B "$SCRIPT_DIR/guest_attestation.py" --parent "$CGROUP_PARENT" --project "$PROJECT" --output "$ARTIFACT_DIR/guest-attestation-before.json" >"$ARTIFACT_DIR/guest-attestation-before.stdout" 2>&1 || true
+
 # Load actor credentials without writing or printing them. Keys are validated;
 # values are shell-quoted by Python and the temporary file is removed immediately.
 ENV_EXPORTS="$(mktemp)"
@@ -405,7 +416,12 @@ run_bash_script "$PERF_ROOT/k6/run_k6.sh" "$K6_SCENARIO" | tee "$ARTIFACT_DIR/wo
 WORKLOAD_STATUS=${PIPESTATUS[0]}
 set -e
 
-python3 -B "$SCRIPT_DIR/resource_proof.py" --output "$ARTIFACT_DIR/resource-proof-after.json" || true
+set +e
+python3 -B "$SCRIPT_DIR/resource_proof.py" --output "$ARTIFACT_DIR/resource-proof-after.json"
+RESOURCE_PROOF_AFTER_STATUS=$?
+set -e
+printf '%s\n' "$RESOURCE_PROOF_AFTER_STATUS" >"$ARTIFACT_DIR/resource-proof-after.exit"
+python3 -B "$SCRIPT_DIR/guest_attestation.py" --parent "$CGROUP_PARENT" --project "$PROJECT" --output "$ARTIFACT_DIR/guest-attestation-after.json" >"$ARTIFACT_DIR/guest-attestation-after.stdout" 2>&1 || true
 cp -f "$PERF_ROOT/results/${RUN_ID}-scorecard.md" "$ARTIFACT_DIR/scorecard.md" 2>/dev/null || true
 cp -f "$PERF_ROOT/results/${RUN_ID}-seasonal-verification.json" "$ARTIFACT_DIR/seasonal-verification.json" 2>/dev/null || true
 cp -f "$PERF_ROOT/results/${RUN_ID}-container-stats.csv" "$ARTIFACT_DIR/container-stats.csv" 2>/dev/null || true
@@ -416,102 +432,24 @@ cp -a "$PERF_ROOT/results/${RUN_ID}-attribution" "$ARTIFACT_DIR/attribution" 2>/
 
 python3 -B "$SCRIPT_DIR/foreign_load.py" --output "$ARTIFACT_DIR/foreign-load-end.json" >"$ARTIFACT_DIR/foreign-load-end.stdout" 2>&1 || true
 
-python3 - "$ARTIFACT_DIR" "$WORKLOAD_STATUS" <<'PY'
-import json, pathlib, sys
-artifact = pathlib.Path(sys.argv[1])
-status = int(sys.argv[2])
-verification = {}
-proof = {}
-proof_before = {}
-foreign_start = {}
-foreign_end = {}
-candidate = {}
-migration = {}
-for name, target in [
-    ('seasonal-verification.json', 'verification'),
-    ('resource-proof-after.json', 'proof'),
-    ('resource-proof-before.json', 'proof_before'),
-    ('foreign-load-start.json', 'foreign_start'),
-    ('foreign-load-end.json', 'foreign_end'),
-    ('candidate-deployment.json', 'candidate'),
-    ('candidate-migration.json', 'migration'),
-]:
-    try:
-        value = json.loads((artifact / name).read_text())
-    except Exception:
-        value = {}
-    if target == 'verification':
-        verification = value
-    elif target == 'proof':
-        proof = value
-    elif target == 'proof_before':
-        proof_before = value
-    elif target == 'foreign_start':
-        foreign_start = value
-    elif target == 'candidate':
-        candidate = value
-    elif target == 'migration':
-        migration = value
-    else:
-        foreign_end = value
-duplicates = sum((row or {}).get('duplicates', 0) for row in (verification.get('by_type') or {}).values())
-oom = [row.get('service') for row in proof.get('services') or [] if row.get('oom_killed')]
-restarts = [
-    {'service': row.get('service'), 'restart_count': row.get('restart_count')}
-    for row in proof.get('services') or [] if row.get('restart_count')
-]
-foreign_counts = [foreign_start.get('foreign_count', -1), foreign_end.get('foreign_count', -1)]
-foreign_invalid = any(count != 0 for count in foreign_counts)
-lease_renewal_failed = (artifact / 'lease-renew.failed').exists()
-resource_budget_ok = proof_before.get('within_budget') is True and proof.get('within_budget') is True
-if foreign_invalid or lease_renewal_failed:
-    verdict = 'INVALID'
-    exit_code = 6 if status == 0 else status
-elif not resource_budget_ok:
-    verdict = 'NO-GO'
-    exit_code = status if status else 7
-else:
-    verdict = 'GO' if status == 0 else 'NO-GO'
-    exit_code = status
-result = {
-    'verdict': verdict,
-    'valid_for_timing': not (foreign_invalid or lease_renewal_failed),
-    'lease_renewal_failed': lease_renewal_failed,
-    'qualification_resource_budget_ok': resource_budget_ok,
-    'qualification_evidence': not (foreign_invalid or lease_renewal_failed) and resource_budget_ok,
-    'workload_memory_limit_mib_before': proof_before.get('workload_memory_limit_total_mib'),
-    'workload_memory_limit_mib_after': proof.get('workload_memory_limit_total_mib'),
-    'resource_budget_problems_before': proof_before.get('budget_problems', []),
-    'resource_budget_problems_after': proof.get('budget_problems', []),
-    'workload_exit': status,
-    'app_checkout': candidate.get('app_checkout'),
-    'app_ref': candidate.get('app_ref'),
-    'app_commit_sha': candidate.get('app_commit_sha'),
-    'app_tree_hash': candidate.get('app_tree_hash'),
-    'app_tree_path': candidate.get('app_tree_path'),
-    'candidate_migration_required': migration.get('required') is True,
-    'candidate_migration_exit_code': migration.get('exit_code'),
-    'candidate_migration_log': migration.get('log'),
-    'candidate_role_grants': candidate.get('role_grants_artifact'),
-    'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),
-    'duplicates': duplicates,
-    'docker_oom_killed_after_run': oom,
-    'restart_counts_after_run': restarts,
-    'foreign_load_start_count': foreign_start.get('foreign_count'),
-    'foreign_load_end_count': foreign_end.get('foreign_count'),
-    'foreign_load_start': foreign_start.get('foreign_containers', []),
-    'foreign_load_end': foreign_end.get('foreign_containers', []),
-    'baseline_containers_start': foreign_start.get('baseline_containers', []),
-    'baseline_containers_end': foreign_end.get('baseline_containers', []),
-    'scorecard': str(artifact / 'scorecard.md'),
-    'resource_proof': str(artifact / 'resource-proof-before.json'),
-    'foreign_load_start_artifact': str(artifact / 'foreign-load-start.json'),
-    'foreign_load_end_artifact': str(artifact / 'foreign-load-end.json'),
-    'exit_code': exit_code,
-}
-(artifact / 'final-result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
-print('FINAL ' + verdict + ' duplicates=' + str(duplicates) + ' workload_exit=' + str(status) + ' foreign_load=' + str(foreign_counts))
-print('final result: ' + str(artifact / 'final-result.json'))
-PY
+if [[ -n "$ORACLE_COMMAND" ]]; then
+  echo "Running paired stock-oracle evidence command"
+  set +e
+  ORACLE_RUN_ID="$RUN_ID" \
+  ORACLE_ARTIFACT_DIR="$ARTIFACT_DIR" \
+  ORACLE_APP_COMMIT_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("app_commit_sha", ""))' "$APP_TREE_METADATA" 2>/dev/null || true)" \
+  ORACLE_FIXTURE_SHA256="$FIXTURE_SHA" \
+  bash -c "$ORACLE_COMMAND" >"$ARTIFACT_DIR/oracle-command.log" 2>&1
+  ORACLE_STATUS=$?
+  set -e
+  printf '%s\n' "$ORACLE_STATUS" >"$ARTIFACT_DIR/oracle-command.exit"
+fi
+
+python3 -B "$SCRIPT_DIR/qualification_decision.py" \
+  --artifact-dir "$ARTIFACT_DIR" \
+  --workload-exit "$WORKLOAD_STATUS" \
+  --run-id "$RUN_ID" \
+  --seasonal-profile "$SEASONAL_PROFILE_VALUE" \
+  $([[ "$PREFLIGHT_ONLY" == "1" ]] && printf '%s' '--preflight' || true)
 FINAL_EXIT="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["exit_code"])' "$ARTIFACT_DIR/final-result.json" 2>/dev/null || printf '%s' "$WORKLOAD_STATUS")"
 exit "$FINAL_EXIT"

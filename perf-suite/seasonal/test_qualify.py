@@ -28,7 +28,8 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertIn('lease_cli release --resource host-timing', source)
         self.assertLess(source.index('acquire --resource khitmee-perf --owner'), source.index('acquire --resource host-timing --owner'))
         self.assertIn('lease-renew.failed', source)
-        self.assertIn('lease_renewal_failed', source)
+        decision = (ROOT / "qualification_decision.py").read_text(encoding="utf-8")
+        self.assertIn('lease_renewal_failed', decision)
         self.assertIn('trap cleanup EXIT INT TERM', source)
         self.assertIn('cannot use Windows lease interop', source)
 
@@ -36,9 +37,10 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         self.assertIn("foreign-load-start.json", source)
         self.assertIn("foreign-load-end.json", source)
-        self.assertIn("foreign_load_start_count", source)
-        self.assertIn("foreign_load_end_count", source)
-        self.assertIn("verdict = 'INVALID'", source)
+        decision = (ROOT / "qualification_decision.py").read_text(encoding="utf-8")
+        self.assertIn("foreign_load_start_count", decision)
+        self.assertIn("foreign_load_end_count", decision)
+        self.assertIn("'INVALID' if not timing_valid", decision)
         recorder = (ROOT / "foreign_load.py").read_text(encoding="utf-8")
         self.assertIn("other_running_containers", recorder)
         self.assertIn("foreign_containers", recorder)
@@ -85,13 +87,16 @@ class QualifyEntryPointTests(unittest.TestCase):
 
     def test_candidate_tree_preflight_migration_and_attribution_are_wired(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        decision = (ROOT / "qualification_decision.py").read_text(encoding="utf-8")
+        combined = source + decision
         for token in (
             "--app-tree PATH", "--app-ref REF", "--preflight",
             "app_tree.py", "deploy_candidate.py", "candidate-migration.json",
             "candidate_role_grants", "app_commit_sha", "app_tree_hash",
             "compose-observability.yaml", "seasonal_preflight", "request_attribution_summary",
+            "qualification_decision.py", "guest_attestation.py", "--oracle-command",
         ):
-            self.assertIn(token, source)
+            self.assertIn(token, combined)
         self.assertLess(source.index("app_tree.py"), source.index("lease_cli acquire --resource khitmee-perf"))
         deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
         self.assertIn('"bench", "--site", args.site, "migrate"', deploy)
@@ -179,6 +184,86 @@ class QualifyEntryPointTests(unittest.TestCase):
             evaluation = module.evaluate_log(path)
             self.assertFalse(evaluation["passed"])
             self.assertIn("required step did not succeed: sale", evaluation["failures"])
+
+
+    def write_decision_artifact(self, root, *, profile="acceptance", restart_after=0, oom_after=False, oracle=True):
+        artifact = Path(root)
+        def proof(restart=0, oom=False):
+            return {
+                "measurement_passed": True,
+                "within_budget": True,
+                "budget_problems": [],
+                "workload_memory_limit_total_mib": 1568,
+                "services": [{"service": "backend", "id": "abc123", "restart_count": restart, "oom_killed": oom}],
+            }
+        for name, value in {
+            "resource-proof-before.json": proof(),
+            "resource-proof-after.json": proof(restart_after, oom_after),
+            "foreign-load-start.json": {"foreign_count": 0, "foreign_containers": [], "baseline_containers": []},
+            "foreign-load-end.json": {"foreign_count": 0, "foreign_containers": [], "baseline_containers": []},
+            "candidate-deployment.json": {"app_commit_sha": "a" * 40, "app_tree_hash": "b" * 40},
+            "candidate-migration.json": {"required": True, "exit_code": 0},
+            "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0"},
+            "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0"},
+            "seasonal-verification.json": {"by_type": {}},
+        }.items():
+            (artifact / name).write_text(json.dumps(value))
+        (artifact / "resource-proof-after.exit").write_text("0" + chr(10))
+        (artifact / "oracle-command.exit").write_text("0" + chr(10))
+        if oracle:
+            checks = {key: True for key in ("numbering", "voucher_rows", "stock_ledger", "gl_entries", "bins", "reports", "retries", "csv", "perf_parity_require_db")}
+            (artifact / "oracle-evidence.json").write_text(json.dumps({
+                "schema_version": "seasonal-stock-oracle-v1", "run_id": "run-1", "passed": True, "checks": checks,
+            }))
+        config = {"profile": profile, "managers_enabled": True, "phases": [{"name": "baseline", "phase": "baseline", "duration_seconds": 3600}]}
+        (artifact / "k6.log").write_text("noise KHITMEE_SEASONAL_EVENT " + json.dumps({"event": "config", "config": config}) + chr(10))
+
+    def decision_module(self):
+        spec = importlib.util.spec_from_file_location("qualification_decision", ROOT / "qualification_decision.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_smoke_workload_pass_can_never_qualify_as_2gb(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td, profile="smoke")
+            result = module.decide(td, 0, "run-1", "smoke")
+            self.assertTrue(result["workload_passed"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertEqual(result["verdict"], "NO-GO")
+            self.assertIn("full-hour acceptance", " ".join(result["qualification_evidence_problems"]))
+
+    def test_postrun_resource_identity_restart_and_oom_delta_invalidates_qualification(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td, restart_after=1)
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["resource_window_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("restart count changed", " ".join(result["resource_window_problems"]))
+        comparison = module.resource_window_comparison(
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
+            {"services": [{"service": "db", "id": "two", "restart_count": 0, "oom_killed": True}]},
+        )
+        self.assertFalse(comparison["passed"])
+        self.assertIn("container identity changed", " ".join(comparison["problems"]))
+        self.assertIn("OOM state changed", " ".join(comparison["problems"]))
+
+    def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertTrue(result["qualification_evidence"], result["qualification_evidence_problems"])
+            self.assertEqual(result["qualified"], "GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td, oracle=False)
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["oracle_evidence_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
 
 
 if __name__ == "__main__":

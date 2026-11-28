@@ -143,18 +143,21 @@ def voucher_latency_gate(events):
     completes = [event for event in events["events"] if event.get("event") == "voucher_complete"]
     for phase in CORE_PHASES:
         for voucher_type in VOUCHER_TYPES:
-            durations = [
-                event.get("duration_ms")
-                for event in completes
-                if event.get("phase") == phase and event.get("type") == voucher_type
-            ]
-            rows.append({"phase": phase, "group": voucher_type, "count": len(durations), "p95": percentile(durations, 0.95)})
-        large = [
-            event.get("duration_ms")
-            for event in completes
-            if event.get("phase") == phase and event.get("type") == "sale" and int(event.get("line_count") or 0) == 200
-        ]
-        rows.append({"phase": phase, "group": "sale/200-lines", "count": len(large), "p95": percentile(large, 0.95)})
+            if voucher_type == "sale":
+                # Basket classes are independent acceptance populations. Pooling
+                # them lets the dominant 10-line class mask a slow 50-line class.
+                shapes = [(10, "sale/10-lines"), (50, "sale/50-lines"), (200, "sale/200-lines")]
+            else:
+                shapes = [(50, voucher_type)]
+            for line_count, group in shapes:
+                durations = [
+                    event.get("duration_ms")
+                    for event in completes
+                    if event.get("phase") == phase
+                    and event.get("type") == voucher_type
+                    and int(event.get("line_count") or 0) == line_count
+                ]
+                rows.append({"phase": phase, "group": group, "count": len(durations), "p95": percentile(durations, 0.95)})
     return latency_gate("Cashier submit-to-confirmation p95", rows, SUBMIT_P95_MS)
 
 
@@ -925,6 +928,24 @@ def approved_margin_rate_gate(events):
         "; ".join(failures[:10]),
     )
 
+CASHIER_REQUIRED_GATE_NAMES = frozenset({
+    "Real cashier-only discovery",
+    "Authorized exact distinct actor users",
+    "Offered/started/completed/rejected/dropped accounting",
+    "Approved per-minute voucher mix",
+    "Approved margin/recovery offered rates",
+    "Cashier submit-to-confirmation p95",
+    "Six-shop hot-stock contention",
+    "Cashier search p95",
+    "Independent database correctness",
+    "Lost-acknowledgement retry identity",
+    "Baseline/margin/recovery workflow completion",
+    "Overload failure induced",
+    "Recovery within 2 minutes",
+    "Container OOM/restart evidence",
+})
+
+
 def actor_separation_gate(events):
     actors = events["config"].get("actors") or {}
     managers_enabled = bool(events["config"].get("managers_enabled", True))
@@ -1200,22 +1221,7 @@ def evaluate_events(events, k6_summary, *, cashier_only=False):
         relevant = [gate for gate in gates if gate.name in names]
         return "NO-GO" if any(gate.status in {"FAIL", "NO DATA"} for gate in relevant) else "GO"
 
-    cashier_status = status_of(
-        {
-            "Real cashier-only discovery",
-            "Authorized exact distinct actor users",
-            "Offered/started/completed/rejected/dropped accounting",
-            "Approved per-minute voucher mix",
-            "Approved margin/recovery offered rates",
-            "Cashier submit-to-confirmation p95",
-            "Six-shop hot-stock contention",
-            "Cashier search p95",
-            "Lost-acknowledgement retry identity",
-            "Baseline/margin/recovery workflow completion",
-            "Overload failure induced",
-            "Recovery within 2 minutes",
-        }
-    )
+    cashier_status = status_of(CASHIER_REQUIRED_GATE_NAMES)
     summary_status = summary_gate(indexed, managers_enabled).status
     detail_status = detail_gate(indexed, managers_enabled).status
     export_status = export_gate(indexed, export_enabled).status
@@ -1407,23 +1413,7 @@ def evaluate(args):
             return "NO-GO"
         return "GO"
 
-    cashier_status = status_of(
-        {
-            "Real cashier-only discovery",
-            "Offered/started/completed/rejected/dropped accounting",
-            "Approved per-minute voucher mix",
-            "Approved margin/recovery offered rates",
-            "Cashier submit-to-confirmation p95",
-            "Six-shop hot-stock contention",
-            "Cashier search p95",
-            "Independent database correctness",
-            "Lost-acknowledgement retry identity",
-            "Baseline/margin/recovery workflow completion",
-            "Overload failure induced",
-            "Recovery within 2 minutes",
-            "Container OOM/restart evidence",
-        }
-    )
+    cashier_status = status_of(CASHIER_REQUIRED_GATE_NAMES)
     summary_status = summary_gate(events, managers_enabled).status
     detail_status = detail_gate(events, managers_enabled).status
     export_status = export_gate(events, export_enabled).status
