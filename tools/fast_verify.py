@@ -30,6 +30,8 @@ import time
 from typing import Any
 
 CACHE_SCHEMA_VERSION = "fast-verify-oracle-cache-v1"
+PARITY_CACHE_SCHEMA_VERSION = "perf-parity-oracle-cache-v1"
+ACCEPTED_CACHE_SCHEMAS = frozenset({CACHE_SCHEMA_VERSION, PARITY_CACHE_SCHEMA_VERSION})
 MANIFEST_FILENAME = "manifest.json"
 REQUIRED_KEY_FIELDS = (
     "db_fingerprint",
@@ -242,7 +244,7 @@ class StockOracleCache:
             raise OracleCacheError(f"corrupted oracle cache manifest: {exc}")
         if not isinstance(manifest, dict):
             raise OracleCacheError("oracle cache manifest must be a JSON object")
-        if manifest.get("schema_version") != CACHE_SCHEMA_VERSION:
+        if manifest.get("schema_version") not in ACCEPTED_CACHE_SCHEMAS:
             raise OracleCacheError(f"unsupported oracle cache manifest schema: {manifest.get('schema_version')!r}")
         entries = manifest.get("entries")
         if not isinstance(entries, dict):
@@ -348,7 +350,7 @@ class StockOracleCache:
             payload = json.loads(payload_file.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise OracleCacheError(f"corrupted cached oracle payload {rel_path}: {exc}")
-        if payload.get("schema_version") != CACHE_SCHEMA_VERSION:
+        if payload.get("schema_version") not in ACCEPTED_CACHE_SCHEMAS:
             raise OracleCacheError(f"cached payload schema mismatch for {rel_path}")
         if payload.get("key_hash") != entry["key_hash"]:
             raise OracleCacheError(f"cached payload key_hash mismatch for {rel_path}")
@@ -431,14 +433,31 @@ def _to_exact_decimal(value: Any) -> Decimal | None:
     return dec
 
 
-def _column_fieldnames(columns: list[Any] | None) -> list[str | None]:
-    return [col.get("fieldname") if isinstance(col, dict) else None for col in (columns or [])]
+def _scrub_label(label: Any) -> str:
+    return str(label or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _column_fieldnames(columns: list[Any] | None) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for idx, col in enumerate(columns or []):
+        raw = None
+        if isinstance(col, dict):
+            raw = col.get("fieldname") or _scrub_label(col.get("label"))
+        elif isinstance(col, str) and col.strip():
+            raw = _scrub_label(col.split(":", 1)[0])
+        base = str(raw) if raw else f"__col_{idx}"
+        name = base if base not in seen else f"{base}__{idx}"
+        seen.add(name)
+        names.append(name)
+    return names
 
 
 def _row_to_dict(columns: list[Any] | None, row: Any) -> dict[str, Any]:
     if isinstance(row, dict):
         return dict(row)
-    return dict(zip(_column_fieldnames(columns), row))
+    fnames = _column_fieldnames(columns)
+    return {fnames[idx] if idx < len(fnames) else f"__col_{idx}": val for idx, val in enumerate(row)}
 
 
 def _classify_fields(
@@ -450,10 +469,11 @@ def _classify_fields(
     monetary = set(monetary_fields)
     floats = set(float_fields)
     string_ids = set(string_id_fields)
-    for col in columns or []:
+    resolved_names = _column_fieldnames(columns)
+    for idx, col in enumerate(columns or []):
         if not isinstance(col, dict):
             continue
-        fname = col.get("fieldname")
+        fname = resolved_names[idx] if idx < len(resolved_names) else col.get("fieldname")
         ftype = str(col.get("fieldtype") or "")
         if not fname:
             continue

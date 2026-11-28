@@ -486,22 +486,36 @@ class OracleCacheAndTimingTests(unittest.TestCase):
                 access_fn=lambda p, mode: True,
             )
             self.assertEqual(len(chown_calls), 2)
-            self.assertEqual(chmod_calls, [])
+            self.assertTrue(all(mode == 0o750 for _name, mode in chmod_calls))
 
-            # Non-root path falls back to chmod 0o777.
+            # Matching non-root UID keeps safe permissions without chmod 0o777.
             chown_calls.clear()
+            chmod_calls.clear()
             perf_parity.prepare_sidecar_oracle_cache_dir(
                 cache_dir,
                 target_uid=1000,
                 target_gid=1000,
                 is_posix=True,
-                geteuid=lambda: 1001,
+                geteuid=lambda: 1000,
                 chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
                 chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
                 access_fn=lambda p, mode: True,
             )
             self.assertEqual(chown_calls, [])
-            self.assertTrue(all(mode == 0o777 for _name, mode in chmod_calls))
+            self.assertEqual(chmod_calls, [])
+
+            # Mismatched non-root UID fails closed instead of chmod 0o777.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_cache_dir(
+                    cache_dir,
+                    target_uid=1000,
+                    target_gid=1000,
+                    is_posix=True,
+                    geteuid=lambda: 1001,
+                    chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
+                    chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
+                    access_fn=lambda p, mode: True,
+                )
 
             # Unwritable directory fails closed.
             with self.assertRaises(perf_parity.OracleCacheDriftError):
@@ -677,7 +691,8 @@ class OracleCacheAndTimingTests(unittest.TestCase):
             )
             self.assertEqual(mname, "manifest.json")
             self.assertTrue(Path(mdir).is_dir())
-            self.assertEqual(len(mutated), 1)
+            self.assertEqual(len(mutated), 2)
+            self.assertEqual(mutated[1][1], 0o750)
 
 
 if __name__ == "__main__":
