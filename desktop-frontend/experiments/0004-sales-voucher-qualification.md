@@ -79,13 +79,7 @@ python desktop-frontend/tools/idempotency_check.py --password "$ADMIN_PASSWORD" 
   --output desktop-frontend/evidence/journeys/sales-voucher-idempotency.json
 ```
 
-Run the comparative interaction benchmark:
-
-```bash
-KHITMEE_DESKTOP_TOKEN="$ISOLATED_DESKTOP_TOKEN" ERPNEXT_PASSWORD="$ADMIN_PASSWORD" \
-  node desktop-frontend/tools/benchmark_compare.mjs --iterations 10 \
-  --out desktop-frontend/evidence/benchmarks/sales-voucher-comparison.json
-```
+Comparative interaction benchmark evidence is retained at `desktop-frontend/evidence/benchmarks/sales-voucher-comparison.json`. The PR #8 loopback implementation is intentionally not merged into this branch; reproducing that comparison requires a separate PR #8 benchmark checkout/environment, while the native-versus-original-web measurements remain reproducible with the current native harness.
 
 ## Security and cache findings resolved
 

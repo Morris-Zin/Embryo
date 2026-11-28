@@ -41,11 +41,7 @@ node desktop-frontend/tools/differential_journey.mjs \n  --screen stock-transfer
 python desktop-frontend/tools/idempotency_check.py --transfer \n  --password "$ADMIN_PASSWORD" \n  --output desktop-frontend/evidence/journeys/stock-transfer-idempotency.json
 ```
 
-Run the comparative interaction benchmark:
-
-```bash
-KHITMEE_DESKTOP_TOKEN="$ISOLATED_DESKTOP_TOKEN" ERPNEXT_PASSWORD="$ADMIN_PASSWORD" \n  node desktop-frontend/tools/benchmark_compare.mjs --screen stock-transfer --iterations 10 \n  --out desktop-frontend/evidence/benchmarks/stock-transfer-comparison.json
-```
+Comparative interaction benchmark evidence is retained at `desktop-frontend/evidence/benchmarks/stock-transfer-comparison.json`. The PR #8 loopback implementation is intentionally not merged into this branch; reproducing that comparison requires a separate PR #8 benchmark checkout/environment, while the native-versus-original-web measurements remain reproducible with the current native harness.
 
 ## Implementation changes
 
