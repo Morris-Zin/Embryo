@@ -88,7 +88,15 @@ async function nativeAct(ctx,a,steps=[]){
  if(a.op==='detail-cancel'){const target=await find(ctx,{label:'Cancel'});await call('click_element',{elementHandle:target.handle});await sleep(500);return}
  if(a.op==='detail-cancel-yes'||a.op==='detail-cancel-no'){const target=await find(ctx,{label:a.op==='detail-cancel-yes'?'Yes':'No'});await call('click_element',{elementHandle:target.handle});await sleep(a.op==='detail-cancel-yes'?2400:500);return}
  if(a.op==='detail-save'||a.op==='detail-submit'){const target=await find(ctx,{label:a.op==='detail-save'?'Save':'Submit'});await call('click_element',{elementHandle:target.handle});await sleep(a.op==='detail-save'?1800:2400);return}
- if(a.op==='quantity'){const target=(await tree(ctx)).elements?.find(e=>e.accessibleLabel==='Quantity');if(!target)throw Error('quantity target missing');await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});await sleep(250);return}
+ if(a.op==='submit-click'){const target=await find(ctx,{label:'Submit & Print  F9'});await call('click_element',{elementHandle:target.handle});await sleep(1800);return}
+ if(a.op==='quantity'||a.op==='quantity-enter'||a.op==='quantity-blur'){
+  const target=(await tree(ctx)).elements?.find(e=>e.accessibleLabel==='Quantity');if(!target)throw Error('quantity target missing');
+  if(a.op!=='quantity')await call('click_element',{elementHandle:target.handle});
+  await call('set_element_value',{elementHandle:target.handle,value:String(a.value)});
+  if(a.op==='quantity-enter'){await call('dispatch_key_event',{windowHandle:ctx.wh,text:special.Enter,eventType:'PressAndRelease'});await sleep(500);return}
+  if(a.op==='quantity-blur'){const search=await find(ctx,{elementId:'item-search'});await call('click_element',{elementHandle:search.handle});await sleep(500);return}
+  await sleep(250);return
+ }
  if(a.op==='choose'){const rows=(await tree(ctx)).elements?.filter(e=>e.accessibleRole==='ListItem');const target=rows[a.index||0];if(!target)throw Error('choice missing');await call('click_element',{elementHandle:target.handle});return sleep(300)}
  throw Error('unsupported native op '+a.op)
 }
@@ -158,7 +166,15 @@ async function webAct(page,a,steps=[]){
  if(a.op==='detail-cancel-yes'||a.op==='detail-cancel-no'){await page.getByRole('button',{name:a.op==='detail-cancel-yes'?'Yes':'No',exact:true}).first().click();await page.waitForTimeout(a.op==='detail-cancel-yes'?2400:600);return}
  if(a.op==='detail-save'){await page.locator('button:visible').filter({hasText:'Save'}).first().click();await page.waitForTimeout(1800);return}
  if(a.op==='detail-submit'){await page.getByRole('button',{name:'Submit'}).first().click();await page.waitForTimeout(700);const confirm=page.getByRole('button',{name:'Yes'}).first();if(await confirm.isVisible().catch(()=>false))await confirm.click();await page.waitForTimeout(2200);return}
- if(a.op==='quantity'){await page.locator('input[aria-label="Quantity"]').first().fill(String(a.value));await page.waitForTimeout(250);return}
+ if(a.op==='submit-click'){await page.locator('#submit-print').click();await page.waitForTimeout(1800);return}
+ if(a.op==='quantity'||a.op==='quantity-enter'||a.op==='quantity-blur'){
+  const input=page.locator('input[aria-label="Quantity"]').first();
+  if(a.op!=='quantity')await input.click();
+  await input.fill(String(a.value));
+  if(a.op==='quantity-enter'){await input.press('Enter');await page.waitForTimeout(500);return}
+  if(a.op==='quantity-blur'){await page.locator('#item-search').click();await page.waitForTimeout(500);return}
+  await page.waitForTimeout(250);return
+ }
  if(a.op==='choose'){await page.locator('#search-results .search-option-button').nth(a.index||0).click();return page.waitForTimeout(300)}
  throw Error('unsupported web op '+a.op)
 }

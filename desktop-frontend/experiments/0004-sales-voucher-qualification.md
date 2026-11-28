@@ -18,6 +18,9 @@ This is the reproducible qualification record for the first migrated screen. It 
 | Gate | Evidence | Result |
 |---|---|---|
 | Fixed corpus differential journey | `desktop-frontend/evidence/journeys/sales-voucher-interactions.json` | Passed with zero behavioral differences |
+| Quantity commit through Enter | `desktop-frontend/evidence/journeys/sales-voucher-quantity-enter.json` | Passed with zero behavioral differences |
+| Quantity commit through focus loss | `desktop-frontend/evidence/journeys/sales-voucher-quantity-blur.json` | Passed with zero behavioral differences |
+| Quantity commit before click submission | `desktop-frontend/evidence/journeys/sales-voucher-quantity-click.json` | Passed; web `ACC-SINV-2026-05152` and native `ACC-SINV-2026-05153` both submitted qty 2 with identical authoritative ERP readback |
 | Validation journey | `desktop-frontend/evidence/journeys/sales-voucher-validation.json` | Passed |
 | Live authoritative submission and ERP readback | `desktop-frontend/evidence/journeys/sales-voucher-submission.json` | Passed |
 | Permission-denied journey | `desktop-frontend/evidence/journeys/sales-voucher-permission-denied.json` | Passed; both clients preserve the line and deny submission |
@@ -89,6 +92,10 @@ Comparative interaction benchmark evidence is retained at `desktop-frontend/evid
 - The legacy PR #8 loopback catalog service and Tauri shell are intentionally absent from this branch, eliminating the tokenless cross-account loopback attack surface from the native implementation.
 - Browser and native counter error surfaces now use ERP's concise `_error_message`, making permission failures understandable and comparable.
 - Item Price deletion correctness is handled through `Deleted Document` recovery because modified-delta queries cannot see deleted rows. The live proof shows a temporary price appears in delta sync and deletion returns the item to its baseline price without a reset.
+
+## Intentional corrective divergence
+
+When a cashier edits a quantity and presses F9 without first pressing Enter or moving focus, the original browser counter can submit the previous quantity because its model only listens for the input `change` event. The native counter intentionally commits the pending quantity before F9/click submission, so ERPNext receives the cashier's visible edit (or correctly rejects it, such as fractional `Nos` quantity). This is a corrective divergence from a browser defect, not an accidental parity gap.
 
 ## Journey-generation investigation
 
