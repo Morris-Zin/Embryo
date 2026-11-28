@@ -710,7 +710,9 @@ mod tests {
         long.barcode = None;
         long.barcode_text = Some(barcode_text.clone());
 
-        let index = CatalogIndex::rebuild(vec![long]);
+        let decoy = row("DECOY", token, "222");
+        let index = CatalogIndex::rebuild(vec![long, decoy]);
+        assert!(index.exact_barcode_position(token).is_some());
         let hits = index.search(token, 10);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].item_code, "LONG-BARCODE");
