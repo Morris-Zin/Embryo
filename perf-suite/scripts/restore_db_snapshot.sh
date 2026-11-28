@@ -24,7 +24,7 @@ ARCHIVE="$(cd -- "$(dirname -- "$ARCHIVE")" && pwd)/$(basename -- "$ARCHIVE")"
 CONTAINER="khitmee-perf-db-1"
 PROJECT="khitmee-perf"
 VOLUME="${DB_VOLUME:-perf-db-data}"
-IMAGE="${DB_IMAGE:-mariadb:11.8}"
+IMAGE="${DB_IMAGE:-${MARIADB_IMAGE:-mariadb:11.8}}"
 
 project="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$CONTAINER" 2>/dev/null || true)"
 if [[ "$project" != "$PROJECT" ]]; then
@@ -50,7 +50,7 @@ docker run --rm \
   "$IMAGE" \
   sh -c '
     set -e
-    trap 'rm -rf /from/.restore-new' EXIT
+    trap "rm -rf /from/.restore-new" EXIT
     rm -rf /from/.restore-new /from/.restore-old
     mkdir /from/.restore-new
     tar xzf "/snapshot/$SNAPSHOT_NAME" -C /from/.restore-new

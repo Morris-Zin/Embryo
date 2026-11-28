@@ -12,11 +12,17 @@ app_version = "0.1.0"
 
 _profit_stock_voucher_hook = "khitmee_ops.profit_summary.store.on_stock_voucher_change"
 
+extend_doctype_class = {
+	"Sales Invoice": ["khitmee_ops.api.voucher_fastpath.CounterSalesInvoiceStatusMixin"],
+}
+
 doc_events = {
 	"Sales Invoice": {
 		"validate": "khitmee_ops.api.vouchers.sync_counter_autopay_payment",
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
 		"on_cancel": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
+		"on_trash": "khitmee_ops.api.invoice_series.install_series_dispatchers",
 	},
 	"Item": {
 		"after_insert": "khitmee_ops.api.search.invalidate_item_search_cache",
@@ -31,22 +37,27 @@ doc_events = {
 		],
 	},
 	"Purchase Invoice": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_invoice_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Purchase Receipt": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_receipt_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Stock Entry": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Stock Reconciliation": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Delivery Note": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
@@ -65,3 +76,7 @@ scheduler_events = {
 }
 
 after_request = ["khitmee_ops.api.memory.maybe_trim_heap"]
+before_request = ["khitmee_ops.api.invoice_series.install_series_dispatchers"]
+before_job = ["khitmee_ops.api.invoice_series.install_series_dispatchers"]
+after_install = "khitmee_ops.setup.invoice_series.ensure_invoice_series_audit"
+after_migrate = "khitmee_ops.setup.invoice_series.ensure_invoice_series_audit"

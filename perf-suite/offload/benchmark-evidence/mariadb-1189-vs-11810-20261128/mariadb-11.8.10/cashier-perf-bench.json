@@ -1,0 +1,1598 @@
+{
+  "benchmarks": {
+    "fast_gp_invoice_detail_50": {
+      "cprofile_self_top": [
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.322,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 7,
+          "tottime_ms": 39877.322
+        },
+        {
+          "calls": 6,
+          "cumtime_ms": 0.229,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 6,
+          "tottime_ms": 0.229
+        },
+        {
+          "calls": 42,
+          "cumtime_ms": 0.185,
+          "filename": "~",
+          "function": "<method 'sub' of 're.Pattern' objects>",
+          "lineno": 0,
+          "primitive_calls": 42,
+          "tottime_ms": 0.185
+        },
+        {
+          "calls": 3,
+          "cumtime_ms": 0.16,
+          "filename": "~",
+          "function": "<built-in method _pickle.loads>",
+          "lineno": 0,
+          "primitive_calls": 3,
+          "tottime_ms": 0.16
+        },
+        {
+          "calls": 3,
+          "cumtime_ms": 0.123,
+          "filename": "~",
+          "function": "<method 'sendall' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 3,
+          "tottime_ms": 0.123
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39878.099,
+          "filename": "<stdin>",
+          "function": "_wrapped_sql",
+          "lineno": 291,
+          "primitive_calls": 7,
+          "tottime_ms": 0.074
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.82,
+          "filename": "database.py",
+          "function": "sql",
+          "lineno": 200,
+          "primitive_calls": 7,
+          "tottime_ms": 0.06
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 0.052,
+          "filename": "~",
+          "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+          "lineno": 0,
+          "primitive_calls": 1,
+          "tottime_ms": 0.052
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 39879.86,
+          "filename": "fast_gross_profit.py",
+          "function": "execute",
+          "lineno": 1464,
+          "primitive_calls": 1,
+          "tottime_ms": 0.016
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 39879.309,
+          "filename": "query.py",
+          "function": "query_profit",
+          "lineno": 792,
+          "primitive_calls": 1,
+          "tottime_ms": 0.015
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39878.099,
+          "filename": "<stdin>",
+          "function": "_wrapped_sql",
+          "lineno": 291,
+          "primitive_calls": 7,
+          "tottime_ms": 0.074
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.82,
+          "filename": "database.py",
+          "function": "sql",
+          "lineno": 200,
+          "primitive_calls": 7,
+          "tottime_ms": 0.06
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.568,
+          "filename": "database.py",
+          "function": "execute_query",
+          "lineno": 390,
+          "primitive_calls": 7,
+          "tottime_ms": 0.008
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.561,
+          "filename": "cursors.py",
+          "function": "execute",
+          "lineno": 162,
+          "primitive_calls": 7,
+          "tottime_ms": 0.017
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.471,
+          "filename": "cursors.py",
+          "function": "_query",
+          "lineno": 325,
+          "primitive_calls": 7,
+          "tottime_ms": 0.027
+        },
+        {
+          "calls": 7,
+          "cumtime_ms": 39877.341,
+          "filename": "connections.py",
+          "function": "query",
+          "lineno": 276,
+          "primitive_calls": 7,
+          "tottime_ms": 0.018
+        }
+      ],
+      "row_count": 0,
+      "rss_after_mib": 152.441,
+      "rss_before_mib": 152.441,
+      "rss_delta_mib": 0.0,
+      "sql_count": 7,
+      "sql_ms": 39877.845,
+      "top_sql_templates": [
+        {
+          "avg_ms": 39876.139,
+          "count": 1,
+          "template": "SELECT COUNT(*) AS `input_rows` FROM ( SELECT `input_row` FROM ( SELECT `sii`.`name` AS `input_row` FROM `tabSales Invoice` AS `si` FORCE INDEX (`khitmee_si_...",
+          "total_ms": 39876.139
+        },
+        {
+          "avg_ms": 0.67,
+          "count": 1,
+          "template": "SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = ? AND TRIGGER_NAME IN (?...)",
+          "total_ms": 0.67
+        },
+        {
+          "avg_ms": 0.411,
+          "count": 1,
+          "template": "SELECT `role` FROM `tabHas Role` WHERE `parent`=%(param1)s AND `parenttype`=%(param2)s ORDER BY `creation` DESC",
+          "total_ms": 0.411
+        },
+        {
+          "avg_ms": 0.132,
+          "count": 2,
+          "template": "START TRANSACTION",
+          "total_ms": 0.265
+        },
+        {
+          "avg_ms": 0.262,
+          "count": 1,
+          "template": "rollback",
+          "total_ms": 0.262
+        },
+        {
+          "avg_ms": 0.098,
+          "count": 1,
+          "template": "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+          "total_ms": 0.098
+        }
+      ],
+      "wall_ms": 39879.969
+    },
+    "fast_gp_monthly": {
+      "cprofile_self_top": [
+        {
+          "calls": 8,
+          "cumtime_ms": 1.874,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 8,
+          "tottime_ms": 1.874
+        },
+        {
+          "calls": 365,
+          "cumtime_ms": 0.852,
+          "filename": "query.py",
+          "function": "_add_days",
+          "lineno": 83,
+          "primitive_calls": 365,
+          "tottime_ms": 0.423
+        },
+        {
+          "calls": 4,
+          "cumtime_ms": 0.245,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 4,
+          "tottime_ms": 0.245
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1.126,
+          "filename": "query.py",
+          "function": "_date_range",
+          "lineno": 88,
+          "primitive_calls": 1,
+          "tottime_ms": 0.231
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2.316,
+          "filename": "query.py",
+          "function": "partition_request_days",
+          "lineno": 259,
+          "primitive_calls": 1,
+          "tottime_ms": 0.212
+        },
+        {
+          "calls": 372,
+          "cumtime_ms": 0.218,
+          "filename": "query.py",
+          "function": "_as_date_string",
+          "lineno": 66,
+          "primitive_calls": 372,
+          "tottime_ms": 0.145
+        },
+        {
+          "calls": 388,
+          "cumtime_ms": 0.171,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 380,
+          "tottime_ms": 0.144
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 0.354,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 1,
+          "tottime_ms": 0.143
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 6.417,
+          "filename": "fast_gross_profit.py",
+          "function": "execute",
+          "lineno": 1464,
+          "primitive_calls": 1,
+          "tottime_ms": 0.016
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 5.811,
+          "filename": "query.py",
+          "function": "query_profit",
+          "lineno": 792,
+          "primitive_calls": 1,
+          "tottime_ms": 0.032
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 2.514,
+          "filename": "<stdin>",
+          "function": "_wrapped_sql",
+          "lineno": 291,
+          "primitive_calls": 8,
+          "tottime_ms": 0.052
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2.409,
+          "filename": "query.py",
+          "function": "_query_summary_in_snapshot",
+          "lineno": 649,
+          "primitive_calls": 1,
+          "tottime_ms": 0.018
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 2.325,
+          "filename": "database.py",
+          "function": "sql",
+          "lineno": 200,
+          "primitive_calls": 8,
+          "tottime_ms": 0.062
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2.316,
+          "filename": "query.py",
+          "function": "partition_request_days",
+          "lineno": 259,
+          "primitive_calls": 1,
+          "tottime_ms": 0.212
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 2.091,
+          "filename": "database.py",
+          "function": "execute_query",
+          "lineno": 390,
+          "primitive_calls": 8,
+          "tottime_ms": 0.007
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 2.084,
+          "filename": "cursors.py",
+          "function": "execute",
+          "lineno": 162,
+          "primitive_calls": 8,
+          "tottime_ms": 0.015
+        }
+      ],
+      "row_count": 0,
+      "rss_after_mib": 152.441,
+      "rss_before_mib": 152.441,
+      "rss_delta_mib": 0.0,
+      "sql_count": 8,
+      "sql_ms": 2.348,
+      "top_sql_templates": [
+        {
+          "avg_ms": 0.638,
+          "count": 1,
+          "template": "SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = ? AND TRIGGER_NAME IN (?...)",
+          "total_ms": 0.638
+        },
+        {
+          "avg_ms": 0.441,
+          "count": 1,
+          "template": "SELECT `company`, `posting_date`, `dirty_generation`, `built_generation`, `status`, `claim_token`, `claim_expires_at`, `repost_watermark`, `repost_completed_...",
+          "total_ms": 0.441
+        },
+        {
+          "avg_ms": 0.388,
+          "count": 1,
+          "template": "SELECT `role` FROM `tabHas Role` WHERE `parent`=%(param1)s AND `parenttype`=%(param2)s ORDER BY `creation` DESC",
+          "total_ms": 0.388
+        },
+        {
+          "avg_ms": 0.272,
+          "count": 1,
+          "template": "SELECT MIN(`posting_date`) FROM `tabRepost Item Valuation` WHERE `company` = ? AND `docstatus` = ? AND `status` IN (?...) AND `posting_date` <= ?",
+          "total_ms": 0.272
+        },
+        {
+          "avg_ms": 0.135,
+          "count": 2,
+          "template": "START TRANSACTION",
+          "total_ms": 0.269
+        },
+        {
+          "avg_ms": 0.185,
+          "count": 1,
+          "template": "rollback",
+          "total_ms": 0.185
+        },
+        {
+          "avg_ms": 0.156,
+          "count": 1,
+          "template": "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+          "total_ms": 0.156
+        }
+      ],
+      "wall_ms": 6.512
+    },
+    "fast_gp_warehouse": {
+      "cprofile_self_top": [
+        {
+          "calls": 8,
+          "cumtime_ms": 15.445,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 8,
+          "tottime_ms": 15.445
+        },
+        {
+          "calls": 14,
+          "cumtime_ms": 0.964,
+          "filename": "local.py",
+          "function": "__setattr__",
+          "lineno": 33,
+          "primitive_calls": 14,
+          "tottime_ms": 0.962
+        },
+        {
+          "calls": 365,
+          "cumtime_ms": 0.753,
+          "filename": "query.py",
+          "function": "_add_days",
+          "lineno": 83,
+          "primitive_calls": 365,
+          "tottime_ms": 0.37
+        },
+        {
+          "calls": 4,
+          "cumtime_ms": 0.239,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 4,
+          "tottime_ms": 0.239
+        },
+        {
+          "calls": 2,
+          "cumtime_ms": 0.207,
+          "filename": "~",
+          "function": "<built-in method marshal.loads>",
+          "lineno": 0,
+          "primitive_calls": 2,
+          "tottime_ms": 0.207
+        },
+        {
+          "calls": 405,
+          "cumtime_ms": 0.222,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 397,
+          "tottime_ms": 0.195
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 0.508,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 1,
+          "tottime_ms": 0.177
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 13.357,
+          "filename": "query.py",
+          "function": "partition_request_days",
+          "lineno": 259,
+          "primitive_calls": 1,
+          "tottime_ms": 0.155
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 21.743,
+          "filename": "fast_gross_profit.py",
+          "function": "execute",
+          "lineno": 1464,
+          "primitive_calls": 1,
+          "tottime_ms": 0.019
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 21.662,
+          "filename": "query.py",
+          "function": "query_profit",
+          "lineno": 792,
+          "primitive_calls": 1,
+          "tottime_ms": 0.04
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 16.106,
+          "filename": "<stdin>",
+          "function": "_wrapped_sql",
+          "lineno": 291,
+          "primitive_calls": 8,
+          "tottime_ms": 0.048
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 15.919,
+          "filename": "database.py",
+          "function": "sql",
+          "lineno": 200,
+          "primitive_calls": 8,
+          "tottime_ms": 0.063
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 15.686,
+          "filename": "database.py",
+          "function": "execute_query",
+          "lineno": 390,
+          "primitive_calls": 8,
+          "tottime_ms": 0.007
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 15.679,
+          "filename": "cursors.py",
+          "function": "execute",
+          "lineno": 162,
+          "primitive_calls": 8,
+          "tottime_ms": 0.021
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 15.587,
+          "filename": "cursors.py",
+          "function": "_query",
+          "lineno": 325,
+          "primitive_calls": 8,
+          "tottime_ms": 0.027
+        },
+        {
+          "calls": 8,
+          "cumtime_ms": 15.464,
+          "filename": "connections.py",
+          "function": "query",
+          "lineno": 276,
+          "primitive_calls": 8,
+          "tottime_ms": 0.017
+        }
+      ],
+      "row_count": 0,
+      "rss_after_mib": 152.441,
+      "rss_before_mib": 152.441,
+      "rss_delta_mib": 0.0,
+      "sql_count": 8,
+      "sql_ms": 15.944,
+      "top_sql_templates": [
+        {
+          "avg_ms": 11.412,
+          "count": 1,
+          "template": "SELECT `company`, `posting_date`, `dirty_generation`, `built_generation`, `status`, `claim_token`, `claim_expires_at`, `repost_watermark`, `repost_completed_...",
+          "total_ms": 11.412
+        },
+        {
+          "avg_ms": 1.65,
+          "count": 1,
+          "template": "SELECT `role` FROM `tabHas Role` WHERE `parent`=%(param1)s AND `parenttype`=%(param2)s ORDER BY `creation` DESC",
+          "total_ms": 1.65
+        },
+        {
+          "avg_ms": 1.556,
+          "count": 1,
+          "template": "SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = ? AND TRIGGER_NAME IN (?...)",
+          "total_ms": 1.556
+        },
+        {
+          "avg_ms": 0.655,
+          "count": 1,
+          "template": "SELECT MIN(`posting_date`) FROM `tabRepost Item Valuation` WHERE `company` = ? AND `docstatus` = ? AND `status` IN (?...) AND `posting_date` <= ?",
+          "total_ms": 0.655
+        },
+        {
+          "avg_ms": 0.312,
+          "count": 1,
+          "template": "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+          "total_ms": 0.312
+        },
+        {
+          "avg_ms": 0.11,
+          "count": 2,
+          "template": "START TRANSACTION",
+          "total_ms": 0.221
+        },
+        {
+          "avg_ms": 0.138,
+          "count": 1,
+          "template": "rollback",
+          "total_ms": 0.138
+        }
+      ],
+      "wall_ms": 21.829
+    },
+    "sale_10_lines": {
+      "cprofile_self_top": [
+        {
+          "calls": 492,
+          "cumtime_ms": 381.072,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 492,
+          "tottime_ms": 381.072
+        },
+        {
+          "calls": 477,
+          "cumtime_ms": 351.726,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 477,
+          "tottime_ms": 351.726
+        },
+        {
+          "calls": 217,
+          "cumtime_ms": 256.348,
+          "filename": "~",
+          "function": "<built-in method builtins.compile>",
+          "lineno": 0,
+          "primitive_calls": 217,
+          "tottime_ms": 256.348
+        },
+        {
+          "calls": 307,
+          "cumtime_ms": 44.761,
+          "filename": "~",
+          "function": "<method 'read' of '_io.BufferedReader' objects>",
+          "lineno": 0,
+          "primitive_calls": 307,
+          "tottime_ms": 44.761
+        },
+        {
+          "calls": 171,
+          "cumtime_ms": 103.328,
+          "filename": "~",
+          "function": "<built-in method _pickle.loads>",
+          "lineno": 0,
+          "primitive_calls": 171,
+          "tottime_ms": 30.468
+        },
+        {
+          "calls": 435,
+          "cumtime_ms": 36.896,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 435,
+          "tottime_ms": 17.779
+        },
+        {
+          "calls": 81624,
+          "cumtime_ms": 22.728,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 81566,
+          "tottime_ms": 17.65
+        },
+        {
+          "calls": 105996,
+          "cumtime_ms": 16.219,
+          "filename": "~",
+          "function": "<built-in method builtins.isinstance>",
+          "lineno": 0,
+          "primitive_calls": 105996,
+          "tottime_ms": 15.044
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 1686.981,
+          "filename": "<stdin>",
+          "function": "<lambda>",
+          "lineno": 547,
+          "primitive_calls": 1,
+          "tottime_ms": 0.009
+        },
+        {
+          "calls": 99,
+          "cumtime_ms": 1686.932,
+          "filename": "typing_validations.py",
+          "function": "wrapper",
+          "lineno": 32,
+          "primitive_calls": 1,
+          "tottime_ms": 0.319
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1686.894,
+          "filename": "vouchers.py",
+          "function": "submit_sale",
+          "lineno": 613,
+          "primitive_calls": 1,
+          "tottime_ms": 0.031
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1686.369,
+          "filename": "vouchers.py",
+          "function": "_execute_with_deadlock_retry",
+          "lineno": 231,
+          "primitive_calls": 1,
+          "tottime_ms": 0.004
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1686.364,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 655,
+          "primitive_calls": 1,
+          "tottime_ms": 0.008
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1686.356,
+          "filename": "vouchers.py",
+          "function": "_run_idempotent",
+          "lineno": 320,
+          "primitive_calls": 1,
+          "tottime_ms": 0.058
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1644.483,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 660,
+          "primitive_calls": 1,
+          "tottime_ms": 0.011
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1644.472,
+          "filename": "vouchers.py",
+          "function": "_create_sales_invoice",
+          "lineno": 476,
+          "primitive_calls": 1,
+          "tottime_ms": 0.057
+        }
+      ],
+      "rss_after_mib": 131.977,
+      "rss_before_mib": 106.051,
+      "rss_delta_mib": 25.926,
+      "sql_count": 492,
+      "sql_ms": 428.894,
+      "top_sql_templates": [
+        {
+          "avg_ms": 23.632,
+          "count": 1,
+          "template": "SELECT `account_currency` FROM `tabGL Entry` WHERE `docstatus`=? AND `company`=%(param1)s AND `party_type`=%(param2)s AND `party`=%(param3)s AND `is_cancelle...",
+          "total_ms": 23.632
+        },
+        {
+          "avg_ms": 2.172,
+          "count": 10,
+          "template": "SELECT `name`,`price_list_rate`,`uom`,`packing_unit` FROM `tabItem Price` WHERE `item_code` IN (%(param1)s) AND `price_list`=%(param2)s AND IFNULL(`uom`,%(pa...",
+          "total_ms": 21.719
+        },
+        {
+          "avg_ms": 1.859,
+          "count": 10,
+          "template": "INSERT INTO `tabSales Invoice Item` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `barcode`, `has_item_scanned`, `item_code`, ...",
+          "total_ms": 18.592
+        },
+        {
+          "avg_ms": 1.674,
+          "count": 10,
+          "template": "SELECT SUM(`tabBin`.`actual_qty`) FROM `tabBin` JOIN `tabWarehouse` ON `tabBin`.`warehouse`=`tabWarehouse`.`name` WHERE `tabWarehouse`.`company`=%(param1)s A...",
+          "total_ms": 16.738
+        },
+        {
+          "avg_ms": 2.346,
+          "count": 6,
+          "template": "INSERT INTO `tabGL Entry` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `posting_date`, `transaction_date`, `fiscal_year`, `du...",
+          "total_ms": 14.079
+        },
+        {
+          "avg_ms": 1.384,
+          "count": 10,
+          "template": "SELECT `barcode` FROM `tabItem Barcode` WHERE `parent`=%(param1)s ORDER BY `creation` DESC",
+          "total_ms": 13.844
+        },
+        {
+          "avg_ms": 1.115,
+          "count": 10,
+          "template": "SELECT `name` FROM `tabStock Reconciliation` WHERE `purpose`=%(param1)s AND `docstatus`=? LIMIT ?",
+          "total_ms": 11.154
+        },
+        {
+          "avg_ms": 5.134,
+          "count": 2,
+          "template": "INSERT INTO `tabPayment Ledger Entry` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `posting_date`, `company`, `account_type`,...",
+          "total_ms": 10.267
+        }
+      ],
+      "wall_ms": 1687.216
+    },
+    "sale_200_lines": {
+      "cprofile_self_top": [
+        {
+          "calls": 5193,
+          "cumtime_ms": 1727.89,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 5193,
+          "tottime_ms": 1727.89
+        },
+        {
+          "calls": 5735,
+          "cumtime_ms": 509.448,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 5735,
+          "tottime_ms": 262.502
+        },
+        {
+          "calls": 1328484,
+          "cumtime_ms": 196.433,
+          "filename": "~",
+          "function": "<built-in method builtins.isinstance>",
+          "lineno": 0,
+          "primitive_calls": 1328484,
+          "tottime_ms": 188.981
+        },
+        {
+          "calls": 2830,
+          "cumtime_ms": 301.564,
+          "filename": "document.py",
+          "function": "get_valid_dict",
+          "lineno": 2547,
+          "primitive_calls": 2830,
+          "tottime_ms": 188.407
+        },
+        {
+          "calls": 1065621,
+          "cumtime_ms": 221.441,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 1065381,
+          "tottime_ms": 180.816
+        },
+        {
+          "calls": 1558,
+          "cumtime_ms": 141.365,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 1558,
+          "tottime_ms": 141.365
+        },
+        {
+          "calls": 33176,
+          "cumtime_ms": 136.338,
+          "filename": "~",
+          "function": "<method 'sub' of 're.Pattern' objects>",
+          "lineno": 0,
+          "primitive_calls": 33176,
+          "tottime_ms": 136.338
+        },
+        {
+          "calls": 777865,
+          "cumtime_ms": 125.254,
+          "filename": "~",
+          "function": "<method 'get' of 'dict' objects>",
+          "lineno": 0,
+          "primitive_calls": 777865,
+          "tottime_ms": 125.254
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 6921.749,
+          "filename": "<stdin>",
+          "function": "<lambda>",
+          "lineno": 547,
+          "primitive_calls": 1,
+          "tottime_ms": 0.008
+        },
+        {
+          "calls": 1239,
+          "cumtime_ms": 6921.637,
+          "filename": "typing_validations.py",
+          "function": "wrapper",
+          "lineno": 32,
+          "primitive_calls": 1,
+          "tottime_ms": 2.691
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6921.548,
+          "filename": "vouchers.py",
+          "function": "submit_sale",
+          "lineno": 613,
+          "primitive_calls": 1,
+          "tottime_ms": 0.05
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6918.822,
+          "filename": "vouchers.py",
+          "function": "_execute_with_deadlock_retry",
+          "lineno": 231,
+          "primitive_calls": 1,
+          "tottime_ms": 0.004
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6918.817,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 655,
+          "primitive_calls": 1,
+          "tottime_ms": 0.005
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6918.811,
+          "filename": "vouchers.py",
+          "function": "_run_idempotent",
+          "lineno": 320,
+          "primitive_calls": 1,
+          "tottime_ms": 0.024
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6916.751,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 660,
+          "primitive_calls": 1,
+          "tottime_ms": 0.077
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 6916.674,
+          "filename": "vouchers.py",
+          "function": "_create_sales_invoice",
+          "lineno": 476,
+          "primitive_calls": 1,
+          "tottime_ms": 0.16
+        }
+      ],
+      "rss_after_mib": 134.281,
+      "rss_before_mib": 133.809,
+      "rss_delta_mib": 0.472,
+      "sql_count": 5193,
+      "sql_ms": 2173.423,
+      "top_sql_templates": [
+        {
+          "avg_ms": 0.812,
+          "count": 200,
+          "template": "SELECT SUM(`tabBin`.`actual_qty`) FROM `tabBin` JOIN `tabWarehouse` ON `tabBin`.`warehouse`=`tabWarehouse`.`name` WHERE `tabWarehouse`.`company`=%(param1)s A...",
+          "total_ms": 162.467
+        },
+        {
+          "avg_ms": 0.737,
+          "count": 200,
+          "template": "INSERT INTO `tabSales Invoice Item` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `barcode`, `has_item_scanned`, `item_code`, ...",
+          "total_ms": 147.385
+        },
+        {
+          "avg_ms": 0.71,
+          "count": 200,
+          "template": "select *, posting_datetime as \"timestamp\" from `tabStock Ledger Entry` where is_cancelled = ? and posting_datetime <= %(posting_datetime)s and item_code = %(...",
+          "total_ms": 142.026
+        },
+        {
+          "avg_ms": 0.34,
+          "count": 400,
+          "template": "SELECT `name` FROM `tabBin` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s ORDER BY `creation` DESC LIMIT ?",
+          "total_ms": 136.046
+        },
+        {
+          "avg_ms": 0.659,
+          "count": 200,
+          "template": "INSERT INTO `tabStock Ledger Entry` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `item_code`, `warehouse`, `posting_date`, `p...",
+          "total_ms": 131.87
+        },
+        {
+          "avg_ms": 0.627,
+          "count": 200,
+          "template": "SELECT * FROM `tabStock Ledger Entry` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s AND `is_cancelled`=? AND (`posting_datetime`<? OR (`posting_dat...",
+          "total_ms": 125.343
+        },
+        {
+          "avg_ms": 0.528,
+          "count": 200,
+          "template": "SELECT `name`,`price_list_rate`,`uom`,`packing_unit` FROM `tabItem Price` WHERE `item_code` IN (%(param1)s) AND `price_list`=%(param2)s AND IFNULL(`uom`,%(pa...",
+          "total_ms": 105.582
+        },
+        {
+          "avg_ms": 0.457,
+          "count": 200,
+          "template": "SELECT * FROM `tabStock Ledger Entry` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s AND `is_cancelled`=? AND `posting_datetime`=? AND `creation`=%(...",
+          "total_ms": 91.457
+        }
+      ],
+      "wall_ms": 6921.912
+    },
+    "sale_50_lines": {
+      "cprofile_self_top": [
+        {
+          "calls": 1440,
+          "cumtime_ms": 563.438,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 1440,
+          "tottime_ms": 563.438
+        },
+        {
+          "calls": 1535,
+          "cumtime_ms": 128.477,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 1535,
+          "tottime_ms": 62.903
+        },
+        {
+          "calls": 282612,
+          "cumtime_ms": 63.147,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 282522,
+          "tottime_ms": 50.03
+        },
+        {
+          "calls": 353018,
+          "cumtime_ms": 46.229,
+          "filename": "~",
+          "function": "<built-in method builtins.isinstance>",
+          "lineno": 0,
+          "primitive_calls": 353018,
+          "tottime_ms": 44.048
+        },
+        {
+          "calls": 730,
+          "cumtime_ms": 68.976,
+          "filename": "document.py",
+          "function": "get_valid_dict",
+          "lineno": 2547,
+          "primitive_calls": 730,
+          "tottime_ms": 38.019
+        },
+        {
+          "calls": 9158,
+          "cumtime_ms": 37.387,
+          "filename": "~",
+          "function": "<method 'sub' of 're.Pattern' objects>",
+          "lineno": 0,
+          "primitive_calls": 9158,
+          "tottime_ms": 37.387
+        },
+        {
+          "calls": 204604,
+          "cumtime_ms": 34.449,
+          "filename": "~",
+          "function": "<method 'get' of 'dict' objects>",
+          "lineno": 0,
+          "primitive_calls": 204604,
+          "tottime_ms": 34.449
+        },
+        {
+          "calls": 456,
+          "cumtime_ms": 33.216,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 456,
+          "tottime_ms": 33.216
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 1931.453,
+          "filename": "<stdin>",
+          "function": "<lambda>",
+          "lineno": 547,
+          "primitive_calls": 1,
+          "tottime_ms": 0.008
+        },
+        {
+          "calls": 339,
+          "cumtime_ms": 1931.397,
+          "filename": "typing_validations.py",
+          "function": "wrapper",
+          "lineno": 32,
+          "primitive_calls": 1,
+          "tottime_ms": 0.815
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1931.366,
+          "filename": "vouchers.py",
+          "function": "submit_sale",
+          "lineno": 613,
+          "primitive_calls": 1,
+          "tottime_ms": 0.02
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1930.493,
+          "filename": "vouchers.py",
+          "function": "_execute_with_deadlock_retry",
+          "lineno": 231,
+          "primitive_calls": 1,
+          "tottime_ms": 0.003
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1930.489,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 655,
+          "primitive_calls": 1,
+          "tottime_ms": 0.004
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1930.485,
+          "filename": "vouchers.py",
+          "function": "_run_idempotent",
+          "lineno": 320,
+          "primitive_calls": 1,
+          "tottime_ms": 0.028
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1928.222,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 660,
+          "primitive_calls": 1,
+          "tottime_ms": 0.034
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 1928.189,
+          "filename": "vouchers.py",
+          "function": "_create_sales_invoice",
+          "lineno": 476,
+          "primitive_calls": 1,
+          "tottime_ms": 0.052
+        }
+      ],
+      "rss_after_mib": 133.809,
+      "rss_before_mib": 133.809,
+      "rss_delta_mib": 0.0,
+      "sql_count": 1440,
+      "sql_ms": 689.359,
+      "top_sql_templates": [
+        {
+          "avg_ms": 1.382,
+          "count": 50,
+          "template": "INSERT INTO `tabSales Invoice Item` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `barcode`, `has_item_scanned`, `item_code`, ...",
+          "total_ms": 69.11
+        },
+        {
+          "avg_ms": 1.231,
+          "count": 50,
+          "template": "SELECT SUM(`tabBin`.`actual_qty`) FROM `tabBin` JOIN `tabWarehouse` ON `tabBin`.`warehouse`=`tabWarehouse`.`name` WHERE `tabWarehouse`.`company`=%(param1)s A...",
+          "total_ms": 61.554
+        },
+        {
+          "avg_ms": 0.902,
+          "count": 50,
+          "template": "select *, posting_datetime as \"timestamp\" from `tabStock Ledger Entry` where is_cancelled = ? and posting_datetime <= %(posting_datetime)s and item_code = %(...",
+          "total_ms": 45.113
+        },
+        {
+          "avg_ms": 0.704,
+          "count": 50,
+          "template": "SELECT * FROM `tabStock Ledger Entry` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s AND `is_cancelled`=? AND (`posting_datetime`<? OR (`posting_dat...",
+          "total_ms": 35.215
+        },
+        {
+          "avg_ms": 0.341,
+          "count": 100,
+          "template": "SELECT `name` FROM `tabBin` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s ORDER BY `creation` DESC LIMIT ?",
+          "total_ms": 34.116
+        },
+        {
+          "avg_ms": 0.674,
+          "count": 50,
+          "template": "SELECT `name`,`price_list_rate`,`uom`,`packing_unit` FROM `tabItem Price` WHERE `item_code` IN (%(param1)s) AND `price_list`=%(param2)s AND IFNULL(`uom`,%(pa...",
+          "total_ms": 33.693
+        },
+        {
+          "avg_ms": 0.601,
+          "count": 50,
+          "template": "UPDATE `tabBin` SET `modified`=%(param1)s,`actual_qty`=?,`stock_value`=?,`valuation_rate`=?,`projected_qty`=?+?+COALESCE(`ordered_qty`,?)+COALESCE(`indented_...",
+          "total_ms": 30.038
+        },
+        {
+          "avg_ms": 0.582,
+          "count": 50,
+          "template": "SELECT `barcode` FROM `tabItem Barcode` WHERE `parent`=%(param1)s ORDER BY `creation` DESC",
+          "total_ms": 29.097
+        }
+      ],
+      "wall_ms": 1931.549
+    },
+    "search_items_warm": {
+      "avg_sql_count": 1.0,
+      "avg_sql_ms": 0.687,
+      "count": 15,
+      "cprofile_self_top": [
+        {
+          "calls": 15,
+          "cumtime_ms": 7.294,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 15,
+          "tottime_ms": 7.294
+        },
+        {
+          "calls": 30,
+          "cumtime_ms": 1.353,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 30,
+          "tottime_ms": 1.353
+        },
+        {
+          "calls": 90,
+          "cumtime_ms": 0.978,
+          "filename": "~",
+          "function": "<method 'sub' of 're.Pattern' objects>",
+          "lineno": 0,
+          "primitive_calls": 90,
+          "tottime_ms": 0.978
+        },
+        {
+          "calls": 900,
+          "cumtime_ms": 0.915,
+          "filename": "search.py",
+          "function": "_catalog_item_matches_term",
+          "lineno": 359,
+          "primitive_calls": 900,
+          "tottime_ms": 0.663
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 2.686,
+          "filename": "search.py",
+          "function": "_ranked_item_codes",
+          "lineno": 687,
+          "primitive_calls": 15,
+          "tottime_ms": 0.649
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 22.74,
+          "filename": "search.py",
+          "function": "search_items",
+          "lineno": 742,
+          "primitive_calls": 15,
+          "tottime_ms": 0.606
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 0.778,
+          "filename": "search.py",
+          "function": "_catalog_item_metadata",
+          "lineno": 379,
+          "primitive_calls": 15,
+          "tottime_ms": 0.575
+        },
+        {
+          "calls": 4785,
+          "cumtime_ms": 0.552,
+          "filename": "~",
+          "function": "<method 'get' of 'dict' objects>",
+          "lineno": 0,
+          "primitive_calls": 4785,
+          "tottime_ms": 0.552
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 15,
+          "cumtime_ms": 22.861,
+          "filename": "typing_validations.py",
+          "function": "wrapper",
+          "lineno": 32,
+          "primitive_calls": 15,
+          "tottime_ms": 0.064
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 22.74,
+          "filename": "search.py",
+          "function": "search_items",
+          "lineno": 742,
+          "primitive_calls": 15,
+          "tottime_ms": 0.606
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 12.798,
+          "filename": "search.py",
+          "function": "_fetch_rates_and_quantities",
+          "lineno": 618,
+          "primitive_calls": 15,
+          "tottime_ms": 0.547
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 11.314,
+          "filename": "<stdin>",
+          "function": "_wrapped_sql",
+          "lineno": 291,
+          "primitive_calls": 15,
+          "tottime_ms": 0.091
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 10.254,
+          "filename": "database.py",
+          "function": "sql",
+          "lineno": 200,
+          "primitive_calls": 15,
+          "tottime_ms": 0.145
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 9.35,
+          "filename": "database.py",
+          "function": "execute_query",
+          "lineno": 390,
+          "primitive_calls": 15,
+          "tottime_ms": 0.018
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 9.332,
+          "filename": "cursors.py",
+          "function": "execute",
+          "lineno": 162,
+          "primitive_calls": 15,
+          "tottime_ms": 0.037
+        },
+        {
+          "calls": 15,
+          "cumtime_ms": 8.468,
+          "filename": "cursors.py",
+          "function": "_query",
+          "lineno": 325,
+          "primitive_calls": 15,
+          "tottime_ms": 0.046
+        }
+      ],
+      "max_ms": 2.282,
+      "mean_ms": 1.527,
+      "min_ms": 1.27,
+      "p50_ms": 1.498,
+      "p95_ms": 1.896,
+      "rss_delta_mib": 0.0,
+      "top_sql_templates": [
+        {
+          "avg_ms": 0.687,
+          "count": 15,
+          "template": "SELECT ? AS row_kind, item_code, price_list_rate, uom, customer, NULL AS actual_qty, modified FROM `tabItem Price` WHERE price_list = ? AND selling = ? AND i...",
+          "total_ms": 10.307
+        }
+      ]
+    },
+    "transfer_50_lines": {
+      "cprofile_self_top": [
+        {
+          "calls": 1796,
+          "cumtime_ms": 799.739,
+          "filename": "~",
+          "function": "<function Connection.query at 0x7ccbeedc6560>",
+          "lineno": 0,
+          "primitive_calls": 1796,
+          "tottime_ms": 799.739
+        },
+        {
+          "calls": 666,
+          "cumtime_ms": 154.53,
+          "filename": "~",
+          "function": "<method 'recv_into' of '_socket.socket' objects>",
+          "lineno": 0,
+          "primitive_calls": 666,
+          "tottime_ms": 154.53
+        },
+        {
+          "calls": 1959,
+          "cumtime_ms": 133.562,
+          "filename": "document.py",
+          "function": "_filter",
+          "lineno": 3585,
+          "primitive_calls": 1959,
+          "tottime_ms": 65.827
+        },
+        {
+          "calls": 282789,
+          "cumtime_ms": 70.621,
+          "filename": "~",
+          "function": "<built-in method builtins.getattr>",
+          "lineno": 0,
+          "primitive_calls": 282785,
+          "tottime_ms": 62.447
+        },
+        {
+          "calls": 423697,
+          "cumtime_ms": 65.796,
+          "filename": "~",
+          "function": "<built-in method builtins.isinstance>",
+          "lineno": 0,
+          "primitive_calls": 423697,
+          "tottime_ms": 61.698
+        },
+        {
+          "calls": 11081,
+          "cumtime_ms": 51.774,
+          "filename": "~",
+          "function": "<method 'sub' of 're.Pattern' objects>",
+          "lineno": 0,
+          "primitive_calls": 11081,
+          "tottime_ms": 51.774
+        },
+        {
+          "calls": 195473,
+          "cumtime_ms": 41.197,
+          "filename": "~",
+          "function": "<method 'get' of 'dict' objects>",
+          "lineno": 0,
+          "primitive_calls": 195473,
+          "tottime_ms": 41.197
+        },
+        {
+          "calls": 715,
+          "cumtime_ms": 66.879,
+          "filename": "document.py",
+          "function": "get_valid_dict",
+          "lineno": 2547,
+          "primitive_calls": 715,
+          "tottime_ms": 38.177
+        }
+      ],
+      "cprofile_top": [
+        {
+          "calls": 1,
+          "cumtime_ms": 2918.981,
+          "filename": "<stdin>",
+          "function": "<lambda>",
+          "lineno": 569,
+          "primitive_calls": 1,
+          "tottime_ms": 0.01
+        },
+        {
+          "calls": 558,
+          "cumtime_ms": 2918.876,
+          "filename": "typing_validations.py",
+          "function": "wrapper",
+          "lineno": 32,
+          "primitive_calls": 1,
+          "tottime_ms": 1.92
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2918.827,
+          "filename": "vouchers.py",
+          "function": "submit_transfer",
+          "lineno": 905,
+          "primitive_calls": 1,
+          "tottime_ms": 0.024
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2917.986,
+          "filename": "vouchers.py",
+          "function": "_execute_with_deadlock_retry",
+          "lineno": 231,
+          "primitive_calls": 1,
+          "tottime_ms": 0.004
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2917.982,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 941,
+          "primitive_calls": 1,
+          "tottime_ms": 0.004
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2917.978,
+          "filename": "vouchers.py",
+          "function": "_run_idempotent",
+          "lineno": 320,
+          "primitive_calls": 1,
+          "tottime_ms": 0.032
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2825.098,
+          "filename": "vouchers.py",
+          "function": "<lambda>",
+          "lineno": 947,
+          "primitive_calls": 1,
+          "tottime_ms": 0.005
+        },
+        {
+          "calls": 1,
+          "cumtime_ms": 2825.093,
+          "filename": "vouchers.py",
+          "function": "_create_transfer",
+          "lineno": 880,
+          "primitive_calls": 1,
+          "tottime_ms": 0.02
+        }
+      ],
+      "rss_after_mib": 134.949,
+      "rss_before_mib": 134.949,
+      "rss_delta_mib": 0.0,
+      "sql_count": 1796,
+      "sql_ms": 990.524,
+      "top_sql_templates": [
+        {
+          "avg_ms": 1.279,
+          "count": 100,
+          "template": "SELECT * FROM `tabStock Ledger Entry` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s AND `is_cancelled`=? AND (`posting_datetime`<? OR (`posting_dat...",
+          "total_ms": 127.864
+        },
+        {
+          "avg_ms": 1.69,
+          "count": 50,
+          "template": "select *, posting_datetime as \"timestamp\" from `tabStock Ledger Entry` where is_cancelled = ? and posting_datetime <= %(posting_datetime)s and item_code = %(...",
+          "total_ms": 84.509
+        },
+        {
+          "avg_ms": 0.397,
+          "count": 200,
+          "template": "SELECT `name` FROM `tabBin` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s ORDER BY `creation` DESC LIMIT ?",
+          "total_ms": 79.386
+        },
+        {
+          "avg_ms": 0.629,
+          "count": 100,
+          "template": "SELECT * FROM `tabStock Ledger Entry` WHERE `item_code`=%(param1)s AND `warehouse`=%(param2)s AND `is_cancelled`=? AND `posting_datetime`=? AND `creation`=%(...",
+          "total_ms": 62.948
+        },
+        {
+          "avg_ms": 0.505,
+          "count": 100,
+          "template": "INSERT INTO `tabStock Ledger Entry` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `item_code`, `warehouse`, `posting_date`, `p...",
+          "total_ms": 50.517
+        },
+        {
+          "avg_ms": 0.9,
+          "count": 50,
+          "template": "SELECT `tabItem`.`name`,`tabItem`.`stock_uom`,`tabItem`.`description`,`tabItem`.`image`,`tabItem`.`item_name`,`tabItem`.`item_group`,`tabItem`.`has_batch_no`...",
+          "total_ms": 45.01
+        },
+        {
+          "avg_ms": 0.886,
+          "count": 50,
+          "template": "SELECT `stock_value_difference` FROM `tabStock Ledger Entry` WHERE `voucher_type`=%(param1)s AND `voucher_no`=%(param2)s AND `voucher_detail_no`=%(param3)s A...",
+          "total_ms": 44.286
+        },
+        {
+          "avg_ms": 0.846,
+          "count": 50,
+          "template": "INSERT INTO `tabStock Entry Detail` (`name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`, `barcode`, `has_item_scanned`, `s_warehouse`...",
+          "total_ms": 42.304
+        }
+      ],
+      "wall_ms": 2919.108
+    }
+  },
+  "company": "Khit Me Distribution",
+  "from_date": "2025-11-26",
+  "project": "khitmee-perf",
+  "schema_version": "perf-bench-inner-v1",
+  "site": "bench-loadtest.localhost",
+  "to_date": "2026-11-25"
+}

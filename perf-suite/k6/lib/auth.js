@@ -79,6 +79,53 @@ export function baseHeaders(extra = {}) {
   return headers;
 }
 
+
+
+let observabilityRequestCounter = 0;
+const observabilityVuInstance = Math.random().toString(36).slice(2, 10);
+
+function observabilityEndpointClass(options = {}) {
+  if (options.endpointClass) {
+    return options.endpointClass;
+  }
+  const tags = options.tags || {};
+  const endpoint = String(tags.endpoint || tags.name || 'request');
+  if (endpoint === 'login' || endpoint === 'desk_boot') return 'login/bootstrap';
+  if (endpoint.includes('search')) return 'search';
+  if (endpoint.includes('query_report')) return 'manager_summary';
+  if (endpoint.includes('export')) return 'manager_export';
+  if (endpoint.includes('sale') || endpoint.includes('transfer') || endpoint.includes('savedocs') || endpoint.includes('purchase')) return 'cashier_submit';
+  return endpoint;
+}
+
+export function observabilityHeaders(options = {}) {
+  observabilityRequestCounter += 1;
+  let vu = 0;
+  try {
+    vu = typeof __VU === 'undefined' ? 0 : __VU;
+  } catch (_err) {}
+  const endpointClass = observabilityEndpointClass(options);
+  const requestId = `${__ENV.RUN_ID || 'seasonal'}-vu${vu}-${observabilityVuInstance}-${observabilityRequestCounter}`;
+  return {
+    'X-K6-Request-Id': requestId,
+    'X-K6-Endpoint-Class': endpointClass,
+  };
+}
+
+function tagsWithEndpointClass(tags, options = {}) {
+  return Object.assign({ endpoint_class: observabilityEndpointClass(options) }, tags || {});
+}
+
+function traceAuthEvent(payload) {
+  const event = Object.assign({ at: new Date().toISOString() }, payload);
+  try {
+    event.vu = typeof __VU === 'undefined' ? null : __VU;
+  } catch (_err) {}
+  try {
+    console.log(`KHITMEE_SEASONAL_EVENT ${JSON.stringify(event)}`);
+  } catch (_err) {}
+}
+
 function cookieValue(response, name) {
   const cookie = (response.cookies || {})[name];
   if (!cookie) {
@@ -113,10 +160,10 @@ function extractCsrfToken(html) {
 
 function fetchCsrfToken(baseUrl, timeout) {
   const response = http.get(`${baseUrl}/app`, {
-    headers: baseHeaders({ Accept: 'text/html,application/xhtml+xml' }),
+    headers: baseHeaders(Object.assign({ Accept: 'text/html,application/xhtml+xml' }, observabilityHeaders({ endpointClass: 'login/bootstrap' }))),
     redirects: 5,
     timeout: timeout || '30s',
-    tags: { name: 'desk_boot', endpoint: 'desk_boot' },
+    tags: tagsWithEndpointClass({ name: 'desk_boot', endpoint: 'desk_boot' }, { endpointClass: 'login/bootstrap' }),
   });
   if (response.status >= 200 && response.status < 400) {
     return extractCsrfToken(response.body);
@@ -126,6 +173,7 @@ function fetchCsrfToken(baseUrl, timeout) {
 
 export function login(baseUrl, user, password, options = {}) {
   const normalized = assertSafeTarget(baseUrl);
+  traceAuthEvent({ event: 'auth_login_begin', actor_user: user });
   if (!user) {
     throw new Error('PERF_USER (or FRAPPE_USER) is required for the benchmark login.');
   }
@@ -133,14 +181,15 @@ export function login(baseUrl, user, password, options = {}) {
     throw new Error('PERF_PASSWORD (or FRAPPE_PASSWORD) is required; no password is hard-coded or read from disk.');
   }
 
+  const loginHttpStart = Date.now();
   const response = http.post(
     `${normalized}/api/method/login`,
     { usr: user, pwd: password },
     {
-      headers: baseHeaders(),
+      headers: baseHeaders(observabilityHeaders({ endpointClass: 'login/bootstrap' })),
       redirects: 0,
       timeout: options.timeout || '30s',
-      tags: { name: 'login', endpoint: 'login' },
+      tags: tagsWithEndpointClass({ name: 'login', endpoint: 'login' }, { endpointClass: 'login/bootstrap' }),
     }
   );
 
@@ -148,6 +197,7 @@ export function login(baseUrl, user, password, options = {}) {
     throw new Error(`Frappe login failed for ${user} with HTTP ${response.status}; credentials were not printed.`);
   }
 
+  const loginHttpMs = Math.max(0, Date.now() - loginHttpStart);
   const body = parseJson(response);
   const sid = cookieValue(response, 'sid');
   if (!sid || sid === 'Guest') {
@@ -156,11 +206,19 @@ export function login(baseUrl, user, password, options = {}) {
         'Refusing to continue with an anonymous or shared session.'
     );
   }
-  const csrfToken =
+  const directCsrfToken =
     cookieValue(response, 'csrf_token') ||
     (body.message && body.message.csrf_token) ||
     body.csrf_token ||
-    fetchCsrfToken(normalized, options.timeout);
+    '';
+  const bootstrapStart = Date.now();
+  const csrfToken = directCsrfToken || fetchCsrfToken(normalized, options.timeout);
+  traceAuthEvent({
+    event: 'auth_login_end', actor_user: user,
+    login_http_ms: loginHttpMs,
+    bootstrap_ms: directCsrfToken ? 0 : Math.max(0, Date.now() - bootstrapStart),
+    csrf_source: directCsrfToken ? 'login_response' : 'desk_boot',
+  });
 
   if (!csrfToken && !truthy(__ENV.ALLOW_MISSING_CSRF_TOKEN)) {
     throw new Error(
@@ -178,34 +236,69 @@ export function login(baseUrl, user, password, options = {}) {
   };
 }
 
-export function authHeaders(session, extra = {}) {
-  const headers = baseHeaders(extra);
+export function authHeaders(session, extra = {}, options = {}) {
+  const headers = baseHeaders(Object.assign(observabilityHeaders(options), extra));
   if (session && session.csrfToken) {
     headers['X-Frappe-CSRF-Token'] = session.csrfToken;
+  }
+  if (session && session.sid) {
+    headers.Cookie = `sid=${session.sid}`;
   }
   return headers;
 }
 
-export function postMethod(session, method, payload = {}, options = {}) {
-  const headers = authHeaders(session, options.headers || {});
+export function postMethodRequest(session, method, payload = {}, options = {}) {
+  const headers = authHeaders(session, options.headers || {}, Object.assign({}, options, { tags: options.tags || {} }));
   let body = payload;
   if (!options.asForm) {
     body = JSON.stringify(payload);
     headers['Content-Type'] = 'application/json';
   }
-  return http.post(`${session.baseUrl}/api/method/${method}`, body, {
-    headers,
-    redirects: 0,
-    timeout: options.timeout || '60s',
-    tags: options.tags || { name: method, endpoint: method },
-  });
+  return {
+    method: 'POST',
+    url: `${session.baseUrl}/api/method/${method}`,
+    body,
+    params: {
+      headers,
+      redirects: 0,
+      timeout: options.timeout || '60s',
+      tags: tagsWithEndpointClass(options.tags || { name: method, endpoint: method }, options),
+    },
+  };
+}
+
+export function postMethod(session, method, payload = {}, options = {}) {
+  const request = postMethodRequest(session, method, payload, options);
+  return http.post(request.url, request.body, request.params);
 }
 
 export function getMethod(session, methodAndQuery, options = {}) {
   return http.get(`${session.baseUrl}/api/method/${methodAndQuery}`, {
-    headers: authHeaders(session, options.headers || {}),
+    headers: authHeaders(session, options.headers || {}, options),
     redirects: 0,
     timeout: options.timeout || '60s',
-    tags: options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] },
+    tags: tagsWithEndpointClass(options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] }, options),
   });
+}
+
+export function getResourceRequest(session, doctype, options = {}) {
+  const name = options.name ? `/${encodeURIComponent(options.name)}` : '';
+  const query = Object.entries(options.query || {})
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return {
+    method: 'GET',
+    url: `${session.baseUrl}/api/resource/${encodeURIComponent(doctype)}${name}${query ? `?${query}` : ''}`,
+    params: {
+      headers: authHeaders(session, options.headers || {}, options),
+      redirects: 0,
+      timeout: options.timeout || '30s',
+      tags: tagsWithEndpointClass(options.tags || { name: `resource_${doctype}`, endpoint: 'frappe_resource' }, options),
+    },
+  };
+}
+
+export function getResource(session, doctype, options = {}) {
+  const request = getResourceRequest(session, doctype, options);
+  return http.get(request.url, request.params);
 }

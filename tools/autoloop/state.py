@@ -11,6 +11,7 @@ from . import EXIT_ILLEGAL_TRANSITION, SCHEMA_VERSION
 from .failures import normalize_failure
 from .guard import (
     RUN_ID_RE,
+    _run_git,
     UnsafeRollbackError,
     assert_clean_worktree_for_rollback,
     assert_safe_local_path,
@@ -19,11 +20,18 @@ from .guard import (
     format_contract_comment,
     git_current_branch,
     git_is_ancestor,
+    git_read_blob,
     git_restore_to_commit,
     git_rev_parse,
     load_config,
+    matches_any_glob,
+    open_oracle_mismatches,
+    oracle_mismatch_id,
+    validate_oracle_mismatch,
 )
 from .leases import acquire_mutex, atomic_write_json, default_lock_dir, resource_key_hash
+from .lessons import globs_overlap, record_lesson
+from .static_rules import verify_rule_fixture
 
 RUN_STATES = (
     "draft",
@@ -59,6 +67,9 @@ FINDING_STATES = (
     "safeguarded",
 )
 
+FINDING_SEVERITIES = ("P0", "P1", "P2")
+FINDING_SOURCES = ("inherited_review", "incident", "gate_failure", "review")
+
 SAFEGUARD_LAYERS = (
     "layer_1_architecture",
     "layer_2_type",
@@ -92,8 +103,8 @@ def _trusted_contract_dir(repo: Path) -> Path:
     return repo / ".autoloop/trusted-contracts"
 
 
-def _state_mutex_path(run_id: str, lock_dir: Path | None = None) -> Path:
-    base = lock_dir or default_lock_dir()
+def _state_mutex_path(repo: Path, run_id: str, lock_dir: Path | None = None) -> Path:
+    base = lock_dir or default_lock_dir(repo)
     digest = resource_key_hash(f"state:{run_id}")
     return base / f"{digest}.state.lock"
 
@@ -152,7 +163,7 @@ def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
         }
         for sid, sdata in sorted((state.get("shards") or {}).items())
     }
-    return {
+    contract = {
         "schema_version": SCHEMA_VERSION,
         "run_id": state["run_id"],
         "issue_number": state.get("issue_number"),
@@ -167,6 +178,20 @@ def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
         "reviewers": dict(state.get("reviewers") or {"cloud": True, "deep": True}),
         "models": dict(state.get("models") or {}),
     }
+    if state.get("oracle_mismatches"):
+        contract["oracle_mismatches"] = dict(state["oracle_mismatches"])
+    if state.get("dropped_shards"):
+        contract["dropped_shards"] = list(state["dropped_shards"])
+    if state.get("base_branch_bound"):
+        contract["base_branch_bound"] = True
+    return contract
+
+
+def _revise_contract(repo: Path, state: dict[str, Any]) -> None:
+    state["contract_revision"] = int(state.get("contract_revision") or 0) + 1
+    contract = _build_frozen_contract(state)
+    state["contract_sha256"] = contract_sha256(contract)
+    _write_trusted_contract(repo, contract)
 
 
 def _unsafeguarded_findings(state: dict[str, Any]) -> list[str]:
@@ -236,6 +261,22 @@ def _require_shard(state: dict[str, Any], shard_id: str) -> dict[str, Any]:
     return shards[shard_id]
 
 
+def _new_shard(paths: list[str], checks: list[str], base_sha: str | None) -> dict[str, Any]:
+    return {
+        "status": "locked",
+        "allowed_paths": list(paths),
+        "checks": list(checks),
+        "goal": "",
+        "attempts": 0,
+        "worker_strikes": 0,
+        "last_green_sha": base_sha,
+        "passed_code_tree_sha256": None,
+        "has_passed_individually": False,
+        "worktree_path": None,
+        "pending_dead_end_sig": None,
+    }
+
+
 def init_run(
     repo: Path,
     run_id: str,
@@ -253,12 +294,12 @@ def init_run(
 ) -> dict[str, Any]:
     if merge_mode not in ("human", "auto"):
         raise IllegalTransitionError(f"invalid merge_mode {merge_mode!r}")
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         path = _run_file(repo, run_id)
         if path.exists():
             raise IllegalTransitionError(f"run {run_id!r} already exists")
         limits = _limits_from_repo(repo)
-        resolved_base_sha = base_sha
+        resolved_base_sha = git_rev_parse(repo, base_sha) if base_sha is not None else None
         if resolved_base_sha is None:
             try:
                 resolved_base_sha = git_rev_parse(repo, base_branch)
@@ -322,7 +363,7 @@ def complete_grill(
 ) -> dict[str, Any]:
     if not shards:
         raise IllegalTransitionError("complete-grill requires at least one shard with allowed_paths")
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("draft",), "complete-grill")
         state["grill_summary"] = summary
@@ -343,19 +384,7 @@ def complete_grill(
         for sid, paths in shards.items():
             if not paths:
                 raise IllegalTransitionError(f"shard {sid!r} must have non-empty allowed_paths")
-            shard_map[sid] = {
-                "status": "locked",
-                "allowed_paths": list(paths),
-                "checks": list((shard_checks or {}).get(sid) or []),
-                "goal": "",
-                "attempts": 0,
-                "worker_strikes": 0,
-                "last_green_sha": state.get("base_sha"),
-                "passed_code_tree_sha256": None,
-                "has_passed_individually": False,
-                "worktree_path": None,
-                "pending_dead_end_sig": None,
-            }
+            shard_map[sid] = _new_shard(paths, (shard_checks or {}).get(sid, []), state.get("base_sha"))
         state["shards"] = shard_map
         state["status"] = "grilled"
         state["history"].append({"at": utc_now(), "event": "complete-grill", "status": "grilled"})
@@ -371,11 +400,11 @@ def lock_run(
     pr_number: int | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("grilled",), "lock")
         if base_sha is not None:
-            state["base_sha"] = base_sha
+            state["base_sha"] = git_rev_parse(repo, base_sha)
         if pr_number is not None:
             state["pr_number"] = int(pr_number)
         state["contract_revision"] = max(1, int(state.get("contract_revision") or 0) + 1)
@@ -401,7 +430,7 @@ def lock_run(
 
 
 def publish_contract(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         if int(state.get("contract_revision") or 0) < 1:
             raise IllegalTransitionError("cannot publish-contract before lock")
@@ -429,7 +458,7 @@ def start_shard(
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Multi-shard start: allowed whenever run.status in ('locked', 'in_progress') and shard.status == 'locked'."""
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("locked", "in_progress"), "start-shard")
         shard = _require_shard(state, shard_id)
@@ -444,13 +473,16 @@ def start_shard(
             shard["last_green_sha"] = last_green_sha
         state["status"] = derive_run_status(state)
         state["history"].append(
-            {"at": utc_now(), "event": "start-shard", "shard": shard_id, "status": state["status"]}
+            {"at": utc_now(), "event": "start-shard", "shard": shard_id, "status": state["status"],
+             "branch": git_current_branch(repo) if worktree_path is None else None}
         )
         _save_run_unlocked(repo, run_id, state)
         return state
 
 
 def _has_passing_reviews_for_hash(state: dict[str, Any], code_hash: str) -> bool:
+    if open_oracle_mismatches(state, code_hash):
+        return False
     reviewers = state.get("reviewers") or {}
     cloud_enabled = bool(reviewers.get("cloud", True))
     deep_enabled = bool(reviewers.get("deep", True))
@@ -499,7 +531,7 @@ def bind_pr(
 ) -> dict[str, Any]:
     if int(pr_number) <= 0:
         raise IllegalTransitionError(f"pr_number must be positive, got {pr_number!r}")
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(
             state,
@@ -535,15 +567,43 @@ def bind_pr(
         return state
 
 
+def _clear_shard_pass(shard: dict[str, Any]) -> None:
+    shard.update(passed_code_tree_sha256=None, has_passed_individually=False)
+    shard.pop("passed_tooling", None)
+    shard.pop("trusted_policy_pass_sha", None)
+
+
+def _reset_shard_gate(shard: dict[str, Any]) -> None:
+    _clear_shard_pass(shard)
+    shard.update(status="locked", worker_strikes=0, retry_scope=None)
+
+
+def _set_base(
+    repo: Path, state: dict[str, Any], base_ref: str, branch: str | None,
+) -> None:
+    if branch is not None:
+        if not branch or _run_git(repo, ["check-ref-format", f"refs/heads/{branch}"], check=False).returncode:
+            raise IllegalTransitionError(f"invalid new base branch {branch!r}")
+        state["base_branch_bound"] = True
+        state["base_branch"] = branch
+    resolved_base = git_rev_parse(repo, base_ref)
+    state["base_sha"] = resolved_base
+    for key in ("sha", "worktree", "branch", "detached"):
+        state[f"last_integrated_{key}"] = None
+    for shard in state["shards"].values():
+        _reset_shard_gate(shard)
+        shard["last_green_sha"] = resolved_base
+
+
 def refresh_base(
     repo: Path,
     run_id: str,
     *,
     new_base_sha: str,
+    new_base_branch: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    resolved_base = git_rev_parse(repo, new_base_sha)
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(
             state,
@@ -561,30 +621,92 @@ def refresh_base(
         )
         if state.get("pending_contract_amendments"):
             raise IllegalTransitionError("cannot refresh-base while contract amendments are pending")
-        state["base_sha"] = resolved_base
-        state["last_integrated_sha"] = None
-        state["last_integrated_worktree"] = None
-        state["last_integrated_branch"] = None
-        state["last_integrated_detached"] = None
-        for sdata in state["shards"].values():
-            sdata["status"] = "locked"
-            sdata["worker_strikes"] = 0
-            sdata["passed_code_tree_sha256"] = None
-            sdata["has_passed_individually"] = False
-            sdata["retry_scope"] = None
-            sdata["last_green_sha"] = resolved_base
+        old_branch = state.get("base_branch", "main")
+        was_bound = state.get("base_branch_bound")
+        _set_base(repo, state, new_base_sha, new_base_branch)
+        if new_base_branch is not None and (old_branch != new_base_branch or not was_bound):
+            _revise_contract(repo, state)
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
         state["history"].append(
             {
                 "at": utc_now(),
                 "event": "refresh-base",
-                "base_sha": resolved_base,
+                "base_sha": state["base_sha"],
+                "base_branch": state.get("base_branch", "main"),
                 "status": state["status"],
             }
         )
         _save_run_unlocked(repo, run_id, state)
         return state
+
+
+def record_check_timings(
+    repo: Path, run_id: str, *, scope: str, head_sha: str,
+    steps: dict[str, float], passed: bool, lock_dir: Path | None = None,
+) -> dict[str, float]:
+    """Keep the five latest gate attempts per shard or integration scope."""
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        history = state.setdefault("check_timings", {}).setdefault(scope, [])
+        previous = {
+            name: seconds for attempt in history for name, seconds in attempt["steps"].items()
+        }
+        history.append({"at": utc_now(), "head_sha": head_sha, "passed": passed, "steps": steps})
+        del history[:-5]
+        _save_run_unlocked(repo, run_id, state)
+        return previous
+
+
+def _require_checked_contract(
+    state: dict[str, Any], checked_contract: tuple[str, str | None] | None,
+) -> None:
+    if checked_contract is not None and checked_contract != (state["contract_sha256"], state["base_sha"]):
+        raise IllegalTransitionError("contract or base changed during check; run check again")
+
+
+def _require_checked_tooling(state: dict[str, Any], tooling: dict[str, Any] | None) -> None:
+    for source, sha in (tooling or {}).get("policy_shas", {}).items():
+        shard = state["shards"].get(source, {})
+        if (shard.get("status"), shard.get("has_passed_individually"), shard.get("trusted_policy_pass_sha")) != (
+            "passed", True, sha,
+        ):
+            raise IllegalTransitionError(f"trusted tooling from shard {source!r} changed during check; run check again")
+
+
+def record_check_failure(
+    repo: Path, run_id: str, *, shard_id: str | None, head_sha: str, check_name: str, output: str,
+    checked_contract: tuple[str, str | None], lock_dir: Path | None = None,
+) -> None:
+    """Invalidate current gate evidence and retain the historical rollback target."""
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_checked_contract(state, checked_contract)
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "awaiting_cloud_review", "awaiting_deep_review",
+             "safeguard_pending", "ready_to_merge"),
+            "record-check-failure",
+        )
+        signature = normalize_failure(check_name, output)
+        if shard_id is None and len(state["shards"]) == 1:
+            shard_id = next(iter(state["shards"]))
+        if shard_id is None:
+            # A shared integration failure leaves individual shard qualifications intact.
+            for shard in state["shards"].values():
+                shard["passed_code_tree_sha256"] = None
+                shard.pop("passed_tooling", None)
+        else:
+            shard = _require_shard(state, shard_id)
+            _clear_shard_pass(shard)
+            shard.update(status="in_progress", pending_dead_end_sig=signature)
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        state["history"].append({
+            "at": utc_now(), "event": "check-failed", "shard": shard_id, "head_sha": head_sha,
+            "check_name": check_name, "signature": signature, "status": state["status"],
+        })
+        _save_run_unlocked(repo, run_id, state)
 
 
 def record_shard_pass(
@@ -594,10 +716,14 @@ def record_shard_pass(
     *,
     code_tree_sha256: str | None = None,
     head_sha: str | None = None,
+    checked_contract: tuple[str, str | None] | None = None,
+    tooling: dict[str, Any] | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
+        _require_checked_contract(state, checked_contract)
+        _require_checked_tooling(state, tooling)
         prev_status = state["status"]
         _require_status(
             state,
@@ -618,6 +744,13 @@ def record_shard_pass(
         shard["retry_scope"] = None
         if head_sha:
             shard["last_green_sha"] = head_sha
+        shard.pop("trusted_policy_pass_sha", None)
+        if tooling is not None:
+            shard["passed_tooling"] = tooling
+            if tooling["fast_check_ran"] and head_sha:
+                shard["trusted_policy_pass_sha"] = head_sha
+        else:
+            shard.pop("passed_tooling", None)
         _apply_post_pass_status(state, prev_status, eff_code_hash)
         state["history"].append(
             {
@@ -626,6 +759,7 @@ def record_shard_pass(
                 "shard": shard_id,
                 "code_tree_sha256": eff_code_hash,
                 "status": state["status"],
+                **({"static_lint": tooling["static_lint"]} if tooling and "static_lint" in tooling else {}),
             }
         )
         _save_run_unlocked(repo, run_id, state)
@@ -640,11 +774,15 @@ def record_all_shards_pass(
     head_sha: str | None = None,
     worktree_path: str | None = None,
     branch_name: str | None = None,
+    checked_contract: tuple[str, str | None] | None = None,
+    tooling: dict[str, Any] | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Atomically record the shared integration `code_tree_sha256` across all shards."""
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
+        _require_checked_contract(state, checked_contract)
+        _require_checked_tooling(state, tooling)
         prev_status = state["status"]
         _require_status(
             state,
@@ -671,6 +809,10 @@ def record_all_shards_pass(
             sdata["pending_dead_end_sig"] = None
             sdata["passed_code_tree_sha256"] = eff_code_hash
             sdata["retry_scope"] = None
+            if tooling is not None:
+                sdata["passed_tooling"] = tooling
+            else:
+                sdata.pop("passed_tooling", None)
             if single_shard:
                 sdata["has_passed_individually"] = True
                 if head_sha:
@@ -697,10 +839,11 @@ def retry_shard(
     error_output: str,
     worktree: Path | None = None,
     integrated: bool = False,
+    rollback: bool = False,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Record a failed shard attempt; enforce strikes/replan/max-attempts & safe rollback restore (exit 4)."""
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    """Record a strike and apply retry limits, with optional safe rollback at the limit."""
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         prev_run_status = state["status"]
         _require_status(
@@ -723,7 +866,7 @@ def retry_shard(
             else None
         )
         is_integrated_retry = bool(integrated) or shard.get("retry_scope") == "integrated"
-        if bool(integrated) and not state.get("last_integrated_sha"):
+        if integrated and rollback and not state.get("last_integrated_sha"):
             raise IllegalTransitionError(
                 "cannot run integrated retry-shard before an integrated check --all-shards pass exists"
             )
@@ -753,6 +896,8 @@ def retry_shard(
         shard["worker_strikes"] = int(shard.get("worker_strikes") or 0) + 1
         shard["pending_dead_end_sig"] = sig
         shard["passed_code_tree_sha256"] = None
+        if not is_integrated_retry:
+            _clear_shard_pass(shard)
         state["total_attempts"] = int(state.get("total_attempts") or 0) + 1
 
         needs_rollback = (
@@ -760,7 +905,7 @@ def retry_shard(
         )
         rolled_back_to: str | None = None
         rollback_commit: str | None = None
-        if needs_rollback:
+        if needs_rollback and rollback:
             if is_integrated_retry:
                 target_sha = state.get("last_integrated_sha")
                 if not target_sha:
@@ -865,7 +1010,7 @@ def log_dead_end(
     outcome: str,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         shard = _require_shard(state, shard_id)
         eff_sig = signature or shard.get("pending_dead_end_sig")
@@ -884,8 +1029,54 @@ def log_dead_end(
             shard["status"] = "in_progress"
             state["status"] = derive_run_status(state)
         state["history"].append({"at": utc_now(), "event": "log-dead-end", "shard": shard_id, "signature": eff_sig})
+        record_lesson(
+            repo, run_id, kind="dead_end", summary=f"{hypothesis}\nOutcome: {outcome}",
+            evidence=f".autoloop/runs/{run_id}.json", applies_to=shard["allowed_paths"],
+            created_at=entry["at"], draft=True,
+        )
         _save_run_unlocked(repo, run_id, state)
         return state
+
+
+def _require_unused_shard(repo: Path, state: dict[str, Any], shard_id: str) -> None:
+    shard = _require_shard(state, shard_id)
+    if any(
+        record.get("shard", record.get("shard_id")) == shard_id
+        for register in ("findings", "oracle_mismatches")
+        for record in (state.get(register) or {}).values()
+    ):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has findings")
+    if shard.get("worktree_path"):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has a registered worktree")
+
+    start = None
+    for event in reversed(state["history"]):
+        if event.get("event") == "resolve-contract-change" and any(
+            item["shard"] == shard_id for item in event.get("dropped_shards", [])
+        ):
+            break
+        if event.get("event") == "start-shard" and event.get("shard") == shard_id:
+            start = event
+            break
+    if start is None and shard["status"] == "locked":
+        return
+
+    base = state.get("base_sha")
+    if not base or shard.get("last_green_sha") not in (None, base):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has commit evidence")
+    refs = ["HEAD"]
+    for branch in {f"shard/{shard_id}", (start or {}).get("branch")} - {None}:
+        ref = f"refs/heads/{branch}"
+        if _run_git(repo, ["show-ref", "--verify", "--quiet", ref], check=False).returncode == 0:
+            refs.append(ref)
+    changed = _run_git(repo, [
+        "log", "-m", "--full-history", "--name-only", "--format=", "--no-renames", "-z", *refs, f"^{base}", "--",
+    ]).stdout
+    if any(
+        matches_any_glob(path.decode("utf-8", errors="surrogateescape"), shard["allowed_paths"])
+        for path in changed.split(b"\0") if path
+    ):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has commits in its allowed paths")
 
 
 def request_contract_change(
@@ -895,9 +1086,10 @@ def request_contract_change(
     *,
     reason: str,
     proposed_paths: list[str] | None = None,
+    drop: bool = False,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(
             state,
@@ -912,18 +1104,31 @@ def request_contract_change(
             ),
             "request-contract-change",
         )
-        shard = _require_shard(state, shard_id)
-        req_id = f"amend-{len(state['pending_contract_amendments']) + 1}"
-        state["pending_contract_amendments"].append(
+        shard = state["shards"].get(shard_id)
+        if shard is None and (not RUN_ID_RE.fullmatch(shard_id) or ".." in shard_id):
+            raise IllegalTransitionError(f"invalid new shard ID {shard_id!r}")
+        pending = state["pending_contract_amendments"]
+        if any(item["shard"] == shard_id and (drop or item.get("drop")) for item in pending):
+            raise IllegalTransitionError(f"conflicting contract change already requested for {shard_id!r}")
+        if drop:
+            if not reason.strip() or proposed_paths:
+                raise IllegalTransitionError("--drop requires a non-empty reason and cannot include proposed paths")
+            _require_unused_shard(repo, state, shard_id)
+            if len(state["shards"]) <= 1 + sum(bool(item.get("drop")) for item in pending):
+                raise IllegalTransitionError("cannot drop the last active shard")
+        req_id = f"amend-{len(pending) + 1}"
+        pending.append(
             {
                 "id": req_id,
                 "shard": shard_id,
                 "reason": reason,
                 "proposed_paths": list(proposed_paths or []),
                 "requested_at": utc_now(),
+                **({"drop": True} if drop else {}),
             }
         )
-        shard["status"] = "needs_contract_amendment"
+        if shard is not None and not drop:
+            shard["status"] = "needs_contract_amendment"
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
         state["history"].append(
@@ -941,7 +1146,7 @@ def apply_replan(
     shard_id: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("needs_replan",), "apply-replan")
         limits = state.get("limits") or _limits_from_repo(repo)
@@ -984,19 +1189,67 @@ def resolve_contract_change(
     allow_policy_paths: list[str] | None = None,
     shard_checks: dict[str, list[str]] | None = None,
     new_base_sha: str | None = None,
+    new_base_branch: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     if decision not in ("approve", "reject"):
         raise IllegalTransitionError(f"decision must be 'approve' or 'reject', got {decision!r}")
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("needs_contract_amendment",), "resolve-contract-change")
+        drops = []
         if decision == "approve":
+            shards = state["shards"]
+            pending = state["pending_contract_amendments"]
+            drop_ids = {r["shard"] for r in pending if r.get("drop")}
+            if drop_ids & (set(add_paths or {}) | set(shard_checks or {})):
+                raise IllegalTransitionError("cannot update paths or checks for a shard being dropped")
+            if drop_ids and not (shards.keys() - drop_ids):
+                raise IllegalTransitionError("cannot drop the last active shard")
+            for request in pending:
+                if not request.get("drop"):
+                    continue
+                sid = request["shard"]
+                _require_unused_shard(repo, state, sid)
+                drops.append({
+                    "shard": sid, "reason": request["reason"],
+                    "allowed_paths": list(shards[sid]["allowed_paths"]),
+                    "contract_revision": state["contract_revision"] + 1,
+                })
+                del shards[sid]
+            if drops:
+                state.setdefault("dropped_shards", []).extend(drops)
+            requested_new = {r["shard"] for r in pending if not r.get("drop")} - shards.keys()
+            supplied_new = set(add_paths or {}) - shards.keys()
+            if supplied_new != requested_new:
+                raise IllegalTransitionError(
+                    "approve requires --add-shard-paths for every requested new shard and only requested new shards"
+                )
             if add_paths:
                 for sid, extra in add_paths.items():
-                    shard = _require_shard(state, sid)
-                    merged = list(dict.fromkeys(list(shard["allowed_paths"]) + list(extra)))
-                    shard["allowed_paths"] = merged
+                    if not extra or any(not path.strip() for path in extra):
+                        raise IllegalTransitionError(f"shard {sid!r} must have non-empty allowed_paths")
+                    if sid in shards:
+                        shard = shards[sid]
+                        shard["allowed_paths"] = list(dict.fromkeys(shard["allowed_paths"] + list(extra)))
+                        _reset_shard_gate(shard)
+                    else:
+                        shards[sid] = _new_shard(extra, [], state.get("base_sha"))
+                    for dropped in state.get("dropped_shards", []):
+                        restored = [
+                            path for path in extra
+                            if any(globs_overlap(path, former) for former in dropped["allowed_paths"])
+                        ]
+                        if restored:
+                            readded = dropped.setdefault("readded", {})
+                            readded[sid] = list(dict.fromkeys([*readded.get(sid, []), *restored]))
+            for sid in sorted(requested_new):
+                for other, other_shard in shards.items():
+                    if other != sid and any(
+                        globs_overlap(a, b)
+                        for a in shards[sid]["allowed_paths"] for b in other_shard["allowed_paths"]
+                    ):
+                        raise IllegalTransitionError(f"new shard {sid!r} overlaps allowed_paths of shard {other!r}")
             if allow_policy_paths:
                 existing_ap = list(state.get("allow_policy_paths") or [])
                 state["allow_policy_paths"] = list(dict.fromkeys(existing_ap + list(allow_policy_paths)))
@@ -1004,28 +1257,12 @@ def resolve_contract_change(
                 for sid, cmds in shard_checks.items():
                     shard = _require_shard(state, sid)
                     shard["checks"] = list(cmds)
-                    shard["status"] = "locked"
-                    shard["worker_strikes"] = 0
-                    shard["has_passed_individually"] = False
-                    shard["passed_code_tree_sha256"] = None
-                    shard["retry_scope"] = None
+                    _reset_shard_gate(shard)
+            if new_base_branch is not None and not new_base_sha:
+                raise IllegalTransitionError("--new-base-branch requires --new-base-sha")
             if new_base_sha:
-                resolved_base = git_rev_parse(repo, new_base_sha)
-                state["base_sha"] = resolved_base
-                state["last_integrated_sha"] = None
-                state["last_integrated_worktree"] = None
-                state["last_integrated_branch"] = None
-                state["last_integrated_detached"] = None
-                for sdata in state["shards"].values():
-                    sdata["status"] = "locked"
-                    sdata["worker_strikes"] = 0
-                    sdata["passed_code_tree_sha256"] = None
-                    sdata["has_passed_individually"] = False
-                    sdata["last_green_sha"] = resolved_base
-            state["contract_revision"] = int(state.get("contract_revision") or 0) + 1
-            contract = _build_frozen_contract(state)
-            state["contract_sha256"] = contract_sha256(contract)
-            _write_trusted_contract(repo, contract)
+                _set_base(repo, state, new_base_sha, new_base_branch)
+            _revise_contract(repo, state)
 
         state["pending_contract_amendments"] = []
         for sdata in state["shards"].values():
@@ -1043,6 +1280,7 @@ def resolve_contract_change(
                 "decision": decision,
                 "contract_revision": state["contract_revision"],
                 "status": state["status"],
+                **({"dropped_shards": drops} if drops else {}),
             }
         )
         _save_run_unlocked(repo, run_id, state)
@@ -1060,7 +1298,7 @@ def human_resolve(
 ) -> dict[str, Any]:
     if action not in ("resume", "terminate"):
         raise IllegalTransitionError(f"human-resolve action must be 'resume' or 'terminate', got {action!r}")
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("blocked_human",), "human-resolve")
         if action == "terminate":
@@ -1083,8 +1321,15 @@ def human_resolve(
         return state
 
 
+def _gated_head(state: dict[str, Any]) -> str | None:
+    shards = state["shards"]
+    if len(shards) == 1:
+        return next(iter(shards.values())).get("last_green_sha")
+    return state.get("last_integrated_sha")
+
+
 def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("gate_passed",), "submit-for-review")
         if state.get("pending_contract_amendments"):
@@ -1096,13 +1341,26 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
             raise IllegalTransitionError(
                 f"cannot submit-for-review with open findings: {', '.join(sorted(open_findings))}"
             )
+        gate_head = _gated_head(state)
+        for fid, finding in (state.get("findings") or {}).items():
+            fixed_by = finding.get("fixed_by")
+            if finding["status"] == "fixed_pending_review" and fixed_by:
+                if not gate_head or not git_is_ancestor(repo, fixed_by, gate_head):
+                    raise IllegalTransitionError(f"finding {fid!r} fix {fixed_by} is missing from the gated commit")
         reviewers = state.get("reviewers") or {}
         cloud_enabled = bool(reviewers.get("cloud", True))
         deep_enabled = bool(reviewers.get("deep", True))
+        passed_hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
+        code_hash = next(iter(passed_hashes)) if len(passed_hashes) == 1 else None
+        open_mismatches = open_oracle_mismatches(state, code_hash)
+        if state.get("oracle_mismatches"):
+            for record in state["oracle_mismatches"].values():
+                if not gate_head or git_read_blob(repo, gate_head, record["test"]) is None:
+                    raise IllegalTransitionError(f"oracle mismatch test {record['test']!r} is missing at the gated commit")
 
         if cloud_enabled:
             state["status"] = "awaiting_cloud_review"
-        elif deep_enabled:
+        elif deep_enabled or open_mismatches:
             state["status"] = "awaiting_deep_review"
         else:
             # Zero-reviewer direct route (V3 §3)
@@ -1110,9 +1368,95 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
             for fdata in (state.get("findings") or {}).values():
                 if fdata.get("status") == "fixed_pending_review":
                     fdata["status"] = "closed_needs_safeguard"
+                    fdata["verified_at"] = utc_now()
             state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
 
         state["history"].append({"at": utc_now(), "event": "submit-for-review", "status": state["status"]})
+        _save_run_unlocked(repo, run_id, state)
+        return {**state, "open_oracle_mismatches": open_mismatches}
+
+
+def record_oracle_mismatch(
+    repo: Path, run_id: str, shard_id: str, *, upstream_ref: str, summary: str,
+    why_ours_is_correct: str, test: str, lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_status(
+            state, ("locked", "in_progress", "retrying", "gate_passed", "awaiting_cloud_review",
+                    "awaiting_deep_review", "safeguard_pending", "ready_to_merge"),
+            "record-oracle-mismatch",
+        )
+        record = {
+            "shard": shard_id, "upstream_ref": upstream_ref.strip(), "summary": summary.strip(),
+            "why_ours_is_correct": why_ours_is_correct.strip(), "test": test.strip(),
+        }
+        validate_oracle_mismatch(record, state["shards"])
+        mismatch_id = oracle_mismatch_id(record)
+        register = state.setdefault("oracle_mismatches", {})
+        if mismatch_id not in register:
+            register[mismatch_id] = record
+            _revise_contract(repo, state)
+            state["status"] = "in_progress"
+            state["status"] = derive_run_status(state)
+            state["history"].append({"at": utc_now(), "event": "record-oracle-mismatch", "id": mismatch_id})
+            _save_run_unlocked(repo, run_id, state)
+        return {**state, "oracle_mismatch_id": mismatch_id}
+
+
+def record_finding(
+    repo: Path,
+    run_id: str,
+    finding_id: str,
+    *,
+    severity: str,
+    source: str,
+    summary: str,
+    evidence: str,
+    fixed_by: str | None = None,
+    shard_id: str | None = None,
+    lock_dir: Path | None = None,
+) -> dict[str, Any]:
+    finding_id, summary, evidence = finding_id.strip(), summary.strip(), evidence.strip()
+    if not finding_id or not summary or not evidence:
+        raise IllegalTransitionError("record-finding requires a non-empty finding ID, summary, and evidence")
+    if severity not in FINDING_SEVERITIES or source not in FINDING_SOURCES:
+        raise IllegalTransitionError(f"invalid finding severity or source: {severity!r}, {source!r}")
+    if fixed_by is not None:
+        if not fixed_by.strip():
+            raise IllegalTransitionError("--fixed-by requires a commit")
+        # Resolve an object name only, without interpreting option-like input.
+        fixed_by = git_rev_parse(repo, fixed_by.strip())
+
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        if state["status"] == "terminated":
+            raise IllegalTransitionError("cannot record-finding when run status is 'terminated'")
+        findings = state.setdefault("findings", {})
+        if finding_id in findings:
+            raise IllegalTransitionError(f"finding {finding_id!r} already exists")
+        now = utc_now()
+        finding = {
+            "finding_id": finding_id,
+            "severity": severity,
+            "source": source,
+            "summary": summary,
+            "evidence": evidence,
+            "status": "open",
+            "opened_at": now,
+        }
+        if shard_id is not None:
+            _require_shard(state, shard_id)
+            finding["shard"] = shard_id
+        if fixed_by is not None:
+            finding.update(status="fixed_pending_review", fixed_by=fixed_by, resolved_at=now)
+        findings[finding_id] = finding
+        if state["status"] in ("awaiting_cloud_review", "awaiting_deep_review", "safeguard_pending", "ready_to_merge"):
+            state["status"] = "gate_passed"
+        state["history"].append({
+            "at": now, "event": "record-finding", "finding_id": finding_id, "source": source,
+            "fixed_by": fixed_by, "status": state["status"],
+        })
         _save_run_unlocked(repo, run_id, state)
         return state
 
@@ -1125,7 +1469,7 @@ def resolve_finding(
     fix_summary: str,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         findings = state.get("findings") or {}
         if finding_id not in findings:
@@ -1154,6 +1498,7 @@ def record_review(
     reviewer: str,
     code_tree_sha256: str,
     findings: list[dict[str, Any]] | None = None,
+    oracle_mismatch_ids: list[str] | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     if stage not in ("cloud", "deep"):
@@ -1162,7 +1507,7 @@ def record_review(
         raise IllegalTransitionError(f"review verdict must be 'pass' or 'reject', got {verdict!r}")
     expected_status = "awaiting_cloud_review" if stage == "cloud" else "awaiting_deep_review"
 
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, (expected_status,), f"record-review({stage})")
 
@@ -1171,6 +1516,11 @@ def record_review(
             raise IllegalTransitionError(
                 f"review code_tree_sha256 {code_tree_sha256!r} does not match passed shards {shard_hashes!r}"
             )
+        mismatch_ids = sorted(set(oracle_mismatch_ids or []))
+        if mismatch_ids and (
+            verdict != "pass" or not reviewer.strip() or set(mismatch_ids) - set(state.get("oracle_mismatches", {}))
+        ):
+            raise IllegalTransitionError("oracle review requires a passing named reviewer and known mismatch IDs")
 
         state["reviews"].append(
             {
@@ -1179,6 +1529,9 @@ def record_review(
                 "verdict": verdict,
                 "reviewer": reviewer,
                 "code_tree_sha256": code_tree_sha256,
+                "contract_revision": state["contract_revision"],
+                "base_sha": state["base_sha"],
+                "oracle_mismatch_ids": mismatch_ids,
             }
         )
 
@@ -1190,15 +1543,25 @@ def record_review(
                 desc = str(item.get("summary") or "").strip()
                 if not fid or not desc:
                     raise IllegalTransitionError("each finding requires non-empty finding_id and summary")
+                previous = state["findings"].get(fid, {})
                 state["findings"][fid] = {
                     "finding_id": fid,
                     "stage": stage,
                     "reviewer": reviewer,
                     "summary": desc,
-                    "severity": str(item.get("severity") or "P1"),
+                    "severity": str(item.get("severity") or previous.get("severity", "P1")),
+                    "source": previous.get("source", "review"),
                     "status": "open",
                     "opened_at": utc_now(),
                 }
+                if item.get("evidence") or previous.get("evidence"):
+                    state["findings"][fid]["evidence"] = str(item.get("evidence") or previous["evidence"])
+                reported_shard = item.get("shard") or previous.get("shard")
+                if reported_shard is not None:
+                    _require_shard(state, reported_shard)
+                    if previous.get("shard") not in (None, reported_shard):
+                        raise IllegalTransitionError(f"finding {fid!r} is already assigned to another shard")
+                    state["findings"][fid]["shard"] = reported_shard
             # Re-open execution so worker must fix and re-pass gates
             for sdata in state["shards"].values():
                 sdata["status"] = "in_progress"
@@ -1218,6 +1581,9 @@ def record_review(
             else:
                 if _open_or_pending_review_findings(state):
                     raise IllegalTransitionError("cannot complete review while open findings exist")
+                outstanding = open_oracle_mismatches(state, code_tree_sha256)
+                if outstanding:
+                    raise IllegalTransitionError(f"unreviewed oracle mismatches: {', '.join(sorted(outstanding))}")
                 state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
 
         state["history"].append(
@@ -1241,6 +1607,7 @@ def record_safeguard(
     layer: str,
     artifact: str,
     summary: str,
+    rule_id: str | None = None,
     why_not_static: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -1252,12 +1619,14 @@ def record_safeguard(
         raise IllegalTransitionError(
             "layer_4_runtime_test requires non-empty --why-not-static justification"
         )
-    if not artifact.strip():
-        raise IllegalTransitionError("safeguard requires a non-empty artifact reference")
+    if not artifact.strip() or not summary.strip():
+        raise IllegalTransitionError("safeguard requires a non-empty artifact reference and summary")
+    if layer != "layer_3_static_lint" and rule_id is not None:
+        raise IllegalTransitionError("--rule-id applies only to layer_3_static_lint")
 
-    with acquire_mutex(_state_mutex_path(run_id, lock_dir)):
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
-        _require_status(state, ("safeguard_pending",), "record-safeguard")
+        _require_status(state, ("safeguard_pending", "ready_to_merge"), "record-safeguard")
         limits = state.get("limits") or _limits_from_repo(repo)
         max_prose = int(limits.get("max_safeguard_prose_lines", DEFAULT_MAX_PROSE_LINES))
 
@@ -1271,7 +1640,11 @@ def record_safeguard(
         if finding_id not in findings:
             raise IllegalTransitionError(f"unknown finding_id {finding_id!r}")
         finding = findings[finding_id]
-        if finding.get("status") != "closed_needs_safeguard":
+        refreshing_static_proof = (
+            finding.get("status") == "safeguarded"
+            and finding.get("safeguard", {}).get("layer") == layer == "layer_3_static_lint"
+        )
+        if finding.get("status") != "closed_needs_safeguard" and not refreshing_static_proof:
             raise IllegalTransitionError(
                 f"cannot record safeguard for finding {finding_id!r} in status {finding.get('status')!r} "
                 "(expected 'closed_needs_safeguard')"
@@ -1279,6 +1652,12 @@ def record_safeguard(
 
         shard_hashes = {s.get("passed_code_tree_sha256") for s in state["shards"].values()}
         current_code_hash = next(iter(shard_hashes)) if len(shard_hashes) == 1 else None
+        proof = {}
+        if layer == "layer_3_static_lint":
+            gate_head = _gated_head(state)
+            if not gate_head or not current_code_hash:
+                raise IllegalTransitionError("static safeguard requires a gated commit")
+            proof = verify_rule_fixture(repo, gate_head, artifact, rule_id or finding_id)
         finding["status"] = "safeguarded"
         finding["safeguard"] = {
             "layer": layer,
@@ -1287,10 +1666,11 @@ def record_safeguard(
             "why_not_static": why_not_static,
             "safeguard_code_tree_sha256": current_code_hash,
             "recorded_at": utc_now(),
+            **proof,
         }
         state["safeguards"].append({"finding_id": finding_id, **finding["safeguard"]})
 
-        if not _unsafeguarded_findings(state):
+        if not _unsafeguarded_findings(state) and not open_oracle_mismatches(state, current_code_hash):
             state["status"] = "ready_to_merge"
 
         state["history"].append(
@@ -1301,6 +1681,13 @@ def record_safeguard(
                 "layer": layer,
                 "status": state["status"],
             }
+        )
+        record_lesson(
+            repo, run_id, kind="safeguard", summary=f"{finding['summary']}\nSafeguard: {summary}",
+            evidence=artifact, applies_to=sorted({
+                path for shard in state["shards"].values() for path in shard["allowed_paths"]
+            }),
+            created_at=finding["safeguard"]["recorded_at"], draft=True,
         )
         _save_run_unlocked(repo, run_id, state)
         return state

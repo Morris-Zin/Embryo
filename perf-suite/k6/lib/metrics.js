@@ -11,6 +11,20 @@ export const transferVouchers = new Counter('transfer_vouchers');
 export const errors = new Counter('errors');
 export const errorRate = new Rate('error_rate');
 
+export const seasonalVoucherStarted = new Counter('seasonal_voucher_started');
+export const seasonalVoucherCompleted = new Counter('seasonal_voucher_completed');
+export const seasonalVoucherRejected = new Counter('seasonal_voucher_rejected');
+export const seasonalVoucherRetried = new Counter('seasonal_voucher_retried');
+export const seasonalVoucherLostAck = new Counter('seasonal_voucher_lost_ack');
+export const seasonalVoucherUnknown = new Counter('seasonal_voucher_unknown');
+export const seasonalVoucherRecoveryReads = new Counter('seasonal_voucher_recovery_reads');
+export const seasonalVoucherLinesCompleted = new Counter('seasonal_voucher_lines_completed');
+export const seasonalDetailFirstRowsDuration = new Trend('seasonal_detail_first_rows_duration', true);
+export const seasonalExportDuration = new Trend('seasonal_export_duration', true);
+export const seasonalExportBytes = new Counter('seasonal_export_bytes');
+export const seasonalExportRows = new Counter('seasonal_export_rows');
+export const seasonalDetailFallbacks = new Counter('seasonal_detail_fallbacks');
+
 export const voucherThresholds = {
   search_duration: ['p(95)<300'],
   submit_duration: ['p(95)<1500'],

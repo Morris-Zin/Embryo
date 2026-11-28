@@ -1,0 +1,11 @@
+{
+  "applies_to": [
+    "perf-suite/**"
+  ],
+  "created_at": "2026-11-28T17:47:44Z",
+  "draft": false,
+  "evidence": "PR19 deep round 5 findings attribution-csv-rejects-timestamp, window-parser-misses-k6-console-records, k6-denominators-collapse-to-zero",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Evaluator/harness parsers must be tested against REAL captured artifacts (genuine k6 --summary-export JSON, real k6 console lines, real nginx log lines), not fixtures hand-built by the same worker. Five deep review rounds kept finding fix-induced defects; round 5 showed a real run could never qualify (CSV fieldnames crash, console-format miss, summary-export counter shape) while offline tests were green. After 2 review rounds on a harness, run a live diagnostic smoke before another review round."
+}

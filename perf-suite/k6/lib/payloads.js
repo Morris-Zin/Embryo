@@ -11,18 +11,96 @@ function seedManifestUrls() {
   return candidates;
 }
 
-const seedManifest = new SharedArray('seed_manifest', function () {
+function loadSeedManifest() {
   const paths = seedManifestUrls();
   const failures = [];
   for (let index = 0; index < paths.length; index += 1) {
     try {
-      return [JSON.parse(open(paths[index]))];
+      return JSON.parse(open(paths[index]));
     } catch (err) {
       failures.push(`${paths[index]} (${err})`);
     }
   }
   throw new Error(`Unable to load seed manifest. Tried: ${failures.join('; ')}`);
-});
+}
+
+function compactSeasonalContext(full) {
+  const inStock = {};
+  const stocked = {};
+  Object.keys(full.inStock).forEach((warehouseKey) => {
+    const entry = full.inStock[warehouseKey];
+    const itemCodes = [];
+    const quantities = [];
+    const uoms = [];
+    entry.items.forEach((item) => {
+      itemCodes.push(item.item_code);
+      quantities.push(item.qty);
+      uoms.push(item.uom);
+      stocked[item.item_code] = true;
+    });
+    inStock[warehouseKey] = {
+      warehouse: entry.warehouse,
+      count: itemCodes.length,
+      item_codes: itemCodes,
+      quantities,
+      uoms,
+    };
+  });
+  const catalogByCode = {};
+  const hasStockMap = Object.keys(full.inStock || {}).length > 0;
+  full.items.forEach((item) => {
+    if ((!hasStockMap || stocked[item.item_code]) && catalogByCode[item.item_code] === undefined) {
+      catalogByCode[item.item_code] = item;
+    }
+  });
+  const catalogCodes = Object.keys(catalogByCode).sort();
+  const catalogRates = [];
+  const catalogHasRate = [];
+  const catalogNames = [];
+  const catalogBarcodes = [];
+  const catalogUoms = [];
+  const catalogHotRanks = [];
+  catalogCodes.forEach((code) => {
+    const item = catalogByCode[code];
+    catalogRates.push(item.rate === undefined ? 0 : item.rate);
+    catalogHasRate.push(item.rate !== undefined);
+    catalogNames.push(item.item_name || code);
+    catalogBarcodes.push(item.barcode || '');
+    catalogUoms.push(item.uom || full.defaultUom || 'Nos');
+    catalogHotRanks.push(item.hot_rank || 0);
+  });
+  const catalogHotOrder = catalogCodes.map((code, index) => index).sort((left, right) => {
+    const rankDelta = (catalogHotRanks[left] || 0) - (catalogHotRanks[right] || 0);
+    return rankDelta || left - right;
+  });
+  return {
+    raw: { seed_id: full.raw && full.raw.seed_id, site_name: full.raw && full.raw.site_name },
+    items: catalogCodes.slice(),
+    inStock,
+    warehouses: full.warehouses,
+    priceLists: full.priceLists,
+    customers: full.customers,
+    suppliers: full.suppliers,
+    uoms: full.uoms,
+    company: full.company,
+    catalogCodes,
+    catalogRates,
+    catalogHasRate,
+    catalogNames,
+    catalogBarcodes,
+    catalogUoms,
+    catalogHotRanks,
+    catalogHotOrder,
+    reportWindow: full.reportWindow,
+    defaultPriceList: full.defaultPriceList,
+    defaultCustomer: full.defaultCustomer,
+    defaultSupplier: full.defaultSupplier,
+    defaultUom: full.defaultUom,
+    paymentMode: full.paymentMode,
+    defaultCurrency: full.defaultCurrency,
+    defaultCashAccount: full.defaultCashAccount,
+  };
+}
 
 const DEFAULT_WAREHOUSES = [
   { name: 'Dist Hub 1', role: 'distribution' },
@@ -32,6 +110,10 @@ const DEFAULT_WAREHOUSES = [
   { name: 'Shop 3', role: 'retail' },
   { name: 'Shop 4', role: 'retail' },
 ];
+
+const sharedManifestContext = new SharedArray('seed_manifest_context', function () {
+  return [compactSeasonalContext(buildContextFromRoot(loadSeedManifest()))];
+});
 
 function asList(value) {
   if (!value) {
@@ -243,8 +325,8 @@ function manifestItems(root) {
   return derived;
 }
 
-function buildContext() {
-  const root = Array.isArray(seedManifest[0]) ? { items: seedManifest[0] } : seedManifest[0] || {};
+function buildContextFromRoot(rawRoot) {
+  const root = Array.isArray(rawRoot) ? { items: rawRoot } : rawRoot || {};
   const expectedSite = String(__ENV.SITE_NAME || 'bench-loadtest.localhost');
   if (root.site_name && String(root.site_name) !== expectedSite) {
     throw new Error(
@@ -258,11 +340,18 @@ function buildContext() {
   const warehouses = firstList(root.warehouses, root.warehouse_list, root.shops, root.locations)
     .map(normalizeWarehouse)
     .filter(Boolean);
-  const priceLists = scalarList(root.price_lists || root.priceLists, ['Standard Selling']);
+  const priceLists = scalarList(root.price_lists || root.priceLists, [textValue(root.price_list, 'Standard Selling')]);
   const customers = scalarList(root.customers || root.customer_list, ['Walk-in Customer']);
+  const suppliers = scalarList(root.suppliers || root.supplier_list, []);
   const uoms = scalarList(root.uoms || root.units, ['Nos']);
   const company = textValue(root.company, root.company_name, warehouses.find((warehouse) => warehouse.company)?.company, 'Khitmee');
   const reportWindowRaw = root.report_window || root.reportWindow || {};
+  const catalogLookup = {};
+  items.forEach((item) => {
+    if (catalogLookup[item.item_code] === undefined) {
+      catalogLookup[item.item_code] = item;
+    }
+  });
 
   return {
     raw: root,
@@ -271,21 +360,26 @@ function buildContext() {
     warehouses: warehouses.length ? warehouses : DEFAULT_WAREHOUSES.slice(),
     priceLists,
     customers,
+    suppliers,
     uoms,
     company,
+    catalogLookup,
     reportWindow: {
       from_date: textValue(reportWindowRaw.from_date, reportWindowRaw.fromDate),
       to_date: textValue(reportWindowRaw.to_date, reportWindowRaw.toDate),
+      final_voucher_date: textValue(reportWindowRaw.final_voucher_date, reportWindowRaw.finalVoucherDate),
     },
     defaultPriceList: textValue(root.default_price_list, root.price_list, priceLists[0], 'Standard Selling'),
     defaultCustomer: textValue(root.default_customer, customers[0], 'Walk-in Customer'),
+    defaultSupplier: textValue(root.default_supplier, suppliers[0]),
     defaultUom: textValue(root.default_uom, uoms[0], 'Nos'),
+    paymentMode: textValue(root.payment_mode, root.paymentMode, 'Cash'),
     defaultCurrency: textValue(root.currency, root.company_currency, root.default_currency, 'USD'),
     defaultCashAccount: textValue(root.cash_account, root.cashAccount),
   };
 }
 
-export const manifestContext = buildContext();
+export const manifestContext = sharedManifestContext[0];
 
 const zipfCache = {};
 
@@ -335,28 +429,109 @@ export function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function catalogRateIndex(itemCode) {
+  const codes = manifestContext.catalogCodes || [];
+  let low = 0;
+  let high = codes.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (codes[mid] === itemCode) {
+      return mid;
+    }
+    if (codes[mid] < itemCode) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return -1;
+}
+
+function catalogItemAt(index) {
+  const code = manifestContext.catalogCodes[index];
+  const item = {
+    item_code: code,
+    item_name: (manifestContext.catalogNames || [])[index] || code,
+    barcode: (manifestContext.catalogBarcodes || [])[index] || '',
+    uom: (manifestContext.catalogUoms || [])[index] || manifestContext.defaultUom || 'Nos',
+    hot_rank: (manifestContext.catalogHotRanks || [])[index] || index + 1,
+  };
+  if ((manifestContext.catalogHasRate || [])[index]) {
+    item.rate = manifestContext.catalogRates[index];
+  }
+  return item;
+}
+
+function catalogOrder() {
+  if (manifestContext.catalogHotOrder && manifestContext.catalogHotOrder.length) {
+    return manifestContext.catalogHotOrder;
+  }
+  return (manifestContext.catalogCodes || []).map((_code, index) => index);
+}
+
+export function catalogItems() {
+  return catalogOrder().map(catalogItemAt);
+}
+
+function inStockItemAt(entry, index) {
+  if (entry.items) {
+    return entry.items[index];
+  }
+  const code = (entry.item_codes || [])[index];
+  const catalogIndex = catalogRateIndex(code);
+  const catalogItem = catalogIndex >= 0 ? catalogItemAt(catalogIndex) : null;
+  const item = {
+    item_code: code,
+    item_name: catalogItem ? catalogItem.item_name : code,
+    barcode: catalogItem ? catalogItem.barcode : '',
+    qty: (entry.quantities || [])[index],
+    uom: (entry.uoms || [])[index] || manifestContext.defaultUom || 'Nos',
+    hot_rank: catalogItem ? catalogItem.hot_rank : index + 1,
+  };
+  if (catalogIndex >= 0 && (manifestContext.catalogHasRate || [])[catalogIndex]) {
+    item.rate = manifestContext.catalogRates[catalogIndex];
+  }
+  return item;
+}
+
 export function inStockItemsFor(warehouse) {
   const entry = manifestContext.inStock[String(warehouse || '').toLowerCase()];
-  return entry ? entry.items : [];
+  if (!entry) {
+    return [];
+  }
+  const length = entry.items ? entry.items.length : (entry.item_codes || []).length;
+  const items = [];
+  for (let index = 0; index < length; index += 1) {
+    items.push(inStockItemAt(entry, index));
+  }
+  return items;
 }
 
 export function pickItem(options = {}) {
-  let items = manifestContext.items;
+  let length = 0;
+  let itemAtIndex = null;
   if (options.warehouse) {
     // Stock-moving flows must only pick items actually stocked in this warehouse.
-    const inStock = inStockItemsFor(options.warehouse);
-    if (inStock.length) {
-      items = inStock;
+    const entry = manifestContext.inStock[String(options.warehouse || '').toLowerCase()];
+    const stockLength = entry ? (entry.items ? entry.items.length : (entry.item_codes || []).length) : 0;
+    if (stockLength) {
+      length = stockLength;
+      itemAtIndex = (index) => inStockItemAt(entry, index);
     }
   }
-  if (!items.length) {
+  if (!itemAtIndex) {
+    const order = catalogOrder();
+    length = order.length;
+    itemAtIndex = (index) => catalogItemAt(order[index]);
+  }
+  if (!length) {
     throw new Error('Seed manifest contains no usable items. Expected items with item_code / sku values.');
   }
   const contention = Boolean(options.contention);
   const configuredPool = Number(__ENV.HOT_SKU_POOL || 50);
-  const poolSize = contention ? Math.max(1, Math.min(items.length, configuredPool)) : items.length;
+  const poolSize = contention ? Math.max(1, Math.min(length, configuredPool)) : length;
   const exponent = Number(options.zipfExponent || __ENV.ZIPF_EXPONENT || (contention ? 1.45 : 1.15));
-  return items[zipfIndex(poolSize, exponent)];
+  return itemAtIndex(zipfIndex(poolSize, exponent));
 }
 
 export function warehouseRole(warehouseName) {
@@ -458,7 +633,13 @@ function capQtyForStock(item, desired) {
 
 export function buildLines(options = {}) {
   const distribution = Boolean(options.distribution);
-  const count = options.count || configuredLineCount(distribution);
+  const hasExplicitCount = options.count !== undefined || options.lineCount !== undefined;
+  const count = Number(
+    options.count !== undefined ? options.count : options.lineCount !== undefined ? options.lineCount : configuredLineCount(distribution)
+  );
+  if (!Number.isFinite(count) || count < 1 || Math.floor(count) !== count) {
+    throw new Error(`Voucher line count must be a positive integer, got ${count}`);
+  }
   const includeRates = options.includeRates !== false;
   const lines = [];
   const seen = {};
@@ -482,6 +663,9 @@ export function buildLines(options = {}) {
   }
   if (!lines.length) {
     throw new Error('Unable to build a voucher with at least one item line.');
+  }
+  if (hasExplicitCount && lines.length !== count) {
+    throw new Error(`Unable to build ${count} distinct item lines; only ${lines.length} unique lines were available.`);
   }
   return lines;
 }
@@ -515,6 +699,7 @@ export function buildKhitmeeSalePayload(options = {}) {
       distribution: warehouseRole(warehouse) === 'distribution',
       contention: options.contention,
       warehouse,
+      lineCount: options.lineCount,
     }),
     payment_mode: options.paymentMode || __ENV.PAYMENT_MODE || 'Cash',
     printer_type: options.printerType || __ENV.PRINTER_TYPE || 'voucher',
@@ -534,6 +719,7 @@ export function buildKhitmeeTransferPayload(options = {}) {
       contention: options.contention,
       includeRates: false,
       warehouse: sourceWarehouse,
+      lineCount: options.lineCount,
     }),
     printer_type: options.printerType || __ENV.PRINTER_TYPE || 'voucher',
   };
@@ -556,6 +742,7 @@ function salesInvoiceDocument(options = {}) {
     distribution: warehouseRole(warehouse) === 'distribution',
     contention: options.contention,
     warehouse,
+    lineCount: options.lineCount,
   });
   const parentName = nextLocalName('new-sales-invoice');
   return {
@@ -615,6 +802,7 @@ function stockEntryDocument(options = {}) {
     contention: options.contention,
     includeRates: false,
     warehouse: sourceWarehouse,
+    lineCount: options.lineCount,
   });
   const parentName = nextLocalName('new-stock-entry');
   return {

@@ -1,10 +1,19 @@
 # Enforce LF line endings on autonomous loop tooling, rules, skills, workflows, and agent instructions.
+.gitattributes text eol=lf
 tools/autoloop/** text eol=lf
 .autoloop/** text eol=lf
 .devin/skills/autoloop/** text eol=lf
 .github/workflows/** text eol=lf
 .github/CODEOWNERS text eol=lf
 AGENTS.md text eol=lf
+
+# WSL runs shell entry points, Python tooling and browser/performance scripts.
+*.sh text eol=lf
+*.bash text eol=lf
+*.py text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
 
 # Machine-generated migration fixtures and the Rust lockfile are inputs to
 # reproducible verification, not hand-reviewed source. Marking them generated keeps

@@ -1,0 +1,11 @@
+{
+  "applies_to": [
+    ".autoloop/**"
+  ],
+  "created_at": "2026-11-28T11:59:12Z",
+  "draft": false,
+  "evidence": "verify_tooling out-of-scope error after manual report_paths merge",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Never merge shard branches into the integration branch by hand; use check --all-shards. Manual merges make later shard diffs inherit other shards' files."
+}

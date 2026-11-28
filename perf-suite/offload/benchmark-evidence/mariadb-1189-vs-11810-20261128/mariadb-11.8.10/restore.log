@@ -1,0 +1,2 @@
+Stopping khitmee-perf-db-1 and restoring year-db-runtime-profile-20261128.tar.gz into volume perf-db-data
+Restored perf-db-data; khitmee-perf-db-1 is healthy

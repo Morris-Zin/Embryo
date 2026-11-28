@@ -12,13 +12,13 @@ from ctypes import wintypes
 import errno
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
 import secrets
 import socket
 import sys
-import tempfile
 import time
 from typing import Any, ClassVar
 
@@ -33,6 +33,14 @@ from . import EXIT_LEASE_CONFLICT
 WIN_PROCESS_QUERY_SYNC = 0x00101000
 WIN_ERROR_ACCESS_DENIED = 5
 WIN_WAIT_TIMEOUT = 0x00000102
+_LINUX_RESOURCE_LOCK_DIR = Path("/var/lock/autoloop")
+_LOCAL_DOCKER_HOSTS = {
+    "local",
+    "unix:///run/docker.sock",
+    "unix:///var/run/docker.sock",
+    "npipe:////./pipe/docker_engine",
+    "npipe:////./pipe/dockerdesktoplinuxengine",
+}
 
 
 class LeaseError(RuntimeError):
@@ -125,11 +133,80 @@ def _get_win_api() -> _DefaultWindowsAPI:
     return _WIN_API_SINGLETON
 
 
-def default_lock_dir() -> Path:
+def _git_common_dir(repo: Path) -> Path:
+    from .guard import _run_git
+
+    git_dir = repo / ".git"
+    if (
+        not (os.environ.get("GIT_DIR") or os.environ.get("GIT_COMMON_DIR"))
+        and (git_dir / "HEAD").is_file()
+        and not (git_dir / "commondir").exists()
+    ):
+        return git_dir.resolve()
+    result = _run_git(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"], check=False)
+    if result.returncode:
+        raise LeaseError("cannot determine the Git common directory; set AUTOLOOP_LOCK_DIR explicitly")
+    return Path(os.fsdecode(result.stdout.rstrip(b"\r\n"))).resolve()
+
+
+def default_lock_dir(repo: Path | None = None) -> Path:
+    """Location for repository checkpoint mutexes."""
     override = os.environ.get("AUTOLOOP_LOCK_DIR") or os.environ.get("AUTOLOOP_SHARED_LOCK_DIR")
     if override:
-        return Path(override)
-    return Path(tempfile.gettempdir()) / "autoloop-locks"
+        return Path(override).resolve()
+    return _git_common_dir(repo if repo is not None else Path(__file__).resolve().parents[2]) / "autoloop-locks"
+
+
+def _is_wsl() -> bool:
+    return sys.platform.startswith("linux") and bool(
+        os.environ.get("WSL_DISTRO_NAME")
+        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+        or "microsoft" in os.uname().release.lower()
+    )
+
+
+def _pid_namespace() -> str:
+    if _is_wsl():
+        return "wsl:" + os.environ.get("WSL_DISTRO_NAME", "unknown")
+    return sys.platform
+
+
+def _windows_program_data() -> Path:
+    # CSIDL_COMMON_APPDATA. Ask Windows rather than using a shell override.
+    buffer = ctypes.create_unicode_buffer(260)
+    if ctypes.windll.shell32.SHGetFolderPathW(None, 0x23, None, 0, buffer) or not buffer.value:
+        raise LeaseError("cannot locate Windows ProgramData for the resource lease authority")
+    return Path(buffer.value)
+
+
+def resource_lock_dir() -> Path:
+    """Fixed host authority, independent of Git and checkpoint lock overrides."""
+    if _is_wsl():
+        raise LeaseError(
+            "WSL resource leases must use the Windows authority: run python.exe tools/autoloop/cli.py lease … "
+            "through Windows interop or PowerShell. Use a token and TTL for WSL holders."
+        )
+    if sys.platform == "win32":
+        return (_windows_program_data() / "autoloop" / "locks").resolve()
+    return _LINUX_RESOURCE_LOCK_DIR.resolve()
+
+
+def resource_lease_key(
+    resource: str, *, compose_project: str | None = None, docker_host: str | None = None,
+) -> str:
+    """Qualify Docker resources by endpoint and project, with a shared legacy default."""
+    scoped = compose_project is not None or docker_host is not None
+    if resource == "host-timing" and scoped:
+        raise LeaseError("host-timing is host-wide and cannot be scoped to a Docker stack")
+    if not scoped and resource != "khitmee-perf":
+        return resource
+    project = (compose_project if compose_project is not None else resource).strip()
+    host = (docker_host if docker_host is not None else "local").strip()
+    if not resource or not project or not host:
+        raise LeaseError("resource, compose project, and Docker host must be non-empty")
+    if host.lower() in _LOCAL_DOCKER_HOSTS:
+        host = "local"
+    return "docker:" + json.dumps([resource, host, project], separators=(",", ":"))
 
 
 def resource_key_hash(resource: str) -> str:
@@ -237,8 +314,6 @@ def _read_json_or_none(path: Path) -> tuple[dict[str, Any] | None, bool]:
         raw = path.read_bytes()
     except FileNotFoundError:
         return None, False
-    except OSError:
-        return None, False
     if not raw.strip():
         return None, True
     try:
@@ -316,8 +391,8 @@ def acquire_mutex(
 
 
 def _lease_paths(resource: str, lock_dir: Path | None = None) -> tuple[Path, Path]:
-    base_dir = lock_dir or default_lock_dir()
-    digest = resource_key_hash(resource)
+    base_dir = lock_dir or resource_lock_dir()
+    digest = resource_key_hash(resource_lease_key(resource))
     return base_dir / f"{digest}.lease.json", base_dir / f"{digest}.mutex"
 
 
@@ -330,6 +405,9 @@ def _is_lease_reclaimable(
     expires_at = lease.get("expires_at")
     if not isinstance(expires_at, (int, float)) or now >= float(expires_at):
         return True
+    namespace = _pid_namespace()
+    if lease.get("pid_namespace") != namespace or namespace == "wsl:unknown":
+        return False
     pid = lease.get("pid")
     host = lease.get("host")
     start_ns = lease.get("process_start_ns")
@@ -344,6 +422,20 @@ def read_lease(resource: str, *, lock_dir: Path | None = None) -> dict[str, Any]
     lease_path, _ = _lease_paths(resource, lock_dir)
     data, _ = _read_json_or_none(lease_path)
     return data
+
+
+def lease_status(resource: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
+    lease_path, mutex_path = _lease_paths(resource, lock_dir)
+    with acquire_mutex(mutex_path):
+        lease, corrupt = _read_json_or_none(lease_path)
+        if corrupt:
+            raise LeaseError(f"lease metadata is corrupt for {resource!r}")
+        active = lease is not None and not _is_lease_reclaimable(lease, time.time())
+        holder = {key: value for key, value in lease.items() if key != "token"} if lease else None
+        return {
+            "resource": resource, "resource_key": resource_lease_key(resource),
+            "authority_path": str(lease_path.parent), "active": active, "holder": holder,
+        }
 
 
 def acquire_lease(
@@ -361,7 +453,7 @@ def acquire_lease(
 ) -> dict[str, Any]:
     if not resource or not owner:
         raise LeaseError("resource and owner must be non-empty")
-    if ttl_s <= 0:
+    if not math.isfinite(ttl_s) or ttl_s <= 0:
         raise LeaseError("ttl_s must be positive")
     host = socket.gethostname()
     recorded_pid: int | None = None
@@ -412,10 +504,11 @@ def acquire_lease(
 
         lease = {
             "resource": resource,
-            "resource_hash": resource_key_hash(resource),
+            "resource_hash": resource_key_hash(resource_lease_key(resource)),
             "owner": owner,
             "pid": recorded_pid,
             "host": host,
+            "pid_namespace": _pid_namespace(),
             "process_start_ns": recorded_start_ns,
             "acquired_at": now,
             "renewed_at": now,
@@ -437,7 +530,7 @@ def renew_lease(
     timeout_s: float = 10.0,
     _win_api: Any = None,
 ) -> dict[str, Any]:
-    if ttl_s <= 0:
+    if not math.isfinite(ttl_s) or ttl_s <= 0:
         raise LeaseError("ttl_s must be positive")
     lease_path, mutex_path = _lease_paths(resource, lock_dir)
     with acquire_mutex(mutex_path, timeout_s=timeout_s, _win_api=_win_api):

@@ -1,0 +1,129 @@
+# Alternative ADR runtime shape mirrored from shard/runtime_profile profile-2gb-adr.yaml.
+# Two Gunicorn workers x one thread, InnoDB 320 MiB, CPU caps totaling 2.0,
+# and 1568 MiB of long-running workload-container memory after OS headroom.
+services:
+  configurator:
+    mem_limit: 64m
+    cpus: 0.20
+
+  db:
+    mem_limit: 512m
+    cpus: 0.60
+    environment:
+      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --innodb-snapshot-isolation=OFF
+      - --innodb-buffer-pool-size=320M
+      - --innodb-log-file-size=128M
+      - --innodb-buffer-pool-dump-pct=100
+      - --innodb-buffer-pool-load-at-startup=ON
+      - --innodb-buffer-pool-dump-at-shutdown=ON
+      - --innodb-io-capacity=1000
+      - --innodb-io-capacity-max=2000
+      - --innodb-log-buffer-size=16M
+      - --aria-pagecache-buffer-size=8M
+      - --key-buffer-size=1M
+      - --innodb-flush-log-at-trx-commit=1
+      - --innodb-flush-method=O_DIRECT
+      - --max-connections=32
+      - --thread-cache-size=16
+      - --table-open-cache=400
+      - --table-definition-cache=400
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --sort-buffer-size=1M
+      - --join-buffer-size=256K
+      - --innodb-lock-wait-timeout=20
+      - --performance-schema=OFF
+      - --slow-query-log=ON
+      - --log-slow-query-file=/var/lib/mysql/mariadb-slow.log
+      - --long-query-time=1
+
+  backend:
+    mem_limit: 544m
+    cpus: 0.75
+    environment:
+      MALLOC_ARENA_MAX: "2"
+      MALLOC_MMAP_THRESHOLD_: "1048576"
+      MALLOC_TRIM_THRESHOLD_: "8388608"
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=1
+      - --workers=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+
+  queue:
+    image: ${CUSTOM_IMAGE:-frappe/erpnext}:${CUSTOM_TAG:-v16.60.0}
+    pull_policy: ${PULL_POLICY:-missing}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    platform: linux/amd64
+    mem_limit: 224m
+    cpus: 0.25
+    environment:
+      MALLOC_ARENA_MAX: "2"
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default,long
+    volumes:
+      - perf-sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  scheduler:
+    mem_limit: 96m
+    cpus: 0.05
+
+  redis-cache:
+    mem_limit: 64m
+    cpus: 0.02
+    command:
+      - redis-server
+      - --maxmemory
+      - 32mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --tcp-keepalive
+      - "60"
+
+  redis-queue:
+    mem_limit: 32m
+    cpus: 0.02
+    command:
+      - redis-server
+      - --maxmemory
+      - 16mb
+      - --maxmemory-policy
+      - noeviction
+      - --tcp-keepalive
+      - "60"
+
+  websocket:
+    mem_limit: 72m
+    cpus: 0.05
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=56"
+
+  frontend:
+    mem_limit: 24m
+    cpus: 0.06
+    volumes:
+      - ./nginx-2gb.conf:/etc/nginx/nginx.conf:ro

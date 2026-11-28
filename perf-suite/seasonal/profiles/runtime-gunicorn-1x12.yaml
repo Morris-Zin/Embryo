@@ -1,0 +1,39 @@
+# Hard 2 vCPU total cap layered over perf-suite/docker/profile-2gb.yaml.
+# Memory caps come from that profile; configurator is capped here so all nine
+# compose services total exactly 2048 MiB.
+services:
+  configurator:
+    mem_limit: 48m
+    cpus: 0.05
+  db:
+    cpus: 0.70
+  backend:
+    cpus: 0.75
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=12
+      - --workers=1
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+  queue:
+    cpus: 0.15
+  scheduler:
+    cpus: 0.05
+  redis-cache:
+    cpus: 0.05
+  redis-queue:
+    cpus: 0.05
+  websocket:
+    cpus: 0.05
+  frontend:
+    cpus: 0.15

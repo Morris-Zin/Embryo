@@ -1,0 +1,235 @@
+{
+  "kind": "same-commit cashier valuation divergence",
+  "currency": "USD",
+  "source_commit": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+  "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+  "seed": 1,
+  "run": "f41c7074d0b2",
+  "outcome": "unexplained financial divergence; exact parity rejects cross-run comparison",
+  "amount_semantics": "Stock Ledger Entry stock_value_difference and GL base-currency debit/credit in the fixture company currency.",
+  "all_sales_equal": true,
+  "warehouse_sku_quantity_groups_equal": 970,
+  "differing_stock_value_groups": 30,
+  "affected_warehouses": [
+    "Dist Hub 1 - KMD"
+  ],
+  "gl_amount_order": [
+    "debit",
+    "credit"
+  ],
+  "gl_accounts_changed": [
+    {
+      "account": "Cost of Goods Sold - KMD",
+      "party_type": "",
+      "party": "",
+      "v2": [
+        "115721.4",
+        "0"
+      ],
+      "v3": [
+        "115740.64",
+        "0"
+      ],
+      "delta_v3_minus_v2_debit_credit": [
+        "19.24",
+        "0"
+      ]
+    },
+    {
+      "account": "Stock - Dist Hub 1 - KMD",
+      "party_type": "",
+      "party": "",
+      "v2": [
+        "0",
+        "45564.67"
+      ],
+      "v3": [
+        "0",
+        "45583.91"
+      ],
+      "delta_v3_minus_v2_debit_credit": [
+        "0",
+        "19.24"
+      ]
+    }
+  ],
+  "full_workload_client_position_mismatches": {
+    "arrival": 6,
+    "submit": 0,
+    "confirmed": 45
+  },
+  "scope": "All 80 sales ran concurrently under the pinned schedule. The smallest affected warehouse/item across those sales has three participating invoices. The three requests can be reconstructed exactly; their ability to trigger the original discrepancy in isolation is untested.",
+  "order_evidence": "Cashier events record client times. The submit event precedes the simulated delay and HTTP send. Confirmation follows the HTTP response. Millisecond arrival timestamps can tie. Invoice names reveal allocated numbers. These receipts do not record database commit sequence, per-bin SLE posting times or FIFO queues.",
+  "request_file": "cashier-valuation-requests.jsonl",
+  "request_file_sha256": "1d86a18994c209af02848ae9c1df21fd737da22fc0d0eec013a187fa648a8d2d",
+  "request_derivation": "Pinned cashier generator, fixture manifest, run ID and seed reconstructed full request bodies offline with pinned k6. All 450 item code/quantity pairs and three warehouse choices matched the submit events of both runs.",
+  "warehouse": "Dist Hub 1 - KMD",
+  "item_code": "KM-00101",
+  "runs": {
+    "cashier-screen-v2": {
+      "accepted_screen": false,
+      "receipt_sha256": "55a5d3de07b9fbc27df8c8e6db382774052bc2f029d817dc95bb6f55487d4e32",
+      "raw_sha256": "23df2ccfb184cf79b1133e9657060856dbcd9e62500a3f8168281957aeb1e872",
+      "signature_sha256": "f110513d67e75ab55d1d62aec23bbb1457fd1980721afd3d47355abd50a851b5",
+      "archive": "/srv/khitmee-lab/operator/stores/cashier-screen-v2/runs/1795760270910509955/0-baseline",
+      "total_quantity": "-13",
+      "total_stock_value_change": "-47.668",
+      "selected_client_events": [
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:18:26.493Z"
+        },
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:18:26.493Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:18:26.503Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:18:26.512Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:18:31.362Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:18:36.477Z"
+        },
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:18:56.494Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:18:56.526Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:19:02.436Z"
+        }
+      ],
+      "selected_stock_postings_in_confirmation_order": [
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-medium-0",
+          "voucher": "ACC-SINV-2026-04929",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-3.000000000",
+          "value_change": "-11.004000000"
+        },
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-large-0",
+          "voucher": "ACC-SINV-2026-04930",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-7.000000000",
+          "value_change": "-25.664000000"
+        },
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-large-2",
+          "voucher": "ACC-SINV-2026-04969",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-3.000000000",
+          "value_change": "-11.000000000"
+        }
+      ]
+    },
+    "cashier-screen-v3": {
+      "accepted_screen": true,
+      "receipt_sha256": "742c1aa9dff36afba592886bea0d9a3077d717455a3c2534537c4f06f12cc071",
+      "raw_sha256": "eff871f46e1aa2e3b0518044495a659789964a9984f8ffce59032175bbc6997a",
+      "signature_sha256": "cb781ca88803c8e88a711846daa1bce155a3d228e8e377a6299d24cceb13cff7",
+      "archive": "/srv/khitmee-lab/operator/stores/cashier-screen-v3/runs/1795760583969794846/0-baseline",
+      "total_quantity": "-13",
+      "total_stock_value_change": "-48.444",
+      "selected_client_events": [
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:23:39.189Z"
+        },
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:23:39.189Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:23:39.199Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:23:39.206Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-medium-0",
+          "utc": "2026-11-27T06:23:42.794Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-large-0",
+          "utc": "2026-11-27T06:23:46.295Z"
+        },
+        {
+          "type": "arrival",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:24:09.190Z"
+        },
+        {
+          "type": "submit",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:24:09.217Z"
+        },
+        {
+          "type": "confirmed",
+          "id": "SCS-f41c7074d0b2-large-2",
+          "utc": "2026-11-27T06:24:14.696Z"
+        }
+      ],
+      "selected_stock_postings_in_confirmation_order": [
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-medium-0",
+          "voucher": "ACC-SINV-2026-04928",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-3.000000000",
+          "value_change": "-11.004000000"
+        },
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-large-0",
+          "voucher": "ACC-SINV-2026-04929",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-7.000000000",
+          "value_change": "-25.670000000"
+        },
+        {
+          "client_voucher_id": "SCS-f41c7074d0b2-large-2",
+          "voucher": "ACC-SINV-2026-04969",
+          "item_code": "KM-00101",
+          "warehouse": "Dist Hub 1 - KMD",
+          "qty": "-3.000000000",
+          "value_change": "-11.770000000"
+        }
+      ]
+    }
+  },
+  "fixture_manifest_sha256": "92ce08ffb94f48e72baa6bba86245dbf85a2631304c087e7148272f9a4d5a4d6"
+}

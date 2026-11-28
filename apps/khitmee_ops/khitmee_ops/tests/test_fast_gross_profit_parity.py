@@ -1,8 +1,12 @@
+import csv
 import os
+import sqlite3
 import sys
 import types
 import unittest
+from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +14,8 @@ if str(APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(APP_ROOT))
 
 import khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit as fast_gross_profit
+from khitmee_ops.khitmee_ops.report.fast_gross_profit import invoice_batches
+from khitmee_ops.profit_summary import eligibility, export_service
 from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	FastGrossProfitGenerator,
 	SI_IDX,
@@ -681,6 +687,97 @@ class TestTupleWindowFallback(unittest.TestCase):
 
 
 class TestInvoiceModeQueryAndMemoryCuts(unittest.TestCase):
+	def test_restricted_group_masks_affected_bucket_and_total_and_excludes_its_inputs(self):
+		class Row(AttrDict):
+			__setattr__ = dict.__setitem__
+
+		for group, field, first_key, second_key in (
+			("Warehouse", "warehouse", "W1", "W2"), ("Monthly", "monthly", "Jan 2026", "Feb 2026"),
+		):
+			with self.subTest(group=group):
+				columns = [{"fieldname": name} for name in (field, "qty", "selling_amount", "buying_amount", "currency")]
+				filters = Row(group_by=group, currency="MMK")
+				generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+				generator.filters = filters
+				generator._linked_return_match_conditions = "custom predicate"
+				generator._preload_delivery_note_item_quantities = lambda: None
+				generator._preload_stock_ledger_data = lambda: None
+				generator.skip_row = lambda row: False
+				generator.product_bundles = {}
+				generator.bundle_deliveries = {}
+				generator.get_buying_amount = lambda row, item_code: 50
+				generator.update_return_invoices = lambda *_: None
+				generator.is_not_invoice_row = lambda row: True
+				generator.si_list = [
+					Row(item_row="A", warehouse="W1", posting_date="2026-01-01", qty=10, base_net_amount=900, restricted_adjustment=True),
+					Row(item_row="B", warehouse="W2", posting_date="2026-02-01", qty=2, base_net_amount=100),
+				]
+				generator.get_average_rate_based_on_group_by = lambda: generator.grouped_data.extend(
+					generator.grouped[key][0] for key in (first_key, second_key)
+				)
+
+				def stock_render(profit, filters, group_columns, data):
+					for row in profit.grouped_data:
+						data.append([row[field], row.qty, row.base_amount, row.buying_amount, filters.currency])
+					data.append(["Total", None, sum(row.base_amount for row in profit.grouped_data), 50, filters.currency])
+
+				stub = types.SimpleNamespace(scrub=str.lower, get_columns=lambda *_: columns,
+					get_data_when_not_grouped_by_invoice=stock_render)
+				frappe_stub = types.SimpleNamespace(_dict=AttrDict, db=types.SimpleNamespace(get_default=lambda field: 3))
+				labels = {"2026-01-01": "Jan 2026", "2026-02-01": "Feb 2026"}
+				with patch.object(fast_gross_profit, "standard_gross_profit", stub), patch.object(
+					fast_gross_profit, "frappe", frappe_stub
+				), patch.object(fast_gross_profit, "formatdate", side_effect=lambda day, pattern: labels[day]):
+					generator.process()
+					actual_columns, rows = fast_gross_profit._render_detail_result(generator, filters)
+
+				self.assertEqual((generator.si_list[0].qty, generator.si_list[0].base_amount, generator.si_list[0].buying_amount), (0, 0, 0))
+				self.assertEqual(actual_columns[-1]["fieldname"], "restricted_adjustment")
+				message = fast_gross_profit.RESTRICTED_ADJUSTMENT_MESSAGE
+				self.assertEqual(rows, [
+					[first_key, None, None, None, "MMK", message],
+					[second_key, 2, 100, 50, "MMK", None],
+					["Total", None, None, None, "MMK", message],
+				])
+				with TemporaryDirectory() as directory, patch.object(
+					export_service, "run_detail_gross_profit", return_value=(actual_columns, rows)
+				):
+					path = Path(directory) / "restricted-group.csv"
+					export_service.write_profit_csv(filters, path, invoice_ids=["SI-1"])
+					with path.open(newline="", encoding="utf-8") as output:
+						decoded = list(csv.DictReader(output))
+					self.assertEqual([row["selling_amount"] for row in decoded], ["", "100.0", ""])
+					self.assertEqual([row["Restricted adjustment"] for row in decoded], [message, "", message])
+
+	def test_monthly_process_reuses_formatting_only_for_identical_posting_dates(self):
+		class ReportRow(AttrDict):
+			__setattr__ = dict.__setitem__
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(group_by="Monthly")
+		generator._preload_delivery_note_item_quantities = lambda: None
+		generator._preload_stock_ledger_data = lambda: None
+		generator.skip_row = lambda row: False
+		generator.product_bundles = {}
+		generator.bundle_deliveries = {}
+		generator.get_buying_amount = lambda row, item_code: 4
+		generator.update_return_invoices = lambda *_: None
+		generator.is_not_invoice_row = lambda row: True
+		generator.get_average_rate_based_on_group_by = lambda: None
+		generator.si_list = [ReportRow(item_row=f"ROW-{index}", posting_date=day, qty=1, base_net_amount=10)
+			for index, day in enumerate(("2024-12-31", "2024-12-25", "2024-12-31"))]
+		labels = {"2024-12-31": "Dec 2025", "2024-12-25": "Dec 2024"}
+		frappe_stub = types.SimpleNamespace(_dict=AttrDict, db=types.SimpleNamespace(get_default=lambda key: 2))
+		stock_stub = types.SimpleNamespace(scrub=str.lower)
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+			fast_gross_profit, "standard_gross_profit", stock_stub
+		), patch.object(fast_gross_profit, "formatdate", side_effect=lambda day, pattern: labels[day]) as format_day:
+			generator.process()
+		self.assertEqual([row.monthly for row in generator.si_list], ["Dec 2025", "Dec 2024", "Dec 2025"])
+		self.assertEqual([call.args for call in format_day.call_args_list], [
+			("2024-12-31", "MMM YYYY"), ("2024-12-25", "MMM YYYY"),
+		])
+
 	def test_invoice_process_skips_grouped_and_invoice_item_amount_allocations(self):
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.filters = AttrDict(group_by="Invoice")
@@ -1045,7 +1142,7 @@ class FakeQBField:
 		return FakeCriterion("between", (self.name, start, end))
 
 	def isin(self, values):
-		return FakeCriterion("isin", (self.name, list(values)))
+		return FakeCriterion("isin", (self.name, values if isinstance(values, FakeQBQuery) else list(values)))
 
 	def notin(self, values):
 		return FakeCriterion("notin", (self.name, list(values)))
@@ -1099,6 +1196,109 @@ class FakeQBQuery:
 
 
 class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
+	def _lookup_linked_returns(self, group, actor, predicate, *, export=False):
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript("""
+			CREATE TABLE `tabSales Invoice` (name, customer, company, docstatus, is_return, posting_date, return_against);
+			INSERT INTO `tabSales Invoice` VALUES
+				('SI-1', 'visible', 'Company', 1, 0, '2026-01-01', NULL),
+				('RET-SHOWN', 'visible', 'Company', 1, 1, '2026-01-02', 'SI-1'),
+				('RET-HIDDEN', 'hidden', 'Company', 1, 1, '2026-01-03', 'SI-1'),
+				('RET-LATER', 'hidden', 'Company', 1, 1, '2026-02-01', 'SI-1');
+			CREATE TABLE `tabSales Invoice Item` (parent, item_code, sales_invoice_item, stock_qty, base_net_amount);
+			INSERT INTO `tabSales Invoice Item` VALUES
+				('RET-SHOWN', 'ITEM', 'LINE-1', -1, -25),
+				('RET-HIDDEN', 'ITEM', 'LINE-1', -2, -50),
+				('RET-LATER', 'ITEM', 'LINE-2', -2, -90);
+		""")
+		scope = export_service._ExportInvoiceScope(predicate) if export else None
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.si_list = [AttrDict(parent="SI-1", item_row=line, item_code="ITEM") for line in ("LINE-1", "LINE-2")]
+		generator.filters = AttrDict(
+			company="Company", from_date="2026-01-01", to_date="2026-01-31", sales_invoice="SI-1", group_by=group,
+		)
+		generator._scoped_invoice_ids = ("SI-1",)
+		generator._export_scope = scope
+
+		def run_returns(query):
+			self.assertEqual(query.wheres[1].value, ("return_against", ["SI-1"]))
+			cursor = db.execute(
+				"""SELECT name, return_against, item_code, sales_invoice_item, stock_qty AS qty, base_net_amount AS base_amount
+				FROM `tabSales Invoice` JOIN `tabSales Invoice Item` ON parent = name
+				WHERE return_against = ? AND posting_date < '2026-02-01' ORDER BY name""",
+				("SI-1",),
+			)
+			fields = [column[0] for column in cursor.description]
+			return [AttrDict(zip(fields, row, strict=True)) for row in cursor]
+
+		def scoped_sql(sql, params, as_dict=False):
+			self.assertEqual(params, ["Company", "2026-01-01", "2026-01-31", "SI-1"])
+			cursor = db.execute(sql.replace("%s", "?"), params)
+			fields = [column[0] for column in cursor.description]
+			rows = [AttrDict(zip(fields, row, strict=True)) for row in cursor]
+			self.assertEqual([(row.name, row.qty, row.base_amount) for row in rows if row.hidden_return], [
+				("RET-HIDDEN", None, None),
+			])
+			return rows
+
+		generator._run_invoice_query = run_returns
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, qb=types.SimpleNamespace(DocType=FakeQBTable, from_=FakeQBQuery),
+			session=types.SimpleNamespace(user=actor),
+			permissions=types.SimpleNamespace(build_match_conditions=lambda doctype, user: predicate),
+			db=types.SimpleNamespace(sql=scoped_sql),
+		)
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(eligibility, "frappe", frappe_stub):
+			generator.get_returned_invoice_items()
+		if scope is not None:
+			self.assertEqual(scope.invoice_names, {"RET-SHOWN"})
+			self.assertEqual(scope.hidden_invoice_names, {"RET-HIDDEN"})
+		self.assertEqual(
+			[row.item_row for row in generator.si_list if row.get("restricted_adjustment")],
+			["LINE-1"] if actor == "restricted@example.test" else [],
+		)
+		return [(row.name, row.qty, row.base_amount) for row in generator.returned_invoices["SI-1"]["LINE-1"]]
+
+	def test_restricted_interactive_groups_and_csv_fold_only_visible_linked_returns(self):
+		predicate = "`tabSales Invoice`.`customer` = 'visible'"
+		for group in ("Invoice", "Warehouse", "Monthly"):
+			for export in (False, True):
+				with self.subTest(group=group, export=export):
+					self.assertEqual(
+						self._lookup_linked_returns(group, "restricted@example.test", predicate, export=export),
+						[("RET-SHOWN", -1, -25)],
+					)
+
+	def test_unrestricted_linked_return_inputs_match_stock(self):
+		stock = [("RET-HIDDEN", -2, -50), ("RET-SHOWN", -1, -25)]
+		for actor, predicate in (
+			("Administrator", ""), ("unrestricted@example.test", ""),
+			("company@example.test", "`tabSales Invoice`.`company` = 'Company'"),
+		):
+			with self.subTest(actor=actor):
+				self.assertEqual(self._lookup_linked_returns("Invoice", actor, predicate), stock)
+
+	def test_restricted_linked_return_detection_uses_one_query_per_256_parents(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
+		parents = [f"SI-{index:04d}" for index in range(273)]
+		db = types.SimpleNamespace(sql=lambda *args, **kwargs: [])
+		with patch.object(fast_gross_profit, "frappe", types.SimpleNamespace(db=db)), patch.object(
+			db, "sql", wraps=db.sql
+		) as sql:
+			generator._read_restricted_linked_returns(parents, "owner = 'actor'", None)
+		self.assertEqual([call.args[1][3:] for call in sql.call_args_list], [parents[:256], parents[256:]])
+
+	def test_hidden_explicit_return_flags_matching_legacy_targets_only(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.si_list = [AttrDict(parent="SI-1", item_row=line, item_code=item) for line, item in (
+			("LINE-1", "ITEM"), ("LINE-2", "ITEM"), ("LINE-3", "OTHER"),
+		)]
+		generator.legacy_returned_invoices = {"SI-1": {"ITEM": [AttrDict(qty=-3)]}}
+		generator._flag_hidden_return_lines([AttrDict(return_against="SI-1", sales_invoice_item="LINE-1")])
+		self.assertEqual([row.item_row for row in generator.si_list if row.get("restricted_adjustment")], ["LINE-1", "LINE-2"])
+
 	def test_empty_invoice_scope_skips_returned_invoice_query(self):
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.si_list = []
@@ -1128,6 +1328,7 @@ class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
 		generator.si_list = [AttrDict(parent="SI-2"), AttrDict(parent="SI-1"), AttrDict(parent=None)]
 		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
 		generator._hints_enabled = lambda: True
+		generator._linked_return_match_conditions = ""
 		generator._run_invoice_query = lambda query: []
 
 		old_frappe = fast_gross_profit.frappe
@@ -1332,12 +1533,131 @@ class TestTwoPhaseInvoiceOrdering(unittest.TestCase):
 			fast_gross_profit.frappe = old_frappe
 
 		self.assertEqual(len(prepare_calls), 3)
-		self.assertEqual([row.parent for row in generator.si_list], ["SI-Z", "SI-A", "SI-RET"])
+		self.assertEqual([row.parent for row in generator.si_list], ["SI-A", "SI-Z", "SI-RET"])
 		self.assertEqual([row._khitmee_query_phase for row in generator.si_list], [1, 1, 0])
 		self.assertTrue(all(row._khitmee_first_seen_key.startswith(f"{row._khitmee_query_phase}|") for row in generator.si_list))
 
+	def test_sort_invoice_rows_descending_uses_ascending_tie_break_and_preserves_item_order(self):
+		rows = [
+			AttrDict(parent="ACC-SINV-2026-317777", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-1"),
+			AttrDict(parent="ACC-SINV-2026-317777", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-2"),
+			AttrDict(parent="ACC-SINV-2026-317776", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-A"),
+			AttrDict(parent="ACC-SINV-2026-317776", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-B"),
+			AttrDict(invoice="ACC-SINV-2026-317778", posting_date="2026-11-25", posting_time="10:00:00.000500", item_code="ITEM-NEWER"),
+		]
+
+		ordered = fast_gross_profit.sort_invoice_rows_descending(rows)
+
+		self.assertEqual(
+			[(row.get("parent") or row.get("invoice"), row.get("item_code")) for row in ordered],
+			[
+				("ACC-SINV-2026-317778", "ITEM-NEWER"),
+				("ACC-SINV-2026-317776", "ITEM-A"),
+				("ACC-SINV-2026-317776", "ITEM-B"),
+				("ACC-SINV-2026-317777", "ITEM-1"),
+				("ACC-SINV-2026-317777", "ITEM-2"),
+			],
+		)
+
+	def test_group_items_by_invoice_preserves_ascending_tie_break_and_contiguous_children(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.product_bundles = {}
+		generator.get_invoice_row = lambda row: AttrDict(
+			indent=0.0, parent_invoice="", invoice_or_item=row.parent, posting_date=row.posting_date
+		)
+		generator.si_list = fast_gross_profit.sort_invoice_rows_descending(
+			[
+				AttrDict(parent="SI-2", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-2A"),
+				AttrDict(parent="SI-1", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-1A"),
+				AttrDict(parent="SI-1", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-1B"),
+			]
+		)
+
+		generator.group_items_by_invoice()
+
+		self.assertEqual(
+			[(row.indent, row.invoice_or_item, row.parent_invoice) for row in generator.si_list],
+			[
+				(0.0, "SI-1", ""),
+				(1.0, "I-1A", "SI-1"),
+				(1.0, "I-1B", "SI-1"),
+				(0.0, "SI-2", ""),
+				(1.0, "I-2A", "SI-2"),
+			],
+		)
+
+	def test_normalize_sle_key_inline_matches_string_coercion_for_all_types(self):
+		class StrSub(str):
+			pass
+
+		self.assertEqual(
+			normalize_sle_key("ITEM-1", None, 0, False, 42),
+			("ITEM-1", "", "", "", "42"),
+		)
+		key = normalize_sle_key(StrSub("ITEM-1"), "", "Sales Invoice", "SI-1", "ROW-1")
+		self.assertEqual(key, ("ITEM-1", "", "Sales Invoice", "SI-1", "ROW-1"))
+		self.assertTrue(all(type(part) is str for part in key))
+
 
 class TestReturnedInvoiceContractFixes(unittest.TestCase):
+	def test_return_lookup_preserves_per_invoice_row_order_and_visibility_across_batch_sizes(self):
+		parents = [f"SI-{index:04d}" for index in range(260)]
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE invoice (name, customer, posting_order);
+			CREATE TABLE returned (name, return_against, item_code, sales_invoice_item, qty, base_amount);
+			INSERT INTO returned VALUES
+				('R1', 'SI-0000', 'ITEM', 'LINE-1', -1, -10.50),
+				('R2', 'SI-0000', 'ITEM', 'LINE-1', -2, -21.00),
+				('R3', 'SI-0000', 'ITEM', NULL, -1, -10.25),
+				('R4', 'SI-0259', 'ITEM', NULL, -1, -10.75),
+				('R5', 'SI-0259', 'ITEM', 'LINE-2', -2, -21.50);
+			"""
+		)
+		db.executemany(
+			"INSERT INTO invoice VALUES (?, ?, ?)",
+			[(name, "restricted" if index < 259 else "hidden", index) for index, name in enumerate(parents)],
+		)
+
+		def run_returns(parent_chunk):
+			placeholders = ", ".join("?" for _ in parent_chunk)
+			rows = db.execute(
+				f"SELECT * FROM returned WHERE return_against IN ({placeholders})",
+				parent_chunk,
+			)
+			fields = [description[0] for description in rows.description]
+			return [AttrDict(zip(fields, row)) for row in rows]
+
+		batched = fast_gross_profit.batched
+		for visibility, expected_parents in (("%", {"SI-0000", "SI-0259"}), ("restricted", {"SI-0000"})):
+			generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+			generator.si_list = [
+				AttrDict(parent=name)
+				for (name,) in db.execute(
+					"SELECT name FROM invoice WHERE customer LIKE ? ORDER BY posting_order DESC", (visibility,)
+				)
+			]
+			generator._build_returned_invoice_query = tuple
+			generator._linked_return_match_conditions = ""
+			generator._run_invoice_query = run_returns
+			with patch.object(fast_gross_profit, "frappe", types.SimpleNamespace(_dict=AttrDict)):
+				baseline = None
+				for size in (len(parents), 16, 64, 256):
+					with self.subTest(visibility=visibility, size=size), patch.object(
+						fast_gross_profit, "batched", lambda values, _: batched(values, size)
+					):
+						generator.get_returned_invoice_items()
+						actual = (generator.returned_invoices, generator.legacy_returned_invoices)
+						if baseline is None:
+							baseline = actual
+						self.assertEqual(actual, baseline)
+						self.assertEqual(set(actual[0]), expected_parents)
+						self.assertEqual(set(actual[1]), expected_parents)
+						self.assertEqual([row.name for row in actual[0]["SI-0000"]["LINE-1"]], ["R1", "R2"])
+						self.assertEqual([row.name for row in actual[1]["SI-0000"]["ITEM"]], ["R3"])
+
 	def test_returned_invoice_parents_are_fetched_in_chunks_of_one_thousand(self):
 		queries = []
 
@@ -1353,6 +1673,7 @@ class TestReturnedInvoiceContractFixes(unittest.TestCase):
 		generator.si_list = [AttrDict(parent=f"SI-{index:04d}") for index in range(1001)]
 		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
 		generator._hints_enabled = lambda: False
+		generator._linked_return_match_conditions = ""
 		generator._run_invoice_query = lambda query: []
 
 		old_frappe = fast_gross_profit.frappe
@@ -1606,6 +1927,270 @@ except Exception:
 	standard_execute = None
 	fast_execute = None
 	HAS_BENCH_DATABASE = False
+
+
+class TestInvoicePackedBundleLimits(unittest.TestCase):
+	def setUp(self):
+		self.connection = sqlite3.connect(":memory:")
+		self.addCleanup(self.connection.close)
+		self.connection.executescript("""
+			CREATE TABLE `tabPacked Item` (
+				parenttype, parent, parent_item, item_code, warehouse, qty, rate,
+				parent_detail_docname, serial_and_batch_bundle, docstatus
+			);
+			CREATE TABLE `tabDelivery Note Item` (
+				name, parent, item_code, stock_qty, si_detail, against_sales_invoice, docstatus
+			);
+		""")
+		self.packed_rows_read = []
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, db=types.SimpleNamespace(sql=self.sql, get_default=lambda field: 3)
+		)
+		self.enterContext(patch.object(fast_gross_profit, "frappe", frappe_stub))
+
+	def sql(self, query, params=None, as_dict=False):
+		cursor = self.connection.execute(query.replace("%s", "?"), params or ())
+		rows = cursor.fetchall()
+		if "(-1 * qty) AS total_qty" in query:
+			self.packed_rows_read.append((params[0], len(rows)))
+		if as_dict:
+			columns = [field[0] for field in cursor.description]
+			return [AttrDict(zip(columns, row, strict=True)) for row in rows]
+		return rows
+
+	def make_generator(self, *, direct=False):
+		class InvoiceRow(AttrDict):
+			__setattr__ = dict.__setitem__
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(group_by="Invoice")
+		generator._invoice_row_limit = invoice_batches.MAX_SINGLE_FAMILY_ROWS
+		generator._valuation_source_by_row_id = {}
+		generator.si_list = [InvoiceRow(
+			parenttype="Sales Invoice", parent="SI-1", item_row="SI-LINE", item_code="BUNDLE",
+			qty=2, base_net_amount=100, dn_detail="DN-LINE" if direct else None,
+			delivery_note="DN-1" if direct else None,
+		)]
+		generator.get_invoice_row = lambda row: InvoiceRow(indent=0, invoice_or_item=row.parent)
+		generator._preload_stock_ledger_data = lambda: None
+		generator.skip_row = lambda row: False
+		generator.is_not_invoice_row = lambda row: row.indent != 0
+		generator.update_return_invoices = lambda row, item_row: None
+		generator.get_buying_amount = lambda row, item_code: row["qty"] * {"PART-A": 4, "PART-B": 7}[item_code]
+		return generator
+
+	def test_one_invoice_line_on_delivery_with_5001_unrelated_packed_items_still_renders(self):
+		self.connection.executemany(
+			"INSERT INTO `tabPacked Item` VALUES (?, ?, ?, ?, 'W1', 1, 0, ?, NULL, 1)",
+			(("Delivery Note", "DN-1", "OTHER-BUNDLE", f"UNRELATED-{i:05}", "DN-OTHER") for i in range(5001)),
+		)
+		self.connection.executescript("""
+			INSERT INTO `tabPacked Item` VALUES
+				('Delivery Note', 'DN-1', 'BUNDLE', 'PART-A', 'W1', 2, 4, 'DN-LINE', NULL, 1),
+				('Delivery Note', 'DN-1', 'BUNDLE', 'PART-B', 'W1', 4, 7, 'DN-LINE', NULL, 1);
+			INSERT INTO `tabDelivery Note Item` VALUES
+				('DN-LINE', 'DN-1', 'BUNDLE', 2, 'SI-LINE', 'SI-1', 1),
+				('DN-OTHER', 'DN-1', 'OTHER-BUNDLE', 1, 'SI-HIDDEN-LINE', 'SI-1', 1);
+		""")
+		for direct in (True, False):
+			with self.subTest(direct=direct):
+				generator = self.make_generator(direct=direct)
+				self.packed_rows_read.clear()
+				generator.load_product_bundle()
+				generator.load_bundle_deliveries()
+				generator.group_items_by_invoice()
+				generator.process()
+				self.assertEqual(self.packed_rows_read, [("Sales Invoice", 0), ("Delivery Note", 2)])
+				self.assertEqual(
+					[(row.invoice_or_item, row.indent, row.base_amount, row.buying_amount) for row in generator.si_list],
+					[("SI-1", 0, 100, 36), ("BUNDLE", 1, 100, 36)],
+				)
+
+	def test_actual_invoice_bundle_components_exceeding_family_limit_are_rejected(self):
+		self.connection.executemany(
+			"INSERT INTO `tabPacked Item` VALUES ('Sales Invoice', 'SI-1', 'BUNDLE', ?, 'W1', 1, 0, 'SI-LINE', NULL, 1)",
+			((f"PART-{i:05}",) for i in range(5001)),
+		)
+		with self.assertRaises(fast_gross_profit.InvoiceBatchTooLarge):
+			self.make_generator().load_product_bundle()
+
+	def test_repeated_bundle_code_counts_its_full_group_under_each_invoice_line(self):
+		self.connection.executescript("""
+			INSERT INTO `tabPacked Item` VALUES
+				('Sales Invoice', 'SI-1', 'BUNDLE', 'PART-A', 'W1', 1, 4, 'SI-LINE', NULL, 1),
+				('Sales Invoice', 'SI-1', 'BUNDLE', 'PART-B', 'W1', 1, 7, 'SI-LINE-2', NULL, 1);
+		""")
+		generator = self.make_generator()
+		generator._invoice_row_limit = 6
+		generator.si_list.append(AttrDict(generator.si_list[0], item_row="SI-LINE-2"))
+		generator.load_product_bundle()
+		with self.assertRaises(fast_gross_profit.InvoiceBatchTooLarge):
+			generator.group_items_by_invoice()
+
+		generator._invoice_row_limit = 7
+		generator.get_bundle_item_row = lambda row, item: AttrDict(indent=2, invoice_or_item=item.item_code)
+		generator.group_items_by_invoice()
+		self.assertEqual(
+			[(row.indent, row.invoice_or_item) for row in generator.si_list],
+			[(0, "SI-1"), (1, "BUNDLE"), (2, "PART-A"), (2, "PART-B"), (1, "BUNDLE"), (2, "PART-A"), (2, "PART-B")],
+		)
+
+
+class TestInvoicePageOracleParity(unittest.TestCase):
+	def test_flagged_invoice_rows_and_total_are_identical_in_detail_pages_and_csv(self):
+		fields = {"invoice_or_item": "sales_invoice", "qty": "qty", "base_amount": "selling_amount",
+			"buying_amount": "buying_amount", "warehouse": "warehouse"}
+		columns = [{"fieldname": field} for field in fields.values()]
+		columns += [{"fieldname": "customer_name"}, {"fieldname": "restricted_adjustment"}]
+		message = fast_gross_profit.RESTRICTED_ADJUSTMENT_MESSAGE
+		frappe_stub = types.SimpleNamespace(_dict=AttrDict, db=types.SimpleNamespace(get_default=lambda field: 3))
+
+		def render(filters, **kwargs):
+			generator = types.SimpleNamespace(si_list=[
+				AttrDict(invoice_or_item="SI-1", indent=0, restricted_adjustment=True),
+				AttrDict(invoice_or_item="ITEM-A", indent=1, parent_invoice="SI-1", restricted_adjustment=True,
+					qty=10, base_amount=900, buying_amount=700, warehouse="W1"),
+				AttrDict(invoice_or_item="ITEM-B", indent=1, parent_invoice="SI-1",
+					qty=2, base_amount=100, buying_amount=50, warehouse="W2"),
+			])
+			data = []
+			output_columns = list(columns)
+			fast_gross_profit.format_invoice_rows_inplace(output_columns, generator, filters, {"invoice": fields}, data)
+			return output_columns, data
+
+		filters = {"group_by": "Invoice", "currency": "MMK"}
+		stock_stub = types.SimpleNamespace(get_column_names=lambda: fields)
+		with TemporaryDirectory() as directory, patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+			fast_gross_profit, "standard_gross_profit", stock_stub
+		), patch.object(fast_gross_profit, "_cached_single_value", return_value=None), patch.object(
+			fast_gross_profit, "run_detail_gross_profit", side_effect=render
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			invoice_batches, "_invoice_keys", return_value=[(1, "SI-1", 3)]
+		), patch.object(fast_gross_profit, "invoice_total_row", wraps=fast_gross_profit.invoice_total_row) as total:
+			_, page = next(iter(invoice_batches.iter_invoice_detail_batches(filters, page=1)))
+			# The final Total can arrive in another batch on the same page.
+			paged_rows = [row for _, rows in invoice_batches.iter_invoice_detail_batches(filters, page=1) for row in rows]
+			self.assertEqual(page, paged_rows[:3])
+			self.assertEqual([row.get("restricted_adjustment") for row in paged_rows], [message, message, None, message])
+			self.assertEqual([row["selling_amount"] for row in paged_rows], [None, None, 100, None])
+			self.assertEqual([row["qty"] for row in paged_rows], [None, None, 2, None])
+			self.assertEqual(paged_rows[1]["warehouse"], "W1")
+			path = Path(directory) / "restricted.csv"
+			export_service.write_profit_csv(filters, path)
+			with path.open(newline="", encoding="utf-8") as output:
+				decoded = list(csv.DictReader(output))
+			self.assertEqual([row["restricted_adjustment"] for row in decoded], [message, message, "", message])
+			self.assertEqual([row["selling_amount"] for row in decoded], ["", "", "100", ""])
+			self.assertTrue(all(call.args[1:] == (100, 50) for call in total.call_args_list))
+
+	def test_concatenated_pages_match_unpaged_stock_rows_for_each_actor_and_return_toggle(self):
+		# Stock emits main invoices first and then linked returns whose original is
+		# outside that actor's visible result. A linked return still adjusts a visible
+		# original when the standalone-return toggle is off.
+		def family(name, amount, buying, qty):
+			return [
+				{"sales_invoice": name, "indent": 0, "parent_invoice": "", "selling_amount": amount, "buying_amount": buying},
+				{"sales_invoice": "ITEM", "indent": 1, "parent_invoice": name, "qty": qty,
+				 "selling_amount": amount, "buying_amount": buying},
+			]
+
+		families = {
+			"SI-A": family("SI-A", 75, 49, 3),
+			"SI-HIDDEN": family("SI-HIDDEN", 50, 31, 2),
+			"RET-STANDALONE": family("RET-STANDALONE", -10, -6, -1),
+			"RET-HIDDEN-ORIGINAL": family("RET-HIDDEN-ORIGINAL", -25, -15, -1),
+		}
+		fields = ("sales_invoice", "parent_invoice", "qty", "selling_amount", "buying_amount", "gross_profit_%")
+		columns = [{"fieldname": field} for field in fields]
+		cases = (
+			("Administrator", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
+			("Administrator", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
+			("unrestricted@example.test", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
+			("unrestricted@example.test", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
+			("restricted@example.test", 0, ("SI-A", "RET-HIDDEN-ORIGINAL"), 50, 34, 32),
+			("restricted@example.test", 1, ("SI-A", "RET-STANDALONE", "RET-HIDDEN-ORIGINAL"), 40, 28, 30),
+		)
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE invoice (name, posting_time, is_return, return_against, hidden);
+			INSERT INTO invoice VALUES
+				('SI-A', 10, 0, NULL, 0),
+				('SI-HIDDEN', 10, 0, NULL, 1),
+				('RET-STANDALONE', 8, 1, NULL, 0),
+				('RET-ABSORBED-A', 9, 1, 'SI-A', 0),
+				('RET-HIDDEN-ORIGINAL', 11, 1, 'SI-HIDDEN', 0);
+			"""
+		)
+		session = types.SimpleNamespace(user="Administrator")
+
+		def scoped_keys(filters, invoice_ids, *, count_rows):
+			self.assertIsNone(invoice_ids)
+			for phase, name in db.execute(
+				"""
+				WITH visible AS (SELECT * FROM invoice WHERE hidden = 0 OR ?),
+				main AS (SELECT * FROM visible WHERE is_return = 0 OR (? AND return_against IS NULL))
+				SELECT phase, name FROM (
+					SELECT 1 AS phase, name, posting_time FROM main
+					UNION ALL
+					SELECT 0, name, posting_time FROM visible WHERE is_return = 1 AND return_against IS NOT NULL
+						AND return_against NOT IN (SELECT name FROM main)
+				) ORDER BY phase DESC, posting_time DESC, name ASC
+				""",
+				(session.user in {"Administrator", "unrestricted@example.test"}, filters.include_returned_invoices),
+			):
+				yield phase, name, len(families[name]) if count_rows else 0
+
+		def render_batch(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			self.assertTrue(all((name != "RET-HIDDEN-ORIGINAL") == (invoice_phase == 1) for name in invoice_ids))
+			self.assertLessEqual(len(invoice_ids), 2)
+			rows = [dict(row) for name in invoice_ids for row in families[name]]
+			buying = sum(row["buying_amount"] for row in rows if row["indent"] == 1)
+			selling = sum(row["selling_amount"] for row in rows if row["indent"] == 1)
+			return columns, [*rows, fast_gross_profit.invoice_total_row(filters, selling, buying)]
+
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, session=session, db=types.SimpleNamespace(get_default=lambda field: 3)
+		)
+		with TemporaryDirectory() as directory, patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+			fast_gross_profit, "validate_date_range"
+		), patch.object(fast_gross_profit, "run_detail_gross_profit", side_effect=render_batch), patch.object(
+			invoice_batches, "_invoice_keys", side_effect=scoped_keys
+		), patch.object(invoice_batches, "INVOICE_KEY_BATCH_SIZE", 2):
+			for actor, include_returns, names, selling, buying, margin in cases:
+				with self.subTest(actor=actor, include_returns=include_returns):
+					session.user = actor
+					filters = {"group_by": "Invoice", "include_returned_invoices": include_returns, "currency": "MMK"}
+					stock_rows = [row for name in names for row in families[name]] + [{
+						"sales_invoice": "Total", "qty": None, "avg._selling_rate": None, "valuation_rate": None,
+						"selling_amount": selling, "buying_amount": buying, "gross_profit": selling - buying,
+						"gross_profit_%": margin, "currency": "MMK",
+					}]
+					for page_size in (2, 3):
+						with self.subTest(page_size=page_size), patch.object(invoice_batches, "INVOICE_PAGE_SIZE", page_size):
+							paged_rows = []
+							for page in range(1, (len(stock_rows) - 1) // page_size + 3):
+								for page_columns, rows in invoice_batches.iter_invoice_detail_batches(filters, page=page):
+									self.assertEqual(page_columns, columns)
+									paged_rows.extend(rows)
+							self.assertEqual(paged_rows, stock_rows)
+
+					path = Path(directory) / "stock-parity.csv"
+					self.assertEqual(export_service.write_profit_csv(filters, path), len(stock_rows))
+					with path.open(newline="", encoding="utf-8") as output:
+						reader = csv.DictReader(output)
+						self.assertEqual(reader.fieldnames, list(fields))
+						decoded = [
+							{field: Decimal(value) if index >= 2 and value else value for index, (field, value) in enumerate(row.items())}
+							for row in reader
+						]
+					expected = [
+						{field: Decimal(str(row[field])) if index >= 2 and row.get(field) is not None else row.get(field) or ""
+						 for index, field in enumerate(fields)}
+						for row in stock_rows
+					]
+					self.assertEqual(decoded, expected)
 
 
 class TestFastGrossProfitERPNextParity(unittest.TestCase):

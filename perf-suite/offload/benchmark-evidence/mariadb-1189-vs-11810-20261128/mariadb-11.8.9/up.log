@@ -1,0 +1,40 @@
+Synced khitmee_ops into /srv/khitmee-perf (WSL ext4).
+Starting khitmee-perf with profile 2gb...
+ Container khitmee-perf-db-1  Running
+ Container khitmee-perf-redis-queue-1  Running
+ Container khitmee-perf-redis-cache-1  Running
+ Container khitmee-perf-backend-1  Running
+ Container khitmee-perf-scheduler-1  Running
+ Container khitmee-perf-queue-1  Running
+ Container khitmee-perf-websocket-1  Running
+ Container khitmee-perf-frontend-1  Running
+ Container khitmee-perf-db-1  Waiting
+ Container khitmee-perf-db-1  Healthy
+ Container khitmee-perf-configurator-1  Starting
+ Container khitmee-perf-configurator-1  Started
+ Container khitmee-perf-configurator-1  Waiting
+ Container khitmee-perf-configurator-1  Waiting
+ Container khitmee-perf-configurator-1  Waiting
+ Container khitmee-perf-configurator-1  Waiting
+ Container khitmee-perf-configurator-1  Exited
+ Container khitmee-perf-configurator-1  Exited
+ Container khitmee-perf-configurator-1  Exited
+ Container khitmee-perf-configurator-1  Exited
+Verified khitmee_ops imports in backend through the mounted PYTHONPATH.
+Verified khitmee_ops imports in scheduler through the mounted PYTHONPATH.
+Verified khitmee_ops imports in queue through the mounted PYTHONPATH.
+Site bench-loadtest.localhost already exists; reusing it.
+khitmee_ops is already installed on bench-loadtest.localhost.
+Ensuring khitmee_ops composite indexes and fast report settings...
+khitmee_ops database objects ensured and fast report settings are enabled
+Setting benchmark site defaults...
+Scheduler is enabled for site bench-loadtest.localhost
+Scheduler is resumed for site bench-loadtest.localhost
+Skipping optional static asset precompression for this API-only benchmark run.
+Waiting for http://127.0.0.1:18086/api/method/ping ...
+Waiting up to 30s for InnoDB buffer pool preload...
+InnoDB buffer pool load status: Buffer pool(s) load completed at 261128 11:55:07
+Performing read-only HTTP warm-up...
+curl: (22) The requested URL returned error: 401
+Warm-up login failed; skipping authenticated search warm-up.
+khitmee-perf is healthy at http://127.0.0.1:18086 (site: bench-loadtest.localhost, profile: 2gb).

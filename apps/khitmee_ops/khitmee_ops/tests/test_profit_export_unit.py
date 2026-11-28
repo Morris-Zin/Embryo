@@ -4,8 +4,10 @@ import inspect
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from datetime import datetime, timedelta
@@ -17,8 +19,8 @@ if str(APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(APP_ROOT))
 
 from khitmee_ops.api import profit_export
-from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit
-from khitmee_ops.profit_summary import export_service
+from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit, invoice_batches
+from khitmee_ops.profit_summary import budget, eligibility, export_service
 
 
 class FakePermissionError(Exception):
@@ -62,53 +64,109 @@ class FakeAfterCommit:
 	def add(self, callback):
 		self.callbacks.append(callback)
 
+	def run(self):
+		while self.callbacks:
+			self.callbacks.pop(0)()
+
 
 class FakeDB:
 	def __init__(self, state):
 		self.state = state
 		self.after_commit = FakeAfterCommit()
+		self.after_rollback = FakeAfterCommit()
 		self.sql_calls = []
 		self.update_sql = []
 		self.commit_count = 0
+		self.external_admission_lock = False
+		self.admission_locks = 0
+		self.row_count = 0
 
 	def get_value(self, doctype, filters=None, fieldname=None, as_dict=False):
 		if doctype == "User":
 			return 1 if filters in self.state.active_users else 0
-		if doctype == export_service.EXPORT_DOCTYPE and isinstance(filters, dict):
-			doc = self.state.existing_by_key.get(filters.get("active_dedupe_key"))
-			if doc and as_dict:
-				return {
-					key: doc.get(key)
-					for key in (fieldname if isinstance(fieldname, (list, tuple)) else [fieldname])
-				}
-			return doc
+		if doctype == export_service.EXPORT_DOCTYPE and isinstance(filters, str):
+			return self.state.docs.get(filters, {}).get(fieldname)
 		return None
 
 	def sql(self, query, params=None, as_dict=False):
 		self.sql_calls.append((query, params, as_dict))
+		if "GET_LOCK(" in query:
+			if self.external_admission_lock:
+				return [(0,)]
+			self.admission_locks += 1
+			return [(1,)]
+		if "RELEASE_LOCK(" in query:
+			self.admission_locks -= 1
+			return [(1,)]
+		if "SELECT ROW_COUNT()" in query:
+			return [(self.row_count,)]
 		if query.lstrip().upper().startswith("UPDATE"):
 			self.update_sql.append((query, params))
+			if "AND `status` = %s" in query and "AND `modified` = %s" in query:
+				doc = self.state.docs[params[-3]]
+				if doc.get("status") != params[-2] or doc.get("modified") != params[-1]:
+					self.row_count = 0
+					return []
+				doc.update(status="Failed", active_dedupe_key=None, error=params[0], modified=params[1])
+				self.row_count = 1
+				return []
+			if "`error` = %s" in query and "`status` = %s" not in query and "`status` = 'Completed'" not in query:
+				doc = self.state.docs[params[-1]]
+				if doc.get("status") != "Failed":
+					self.row_count = 0
+					return []
+				doc.update(error=params[0], modified=params[1])
+				self.row_count = 1
+				return []
+			doc = self.state.docs[params[-1]]
+			if "AND `status` = 'Running'" in query and doc.get("status") != "Running":
+				self.row_count = 0
+				return []
+			status = "Completed" if "`status` = 'Completed'" in query else params[0]
+			doc.update(status=status, modified=self.state.now)
+			if "`active_dedupe_key` = NULL" in query:
+				doc["active_dedupe_key"] = None
+			if "`error` = %s" in query:
+				doc["error"] = params[1]
+			if status == "Completed":
+				doc.update(artifact_published=1, exported_invoice_sha256=params[0], row_count=params[1])
+			self.row_count = 1
 			return []
 		if "FOR UPDATE" in query and "Khitmee Profit Export Log" in query:
-			doc = self.docs_by_name.get(params[0]) if hasattr(self, "docs_by_name") else None
-			return [(doc.get("status"),)] if doc else [("Queued",)]
+			if "WHERE `name`" in query:
+				doc = self.state.docs.get(params[0])
+				return [doc] if doc else []
+			active = [
+				doc for doc in self.state.docs.values()
+				if doc.get("active_dedupe_key") and doc["status"] in {"Queued", "Running"}
+			]
+			return sorted(active, key=lambda doc: doc["active_dedupe_key"] != params[0])[:1]
 		if "FROM `tabDocShare`" in query:
 			return list(self.state.docshares)
 		if "FROM `tabSales Invoice`" in query:
-			return [{"name": name} for name in self.state.invoice_names]
+			names = self.state.invoice_names
+			if "`name` IN (" in query:
+				placeholders = query.split("`name` IN (", 1)[1].split(")", 1)[0]
+				bound_names = set(params[-placeholders.count("%s"):])
+				names = sorted(bound_names.intersection(names))
+			return [{"name": name} for name in names]
 		return []
 
 	def commit(self):
 		self.commit_count += 1
+		self.after_rollback.callbacks.clear()
+		self.after_commit.run()
 
 	def rollback(self):
 		self.rollback_count = getattr(self, "rollback_count", 0) + 1
+		self.after_commit.callbacks.clear()
+		self.after_rollback.run()
 
 
 class FakeState:
 	def __init__(self):
 		self.active_users = {"owner", "other"}
-		self.existing_by_key = {}
+		self.docs = {}
 		self.docshares = []
 		self.invoice_names = ["SI-1"]
 		self.roles = ["Accounts User"]
@@ -125,9 +183,10 @@ class FakeFrappe(types.ModuleType):
 		self.__path__ = []
 		self.state = state
 		self.export_dir = export_dir
+		self.conf = {"encryption_key": "test-export-signing-secret"}
 		self.session = types.SimpleNamespace(user="owner")
 		self.db = FakeDB(state)
-		self.docs = {}
+		self.docs = state.docs
 		self.enqueued = []
 		self.generated_names = 0
 		self.PermissionError = FakePermissionError
@@ -152,6 +211,7 @@ class FakeFrappe(types.ModuleType):
 		if not doc.get("name"):
 			self.generated_names += 1
 			doc["name"] = f"EXP-{self.generated_names:05d}"
+		doc.setdefault("modified", self.state.now)
 		self.docs[doc["name"]] = doc
 		return doc
 
@@ -217,8 +277,12 @@ class ExportServiceTestCase(unittest.TestCase):
 		self.fake, self.state, self.installed_modules = install_fake_frappe(self.export_root)
 		self.old_service_frappe = export_service.frappe
 		self.old_api_frappe = profit_export.frappe
+		self.old_budget_frappe = budget.frappe
+		self.old_eligibility_frappe = eligibility.frappe
 		export_service.frappe = self.fake
 		profit_export.frappe = self.fake
+		budget.frappe = self.fake
+		eligibility.frappe = self.fake
 
 		self.authorize_patcher = patch.object(export_service, "authorize_profit_request", return_value=None)
 		self.fingerprint_patcher = patch.object(export_service, "compute_permission_fingerprint", return_value="fp")
@@ -228,15 +292,18 @@ class ExportServiceTestCase(unittest.TestCase):
 			"compute_exported_invoice_digest",
 			return_value=("digest", ["SI-1"], False),
 		)
+		self.heartbeat_patcher = patch.object(export_service, "_start_export_heartbeat", return_value=None)
 		self.authorize = self.authorize_patcher.start()
 		self.fingerprint = self.fingerprint_patcher.start()
 		self.restricted = self.restricted_patcher.start()
 		self.digest = self.digest_patcher.start()
+		self.start_heartbeat = self.heartbeat_patcher.start()
 		for patcher in (
 			self.authorize_patcher,
 			self.fingerprint_patcher,
 			self.restricted_patcher,
 			self.digest_patcher,
+			self.heartbeat_patcher,
 		):
 			self.addCleanup(patcher.stop)
 		self.addCleanup(self.restore_modules)
@@ -245,6 +312,8 @@ class ExportServiceTestCase(unittest.TestCase):
 	def restore_modules(self):
 		export_service.frappe = self.old_service_frappe
 		profit_export.frappe = self.old_api_frappe
+		budget.frappe = self.old_budget_frappe
+		eligibility.frappe = self.old_eligibility_frappe
 		for name in list(sys.modules):
 			if name == "frappe" or name.startswith("frappe."):
 				if name in self.module_snapshot and self.module_snapshot[name] is not None:
@@ -285,6 +354,61 @@ class ExportServiceTestCase(unittest.TestCase):
 			artifact.write(body)
 		return path
 
+	def make_heartbeat_harness(self, doc, failures):
+		connections = []
+		now = [0]
+
+		class Cursor:
+			def __init__(self):
+				self.rowcount = 0
+
+			def execute(self, query, params):
+				if failures:
+					raise failures.pop(0)
+				self.rowcount = 0
+				if doc["status"] == "Running" and params[1] == doc["name"]:
+					doc["modified"] = params[0]
+					self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def __init__(self):
+				self.commits = 0
+				self.closed = False
+
+			def cursor(self):
+				return Cursor()
+
+			def commit(self):
+				self.commits += 1
+
+			def rollback(self):
+				pass
+
+			def close(self):
+				self.closed = True
+
+		class Database:
+			def __init__(self):
+				self._conn = self.get_connection()
+				self.close_called = False
+
+			def get_connection(self):
+				connection = Connection()
+				connections.append(connection)
+				return connection
+
+			def close(self):
+				self.close_called = True
+
+		database = Database()
+		heartbeat = export_service._ExportHeartbeat(
+			doc["name"], database, now=lambda: self.state.now, monotonic=lambda: now[0]
+		)
+		return heartbeat, database, connections, now
+
 	def download(self, name="EXP-TEST"):
 		return profit_export.download_export(name)
 
@@ -301,12 +425,14 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(doc["artifact_published"], 0)
 		self.assertIsNone(doc["exported_invoice_sha256"])
 		self.assertEqual(doc["active_dedupe_key"], f"owner:{doc['filters_hash']}")
-		self.assertEqual(len(self.fake.db.after_commit.callbacks), 1)
 		self.assertEqual(self.fake.enqueued, [])
+		self.assertEqual(self.fake.db.admission_locks, 1)
 
-		self.fake.db.after_commit.callbacks[0]()
+		self.fake.db.commit()
+		self.assertEqual(self.fake.db.admission_locks, 0)
 		self.assertEqual(self.fake.enqueued[0][0], "khitmee_ops.profit_summary.export_service.run_profit_csv_export")
 		self.assertEqual(self.fake.enqueued[0][1]["export_log_name"], result["export_log_name"])
+		self.assertEqual(self.fake.enqueued[0][1]["job_id"], doc["export_uuid"])
 
 	def test_permission_names_accept_frappe_user_permission_doc_shape(self):
 		self.assertEqual(
@@ -314,48 +440,566 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			["Company A", "Company B"],
 		)
 
+	def test_rq_activity_uses_deterministic_status_before_scanning_legacy_jobs(self):
+		background_jobs = types.ModuleType("frappe.utils.background_jobs")
+		background_jobs.get_job_status = lambda job_id: "failed"
+		sys.modules["frappe.utils.background_jobs"] = background_jobs
+
+		with patch.object(export_service, "_scan_rq_for_export") as scan:
+			self.assertFalse(export_service._rq_job_is_active("export-uuid", "EXP-TEST"))
+		scan.assert_not_called()
+
+		background_jobs.get_job_status = lambda job_id: None
+		with patch.object(export_service, "_scan_rq_for_export", return_value=True) as scan:
+			self.assertTrue(export_service._rq_job_is_active("export-uuid", "EXP-TEST"))
+		scan.assert_called_once_with("EXP-TEST")
+
+	def test_rq_scan_matches_the_nested_export_log_argument(self):
+		job = types.SimpleNamespace(kwargs={"kwargs": {"export_log_name": "EXP-TEST"}})
+		other_job = types.SimpleNamespace(kwargs={"kwargs": {"export_log_name": "EXP-OTHER"}})
+		background_jobs = types.ModuleType("frappe.utils.background_jobs")
+		background_jobs.get_queue = lambda queue: types.SimpleNamespace(jobs=[other_job])
+		background_jobs.get_running_jobs_in_queue = lambda queue: [job]
+		sys.modules["frappe.utils.background_jobs"] = background_jobs
+
+		self.assertTrue(export_service._scan_rq_for_export("EXP-TEST"))
+		self.assertFalse(export_service._scan_rq_for_export("EXP-MISSING"))
+
 	def test_active_dedupe_key_reuses_queued_or_running_export(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})
-		doc = self.fake.get_doc(export_service.EXPORT_DOCTYPE, first["export_log_name"])
-		self.state.existing_by_key[doc["active_dedupe_key"]] = doc
+		self.fake.db.commit()
 
 		second = export_service.enqueue_profit_csv_export({"company": "Company"})
 
 		self.assertTrue(second["deduplicated"])
 		self.assertEqual(second["export_log_name"], first["export_log_name"])
+		self.fake.db.commit()
+		self.assertEqual(len(self.fake.enqueued), 1)
+
+	def test_abandoned_running_export_no_longer_blocks_a_different_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(
+				seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
+			),
+		)
+		self.fake.set_user("other")
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_WORKER_REASON)
+		self.assertIsNone(doc["active_dedupe_key"])
+
+	def test_identical_request_after_abandonment_creates_a_new_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(
+				seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
+			),
+		)
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_WORKER_REASON)
+
+	def test_live_running_export_still_blocks_and_deduplicates_within_timeout(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(seconds=export_service.EXPORT_TIMEOUT_SECONDS - 1),
+		)
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.assertTrue(second["deduplicated"])
+		self.assertEqual(second["export_log_name"], first["export_log_name"])
+		self.fake.db.commit()
+
+		self.fake.set_user("other")
+		with self.assertRaises(export_service.ProfitExportBusyError):
+			export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.rollback()
+		self.assertEqual(doc["status"], "Running")
+
+	def test_live_sync_export_that_heartbeats_is_not_retired_past_timeout(self):
+		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None, row_count=0)
+		self.start_heartbeat.return_value = types.SimpleNamespace(close=lambda: None, raise_if_failed=lambda: None)
+		recovery_results = []
+
+		def write(filters, path, **kwargs):
+			Path(path).write_text("Invoice\nSI-1\n", encoding="utf-8")
+			self.state.now += timedelta(seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1)
+			doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_HEARTBEAT_INTERVAL_SECONDS)
+			recovery_results.append(export_service._recover_abandoned_export(dict(doc)))
+			return 1
+
+		with patch.object(export_service, "write_profit_csv", side_effect=write):
+			export_service.run_profit_csv_export(doc["name"])
+
+		self.assertEqual(recovery_results, [False])
+		self.start_heartbeat.assert_called_once_with(doc["name"])
+		self.assertEqual(doc["status"], "Completed")
+
+	def test_export_heartbeat_updates_only_a_running_export(self):
+		stale_modified = self.state.now - timedelta(seconds=export_service.EXPORT_HEARTBEAT_INTERVAL_SECONDS)
+		doc = self.make_log(status="Running", artifact_published=0, modified=stale_modified)
+
+		class Cursor:
+			def __init__(self):
+				self.rowcount = 0
+
+			def execute(self, query, params):
+				self.rowcount = 0
+				if doc["status"] == "Running" and params[1] == doc["name"]:
+					doc["modified"] = params[0]
+					self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def __init__(self):
+				self.cursor_instance = Cursor()
+				self.commits = 0
+
+			def cursor(self):
+				return self.cursor_instance
+
+			def commit(self):
+				self.commits += 1
+
+			def rollback(self):
+				pass
+
+		connection = Connection()
+		database = types.SimpleNamespace(_conn=connection, close=lambda: None)
+		heartbeat = export_service._ExportHeartbeat(doc["name"], database, now=lambda: self.state.now)
+
+		self.assertEqual(heartbeat.beat(), 1)
+		self.assertEqual(doc["modified"], self.state.now)
+		self.assertEqual(connection.commits, 1)
+
+		doc["status"] = "Failed"
+		self.assertEqual(heartbeat.beat(), 0)
+		self.assertEqual(doc["modified"], self.state.now)
+		self.assertFalse(heartbeat._run_iteration())
+		self.assertTrue(heartbeat.terminal)
+		self.assertIsNone(heartbeat.failure)
+		heartbeat.close()
+
+	def test_transient_heartbeat_error_reconnects_and_renews(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		heartbeat, database, connections, _ = self.make_heartbeat_harness(doc, [TimeoutError("lock timeout")])
+
+		self.assertTrue(heartbeat._run_iteration())
+
+		self.assertEqual(len(connections), 2)
+		self.assertTrue(connections[0].closed)
+		self.assertIsNotNone(heartbeat.failure_started_at)
+		self.assertIsNone(heartbeat.failure)
+
+		self.assertTrue(heartbeat._run_iteration())
+
+		self.assertEqual(doc["modified"], self.state.now)
+		self.assertIsNone(heartbeat.failure_started_at)
+		self.assertIsNone(heartbeat.last_error)
+		self.assertIsNone(heartbeat.failure)
+		heartbeat.close()
+		self.assertTrue(database.close_called)
+
+	def test_persistent_heartbeat_failure_becomes_worker_failure(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		failures = [TimeoutError("lock timeout"), TimeoutError("connection dropped")]
+		heartbeat, _, _, now = self.make_heartbeat_harness(doc, failures)
+
+		self.assertTrue(heartbeat._run_iteration())
+		self.assertIsNone(heartbeat.failure)
+		now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
+
+		self.assertFalse(heartbeat._run_iteration())
+
+		self.assertIsInstance(heartbeat.failure, export_service.ProfitExportHeartbeatError)
+		with self.assertRaisesRegex(export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON):
+			heartbeat.raise_if_failed()
+		heartbeat.close()
+
+	def test_worker_self_fails_when_heartbeat_failure_is_persistent(self):
+		doc = self.make_log(status="Queued", artifact_published=0)
+
+		heartbeat, _, _, heartbeat_now = self.make_heartbeat_harness(doc, [])
+		heartbeat_now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
+		self.start_heartbeat.return_value = heartbeat
+
+		def write(filters, path, **kwargs):
+			Path(path).write_text("Invoice\nSI-1\n", encoding="utf-8")
+			return 1
+
+		with patch.object(export_service, "write_profit_csv", side_effect=write), self.assertRaisesRegex(
+			export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON
+		):
+			export_service.run_profit_csv_export(doc["name"])
+
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.EXPORT_HEARTBEAT_FAILURE_REASON)
+		self.assertFalse(os.path.exists(self.artifact_path()))
+
+	def test_blocked_heartbeat_update_is_judged_on_worker_clock(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		entered = threading.Event()
+		release = threading.Event()
+		now = [0]
+
+		class Cursor:
+			rowcount = 0
+
+			def execute(self, query, params):
+				entered.set()
+				release.wait()
+				doc["modified"] = params[0]
+				self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def cursor(self):
+				return Cursor()
+
+			def commit(self):
+				pass
+
+			def rollback(self):
+				pass
+
+		database = types.SimpleNamespace(_conn=Connection(), close=lambda: None)
+		heartbeat = export_service._ExportHeartbeat(doc["name"], database, now=lambda: self.state.now, monotonic=lambda: now[0])
+		heartbeat.start()
+		try:
+			self.assertTrue(entered.wait(2))
+			now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS + 1
+			with self.assertRaisesRegex(
+				export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON
+			):
+				heartbeat.raise_if_failed()
+		finally:
+			release.set()
+			heartbeat.close()
+
+	def test_missing_rq_job_recovers_an_old_queued_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1)
+		self.fake.set_user("other")
+
+		with patch.object(export_service, "_rq_job_is_active", return_value=False):
+			second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_QUEUE_REASON)
+
+	def test_live_rq_job_still_blocks_after_enqueue_grace(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1)
+		self.fake.set_user("other")
+
+		with patch.object(export_service, "_rq_job_is_active", return_value=True), self.assertRaises(
+			export_service.ProfitExportBusyError
+		):
+			export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.rollback()
+		self.assertEqual(doc["status"], "Queued")
+
+	def test_recovery_conditional_update_loses_to_a_completed_worker(self):
+		stale_modified = self.state.now - timedelta(
+			seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
+		)
+		doc = self.make_log(
+			status="Running",
+			artifact_published=0,
+			active_dedupe_key="owner:hash",
+			modified=stale_modified,
+		)
+		seen = dict(doc)
+		doc.update(status="Completed", active_dedupe_key=None, modified=self.state.now)
+
+		self.assertTrue(export_service._recover_abandoned_export(seen))
+
+		self.assertEqual(self.fake.db.row_count, 0)
+		self.assertEqual(doc["status"], "Completed")
+		update_sql, params = self.fake.db.update_sql[-1]
+		self.assertIn("AND `status` = %s", update_sql)
+		self.assertIn("AND `modified` = %s", update_sql)
+		self.assertEqual(params[-2:], ("Running", stale_modified))
+
+	def test_late_completion_cannot_overwrite_a_recovered_failure(self):
+		doc = self.make_log(
+			status="Failed",
+			artifact_published=0,
+			active_dedupe_key=None,
+			error=export_service.ABANDONED_WORKER_REASON,
+		)
+		artifact_path = self.write_artifact()
+
+		with patch.object(export_service, "_log_export_diagnostic") as log:
+			completed = export_service._commit_completed_export(doc["name"], "digest", 2)
+
+		self.assertFalse(completed)
+		log.assert_called_once()
+		self.assertIn(export_service.FENCED_COMPLETION_DIAGNOSTIC, log.call_args.args[0])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["artifact_published"], 0)
+		self.assertIn(export_service.ABANDONED_WORKER_REASON, doc["error"])
+		self.assertIn(export_service.FENCED_COMPLETION_DIAGNOSTIC, doc["error"])
+		self.assertFalse(os.path.exists(artifact_path))
+		completion_update, _ = self.fake.db.update_sql[0]
+		self.assertIn("AND `status` = 'Running'", completion_update)
+
+	def test_one_slot_bounds_queued_and_running_exports_across_requesters(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+
+		for status in ("Queued", "Running"):
+			with self.subTest(status=status):
+				doc["status"] = status
+				self.fake.set_user("other")
+				with self.assertRaises(export_service.ProfitExportBusyError) as denied:
+					export_service.enqueue_profit_csv_export({"company": "Company"})
+				self.assertEqual(denied.exception.http_status_code, 429)
+				self.assertEqual(len(self.fake.docs), 1)
+				self.fake.db.rollback()
+				self.assertEqual(self.fake.db.admission_locks, 0)
+
+		doc.update(status="Completed", active_dedupe_key=None)
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(self.fake.docs[second["export_log_name"]]["requested_by"], "other")
+
+	def test_concurrent_admission_fails_without_queueing_or_waiting(self):
+		self.fake.db.external_admission_lock = True
+		with self.assertRaises(export_service.ProfitExportBusyError):
+			export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.assertEqual(self.fake.docs, {})
+		self.assertEqual(self.fake.enqueued, [])
+
+	def test_dispatch_failure_releases_slot_for_retry(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		with patch.object(self.fake, "enqueue", side_effect=OSError("RQ unavailable")), self.assertRaises(OSError):
+			self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		self.assertEqual(doc["status"], "Failed")
+		self.assertIsNone(doc["active_dedupe_key"])
+		self.assertEqual(self.fake.db.admission_locks, 0)
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+
+	def test_cli_inline_claim_does_not_dispatch_a_second_copy(self):
+		result = export_service.enqueue_profit_csv_export_for_user({"company": "Company"}, "owner")
+		with patch.object(export_service, "write_profit_csv", side_effect=OSError("stop before publish")), self.assertRaises(OSError):
+			export_service.run_profit_csv_export(result["export_log_name"])
+		self.assertEqual(self.fake.enqueued, [])
+		self.assertEqual(self.fake.docs[result["export_log_name"]]["status"], "Failed")
+
+	def test_status_is_small_and_bound_to_requester_and_scope(self):
+		self.make_log()
+		result = export_service.get_profit_csv_export_status("EXP-TEST")
+		self.assertEqual(result, {
+			"export_log_name": "EXP-TEST", "status": "Completed", "deduplicated": False,
+			"expires_at": "2026-02-01 13:00:00", "artifact_published": 1,
+		})
+		self.fake.set_user("other")
+		with self.assertRaises(FakePermissionError):
+			export_service.get_profit_csv_export_status("EXP-TEST")
+		self.fake.set_user("owner")
+		self.fingerprint.return_value = "changed"
+		with self.assertRaises(FakePermissionError):
+			export_service.get_profit_csv_export_status("EXP-TEST")
 
 	def test_invoice_csv_writer_preserves_phase_one_then_phase_zero_then_total_order(self):
-		columns = [{"fieldname": "sales_invoice", "label": "Invoice"}]
+		columns = [
+			{"fieldname": "sales_invoice", "label": "Invoice"},
+			{"fieldname": "selling_amount", "label": "Selling"},
+		]
 		rows = [
-			{"sales_invoice": "SI-MAIN-2"},
-			{"sales_invoice": "SI-MAIN-1"},
-			{"sales_invoice": "SI-UNABSORBED-RETURN"},
-			{"sales_invoice": "Total"},
+			{"sales_invoice": "SI-MAIN-2", "selling_amount": 100, "indent": 1},
+			{"sales_invoice": "SI-MAIN-1", "selling_amount": 2.5, "indent": 1},
+			{"sales_invoice": "SI-UNABSORBED-RETURN", "selling_amount": -7.5, "indent": 1},
 		]
 		path = os.path.join(self.tempdir, "profit.csv")
-		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)):
-			row_count = export_service.write_profit_csv({"group_by": "Invoice"}, path)
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", return_value=[(columns, rows[:2]), (columns, rows[2:])]), patch.object(
+			fast_gross_profit, "invoice_total_row",
+			side_effect=lambda filters, selling, buying: {"sales_invoice": "Total", "selling_amount": selling},
+		):
+			row_count = export_service.write_profit_csv({"group_by": "Invoice", "currency": "MMK"}, path)
 
 		with open(path, newline="", encoding="utf-8") as csv_file:
 			written = list(csv.reader(csv_file))
 		self.assertEqual(row_count, 4)
 		self.assertEqual([row[0] for row in written], ["Invoice", "SI-MAIN-2", "SI-MAIN-1", "SI-UNABSORBED-RETURN", "Total"])
+		self.assertEqual(written[-1], ["Total", "95.0"])
+
+	def test_invoice_csv_writer_uses_query_report_fieldname_fallback(self):
+		columns = [
+			{"fieldname": "sales_invoice", "label": "Sales Invoice"},
+			{"label": "Brand", "fieldtype": "Link", "options": "Brand", "width": 100},
+			{"label": "Net Unit-Price", "fieldtype": "Currency"},
+			{},
+		]
+		rows = [{"sales_invoice": "ACC-SINV-2026-317799", "brand": "Phsar Select", "net_unit_price": 7, "3": "x"}]
+		path = os.path.join(self.tempdir, "profit-brand.csv")
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", return_value=[(columns, rows)]), patch.object(
+			fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"},
+		):
+			row_count = export_service.write_profit_csv({"group_by": "Invoice", "currency": "MMK"}, path)
+
+		with open(path, newline="", encoding="utf-8") as csv_file:
+			written = list(csv.reader(csv_file))
+		self.assertEqual(row_count, 2)
+		self.assertEqual(
+			written,
+			[["Sales Invoice", "Brand", "Net Unit-Price", ""], ["ACC-SINV-2026-317799", "Phsar Select", "7", "x"], ["Total", "", "", ""]],
+		)
+
+	def test_invoice_csv_fetches_and_flushes_bounded_batches(self):
+		batch_size = invoice_batches.INVOICE_KEY_BATCH_SIZE
+		invoice_count = 3 * batch_size + 1
+		columns = [{"fieldname": "sales_invoice"}]
+		path = Path(self.tempdir) / "bounded.csv"
+		keys_read = 0
+		batch_sizes = []
+
+		def keys(*args, **kwargs):
+			nonlocal keys_read
+			for index in range(invoice_count):
+				keys_read += 1
+				yield 1, f"SI-{index:04d}", 0
+
+		def fetch(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			self.assertEqual(invoice_phase, 1)
+			self.assertLessEqual(len(invoice_ids), batch_size)
+			self.assertLessEqual(keys_read - sum(batch_sizes), batch_size + 1)
+			if batch_sizes:
+				self.assertGreater(path.stat().st_size, 0)
+			self.assertEqual(
+				invoice_row_limit,
+				invoice_batches.MAX_SINGLE_FAMILY_ROWS if len(invoice_ids) == 1 else invoice_batches.INVOICE_BATCH_ROWS,
+			)
+			batch_sizes.append(len(invoice_ids))
+			return columns, [{"sales_invoice": name} for name in invoice_ids] + [{"sales_invoice": "Total"}]
+
+		with patch.object(invoice_batches, "_invoice_keys", side_effect=keys), patch.object(
+			fast_gross_profit, "run_detail_gross_profit", side_effect=fetch
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"}
+		):
+			rows = export_service.write_profit_csv({"group_by": "Invoice", "currency": "MMK"}, path)
+
+		self.assertEqual(batch_sizes, [batch_size, batch_size, batch_size, 1])
+		self.assertEqual(rows, invoice_count + 1)
+		with path.open(newline="", encoding="utf-8") as output:
+			self.assertEqual(list(csv.reader(output)), [
+				["sales_invoice"], *([f"SI-{index:04d}"] for index in range(invoice_count)), ["Total"],
+			])
+
+	def test_invoice_sort_uses_ascending_invoice_tie_break(self):
+		rows = [
+			{"parent": "ACC-SINV-2026-317777", "posting_date": "2026-11-25", "posting_time": "10:00:00"},
+			{"parent": "ACC-SINV-2026-317776", "posting_date": "2026-11-25", "posting_time": "10:00:00"},
+		]
+
+		ordered = fast_gross_profit.sort_invoice_rows_descending(rows)
+
+		self.assertEqual(
+			[row["parent"] for row in ordered],
+			["ACC-SINV-2026-317776", "ACC-SINV-2026-317777"],
+		)
+
+	def test_export_service_exposes_whitelisted_enqueue_json_and_download_delegation(self):
+		result = export_service.enqueue_profit_csv_export(json.dumps({"company": "Company", "from_date": "2026-01-01"}))
+		self.assertFalse(result["deduplicated"])
+		self.assertEqual(result["status"], "Queued")
+
+		self.make_log()
+		self.write_artifact(b"Sales Invoice,Brand\nSI-1,Phsar Select\n")
+		response = export_service.download_profit_csv_export("EXP-TEST")
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), b"Sales Invoice,Brand\nSI-1,Phsar Select\n")
+
+		self.fake.set_user("other")
+		forbidden = export_service.download_profit_csv_export("EXP-TEST")
+		self.assertEqual(forbidden.status_code, 403)
+
+		whitelisted = []
+
+		def record_whitelist(*args, **kwargs):
+			def decorator(function):
+				whitelisted.append(function.__name__)
+				return function
+
+			return decorator
+
+		self.fake.whitelist = record_whitelist
+		importlib.reload(export_service)
+		try:
+			self.assertIn("enqueue_profit_csv_export", whitelisted)
+			self.assertIn("download_profit_csv_export", whitelisted)
+			self.assertIn("get_profit_csv_export_status", whitelisted)
+		finally:
+			export_service.frappe = self.fake
 
 	def test_worker_renames_before_single_completion_commit_and_preserves_user(self):
 		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None)
 		self.restricted.return_value = True
 		self.fake.set_user("worker-runner")
 		columns = [{"fieldname": "sales_invoice", "label": "Invoice"}]
-		rows = [{"sales_invoice": "SI-1"}, {"sales_invoice": "Total"}]
+		rows = [{"sales_invoice": "SI-1", "indent": 0}]
+		self.digest.return_value = ("digest", ["SI-1", "SI-ELSEWHERE"], False)
+		doc["filters_hash"] = export_service.compute_filters_hash(json.loads(doc["filters_json"]))
+		temporary_path, final_path = export_service.get_export_paths(doc["export_uuid"])
+		scope_tmp, scope_path = export_service._export_scope_paths(doc["export_uuid"])
 
-		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)) as runner:
+		def batch(*args, **kwargs):
+			self.assertEqual(self.fake.session.user, "owner")
+			self.assertEqual(self.fake.db.commit_count, 1)
+			self.assertIn("START TRANSACTION WITH CONSISTENT SNAPSHOT", [call[0] for call in self.fake.db.sql_calls])
+			self.assertFalse(os.path.exists(final_path))
+			kwargs["export_scope"].include(["SI-1"])
+			yield columns, rows
+
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", side_effect=batch) as runner, patch.object(
+			fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"}
+		), patch.object(self.fake, "get_cached_value", return_value="MMK", create=True):
 			export_service.run_profit_csv_export(doc["name"])
 
 		self.assertEqual(self.fake.session.user, "worker-runner")
 		runner.assert_called_once()
-		self.assertEqual(runner.call_args.kwargs["invoice_ids"], ["SI-1"])
-		_temporary_path, final_path = export_service.get_export_paths(doc["export_uuid"])
+		self.assertEqual(runner.call_args.kwargs["invoice_ids"], ["SI-1", "SI-ELSEWHERE"])
 		self.assertTrue(os.path.exists(final_path))
+		self.assertFalse(os.path.exists(temporary_path))
+		self.assertFalse(os.path.exists(scope_tmp))
+		manifest = json.loads(Path(scope_path).read_bytes())
+		self.assertEqual(manifest["scope"]["invoice_names"], ["SI-1"])
+		self.assertEqual(manifest["scope"]["requested_by"], "owner")
+		self.assertEqual(self.fake.db.commit_count, 2)
 		completion_update, completion_params = self.fake.db.update_sql[-1]
 		self.assertIn("`artifact_published` = 1", completion_update)
 		self.assertIn("`exported_invoice_sha256` = %s", completion_update)
@@ -365,17 +1009,208 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(completion_params[1], 2)
 		plain_sql = [call[0] for call in self.fake.db.sql_calls]
 		self.assertIn("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ", plain_sql)
-		self.assertIn("START TRANSACTION", plain_sql)
+		self.assertIn("START TRANSACTION WITH CONSISTENT SNAPSHOT", plain_sql)
+		self.fake.set_user("other")
+		self.assertEqual(export_service.download_profit_csv_export(doc["name"]).status_code, 403)
+
+	def test_worker_manifest_requires_visibility_of_absorbed_return_without_its_own_header(self):
+		class Row(dict):
+			__getattr__ = dict.get
+
+		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None)
+		filters = {**json.loads(doc["filters_json"]), "sales_invoice": "SI-1", "currency": "MMK"}
+		doc["filters_json"] = json.dumps(filters)
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		self.state.match_conditions = "`tabSales Invoice`.`customer` = 'allowed'"
+		self.state.invoice_names = ["SI-1", "RET-1"]
+		self.restricted.return_value = True
+
+		def build(generator, filters, *, invoice_ids, invoice_phase, invoice_row_limit, export_scope):
+			self.assertEqual(invoice_ids, ("SI-1",))
+			self.assertEqual(export_scope.match_conditions, self.state.match_conditions)
+			generator.si_list = [Row(parent="SI-1")]
+			generator._export_scope = export_scope
+			generator._read_restricted_linked_returns = lambda *_: [Row(
+				name="RET-1", return_against="SI-1", sales_invoice_item="LINE-1", item_code="ITEM", base_amount=-25,
+			)]
+			generator._invoice_row_limit = invoice_row_limit
+			generator.get_returned_invoice_items()
+
+		def render(generator, report_filters):
+			sale = 100 + generator.returned_invoices["SI-1"]["LINE-1"][0].base_amount
+			columns = [{"fieldname": "sales_invoice"}, {"fieldname": "selling_amount"}]
+			return columns, [
+				{"sales_invoice": "SI-1", "indent": 0, "selling_amount": sale},
+				{"sales_invoice": "ITEM", "indent": 1, "selling_amount": sale},
+				{"sales_invoice": "Total", "selling_amount": sale},
+			]
+
+		with patch.object(self.fake, "_dict", Row, create=True), patch.object(fast_gross_profit, "frappe", self.fake), patch.object(
+			fast_gross_profit, "standard_gross_profit", object()
+		), patch.object(fast_gross_profit.FastGrossProfitGenerator, "__init__", build), patch.object(
+			fast_gross_profit, "_render_detail_result", side_effect=render
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			invoice_batches, "_invoice_keys", return_value=[(1, "SI-1", 0)]
+		), patch.object(fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total", "selling_amount": 75}):
+			export_service.run_profit_csv_export(doc["name"])
+
+		with Path(self.artifact_path()).open(newline="", encoding="utf-8") as artifact:
+			self.assertEqual(list(csv.reader(artifact)), [
+				["sales_invoice", "selling_amount"], ["SI-1", "75"], ["ITEM", "75"], ["Total", "75"],
+			])
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		self.assertEqual(json.loads(Path(scope_path).read_bytes())["scope"]["invoice_names"], ["RET-1", "SI-1"])
+		self.state.invoice_names.append("SI-NEW")
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.state.invoice_names.remove("RET-1")
+		self.assertEqual(export_service.compute_permission_fingerprint(filters, "owner"), doc["permission_fingerprint"])
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+
+	def test_worker_rechecks_requester_scope_before_writing(self):
+		doc = self.make_log(status="Queued", artifact_published=0)
+		self.fingerprint.return_value = "revoked"
+		self.fake.set_user("worker-runner")
+		with patch.object(export_service, "write_profit_csv") as write, self.assertRaises(FakePermissionError):
+			export_service.run_profit_csv_export(doc["name"])
+		write.assert_not_called()
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(self.fake.session.user, "worker-runner")
+		self.authorize.assert_called_once_with(json.loads(doc["filters_json"]), "owner", require_export=True)
+
+	def test_posting_between_batches_keeps_the_worker_snapshot_rows_and_values(self):
+		doc = self.make_log(status="Queued", artifact_published=0)
+		doc["filters_json"] = json.dumps({**json.loads(doc["filters_json"]), "currency": "MMK"})
+		ledger_path = Path(self.tempdir) / "snapshot.db"
+		reader = sqlite3.connect(ledger_path)
+		poster = sqlite3.connect(ledger_path)
+		self.addCleanup(reader.close)
+		self.addCleanup(poster.close)
+		poster.executescript("""
+			PRAGMA journal_mode=WAL;
+			CREATE TABLE ledger (invoice TEXT PRIMARY KEY, amount INTEGER);
+			INSERT INTO ledger VALUES ('SI-A', 7), ('SI-C', 11);
+		""")
+		columns = [{"fieldname": name} for name in ("sales_invoice", "selling_amount")]
+		original_sql = self.fake.db.sql
+
+		def sql(query, *args, **kwargs):
+			if query == "START TRANSACTION WITH CONSISTENT SNAPSHOT":
+				reader.execute("BEGIN")
+				reader.execute("SELECT COUNT(*) FROM ledger").fetchone()
+			return original_sql(query, *args, **kwargs)
+
+		def keys(*args, **kwargs):
+			cursor = ""
+			while row := reader.execute(
+				"SELECT invoice FROM ledger WHERE invoice > ? ORDER BY invoice LIMIT 1", (cursor,)
+			).fetchone():
+				cursor = row[0]
+				yield 1, cursor, 0
+
+		def fetch(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			if invoice_ids == ["SI-A"]:
+				poster.executescript("UPDATE ledger SET amount = 1100 WHERE invoice = 'SI-C'; INSERT INTO ledger VALUES ('SI-D', 999);")
+			name, amount = reader.execute("SELECT * FROM ledger WHERE invoice = ?", invoice_ids).fetchone()
+			return columns, [{"sales_invoice": name, "selling_amount": amount, "indent": 1}, {"sales_invoice": "Total"}]
+
+		with patch.object(self.fake.db, "sql", side_effect=sql), patch.object(
+			invoice_batches, "_invoice_keys", side_effect=keys
+		), patch.object(invoice_batches, "INVOICE_KEY_BATCH_SIZE", 1), patch.object(
+			fast_gross_profit, "run_detail_gross_profit", side_effect=fetch
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			fast_gross_profit, "invoice_total_row",
+			side_effect=lambda filters, selling, buying: {"sales_invoice": "Total", "selling_amount": selling},
+		):
+			export_service.run_profit_csv_export(doc["name"])
+
+		with Path(self.artifact_path()).open(newline="", encoding="utf-8") as output:
+			self.assertEqual(list(csv.reader(output)), [
+				["sales_invoice", "selling_amount"], ["SI-A", "7"], ["SI-C", "11"], ["Total", "18"],
+			])
+		self.assertEqual(poster.execute("SELECT SUM(amount) FROM ledger").fetchone(), (2106,))
+
+	def test_failed_completion_removes_unpublished_csv(self):
+		doc = self.make_log(status="Queued", artifact_published=0)
+		self.restricted.return_value = True
+
+		def write(filters, path, **kwargs):
+			Path(path).write_text("Invoice\nSI-1\n", encoding="utf-8")
+			return 1
+
+		with patch.object(export_service, "write_profit_csv", side_effect=write), patch.object(
+			export_service, "_commit_completed_export", side_effect=OSError("cannot publish")
+		), self.assertRaisesRegex(OSError, "cannot publish"):
+			export_service.run_profit_csv_export(doc["name"])
+
+		export_uuid = doc["export_uuid"]
+		paths = (*export_service.get_export_paths(export_uuid), *export_service._export_scope_paths(export_uuid))
+		self.assertFalse(any(os.path.exists(path) for path in paths))
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["artifact_published"], 0)
+
+	def test_invoice_pages_slice_ordered_rows_across_family_and_return_phase_boundaries(self):
+		filters = {"group_by": "Invoice"}
+		columns = [{"fieldname": "sales_invoice"}]
+		families = {
+			"A": [{"sales_invoice": "A"}, {"sales_invoice": "A.1"}, {"sales_invoice": "A.2"}],
+			"B": [{"sales_invoice": "B"}, {"sales_invoice": "B.1"}],
+			"R": [{"sales_invoice": "R"}, {"sales_invoice": "R.1"}],
+		}
+		keys = [(1, "A", 3), (1, "B", 2), (0, "R", 2)]
+		calls = []
+
+		def render(report_filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			calls.append((invoice_phase, tuple(invoice_ids)))
+			return columns, [row for name in invoice_ids for row in families[name]] + [{"sales_invoice": "Total"}]
+
+		def names(page):
+			return [
+				row["sales_invoice"]
+				for _, data in invoice_batches.iter_invoice_detail_batches(filters, page=page)
+				for row in data
+			]
+
+		with patch.object(invoice_batches, "INVOICE_PAGE_SIZE", 4), patch.object(
+			invoice_batches, "_invoice_keys", return_value=keys
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			fast_gross_profit, "run_detail_gross_profit", side_effect=render
+		), patch.object(fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"}):
+			self.assertEqual(names(1), ["A", "A.1", "A.2", "B"])
+			self.assertEqual(calls, [(1, ("A", "B"))])
+			self.assertEqual(names(2), ["B.1", "R", "R.1", "Total"])
+			self.assertEqual(names(3), [])
+
+	def test_invoice_stream_splits_over_budget_batches_before_emitting_rows(self):
+		def render(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			if len(invoice_ids) > 1:
+				raise fast_gross_profit.InvoiceBatchTooLarge()
+			return [], [{"sales_invoice": invoice_ids[0]}, {"sales_invoice": "Total"}]
+
+		with patch.object(fast_gross_profit, "run_detail_gross_profit", side_effect=render) as runner:
+			batches = list(invoice_batches._render_invoice_batch({"group_by": "Invoice"}, 1, ["A", "B"]))
+
+		self.assertEqual(batches, [([], [{"sales_invoice": "A"}]), ([], [{"sales_invoice": "B"}])])
+		self.assertEqual(
+			[call.kwargs["invoice_row_limit"] for call in runner.call_args_list],
+			[invoice_batches.INVOICE_BATCH_ROWS, invoice_batches.MAX_SINGLE_FAMILY_ROWS, invoice_batches.MAX_SINGLE_FAMILY_ROWS],
+		)
 
 	def test_cleanup_deletes_artifacts_but_preserves_publish_flag_and_digest(self):
 		path = self.write_artifact()
-		doc = self.make_log(status="Completed", artifact_published=1, exported_invoice_sha256="digest")
+		doc = self.make_log(
+			status="Completed", artifact_published=1, exported_invoice_sha256="digest", expires_at=self.state.now
+		)
 		self.state.expired_docs = [doc]
+		scope_tmp, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		Path(scope_tmp).touch()
+		Path(scope_path).touch()
 
 		count = export_service.cleanup_expired_exports()
 
 		self.assertEqual(count, 1)
 		self.assertFalse(os.path.exists(path))
+		self.assertFalse(os.path.exists(scope_tmp))
+		self.assertFalse(os.path.exists(scope_path))
 		self.assertTrue(self.fake.db.update_sql)
 		update_sql, params = self.fake.db.update_sql[-1]
 		self.assertIn("`status` = %s", update_sql)
@@ -386,6 +1221,70 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 
 
 class TestDownloadPrecedence(ExportServiceTestCase):
+	def test_signed_scope_rechecks_hidden_returns_against_their_snapshot_visibility(self):
+		doc = self.make_log()
+		filters = json.loads(doc["filters_json"])
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		export_service._write_export_scope(scope_path, doc, "digest", ["SI-1"], hidden_invoice_names=["RET-HIDDEN"])
+		self.state.invoice_names = ["SI-1", "SI-NEW"]
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.state.invoice_names.append("RET-HIDDEN")
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+
+	def test_snapshot_scope_ignores_new_postings_and_denies_revoked_snapshot_invoice(self):
+		doc = self.make_log()
+		filters = json.loads(doc["filters_json"])
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		batch_size = export_service.EXPORT_SCOPE_CHECK_BATCH_SIZE
+		captured = [f"SI-{index:05d}" for index in range(batch_size + 17)]
+		export_service._write_export_scope(scope_path, doc, "digest", captured)
+		self.state.invoice_names = [*captured, "SI-POSTED-AFTER-SNAPSHOT"]
+
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		queries = [(sql, params) for sql, params, _ in self.fake.db.sql_calls if "FROM `tabSales Invoice`" in sql]
+		self.assertEqual([params for _, params in queries], [["Company", *captured[:batch_size]], ["Company", *captured[batch_size:]]])
+		self.assertEqual([sql.count("%s") - 1 for sql, _ in queries], [batch_size, 17])
+
+		self.state.invoice_names.remove(captured[-1])
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.digest.assert_not_called()
+
+	def test_signed_scope_rejects_tampering_and_replay_against_another_export(self):
+		doc = self.make_log()
+		filters = json.loads(doc["filters_json"])
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		export_service._write_export_scope(scope_path, doc, "digest", {"SI-1"})
+		with patch.object(export_service, "select_accessible_invoice_names") as lookup:
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "other"))
+			self.assertFalse(export_service.exported_invoice_scope_is_current({**doc, "name": "OTHER"}, filters, "owner"))
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, {**filters, "company": "other"}, "owner"))
+			manifest = json.loads(Path(scope_path).read_bytes())
+			manifest["scope"]["invoice_names"] = []
+			Path(scope_path).write_text(json.dumps(manifest), encoding="utf-8")
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+			Path(scope_path).write_bytes(b"{not json")
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+			lookup.assert_not_called()
+		self.digest.assert_not_called()
+
+	def test_restricted_legacy_export_without_complete_manifest_fails_closed(self):
+		doc = self.make_log()
+		filters = json.loads(doc["filters_json"])
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		export_service._write_export_scope(scope_path, doc, "digest", {"SI-1"})
+		manifest = json.loads(Path(scope_path).read_bytes())
+		for version in (1, 2):
+			manifest["scope"]["version"] = version
+			manifest["signature"] = export_service._sign_export_scope(manifest["scope"])
+			Path(scope_path).write_text(json.dumps(manifest), encoding="utf-8")
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.digest.assert_not_called()
+
 	def test_missing_log_returns_404(self):
 		response = self.download("MISSING")
 		self.assertEqual(response.status_code, 404)

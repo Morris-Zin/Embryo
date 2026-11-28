@@ -17,6 +17,10 @@ if [[ ! -f "$SCENARIO_FILE" ]]; then
   exit 2
 fi
 
+TARGET_URL_EXPLICIT=0
+if [[ -n "${TARGET_URL:-}" ]]; then
+  TARGET_URL_EXPLICIT=1
+fi
 TARGET_URL="${TARGET_URL:-http://127.0.0.1:18086}"
 if [[ ! "$TARGET_URL" =~ ^https?://([^/:?#]+)(:([0-9]+))? ]]; then
   echo "TARGET_URL must be an http(s) URL, got '$TARGET_URL'" >&2
@@ -59,11 +63,14 @@ fi
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$SCENARIO}"
 RUN_ID="${RUN_ID//[^A-Za-z0-9_.-]/-}"
+export RUN_ID
 K6_SUMMARY="$RESULT_DIR/${RUN_ID}-k6-summary.json"
 K6_LOG="$RESULT_DIR/${RUN_ID}-k6.log"
 STATS_CSV="$RESULT_DIR/${RUN_ID}-container-stats.csv"
 STATS_LOG="$RESULT_DIR/${RUN_ID}-stats-collector.log"
 SCORECARD="$RESULT_DIR/${RUN_ID}-scorecard.md"
+SEASONAL_VERIFICATION_JSON="$RESULT_DIR/${RUN_ID}-seasonal-verification.json"
+ATTRIBUTION_DIR="$RESULT_DIR/${RUN_ID}-attribution"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-khitmee-perf}"
 MEMORY_BUDGET_GB="${MEMORY_BUDGET_GB:-}"
 STATS_COLLECTOR="${STATS_COLLECTOR:-$PERF_ROOT/scripts/stats-collector.sh}"
@@ -139,6 +146,15 @@ docker_available() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
+K6_DOCKER_HOST="${K6_DOCKER_HOST:-}"
+k6_docker() {
+  if [[ -n "$K6_DOCKER_HOST" ]]; then
+    DOCKER_HOST="$K6_DOCKER_HOST" docker "$@"
+  else
+    docker "$@"
+  fi
+}
+
 host_k6_available() {
   command -v k6 >/dev/null 2>&1
 }
@@ -150,7 +166,7 @@ select_network() {
   fi
   local candidate
   for candidate in khitmee-perf khitmee-perf_default; do
-    if docker network inspect "$candidate" >/dev/null 2>&1; then
+    if k6_docker network inspect "$candidate" >/dev/null 2>&1; then
       printf '%s\n' "$candidate"
       return 0
     fi
@@ -222,60 +238,162 @@ fi
 rm -f "$STATS_CSV" "$K6_SUMMARY" "$K6_LOG" "$STATS_LOG" "$SCORECARD"
 start_stats_collector
 
+if [[ "$SCENARIO" == "seasonal" || "$SCENARIO" == "seasonal_preflight" ]]; then
+  python3 -B "$PERF_ROOT/seasonal/attribution.py" start --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" >"$RESULT_DIR/${RUN_ID}-attribution-start.log" 2>&1 || echo "WARNING: attribution start collection failed" >&2
+fi
+
 K6_STATUS=0
 if [[ "$USE_DOCKER" == "1" ]]; then
+  K6_IMAGE="${K6_IMAGE:-grafana/k6:latest}"
+  K6_REMOTE_GENERATOR=0
+  if [[ -n "$K6_DOCKER_HOST" ]]; then
+    REMOTE_CHECK="$("$PYTHON_BIN" - "$K6_DOCKER_HOST" <<'PY'
+import sys
+from urllib.parse import urlparse
+parsed = urlparse(sys.argv[1])
+host = (parsed.hostname or '').lower()
+remote = parsed.scheme in {'tcp', 'http', 'https', 'ssh'} and host not in {'', '127.0.0.1', 'localhost', '::1'}
+print('1' if remote else '0')
+PY
+)"
+    if [[ "$REMOTE_CHECK" == "1" ]]; then
+      K6_REMOTE_GENERATOR=1
+    fi
+  fi
+
   NETWORK=""
-  if ! NETWORK="$(select_network)"; then
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    NETWORK="${K6_NETWORK:-bridge}"
+  elif ! NETWORK="$(select_network)"; then
     echo "Docker network khitmee-perf or khitmee-perf_default was not found." >&2
     echo "Start the isolated benchmark stack first, set K6_NETWORK, or use K6_RUNTIME=host." >&2
     exit 5
   fi
-  K6_IMAGE="${K6_IMAGE:-grafana/k6:latest}"
+
   DOCKER_TARGET_URL="$TARGET_URL"
-  if [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" ]]; then
-    # The k6 container shares the khitmee-perf network, so it can reach the
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    if [[ "$TARGET_URL_EXPLICIT" != "1" ]]; then
+      echo "K6_DOCKER_HOST is remote; set TARGET_URL explicitly to an address that reaches the qualification guest." >&2
+      exit 2
+    fi
+    if [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" || "$TARGET_HOST" == "frontend" ]]; then
+      echo "TARGET_URL=$TARGET_URL resolves on the remote generator, not the qualification guest; refusing remote k6 run." >&2
+      exit 2
+    fi
+  elif [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" ]]; then
+    # The local k6 container shares the khitmee-perf network, so it can reach the
     # frontend service directly; loopback only makes sense for host-mode k6.
     DOCKER_TARGET_URL="http://frontend:8080"
   fi
   EFFECTIVE_HOST_HEADER="${HOST_HEADER:-${SITE_NAME:-bench-loadtest.localhost}}"
 
   CONTAINER_SUMMARY="/perf-suite/results/$(basename "$K6_SUMMARY")"
-  DOCKER_CMD=(
-    docker run --rm
-    --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
-    --network "$NETWORK"
-    --add-host host.docker.internal:host-gateway
-    -v "$PERF_ROOT:/perf-suite"
-    -w /perf-suite/k6
+  DOCKER_ENV_ARGS=(
     -e "TARGET_URL=$DOCKER_TARGET_URL"
     -e "HOST_HEADER=$EFFECTIVE_HOST_HEADER"
   )
   if [[ -n "$SEED_MANIFEST_EFFECTIVE" ]]; then
-    DOCKER_CMD+=( -e "SEED_MANIFEST_PATH=$CONTAINER_MANIFEST_PATH" )
+    DOCKER_ENV_ARGS+=( -e "SEED_MANIFEST_PATH=$CONTAINER_MANIFEST_PATH" )
   fi
   PASSTHROUGH_VARS=(
-    SITE_NAME MODE PERF_MODE SIMULATED_PING_MS DURATION SHOP_VUS MANAGER_VUS
+    SITE_NAME MODE PERF_MODE SIMULATED_PING_MS DURATION SHOP_VUS MANAGER_VUS RUN_ID
     VOUCHERS_PER_5MIN REPORT_INTERVAL_SECONDS REPORT_NAME REPORT_LOOKBACK_DAYS REPORT_FROM_DATE REPORT_TO_DATE REPORT_GROUP_BY
+    EXPORT_FROM_DATE
     PERF_USER PERF_PASSWORD FRAPPE_USER FRAPPE_PASSWORD WAREHOUSE_SEQUENCE PRICE_LIST CUSTOMER COMPANY
     PAYMENT_MODE PRINTER_TYPE TRANSFER_MODE HOT_SKU_POOL ZIPF_EXPONENT MIN_LINES MAX_LINES STOCK_LOOKUP_RATIO
     DIST_TRANSFER_RATIO RETAIL_SALE_RATIO RUN_DOC_METHOD_ENDPOINT CURRENCY
+    SEASONAL_PROFILE SEASONAL_SEED SEASONAL_BASELINE_DURATION SEASONAL_MARGIN_DURATION
+    SEASONAL_OVERLOAD_STEP_DURATION SEASONAL_RECOVERY_DURATION SEASONAL_OVERLOAD_MULTIPLIERS
+    SEASONAL_MAX_RETRIES SEASONAL_RETRY_BACKOFF_MS SEASONAL_DETAIL_TIMEOUT_SECONDS SEASONAL_DETAIL_PAGE_COUNT
+    SEASONAL_VOUCHER_PREALLOCATED_VUS SEASONAL_VOUCHER_MAX_VUS
+    SEASONAL_SEARCH_PREALLOCATED_VUS SEASONAL_SEARCH_MAX_VUS
+    SEASONAL_ENABLE_MANAGERS SEASONAL_ENABLE_EXPORT SEASONAL_EXPORT_TIMEOUT_SECONDS SEASONAL_EXPORT_POLL_SECONDS
+    SEASONAL_EXPORT_ENQUEUE_METHOD SEASONAL_EXPORT_DOWNLOAD_METHOD SEASONAL_SUMMARY_REPORT SEASONAL_DETAIL_REPORT
+    SEASONAL_REQUIRE_RETRY_EVIDENCE
+    SEASONAL_MANAGER_WAREHOUSE_USER SEASONAL_MANAGER_WAREHOUSE_PASSWORD
+    SEASONAL_MANAGER_MONTHLY_USER SEASONAL_MANAGER_MONTHLY_PASSWORD
+    SEASONAL_MANAGER_DETAIL_USER SEASONAL_MANAGER_DETAIL_PASSWORD
+    SEASONAL_MANAGER_EXPORT_USER SEASONAL_MANAGER_EXPORT_PASSWORD
   )
   for var_name in "${PASSTHROUGH_VARS[@]}"; do
-    DOCKER_CMD+=( -e "$var_name" )
+    DOCKER_ENV_ARGS+=( -e "$var_name" )
   done
-  DOCKER_CMD+=(
-    "$K6_IMAGE" run
-    --summary-export "$CONTAINER_SUMMARY"
-    --tag "runid=$RUN_ID"
-    --tag "scenario=$SCENARIO"
-    "scenarios/$SCENARIO.js"
-  )
 
-  echo "Running k6 scenario '$SCENARIO' in Docker image $K6_IMAGE on network $NETWORK"
-  set +e
-  env MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
-  K6_STATUS=${PIPESTATUS[0]}
-  set -e
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    CONTAINER_NAME="khitmee-seasonal-k6-${RUN_ID}"
+    CREATE_CMD=(
+      create
+      --name "$CONTAINER_NAME"
+      --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
+      --network "$NETWORK"
+      --add-host host.docker.internal:host-gateway
+      -w /perf-suite/k6
+      "${DOCKER_ENV_ARGS[@]}"
+      "$K6_IMAGE" run
+      --summary-export "$CONTAINER_SUMMARY"
+      --tag "runid=$RUN_ID"
+      --tag "scenario=$SCENARIO"
+      "scenarios/$SCENARIO.js"
+    )
+    echo "Running k6 scenario '$SCENARIO' on remote Docker host $K6_DOCKER_HOST without bind-mounted guest files"
+    REMOTE_STAGE="$RESULT_DIR/${RUN_ID}-remote-k6-stage"
+    rm -rf "$REMOTE_STAGE"
+    mkdir -p "$REMOTE_STAGE/perf-suite/k6" "$REMOTE_STAGE/perf-suite/results"
+    cp -a "$SCRIPT_DIR/scenarios" "$REMOTE_STAGE/perf-suite/k6/scenarios"
+    cp -a "$SCRIPT_DIR/lib" "$REMOTE_STAGE/perf-suite/k6/lib"
+    if [[ -n "$SEED_MANIFEST_EFFECTIVE" ]]; then
+      cp "$SEED_MANIFEST_EFFECTIVE" "$REMOTE_STAGE/perf-suite/results/$(basename "$MANIFEST_STAGING")"
+    fi
+    chmod -R a+rX "$REMOTE_STAGE/perf-suite" 2>/dev/null || true
+    chmod 777 "$REMOTE_STAGE/perf-suite/results" 2>/dev/null || true
+
+    if ! CONTAINER_ID="$(k6_docker "${CREATE_CMD[@]}")"; then
+      echo "Failed to create remote k6 container" >&2
+      rm -rf "$REMOTE_STAGE"
+      exit 6
+    fi
+    if ! k6_docker cp "$REMOTE_STAGE/perf-suite/." "$CONTAINER_ID:/perf-suite" >"$RESULT_DIR/${RUN_ID}-remote-copy-in.log" 2>&1; then
+      echo "Failed to copy k6 scenario/lib/manifest into remote container" >&2
+      k6_docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+      rm -rf "$REMOTE_STAGE"
+      exit 6
+    fi
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker start -a "$CONTAINER_ID" 2>&1 | tee "$K6_LOG"
+    K6_STATUS=${PIPESTATUS[0]}
+    k6_docker cp "$CONTAINER_ID:$CONTAINER_SUMMARY" "$K6_SUMMARY" >"$RESULT_DIR/${RUN_ID}-remote-copy-back.log" 2>&1
+    COPY_BACK_STATUS=$?
+    k6_docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+    rm -rf "$REMOTE_STAGE"
+    set -e
+    if [[ "$COPY_BACK_STATUS" != "0" || ! -s "$K6_SUMMARY" ]]; then
+      echo "Remote k6 summary copy-back missing; result evidence is invalid." >&2
+      if [[ "$K6_STATUS" == "0" ]]; then
+        K6_STATUS=7
+      fi
+    fi
+  else
+    DOCKER_CMD=(
+      run --rm
+      --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
+      --network "$NETWORK"
+      --add-host host.docker.internal:host-gateway
+      -v "$PERF_ROOT:/perf-suite"
+      -w /perf-suite/k6
+      "${DOCKER_ENV_ARGS[@]}"
+      "$K6_IMAGE" run
+      --summary-export "$CONTAINER_SUMMARY"
+      --tag "runid=$RUN_ID"
+      --tag "scenario=$SCENARIO"
+      "scenarios/$SCENARIO.js"
+    )
+
+    echo "Running k6 scenario '$SCENARIO' in Docker image $K6_IMAGE on network $NETWORK"
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
+    K6_STATUS=${PIPESTATUS[0]}
+    set -e
+  fi
 else
   echo "Running k6 scenario '$SCENARIO' with host k6"
   HOST_K6_ENV=()
@@ -295,21 +413,66 @@ fi
 sleep "${STATS_FLUSH_SECONDS:-1}"
 stop_stats_collector
 
+if [[ "$SCENARIO" == "seasonal" || "$SCENARIO" == "seasonal_preflight" ]]; then
+  python3 -B "$PERF_ROOT/seasonal/attribution.py" finish --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" --k6-summary "$K6_SUMMARY" --k6-log "$K6_LOG" --run-id "$RUN_ID" >"$RESULT_DIR/${RUN_ID}-attribution-finish.log" 2>&1 || echo "WARNING: attribution finish collection failed" >&2
+fi
+
 EVAL_STATUS=0
 if [[ -f "$K6_SUMMARY" ]]; then
-  EVAL_ARGS=(
-    "$SCRIPT_DIR/evaluate_run.py"
-    --k6-summary "$K6_SUMMARY"
-    --stats-csv "$STATS_CSV"
-    --output "$SCORECARD"
-    --run-label "$RUN_ID"
-    --strict
-  )
-  if [[ -n "$MEMORY_BUDGET_GB" ]]; then
-    EVAL_ARGS+=(--memory-budget-gb "$MEMORY_BUDGET_GB")
-  fi
-  if [[ "$SCENARIO" != "report_stress" ]]; then
-    EVAL_ARGS+=(--allow-scenario-skips)
+  if [[ "$SCENARIO" == "seasonal" ]]; then
+    rm -f "$SEASONAL_VERIFICATION_JSON"
+    if [[ "${SEASONAL_VERIFY:-1}" != "0" ]]; then
+      echo "Running independent seasonal database verifier"
+      set +e
+      "$PYTHON_BIN" "$PERF_ROOT/seasonal/verify_run.py" \
+        --k6-log "$K6_LOG" \
+        --output "$SEASONAL_VERIFICATION_JSON" \
+        --docker-dir "$PERF_ROOT/docker" \
+        --compose-project "$COMPOSE_PROJECT_NAME" \
+        --site-name "${SITE_NAME:-bench-loadtest.localhost}"
+      VERIFY_STATUS=$?
+      set -e
+      if [[ "$VERIFY_STATUS" != "0" && ! -f "$SEASONAL_VERIFICATION_JSON" ]]; then
+        printf '%s\n' '{"passed":false,"defects":[{"kind":"verifier_error","detail":"verify_run.py exited before writing JSON"}]}' > "$SEASONAL_VERIFICATION_JSON"
+      fi
+    else
+      printf '%s\n' '{"passed":false,"defects":[{"kind":"verifier_disabled","detail":"SEASONAL_VERIFY=0; independent database evidence intentionally missing"}]}' > "$SEASONAL_VERIFICATION_JSON"
+    fi
+    EVAL_ARGS=(
+      "$SCRIPT_DIR/evaluate_seasonal.py"
+      --k6-summary "$K6_SUMMARY"
+      --k6-log "$K6_LOG"
+      --stats-csv "$STATS_CSV"
+      --verification "$SEASONAL_VERIFICATION_JSON"
+      --attribution "$ATTRIBUTION_DIR/attribution-summary.json"
+      --output "$SCORECARD"
+      --run-label "$RUN_ID"
+    )
+    if [[ "${SEASONAL_ENABLE_MANAGERS:-1}" == "0" ]]; then
+      EVAL_ARGS+=(--cashier-only)
+    fi
+  elif [[ "$SCENARIO" == "seasonal_preflight" ]]; then
+    EVAL_ARGS=(
+      "$PERF_ROOT/seasonal/evaluate_preflight.py"
+      --k6-log "$K6_LOG"
+      --output "$SCORECARD"
+      --json-output "$RESULT_DIR/${RUN_ID}-preflight-result.json"
+    )
+  else
+    EVAL_ARGS=(
+      "$SCRIPT_DIR/evaluate_run.py"
+      --k6-summary "$K6_SUMMARY"
+      --stats-csv "$STATS_CSV"
+      --output "$SCORECARD"
+      --run-label "$RUN_ID"
+      --strict
+    )
+    if [[ -n "$MEMORY_BUDGET_GB" ]]; then
+      EVAL_ARGS+=(--memory-budget-gb "$MEMORY_BUDGET_GB")
+    fi
+    if [[ "$SCENARIO" != "report_stress" ]]; then
+      EVAL_ARGS+=(--allow-scenario-skips)
+    fi
   fi
   set +e
   "$PYTHON_BIN" "${EVAL_ARGS[@]}"
@@ -323,6 +486,9 @@ fi
 echo "k6_exit=$K6_STATUS evaluate_exit=$EVAL_STATUS"
 echo "k6 log: $K6_LOG"
 echo "container stats: $STATS_CSV"
+if [[ -f "$SEASONAL_VERIFICATION_JSON" && "$SCENARIO" == "seasonal" ]]; then
+  echo "seasonal verification: $SEASONAL_VERIFICATION_JSON"
+fi
 if [[ -f "$SCORECARD" ]]; then
   echo "scorecard: $SCORECARD"
 fi

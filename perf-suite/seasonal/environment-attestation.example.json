@@ -1,0 +1,16 @@
+{
+  "schema_version": "seasonal-environment-attestation-v1",
+  "attested_at": "2026-11-28T00:00:00Z",
+  "owner": "replace-with-environment-owner",
+  "guest": {
+    "host_identity": "replace-with-hypervisor-host-identity",
+    "vm_identity": "replace-with-vm-or-wsl-identity",
+    "vcpus": 2,
+    "assigned_memory_mib": 2048,
+    "swap_mib": 0
+  },
+  "load_generator": {
+    "host_identity": "replace-with-generator-host-identity",
+    "address": "builder.example"
+  }
+}

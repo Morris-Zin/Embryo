@@ -1,0 +1,12 @@
+{
+  "applies_to": [
+    "tools/fast_check.py",
+    "apps/khitmee_ops/**"
+  ],
+  "created_at": "2026-11-28T12:25:23Z",
+  "draft": false,
+  "evidence": "cashier gate rejected tools/fast_check.py; fixed by verify_tooling b5d54ba/6a06ae1/eed3d4a",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Never tell a worker to edit a policy file owned by another shard (e.g. a fast_check allowlist entry from the cashier shard). Ask it to report the needed policy change; the owning shard commits it, with a test. The trusted scanner also had to apply its allowlist to direct import-binding patches, not only dynamic ones."
+}

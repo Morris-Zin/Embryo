@@ -1,7 +1,7 @@
 {
   "schema_version": "manager-offload-v1",
   "trial_id": "example-static-smoke",
-  "fixture_sha256": "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19",
+  "fixture_sha256": "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd",
   "seed": 42,
   "site": "bench-loadtest.localhost",
   "artifact_dir": "perf-suite/lab/offload-followup/manager/evidence/example-static-smoke",
@@ -55,7 +55,7 @@
     "erpnext_version": "16.60.0",
     "snapshot_kind": "static-fixture",
     "snapshot_cutoff_date": "2026-11-26",
-    "source_fixture_sha256": "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+    "source_fixture_sha256": "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
   },
   "manager_workload": {
     "summary_report": "Fast Gross Profit",

@@ -1,13 +1,21 @@
 import copy
+import json
+import os
+import stat
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 import perf_parity
+from perf_gp_result import UnavailableGrossProfit, build_report_runner_source
 
 
 WAREHOUSE_COLUMNS = [
@@ -128,6 +136,157 @@ def compare(rows, upstream_rows, columns=WAREHOUSE_COLUMNS, **kwargs):
 
 
 class GrossProfitComparatorNegativeControlTests(unittest.TestCase):
+    def test_live_gross_profit_percent_detects_third_decimal_at_currency_precision(self):
+        columns = [{"fieldname": "gross_profit_%", "fieldtype": "Percent"}]
+        mismatches = perf_parity.compare_live_gross_profit_reports(
+            columns,
+            [[30.001]],
+            columns,
+            [[30.000]],
+            {
+                "currency_precision": 3,
+                "float_precision": 2,
+                "rounding_method": "Banker's Rounding (legacy)",
+            },
+        )
+        self.assertEqual(
+            [(m["kind"], m["field"], m["precision"]) for m in mismatches],
+            [("numeric_mismatch", "gross_profit_%", 3)],
+        )
+
+    def test_live_gp_parity_uses_precision_aware_fast_verify_comparator(self):
+        columns = [{"fieldname": "selling_amount", "label": "Selling Amount", "fieldtype": "Currency"}]
+        precision = {
+            "currency_precision": 3,
+            "float_precision": 2,
+            "rounding_method": "Banker's Rounding (legacy)",
+        }
+        equal = perf_parity.compare_live_gross_profit_reports(
+            columns,
+            [[1.0001]],
+            columns,
+            [[1.0002]],
+            precision,
+        )
+        self.assertEqual(equal, [])
+
+        mismatch = perf_parity.compare_live_gross_profit_reports(
+            columns,
+            [[1.001]],
+            columns,
+            [[1.0]],
+            precision,
+        )
+        self.assertTrue(any(item["kind"] == "monetary_mismatch" for item in mismatch), mismatch)
+
+        with self.assertRaises(perf_parity.ParityFailure):
+            perf_parity.compare_live_gross_profit_reports(
+                columns,
+                [[1.0]],
+                columns,
+                [[1.0]],
+                {**precision, "rounding_method": "Commercial Rounding"},
+            )
+
+    def test_stdin_runners_embed_shared_classifier_and_start(self):
+        payloads = {
+            "parity": perf_parity.build_inner_python_source(),
+            "benchmark": build_report_runner_source(TOOLS_DIR / "perf_bench_inner.py", ("perf_gp_result",)),
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for runner, payload in payloads.items():
+                with self.subTest(runner=runner):
+                    proc = subprocess.run(
+                        [sys.executable, "-B", "-", "--help"], input=payload, cwd=tmpdir,
+                        capture_output=True, check=False, timeout=10,
+                    )
+                    self.assertEqual(proc.returncode, 0, proc.stderr.decode(errors="replace"))
+                    self.assertIn(b"usage:", proc.stdout)
+
+    def test_gross_profit_gate_runs_the_stock_oracle_for_pending_gated_and_computed_results(self):
+        columns = [{"fieldname": "warehouse", "fieldtype": "Link"}, {"fieldname": "selling_amount", "fieldtype": "Currency"}]
+        rows = [["Total", 30.0]]
+        oracle_execute = mock.Mock(return_value=(columns, rows))
+        precision = {"currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"}
+        frappe = SimpleNamespace(_dict=dict)
+        test_cases = (
+            (([], [], "too_many_dirty_or_missing_summary_days"), "fixture_not_ready", 0),
+            (([], [], "detail_input_rows_exceeds_sync_row_budget"), "gated", 0),
+            ((columns, rows), None, 0),
+            ((columns, [["Total", 30.001]]), "mismatch", 1),
+        )
+        for response, failure_kind, mismatch_count in test_cases:
+            with self.subTest(failure_kind=failure_kind):
+                def fast_execute(filters):
+                    if (filters["from_date"], filters["group_by"], filters["include_returned_invoices"]) == (
+                        perf_parity.DATE_30D_FROM, "Warehouse", 0
+                    ):
+                        return response
+                    return columns, rows
+
+                oracle_execute.reset_mock()
+                modules = {
+                    "khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit": SimpleNamespace(execute=fast_execute),
+                    "erpnext.accounts.report.gross_profit.gross_profit": SimpleNamespace(execute=oracle_execute),
+                    "khitmee_ops.profit_summary.reconcile": SimpleNamespace(
+                        reconcile_with_coverage=lambda *_: {"drifts": [], "clean_days": 365, "total_days": 365}
+                    ),
+                }
+                with (
+                    mock.patch.dict(sys.modules, modules),
+                    mock.patch.multiple(
+                        perf_parity, WAREHOUSES=(),
+                        resolve_warehouse=mock.Mock(return_value="Shop 1"),
+                        company_for_warehouse=mock.Mock(return_value="Company"),
+                        capture_precision_settings=mock.Mock(return_value=precision),
+                        audit_gp_coverage_rows=mock.Mock(return_value={"failures": []}),
+                        load_gp_coverage_invoice_rows=mock.Mock(return_value=[]),
+                        explain_query_offenses=mock.Mock(return_value=[]),
+                    ),
+                    mock.patch.object(perf_parity, "emit") as emit,
+                ):
+                    args = SimpleNamespace(gp_1y="none")
+                    if failure_kind:
+                        with self.assertRaises(perf_parity.ParityFailure):
+                            perf_parity.run_gp_parity(frappe, args)
+                    else:
+                        self.assertEqual(perf_parity.run_gp_parity(frappe, args)["failed_cases"], 0)
+
+                oracle_execute.assert_any_call({
+                    "company": "Company", "from_date": perf_parity.DATE_30D_FROM, "to_date": perf_parity.DATE_TO,
+                    "group_by": "Warehouse", "include_returned_invoices": 0,
+                })
+                self.assertEqual(oracle_execute.call_count, 9)
+                event = next(
+                    payload for (marker, payload), _ in emit.call_args_list
+                    if marker == "PARITY_GP_CASE" and payload["case"] == "30d-Warehouse-ret0"
+                )
+                self.assertEqual(event["status"], "fail" if failure_kind else "pass")
+                self.assertEqual(event.get("failure_kind"), failure_kind)
+                self.assertEqual(event["upstream_rows"], 1)
+                self.assertEqual(event["mismatches"], mismatch_count)
+                if failure_kind in ("fixture_not_ready", "gated"):
+                    self.assertEqual(event["reason"], response[2])
+                    self.assertEqual(event["upstream_total"], rows[-1])
+                summary = emit.call_args_list[-1].args[1]
+                self.assertEqual(emit.call_args_list[-1].args[0], "PARITY_GP_SUMMARY")
+                self.assertEqual(summary["fixture_not_ready_cases"], int(failure_kind == "fixture_not_ready"))
+                self.assertEqual(summary["gated_cases"], int(failure_kind == "gated"))
+                self.assertEqual(summary["mismatch_cases"], mismatch_count)
+
+    def test_semijoin_capture_accepts_gated_candidate_and_restores_sql(self):
+        execute = mock.Mock(return_value=([], [], "detail_input_rows_exceeds_sync_row_budget"))
+        module = "khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit"
+        sql = mock.Mock()
+        frappe = SimpleNamespace(_dict=dict, db=SimpleNamespace(sql=sql))
+        with mock.patch.dict(sys.modules, {module: SimpleNamespace(execute=execute)}):
+            result, elapsed, captured = perf_parity.run_fast_gross_profit_capture_semijoin(frappe, {})
+        self.assertIsInstance(result, UnavailableGrossProfit)
+        self.assertEqual(result.status, "gated")
+        self.assertEqual(captured, [])
+        self.assertGreaterEqual(elapsed, 0)
+        self.assertIs(frappe.db.sql, sql)
+
     def test_exact_warehouse_baseline_passes_at_oracle_tolerance(self):
         rows = warehouse_group_rows()
         self.assertEqual(compare(rows, copy.deepcopy(rows), tolerance=1e-7, compare_group_order=True), [])
@@ -359,6 +518,402 @@ class OracleSidecarRunnerTests(unittest.TestCase):
         self.assertEqual(command[command.index("--network") + 1], "khitmee-perf_default")
         self.assertEqual(command[-3:], ["-", "--inside-backend", "--require-db"])
         self.assertNotIn("khitmee-erpnext", " ".join(command))
+
+    def test_sidecar_mounts_oracle_cache_dir_when_provided(self):
+        command = perf_parity.build_sidecar_command(
+            "khitmee-perf-backend-1",
+            "frappe/erpnext:v16",
+            "khitmee-perf_default",
+            "1536m",
+            ["--oracle-cache-dir", "/tmp/khitmee-oracle-cache"],
+            "p2",
+            oracle_cache_mount=("/host/oracle-cache", "/tmp/khitmee-oracle-cache"),
+        )
+        self.assertIn("-v", command)
+        self.assertEqual(command[command.index("-v") + 1], "/host/oracle-cache:/tmp/khitmee-oracle-cache")
+
+
+class OracleCacheAndTimingTests(unittest.TestCase):
+    def _sample_key(self, **overrides):
+        key = {
+            "db_fingerprint": "dbfp-abc123",
+            "erpnext_source_sha256": "srcsha-def456",
+            "report": "Gross Profit",
+            "filters": {"company": "Khit Me Distribution", "from_date": "2026-10-27", "to_date": "2026-11-26", "group_by": "Warehouse"},
+            "user": "Administrator",
+            "precision_settings": {"currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"},
+        }
+        key.update(overrides)
+        return key
+
+    def test_cli_parser_default_oracle_cache_dir_is_none(self):
+        args_default = perf_parity.build_parser().parse_args([])
+        self.assertIsNone(args_default.oracle_cache_dir)
+        args_set = perf_parity.build_parser().parse_args(["--oracle-cache-dir", "/tmp/oc"])
+        self.assertEqual(args_set.oracle_cache_dir, "/tmp/oc")
+
+    def test_oracle_cache_roundtrip_hit_and_clean_miss(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = perf_parity.ParityOracleCache(tmpdir)
+            key = self._sample_key()
+            self.assertIsNone(cache.get(key))
+            cols = WAREHOUSE_COLUMNS
+            rows = warehouse_group_rows()
+            cache.put(key, cols, rows)
+
+            # Reordered filter keys still hit the same canonical entry.
+            reordered = self._sample_key(
+                filters={"group_by": "Warehouse", "to_date": "2026-11-26", "from_date": "2026-10-27", "company": "Khit Me Distribution"}
+            )
+            hit = cache.get(
+                reordered,
+                expected_db_fingerprint="dbfp-abc123",
+                expected_source_sha256="srcsha-def456",
+                expected_precision=key["precision_settings"],
+            )
+            self.assertIsNotNone(hit)
+            cached_cols, cached_rows = hit
+            self.assertEqual(cached_cols, cols)
+            self.assertEqual(cached_rows, rows)
+
+    def test_oracle_cache_fails_closed_on_drift_and_tampering(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = perf_parity.ParityOracleCache(tmpdir)
+            key = self._sample_key()
+            entry = cache.put(key, WAREHOUSE_COLUMNS, warehouse_group_rows())
+
+            # DB fingerprint drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_db_fingerprint="dbfp-different")
+
+            # ERPNext source SHA-256 drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_source_sha256="srcsha-modified")
+
+            # Precision drift fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key, expected_precision={"currency_precision": 2, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"})
+
+            # Payload byte tampering fails closed.
+            payload_path = Path(tmpdir) / entry["payload_path"]
+            original = payload_path.read_text(encoding="utf-8")
+            payload_path.write_text(original.replace("100.0", "100.1", 1), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+            # Restore payload and tamper manifest root hash -> fails closed.
+            payload_path.write_text(original, encoding="utf-8")
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["entries_root_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+    def test_format_section_timings(self):
+        formatted = perf_parity.format_section_timings({"voucher": 1.2345, "gp": 0.4567}, 1.7001)
+        self.assertEqual(formatted, {"sections": {"gp": 0.457, "voucher": 1.234}, "total_seconds": 1.7})
+
+    def test_host_exec_fails_closed_for_oracle_cache_with_exec_runner(self):
+        import io
+        from unittest import mock
+
+        err_buf = io.StringIO()
+        with mock.patch("sys.stderr", err_buf), mock.patch.object(perf_parity, "_inspect_backend") as inspect_mock:
+            rc = perf_parity.host_exec(["--oracle-cache-dir", "/tmp/oc", "--runner", "exec"], runner="exec")
+        self.assertEqual(rc, 3)
+        self.assertIn("--runner sidecar", err_buf.getvalue())
+        inspect_mock.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX cache descriptors")
+    def test_prepare_sidecar_oracle_cache_dir_permissions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "oracle-cache"
+            cache_dir.mkdir()
+            manifest = cache_dir / "manifest.json"
+            manifest.write_text("{}", encoding="utf-8")
+            chowned = []
+
+            def record_chown(fd, uid, gid):
+                chowned.append((os.fstat(fd).st_ino, uid, gid))
+                real_fchown(fd, uid, gid)
+
+            real_fchown = os.fchown
+            uid, gid = os.getuid() or 1000, os.getegid()
+            with mock.patch.object(os, "geteuid", return_value=0), mock.patch.object(
+                os, "fchown", side_effect=record_chown
+            ):
+                perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir, uid, gid)
+
+            target_modes = {cache_dir: 0o750, cache_dir / "entries": 0o750, manifest: 0o640}
+            self.assertEqual(chowned, [(path.stat().st_ino, uid, gid) for path in target_modes])
+            for path, mode in target_modes.items():
+                info = path.stat()
+                self.assertEqual((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)), (uid, gid, mode))
+
+            # A non-root caller with a different UID cannot prepare the mount.
+            with mock.patch.object(os, "geteuid", return_value=uid + 1):
+                with self.assertRaisesRegex(perf_parity.OracleCacheDriftError, "requires that UID or root"):
+                    perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir, uid, gid)
+
+            with mock.patch.object(os, "geteuid", return_value=uid), mock.patch.object(
+                os, "fchown"
+            ) as fchown, mock.patch.object(os, "fchmod") as fchmod:
+                perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir, uid, gid)
+                fchown.assert_not_called()
+                fchmod.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX cache descriptors")
+    def test_prepare_sidecar_oracle_cache_dir_rejects_unsafe_paths_before_mutation(self):
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            os, "geteuid", return_value=0
+        ), mock.patch.object(os, "fchown") as fchown, mock.patch.object(os, "fchmod") as fchmod:
+            for unsafe in ("/tmp", "/var/tmp", "/"):
+                with self.subTest(unsafe=unsafe):
+                    with self.assertRaisesRegex(perf_parity.OracleCacheDriftError, "shared/system directory"):
+                        perf_parity.prepare_sidecar_oracle_cache_dir(unsafe)
+
+            for mode in (0o1755, 0o777):
+                with self.subTest(mode=oct(mode)):
+                    unsafe = Path(tmpdir) / f"cache-{mode}"
+                    unsafe.mkdir()
+                    unsafe.chmod(mode)
+                    with self.assertRaises(perf_parity.OracleCacheDriftError):
+                        perf_parity.prepare_sidecar_oracle_cache_dir(unsafe)
+                    self.assertFalse((unsafe / "entries").exists())
+            real_cache = Path(tmpdir) / "cache"
+            real_cache.mkdir()
+            cache_link = Path(tmpdir) / "cache-link"
+            cache_link.symlink_to(real_cache, target_is_directory=True)
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_cache_dir(cache_link)
+            self.assertFalse((real_cache / "entries").exists())
+            fchown.assert_not_called()
+            fchmod.assert_not_called()
+
+    def test_root_cache_preparation_requires_no_follow_support(self):
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            os, "geteuid", return_value=0, create=True
+        ), mock.patch.object(os, "O_NOFOLLOW", 0, create=True):
+            cache_dir = Path(tmpdir) / "oracle-cache"
+            with self.assertRaisesRegex(perf_parity.OracleCacheDriftError, "POSIX descriptor support"):
+                perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir)
+            self.assertFalse(cache_dir.exists())
+
+    @unittest.skipUnless(os.name == "nt", "exercises unprivileged Windows cache preparation")
+    def test_windows_cache_preparation_creates_entries(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "oracle-cache"
+            self.assertEqual(perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir), str(cache_dir.resolve()))
+            self.assertTrue((cache_dir / "entries").is_dir())
+
+    def _assert_linked_cache_child_rejected(self, child, link_kind):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "oracle-cache"
+            cache_dir.mkdir()
+            outside = Path(tmpdir) / "outside"
+            if child == "entries":
+                outside.mkdir(mode=0o755)
+            else:
+                outside.write_text("outside cache", encoding="utf-8")
+                outside.chmod(0o644)
+
+            link = cache_dir / child
+            if link_kind == "symlink":
+                link.symlink_to(outside, target_is_directory=child == "entries")
+            else:
+                os.link(outside, link)
+
+            before = outside.stat()
+            with mock.patch.object(os, "geteuid", return_value=0), mock.patch.object(
+                os, "fchown", wraps=os.fchown
+            ) as fchown, mock.patch.object(os, "fchmod", wraps=os.fchmod) as fchmod:
+                with self.assertRaises(perf_parity.OracleCacheDriftError):
+                    perf_parity.prepare_sidecar_oracle_cache_dir(cache_dir, os.getuid(), os.getgid())
+                fchown.assert_not_called()
+                fchmod.assert_not_called()
+            self.assertEqual(outside.stat(), before)
+            if child == "manifest.json":
+                self.assertEqual(outside.read_text(encoding="utf-8"), "outside cache")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX cache descriptors")
+    def test_root_cache_preparation_rejects_entries_symlink(self):
+        self._assert_linked_cache_child_rejected("entries", "symlink")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX cache descriptors")
+    def test_root_cache_preparation_rejects_manifest_symlink(self):
+        self._assert_linked_cache_child_rejected("manifest.json", "symlink")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX cache descriptors")
+    def test_root_cache_preparation_rejects_manifest_hardlink(self):
+        self._assert_linked_cache_child_rejected("manifest.json", "hardlink")
+
+    def test_external_oracle_manifest_and_fail_closed_checks(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "cache"
+            external_manifest = Path(tmpdir) / "trust-root" / "manifest.json"
+            cache = perf_parity.ParityOracleCache(cache_dir, manifest_path=external_manifest)
+            key = self._sample_key()
+            cache.put(key, WAREHOUSE_COLUMNS, warehouse_group_rows())
+            self.assertTrue(external_manifest.is_file())
+            self.assertFalse((cache_dir / "manifest.json").exists())
+
+            hit = cache.get(key)
+            self.assertIsNotNone(hit)
+
+            # Manifest rooted inside cache_dir must fail closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.ParityOracleCache(cache_dir, manifest_path=cache_dir / "manifest.json")
+
+            # Tampered external manifest digest fails closed.
+            manifest = json.loads(external_manifest.read_text(encoding="utf-8"))
+            kh = next(iter(manifest["entries"]))
+            manifest["entries"][kh]["payload_sha256"] = "0" * 64
+            external_manifest.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+    def test_capture_db_fingerprint_tracks_repost_sle_sums_and_table_watermarks(self):
+        class FakeDB:
+            def __init__(self, sle_val_sum=1000.0, repost_count=0):
+                self.sle_val_sum = sle_val_sum
+                self.repost_count = repost_count
+                self.queries = []
+
+            def sql(self, query, *args, **kwargs):
+                self.queries.append(query)
+                if "SUM(stock_value_difference)" in query:
+                    return [(500, "2026-11-26 10:00:00", "2026-11-26", "2026-11-26 10:00:00", self.sle_val_sum, -250.0)]
+                if "MAX(posting_date)" in query:
+                    return [(100, "2026-11-26 10:00:00", "2026-11-26")]
+                if "`tabRepost Item Valuation`" in query:
+                    return [(self.repost_count, "2026-11-26 10:00:00" if self.repost_count else None)]
+                if "MAX(modified)" in query:
+                    return [(42, "2026-11-26 09:00:00")]
+                return [(10,)]
+
+        class FakeFrappe:
+            def __init__(self, db):
+                self.db = db
+
+        fp_base = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.0, 0)), site="bench.localhost")
+        fp_repost = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.0, 1)), site="bench.localhost")
+        fp_val_drift = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.5, 0)), site="bench.localhost")
+
+        self.assertNotEqual(fp_base, fp_repost)
+        self.assertNotEqual(fp_base, fp_val_drift)
+        db = FakeDB()
+        perf_parity.capture_db_fingerprint(FakeFrappe(db), site="bench.localhost")
+        joined = "\n".join(db.queries)
+        for tbl in perf_parity.FINGERPRINT_EXTRA_TABLES:
+            self.assertIn(tbl, joined)
+        self.assertIn("SUM(stock_value_difference)", joined)
+        self.assertIn("SUM(actual_qty)", joined)
+        self.assertIn("MAX(creation)", joined)
+
+    def test_capture_with_rollback_tolerates_inner_db_rollback_without_savepoint(self):
+        class FakeDB:
+            def __init__(self):
+                self.rollbacks = 0
+
+            def sql(self, query, *args, **kwargs):
+                if "SAVEPOINT" in str(query).upper():
+                    raise AssertionError("SAVEPOINT must not be used in capture_with_rollback")
+                return []
+
+            def get_value(self, *args, **kwargs):
+                return {}
+
+            def rollback(self):
+                self.rollbacks += 1
+
+        class FakeLocal:
+            def __init__(self):
+                self.document_cache = {"k": "v"}
+
+        class FakeFrappe:
+            def __init__(self):
+                self.db = FakeDB()
+                self.local = FakeLocal()
+
+        frappe = FakeFrappe()
+
+        def build_doc():
+            frappe.db.rollback()
+            return {"voucher_no": "SINV-0001"}
+
+        name, snap = perf_parity.capture_with_rollback(
+            frappe,
+            "test-sale",
+            [("KM-001", "Shop 1")],
+            build_doc,
+            lambda f, n, before: {"voucher": n},
+        )
+        self.assertEqual(name, "SINV-0001")
+        self.assertEqual(snap, {"voucher": "SINV-0001"})
+        self.assertEqual(frappe.db.rollbacks, 2)
+        self.assertEqual(frappe.local.document_cache, {})
+
+    def test_prepare_sidecar_oracle_manifest_dir_rejects_shared_and_sticky_dirs(self):
+        import stat as stat_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "cache"
+            mutated = []
+
+            # Shared system directories (/tmp, /var/tmp) must be rejected without mutation.
+            for shared in ("/tmp/manifest.json", "/var/tmp/manifest.json"):
+                with self.subTest(shared=shared):
+                    with self.assertRaises(perf_parity.OracleCacheDriftError):
+                        perf_parity.prepare_sidecar_oracle_manifest_dir(
+                            shared,
+                            cache_dir,
+                            is_posix=True,
+                            geteuid=lambda: 0,
+                            chown_fn=lambda *a: mutated.append(a),
+                            chmod_fn=lambda *a: mutated.append(a),
+                        )
+            self.assertEqual(mutated, [])
+
+            # Sticky directory (S_ISVTX) must be rejected without mutation.
+            sticky_dir = Path(tmpdir) / "sticky-parent"
+            sticky_dir.mkdir()
+
+            class StickyStat:
+                st_mode = stat_mod.S_IFDIR | stat_mod.S_ISVTX | 0o777
+
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_manifest_dir(
+                    sticky_dir / "manifest.json",
+                    cache_dir,
+                    is_posix=True,
+                    geteuid=lambda: 0,
+                    chown_fn=lambda *a: mutated.append(a),
+                    chmod_fn=lambda *a: mutated.append(a),
+                    stat_fn=lambda _p: StickyStat(),
+                )
+            self.assertEqual(mutated, [])
+
+            # Dedicated non-sticky subdirectory succeeds.
+            dedicated = Path(tmpdir) / "dedicated-trust-root" / "manifest.json"
+            class NormalStat:
+                st_mode = stat_mod.S_IFDIR | 0o755
+
+            mdir, mname = perf_parity.prepare_sidecar_oracle_manifest_dir(
+                dedicated,
+                cache_dir,
+                target_uid=1000,
+                target_gid=1000,
+                is_posix=True,
+                geteuid=lambda: 0,
+                chown_fn=lambda *a: mutated.append(a),
+                chmod_fn=lambda *a: mutated.append(a),
+                stat_fn=lambda _p: NormalStat(),
+            )
+            self.assertEqual(mname, "manifest.json")
+            self.assertTrue(Path(mdir).is_dir())
+            self.assertEqual(len(mutated), 2)
+            self.assertEqual(mutated[1][1], 0o750)
 
 
 if __name__ == "__main__":

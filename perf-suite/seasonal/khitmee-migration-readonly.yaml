@@ -1,0 +1,11 @@
+# Seasonal-owned migration overlay. The runtime-profile migration overlay only
+# grants transient memory headroom; qualification additionally requires the
+# candidate tree mount to be read-only while bench migrate executes.
+services:
+  backend:
+    mem_limit: 384m
+    volumes:
+      - type: bind
+        source: /srv/khitmee-perf/apps/khitmee_ops
+        target: /home/frappe/frappe-bench/apps/khitmee_ops
+        read_only: true

@@ -25,7 +25,7 @@ from manager_offload import canonical_json_update
 
 MANIFEST_SCHEMA_VERSION = "stock-oracle-reference-manifest-v1"
 STOCK_REPORT = "Gross Profit"
-PINNED_FIXTURE_SHA256 = "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+PINNED_FIXTURE_SHA256 = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
 PINNED_SEED_MANIFEST_SHA256 = "1811b91867d80e5afe8d44f43d5816efa9f171940cc368a97a9c9fab393d9334"
 PINNED_SITE = "bench-loadtest.localhost"
 PINNED_COMPANY = "Khit Me Distribution"

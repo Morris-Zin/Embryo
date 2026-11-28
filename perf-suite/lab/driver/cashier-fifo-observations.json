@@ -1,0 +1,1044 @@
+{
+  "observer": {
+    "reference_release": "cashier-screen-v3",
+    "reference_manifest_sha256": "66431d1aebeb58a7beb447a7f717e567861a612aae5071c22be7543912d42c58",
+    "original_audit_sha256": "61a76b5ac38509ca11721ea57ce9109965f5e41d67a5893498e9e5b4234897bd",
+    "observer_sha256": "a2efa8efd609cb4b5cfe6331eac8dc136420e25d9c797645444f43157858e2fc",
+    "instrumented_audit_sha256": "e3c81abc4311cb22df33d48f077035a10414634d538cb4f943364a930bd96172",
+    "application": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+    "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c"
+  },
+  "order": "posting_datetime, creation, name for stable display; physical commit order and transaction read views were not observed",
+  "currency": "USD",
+  "runs": [
+    {
+      "receipt_sha256": "3e9edb0b0b9e21f272d637b36196a60ff69b37d14912061c30980a49369413e5",
+      "raw_sha256": "0fbd7679015f390cbfc04b312a565db6a822dd5e93807f0b5a34876fda73c260",
+      "archive": "/srv/khitmee-lab/operator/stores/cashier-fifo-v1/runs/1795763159847033357/0-baseline",
+      "accepted": false,
+      "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+      "namespace": "khitmee-arm-ac4a97c54a6ab05b",
+      "seed": 1,
+      "run": "f41c7074d0b2",
+      "application": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+      "arrivals": {
+        "small": {
+          "offered": 60,
+          "started": 59,
+          "submitted": 59,
+          "confirmed_within_minute": 58,
+          "confirmed_including_drain": 59,
+          "persisted": 59,
+          "p95_confirmed_ms": 11015
+        },
+        "medium": {
+          "offered": 16,
+          "started": 16,
+          "submitted": 16,
+          "confirmed_within_minute": 16,
+          "confirmed_including_drain": 16,
+          "persisted": 16,
+          "p95_confirmed_ms": 10912
+        },
+        "large": {
+          "offered": 4,
+          "started": 4,
+          "submitted": 4,
+          "confirmed_within_minute": 4,
+          "confirmed_including_drain": 4,
+          "persisted": 4,
+          "p95_confirmed_ms": 9970
+        }
+      },
+      "k6": {
+        "type": "summary",
+        "iterations": 80,
+        "dropped": 2,
+        "http_requests": 83,
+        "utc": "2026-11-27T07:07:47.912Z"
+      },
+      "item_settings": [
+        {
+          "item_code": "KM-00039",
+          "valuation_method": "FIFO",
+          "stock_uom": "Nos"
+        },
+        {
+          "item_code": "KM-00101",
+          "valuation_method": "FIFO",
+          "stock_uom": "Nos"
+        }
+      ],
+      "stock_settings": [
+        {
+          "field": "allow_negative_stock",
+          "value": "0"
+        },
+        {
+          "field": "valuation_method",
+          "value": "FIFO"
+        }
+      ],
+      "script_sha256": {
+        "lab/seasonal-smoke/cashier.js": "dc7ec697b04f08aa7dae17032089f84f5d3148296fee8f39ba30c8010e5336c2",
+        "k6/lib/metrics.js": "21907173191986521e843da242a4fb3235cd9ea1b732fd34cedf278add0e7aa3",
+        "k6/lib/seasonal_runtime.js": "0fb8b56dcc2bfbf48b62568f6022c85f92f59b2ee09484027a2ff440cb470a5b",
+        "k6/lib/workflow.js": "de62ab16d1768714053cb3d0835d03c0adf0ab3b85505cc6497b8e549b4d758f",
+        "k6/lib/seasonal_plan.js": "758f3047a0d08828c319cfbe21fe501c18b272685efee332ab6d054da59785fc",
+        "k6/lib/payloads.js": "c7cabf8471331c95d69ba4cbb6ff26a71ba92acd13314dcedd5c4f50e137f57f",
+        "k6/lib/latency.js": "0fe661327379bfe5e1549ae4d13c66957f6589ff3d694039f92bc2e990efaf07",
+        "k6/lib/auth.js": "ff2dacb41468a18ad65c29eec77820593f61a48dfb26ce7f36145e837ac5d0dc"
+      },
+      "future_fifo_gate": {
+        "passed": false,
+        "warehouse": "Dist Hub 1 - KMD",
+        "quantity_precision": "exact",
+        "currency": "USD",
+        "absolute_value_error_must_be_below": "0.005",
+        "bins": {
+          "KM-00101": {
+            "passed": false,
+            "entry_failures": [
+              "4c7a34d233",
+              "a3d61076f1"
+            ],
+            "quantity_gaps": {
+              "opening_bin": "0E-9",
+              "closing_issued_qty": "0E-9",
+              "closing_queue_minus_bin": "7.000000000"
+            },
+            "value_gaps_usd": {
+              "opening_bin": "0E-9",
+              "closing_bin_minus_opening_and_postings": "25.664000000",
+              "closing_bin_minus_expected_fifo": "26.439000000000"
+            }
+          },
+          "KM-00039": {
+            "passed": false,
+            "entry_failures": [
+              "d24d6b3e48",
+              "350bdffb53",
+              "c8f6a10cc5"
+            ],
+            "quantity_gaps": {
+              "opening_bin": "0E-9",
+              "closing_issued_qty": "0E-9",
+              "closing_queue_minus_bin": "7.000000000"
+            },
+            "value_gaps_usd": {
+              "opening_bin": "0E-9",
+              "closing_bin_minus_opening_and_postings": "284.978000000",
+              "closing_bin_minus_expected_fifo": "253.6095000000000"
+            }
+          }
+        }
+      },
+      "items": {
+        "KM-00101": {
+          "opening_bin": {
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "500.000000000",
+            "valuation_rate": "4.044508000",
+            "stock_value": "2022.254000000"
+          },
+          "opening_predecessor": {
+            "name": "MAT-SLE-2026-15417",
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "company": "Khit Me Distribution",
+            "posting_datetime": "2026-11-25 22:00:00.000100",
+            "posting_date": "2026-11-25",
+            "posting_time": "22:00:00.000100",
+            "creation": "2026-11-25 22:00:00.000100",
+            "modified": "2026-11-25 22:00:00.000100",
+            "actual_qty": "478.000000000",
+            "qty_after_transaction": "500.000000000",
+            "valuation_rate": "4.044508000",
+            "stock_value": "2022.254000000",
+            "stock_value_difference": "1937.334000000",
+            "stock_queue": "[[11.0,3.667],[11.0,4.053],[478.0,4.053]]",
+            "incoming_rate": "4.053000000",
+            "outgoing_rate": "0E-9",
+            "voucher_type": "Stock Entry",
+            "voucher_no": "MAT-STE-2026-00208",
+            "voucher_detail_no": "8368e281e5a6",
+            "is_cancelled": 0,
+            "client_voucher_id": null
+          },
+          "opening_ledger_rows": 9,
+          "opening_ledger_sha256": "73e265f9d3398607283a375e9e2e12710c71992b6e5166636486a2452cfd12b8",
+          "ordered_new_entries": [
+            {
+              "entry": {
+                "name": "265449ee69",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:36:48.218124",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:36:48.218124",
+                "creation": "2026-11-27 12:36:54.359072",
+                "modified": "2026-11-27 12:36:54.364576",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "493.000000000",
+                "valuation_rate": "4.049868154",
+                "stock_value": "1996.590000000",
+                "stock_value_difference": "-25.664000000",
+                "stock_queue": "[[4.0, 3.667], [11.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04929",
+                "voucher_detail_no": "e3kap8tovn",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-0"
+              },
+              "previous_in_posting_order": "MAT-SLE-2026-15417",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "MAT-SLE-2026-15417"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15417"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "4c7a34d233",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:36:48.276495",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:36:48.276495",
+                "creation": "2026-11-27 12:36:51.509533",
+                "modified": "2026-11-27 12:36:51.514785",
+                "actual_qty": "-3.000000000",
+                "qty_after_transaction": "490.000000000",
+                "valuation_rate": "4.046786720",
+                "stock_value": "2011.250000000",
+                "stock_value_difference": "-11.004000000",
+                "stock_queue": "[[8.0, 3.667], [11.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04928",
+                "voucher_detail_no": "e382co8pmt",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-0"
+              },
+              "previous_in_posting_order": "265449ee69",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [],
+              "matches_immediate_predecessor": false,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15417"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "7.000000000",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "25.664000000",
+              "fifo_queue_matches_all_issues_to_date": false
+            },
+            {
+              "entry": {
+                "name": "a3d61076f1",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:37:18.011644",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:37:18.011644",
+                "creation": "2026-11-27 12:37:21.824417",
+                "modified": "2026-11-27 12:37:21.829732",
+                "actual_qty": "-3.000000000",
+                "qty_after_transaction": "487.000000000",
+                "valuation_rate": "4.107287474",
+                "stock_value": "2000.250000000",
+                "stock_value_difference": "-11.000000000",
+                "stock_queue": "[[5.0, 3.667], [11.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04967",
+                "voucher_detail_no": "ecbsedjrc5",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-2"
+              },
+              "previous_in_posting_order": "4c7a34d233",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "4c7a34d233"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "4c7a34d233"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "7.000000000",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": false
+            }
+          ],
+          "closing_bin": {
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "487.000000000",
+            "valuation_rate": "4.107287474",
+            "stock_value": "2000.250000000"
+          },
+          "sum_issued_qty": "-13.000000000",
+          "sum_posted_value_changes": "-47.668000000",
+          "expected_closing_qty_from_all_issues": "487.000000000",
+          "expected_closing_fifo_value_unrounded": "1973.811000000000",
+          "expected_closing_fifo_queue": [
+            [
+              "9.000000000",
+              "4.053"
+            ],
+            [
+              "478.000000000",
+              "4.053"
+            ]
+          ],
+          "closing_persisted_fifo_queue_qty": "494.0",
+          "closing_bin_qty_gap_vs_all_issues": "0E-9",
+          "closing_bin_value_minus_opening_and_deltas": "25.664000000"
+        },
+        "KM-00039": {
+          "opening_bin": {
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "500.000000000",
+            "valuation_rate": "36.310176000",
+            "stock_value": "18155.088000000"
+          },
+          "opening_predecessor": {
+            "name": "MAT-SLE-2026-15355",
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "company": "Khit Me Distribution",
+            "posting_datetime": "2026-11-25 22:00:00.000038",
+            "posting_date": "2026-11-25",
+            "posting_time": "22:00:00.000038",
+            "creation": "2026-11-25 22:00:00.000038",
+            "modified": "2026-11-25 22:00:00.000038",
+            "actual_qty": "477.000000000",
+            "qty_after_transaction": "500.000000000",
+            "valuation_rate": "36.310176000",
+            "stock_value": "18155.088000000",
+            "stock_value_difference": "17281.471500000",
+            "stock_queue": "[[9.0,40.7115],[14.0,36.2295],[477.0,36.2295]]",
+            "incoming_rate": "36.229500000",
+            "outgoing_rate": "0E-9",
+            "voucher_type": "Stock Entry",
+            "voucher_no": "MAT-STE-2026-00208",
+            "voucher_detail_no": "73ed942bf962",
+            "is_cancelled": 0,
+            "client_voucher_id": null
+          },
+          "opening_ledger_rows": 10,
+          "opening_ledger_sha256": "4565beb204f3771838616668d3f51307000dc0190b1ec281190272d1523edab8",
+          "ordered_new_entries": [
+            {
+              "entry": {
+                "name": "2dde7064c8",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:36:48.218124",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:36:48.218124",
+                "creation": "2026-11-27 12:36:53.694851",
+                "modified": "2026-11-27 12:36:53.700162",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "493.000000000",
+                "valuation_rate": "36.247682556",
+                "stock_value": "17870.110000000",
+                "stock_value_difference": "-284.978000000",
+                "stock_queue": "[[2.0, 40.7115], [14.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04929",
+                "voucher_detail_no": "e3kahub8bd",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-0"
+              },
+              "previous_in_posting_order": "MAT-SLE-2026-15355",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "MAT-SLE-2026-15355"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15355"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "d24d6b3e48",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:36:48.276495",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:36:48.276495",
+                "creation": "2026-11-27 12:36:51.302584",
+                "modified": "2026-11-27 12:36:51.309095",
+                "actual_qty": "-5.000000000",
+                "qty_after_transaction": "488.000000000",
+                "valuation_rate": "36.265718182",
+                "stock_value": "17951.530000000",
+                "stock_value_difference": "-203.558000000",
+                "stock_queue": "[[4.0, 40.7115], [14.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04928",
+                "voucher_detail_no": "e38gjcoo7q",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-0"
+              },
+              "previous_in_posting_order": "2dde7064c8",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [],
+              "matches_immediate_predecessor": false,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15355"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "7.000000000",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "284.978000000",
+              "fifo_queue_matches_all_issues_to_date": false
+            },
+            {
+              "entry": {
+                "name": "350bdffb53",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:37:11.573206",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:37:11.573206",
+                "creation": "2026-11-27 12:37:13.140885",
+                "modified": "2026-11-27 12:37:13.146345",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "481.000000000",
+                "valuation_rate": "36.756747401",
+                "stock_value": "17680.000000000",
+                "stock_value_difference": "-271.530000000",
+                "stock_queue": "[[11.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04954",
+                "voucher_detail_no": "ea41d78v76",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-6"
+              },
+              "previous_in_posting_order": "d24d6b3e48",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "d24d6b3e48"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "d24d6b3e48"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "7.000000000",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": false
+            },
+            {
+              "entry": {
+                "name": "c8f6a10cc5",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:37:18.011644",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:37:18.011644",
+                "creation": "2026-11-27 12:37:21.246214",
+                "modified": "2026-11-27 12:37:21.251524",
+                "actual_qty": "-2.000000000",
+                "qty_after_transaction": "479.000000000",
+                "valuation_rate": "36.758958246",
+                "stock_value": "17607.540000000",
+                "stock_value_difference": "-72.460000000",
+                "stock_queue": "[[9.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04967",
+                "voucher_detail_no": "ecaue2tchd",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-2"
+              },
+              "previous_in_posting_order": "350bdffb53",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "350bdffb53"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "350bdffb53"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "7.000000000",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": false
+            }
+          ],
+          "closing_bin": {
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "479.000000000",
+            "valuation_rate": "36.758958246",
+            "stock_value": "17607.540000000"
+          },
+          "sum_issued_qty": "-21.000000000",
+          "sum_posted_value_changes": "-832.526000000",
+          "expected_closing_qty_from_all_issues": "479.000000000",
+          "expected_closing_fifo_value_unrounded": "17353.9305000000000",
+          "expected_closing_fifo_queue": [
+            [
+              "2.000000000",
+              "36.2295"
+            ],
+            [
+              "477.000000000",
+              "36.2295"
+            ]
+          ],
+          "closing_persisted_fifo_queue_qty": "486.0",
+          "closing_bin_qty_gap_vs_all_issues": "0E-9",
+          "closing_bin_value_minus_opening_and_deltas": "284.978000000"
+        }
+      }
+    },
+    {
+      "receipt_sha256": "c2c6b129d41cc39612d930d153449b30ca88a72f14337035b26bcf32861b843c",
+      "raw_sha256": "0661c6995e28dbfe547ea1e0ad4c3e99879d27e1acde24f09adaf05e29a354bd",
+      "archive": "/srv/khitmee-lab/operator/stores/cashier-fifo-v1/runs/1795763300795107752/0-baseline",
+      "accepted": true,
+      "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+      "namespace": "khitmee-arm-c6a61735bd58bfe2",
+      "seed": 1,
+      "run": "f41c7074d0b2",
+      "application": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+      "arrivals": {
+        "small": {
+          "offered": 60,
+          "started": 60,
+          "submitted": 60,
+          "confirmed_within_minute": 60,
+          "confirmed_including_drain": 60,
+          "persisted": 60,
+          "p95_confirmed_ms": 4060
+        },
+        "medium": {
+          "offered": 16,
+          "started": 16,
+          "submitted": 16,
+          "confirmed_within_minute": 16,
+          "confirmed_including_drain": 16,
+          "persisted": 16,
+          "p95_confirmed_ms": 6053
+        },
+        "large": {
+          "offered": 4,
+          "started": 4,
+          "submitted": 4,
+          "confirmed_within_minute": 4,
+          "confirmed_including_drain": 4,
+          "persisted": 4,
+          "p95_confirmed_ms": 8016
+        }
+      },
+      "k6": {
+        "type": "summary",
+        "iterations": 83,
+        "dropped": 0,
+        "http_requests": 84,
+        "utc": "2026-11-27T07:10:00.396Z"
+      },
+      "item_settings": [
+        {
+          "item_code": "KM-00039",
+          "valuation_method": "FIFO",
+          "stock_uom": "Nos"
+        },
+        {
+          "item_code": "KM-00101",
+          "valuation_method": "FIFO",
+          "stock_uom": "Nos"
+        }
+      ],
+      "stock_settings": [
+        {
+          "field": "allow_negative_stock",
+          "value": "0"
+        },
+        {
+          "field": "valuation_method",
+          "value": "FIFO"
+        }
+      ],
+      "script_sha256": {
+        "lab/seasonal-smoke/cashier.js": "dc7ec697b04f08aa7dae17032089f84f5d3148296fee8f39ba30c8010e5336c2",
+        "k6/lib/metrics.js": "21907173191986521e843da242a4fb3235cd9ea1b732fd34cedf278add0e7aa3",
+        "k6/lib/seasonal_runtime.js": "0fb8b56dcc2bfbf48b62568f6022c85f92f59b2ee09484027a2ff440cb470a5b",
+        "k6/lib/workflow.js": "de62ab16d1768714053cb3d0835d03c0adf0ab3b85505cc6497b8e549b4d758f",
+        "k6/lib/seasonal_plan.js": "758f3047a0d08828c319cfbe21fe501c18b272685efee332ab6d054da59785fc",
+        "k6/lib/payloads.js": "c7cabf8471331c95d69ba4cbb6ff26a71ba92acd13314dcedd5c4f50e137f57f",
+        "k6/lib/latency.js": "0fe661327379bfe5e1549ae4d13c66957f6589ff3d694039f92bc2e990efaf07",
+        "k6/lib/auth.js": "ff2dacb41468a18ad65c29eec77820593f61a48dfb26ce7f36145e837ac5d0dc"
+      },
+      "future_fifo_gate": {
+        "passed": true,
+        "warehouse": "Dist Hub 1 - KMD",
+        "quantity_precision": "exact",
+        "currency": "USD",
+        "absolute_value_error_must_be_below": "0.005",
+        "bins": {
+          "KM-00101": {
+            "passed": true,
+            "entry_failures": [],
+            "quantity_gaps": {
+              "opening_bin": "0E-9",
+              "closing_issued_qty": "0E-9",
+              "closing_queue_minus_bin": "0E-9"
+            },
+            "value_gaps_usd": {
+              "opening_bin": "0E-9",
+              "closing_bin_minus_opening_and_postings": "0E-9",
+              "closing_bin_minus_expected_fifo": "-0.001000000000"
+            }
+          },
+          "KM-00039": {
+            "passed": true,
+            "entry_failures": [],
+            "quantity_gaps": {
+              "opening_bin": "0E-9",
+              "closing_issued_qty": "0E-9",
+              "closing_queue_minus_bin": "0E-9"
+            },
+            "value_gaps_usd": {
+              "opening_bin": "0E-9",
+              "closing_bin_minus_opening_and_postings": "0E-9",
+              "closing_bin_minus_expected_fifo": "-0.0005000000000"
+            }
+          }
+        }
+      },
+      "items": {
+        "KM-00101": {
+          "opening_bin": {
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "500.000000000",
+            "valuation_rate": "4.044508000",
+            "stock_value": "2022.254000000"
+          },
+          "opening_predecessor": {
+            "name": "MAT-SLE-2026-15417",
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "company": "Khit Me Distribution",
+            "posting_datetime": "2026-11-25 22:00:00.000100",
+            "posting_date": "2026-11-25",
+            "posting_time": "22:00:00.000100",
+            "creation": "2026-11-25 22:00:00.000100",
+            "modified": "2026-11-25 22:00:00.000100",
+            "actual_qty": "478.000000000",
+            "qty_after_transaction": "500.000000000",
+            "valuation_rate": "4.044508000",
+            "stock_value": "2022.254000000",
+            "stock_value_difference": "1937.334000000",
+            "stock_queue": "[[11.0,3.667],[11.0,4.053],[478.0,4.053]]",
+            "incoming_rate": "4.053000000",
+            "outgoing_rate": "0E-9",
+            "voucher_type": "Stock Entry",
+            "voucher_no": "MAT-STE-2026-00208",
+            "voucher_detail_no": "8368e281e5a6",
+            "is_cancelled": 0,
+            "client_voucher_id": null
+          },
+          "opening_ledger_rows": 9,
+          "opening_ledger_sha256": "73e265f9d3398607283a375e9e2e12710c71992b6e5166636486a2452cfd12b8",
+          "ordered_new_entries": [
+            {
+              "entry": {
+                "name": "14e1035003",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:00.831784",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:00.831784",
+                "creation": "2026-11-27 12:39:03.411549",
+                "modified": "2026-11-27 12:39:03.416219",
+                "actual_qty": "-3.000000000",
+                "qty_after_transaction": "497.000000000",
+                "valuation_rate": "4.046786720",
+                "stock_value": "2011.250000000",
+                "stock_value_difference": "-11.004000000",
+                "stock_queue": "[[8.0, 3.667], [11.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04929",
+                "voucher_detail_no": "fcht9uo8oh",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-0"
+              },
+              "previous_in_posting_order": "MAT-SLE-2026-15417",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "MAT-SLE-2026-15417"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15417"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "99c1d3a819",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:00.876753",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:00.876753",
+                "creation": "2026-11-27 12:39:06.677504",
+                "modified": "2026-11-27 12:39:06.683344",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "490.000000000",
+                "valuation_rate": "4.052206122",
+                "stock_value": "1985.580000000",
+                "stock_value_difference": "-25.670000000",
+                "stock_queue": "[[1.0, 3.667], [11.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04930",
+                "voucher_detail_no": "fcr5vk0q6r",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-0"
+              },
+              "previous_in_posting_order": "14e1035003",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "14e1035003"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "14e1035003"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "5ee03b529e",
+                "item_code": "KM-00101",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:29.840429",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:29.840429",
+                "creation": "2026-11-27 12:39:32.964855",
+                "modified": "2026-11-27 12:39:32.968760",
+                "actual_qty": "-3.000000000",
+                "qty_after_transaction": "487.000000000",
+                "valuation_rate": "4.052991786",
+                "stock_value": "1973.810000000",
+                "stock_value_difference": "-11.770000000",
+                "stock_queue": "[[9.0, 4.053], [478.0, 4.053]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04969",
+                "voucher_detail_no": "fleffktcs3",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-2"
+              },
+              "previous_in_posting_order": "99c1d3a819",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "99c1d3a819"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "99c1d3a819"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            }
+          ],
+          "closing_bin": {
+            "item_code": "KM-00101",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "487.000000000",
+            "valuation_rate": "4.052991786",
+            "stock_value": "1973.810000000"
+          },
+          "sum_issued_qty": "-13.000000000",
+          "sum_posted_value_changes": "-48.444000000",
+          "expected_closing_qty_from_all_issues": "487.000000000",
+          "expected_closing_fifo_value_unrounded": "1973.811000000000",
+          "expected_closing_fifo_queue": [
+            [
+              "9.000000000",
+              "4.053"
+            ],
+            [
+              "478.000000000",
+              "4.053"
+            ]
+          ],
+          "closing_persisted_fifo_queue_qty": "487.0",
+          "closing_bin_qty_gap_vs_all_issues": "0E-9",
+          "closing_bin_value_minus_opening_and_deltas": "0E-9"
+        },
+        "KM-00039": {
+          "opening_bin": {
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "500.000000000",
+            "valuation_rate": "36.310176000",
+            "stock_value": "18155.088000000"
+          },
+          "opening_predecessor": {
+            "name": "MAT-SLE-2026-15355",
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "company": "Khit Me Distribution",
+            "posting_datetime": "2026-11-25 22:00:00.000038",
+            "posting_date": "2026-11-25",
+            "posting_time": "22:00:00.000038",
+            "creation": "2026-11-25 22:00:00.000038",
+            "modified": "2026-11-25 22:00:00.000038",
+            "actual_qty": "477.000000000",
+            "qty_after_transaction": "500.000000000",
+            "valuation_rate": "36.310176000",
+            "stock_value": "18155.088000000",
+            "stock_value_difference": "17281.471500000",
+            "stock_queue": "[[9.0,40.7115],[14.0,36.2295],[477.0,36.2295]]",
+            "incoming_rate": "36.229500000",
+            "outgoing_rate": "0E-9",
+            "voucher_type": "Stock Entry",
+            "voucher_no": "MAT-STE-2026-00208",
+            "voucher_detail_no": "73ed942bf962",
+            "is_cancelled": 0,
+            "client_voucher_id": null
+          },
+          "opening_ledger_rows": 10,
+          "opening_ledger_sha256": "4565beb204f3771838616668d3f51307000dc0190b1ec281190272d1523edab8",
+          "ordered_new_entries": [
+            {
+              "entry": {
+                "name": "d0e0bc3fd1",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:00.831784",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:00.831784",
+                "creation": "2026-11-27 12:39:03.228873",
+                "modified": "2026-11-27 12:39:03.234286",
+                "actual_qty": "-5.000000000",
+                "qty_after_transaction": "495.000000000",
+                "valuation_rate": "36.265718182",
+                "stock_value": "17951.530000000",
+                "stock_value_difference": "-203.558000000",
+                "stock_queue": "[[4.0, 40.7115], [14.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04929",
+                "voucher_detail_no": "fch6lo67ob",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-0"
+              },
+              "previous_in_posting_order": "MAT-SLE-2026-15355",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "MAT-SLE-2026-15355"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "MAT-SLE-2026-15355"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "f65cd66f09",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:00.876753",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:00.876753",
+                "creation": "2026-11-27 12:39:05.206892",
+                "modified": "2026-11-27 12:39:05.211009",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "488.000000000",
+                "valuation_rate": "36.229498975",
+                "stock_value": "17680.000000000",
+                "stock_value_difference": "-271.530000000",
+                "stock_queue": "[[11.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04930",
+                "voucher_detail_no": "fcrqodvm38",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-0"
+              },
+              "previous_in_posting_order": "d0e0bc3fd1",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "d0e0bc3fd1"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "d0e0bc3fd1"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "4b3477125f",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:22.330706",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:22.330706",
+                "creation": "2026-11-27 12:39:22.955747",
+                "modified": "2026-11-27 12:39:22.959630",
+                "actual_qty": "-7.000000000",
+                "qty_after_transaction": "481.000000000",
+                "valuation_rate": "36.229508316",
+                "stock_value": "17426.390000000",
+                "stock_value_difference": "-253.610000000",
+                "stock_queue": "[[4.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04958",
+                "voucher_detail_no": "finkk376n8",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-medium-6"
+              },
+              "previous_in_posting_order": "f65cd66f09",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "f65cd66f09"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "f65cd66f09"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            },
+            {
+              "entry": {
+                "name": "ad19695e97",
+                "item_code": "KM-00039",
+                "warehouse": "Dist Hub 1 - KMD",
+                "company": "Khit Me Distribution",
+                "posting_datetime": "2026-11-27 12:39:29.840429",
+                "posting_date": "2026-11-27",
+                "posting_time": "12:39:29.840429",
+                "creation": "2026-11-27 12:39:32.486618",
+                "modified": "2026-11-27 12:39:32.492938",
+                "actual_qty": "-2.000000000",
+                "qty_after_transaction": "479.000000000",
+                "valuation_rate": "36.229501044",
+                "stock_value": "17353.930000000",
+                "stock_value_difference": "-72.460000000",
+                "stock_queue": "[[2.0, 36.2295], [477.0, 36.2295]]",
+                "incoming_rate": "0E-9",
+                "outgoing_rate": "0E-9",
+                "voucher_type": "Sales Invoice",
+                "voucher_no": "ACC-SINV-2026-04969",
+                "voucher_detail_no": "fle2pf7nbq",
+                "is_cancelled": 0,
+                "client_voucher_id": "SCS-f41c7074d0b2-large-2"
+              },
+              "previous_in_posting_order": "4b3477125f",
+              "posting_and_creation_tie": false,
+              "matching_observed_openings": [
+                "4b3477125f"
+              ],
+              "matches_immediate_predecessor": true,
+              "matching_valuation_openings_ignoring_qty_after_transaction": [
+                "4b3477125f"
+              ],
+              "queue_quantity_minus_qty_after_transaction": "0E-9",
+              "signed_qty_gap_vs_previous": "0E-9",
+              "signed_value_gap_vs_previous": "0E-9",
+              "fifo_queue_matches_all_issues_to_date": true
+            }
+          ],
+          "closing_bin": {
+            "item_code": "KM-00039",
+            "warehouse": "Dist Hub 1 - KMD",
+            "actual_qty": "479.000000000",
+            "valuation_rate": "36.229501044",
+            "stock_value": "17353.930000000"
+          },
+          "sum_issued_qty": "-21.000000000",
+          "sum_posted_value_changes": "-801.158000000",
+          "expected_closing_qty_from_all_issues": "479.000000000",
+          "expected_closing_fifo_value_unrounded": "17353.9305000000000",
+          "expected_closing_fifo_queue": [
+            [
+              "2.000000000",
+              "36.2295"
+            ],
+            [
+              "477.000000000",
+              "36.2295"
+            ]
+          ],
+          "closing_persisted_fifo_queue_qty": "479.0",
+          "closing_bin_qty_gap_vs_all_issues": "0E-9",
+          "closing_bin_value_minus_opening_and_deltas": "0E-9"
+        }
+      }
+    }
+  ]
+}

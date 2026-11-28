@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 import types
 import unittest
@@ -45,8 +46,7 @@ def install_frappe_stub():
 
 FRAPPE = install_frappe_stub()
 
-from khitmee_ops.profit_summary import rebuilder, replay, store
-from khitmee_ops.profit_summary import query
+from khitmee_ops.profit_summary import budget, eligibility, export_service, query, rebuilder, replay, store
 from khitmee_ops.profit_summary.budget import MAX_SAFE_ABS_SUM, build_detail_preflight_query, evaluate_work_budget
 from khitmee_ops.profit_summary.eligibility import (
 	authorize_profit_request,
@@ -54,6 +54,19 @@ from khitmee_ops.profit_summary.eligibility import (
 	evaluate_summary_eligibility,
 )
 from khitmee_ops.setup import indexes
+
+
+def _bind_summary_frappe_stub():
+	sys.modules["frappe"] = FRAPPE
+	for module in (budget, eligibility, export_service, query, rebuilder, replay, store):
+		module.frappe = FRAPPE
+
+
+_bind_summary_frappe_stub()
+
+
+def setUpModule():
+	_bind_summary_frappe_stub()
 
 
 def contribution(
@@ -238,8 +251,117 @@ class TestBudget(unittest.TestCase):
 		)
 		self.assertIn("tabPayment Schedule", sql)
 
+	def test_detail_preflight_counts_the_whole_packed_group_for_each_repeated_bundle_line(self):
+		filters = {
+			"company": "C",
+			"from_date": "2026-01-01",
+			"to_date": "2026-01-31",
+			"group_by": "Invoice",
+			"sales_invoice": "SI-1",
+		}
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE `tabSales Invoice` (name, company, docstatus, is_return, is_opening, posting_date, return_against);
+			CREATE TABLE `tabSales Invoice Item` (name, parent, item_code);
+			CREATE TABLE `tabPacked Item` (name, parent, parenttype, parent_item, parent_detail_docname, docstatus);
+			INSERT INTO `tabSales Invoice` VALUES ('SI-1', 'C', 1, 0, 'No', '2026-01-15', NULL);
+			INSERT INTO `tabSales Invoice Item` VALUES ('line-1', 'SI-1', 'bundle'), ('line-2', 'SI-1', 'bundle');
+			"""
+		)
+		db.executemany(
+			"INSERT INTO `tabPacked Item` VALUES (?, ?, ?, ?, ?, ?)",
+			[
+				(f"{line}-component-{component}", "SI-1", "Sales Invoice", "bundle", line, 1)
+				for line in ("line-1", "line-2")
+				for component in range(3)
+			]
+			+ [
+				("delivery-component", "SI-1", "Delivery Note", "bundle", "line-1", 1),
+				("draft-component", "SI-1", "Sales Invoice", "bundle", "line-1", 0),
+				("other-bundle-component", "SI-1", "Sales Invoice", "other-bundle", "line-1", 1),
+			],
+		)
+
+		for cap, expected in ((100, 14), (10, 11)):
+			with self.subTest(cap=cap):
+				sql, params = build_detail_preflight_query(filters, cap)
+				sql = sql.replace("STRAIGHT_JOIN", "JOIN").replace("%s", "?")
+				self.assertEqual(db.execute(sql, params).fetchone(), (expected,))
+
 
 class TestPrecisionAndOrdering(unittest.TestCase):
+	def test_clean_day_sql_groups_match_the_original_exact_fold(self):
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.row_factory = sqlite3.Row
+		db.execute("CREATE TABLE `tabDaily Profit by Shop` (" + ", ".join(store.SHOP_DAY_FIELDS) + ")")
+		dates = ["2025-12-01", "2025-12-02", "2025-12-03", "2026-01-01"]
+		stored_rows = []
+		for index, (day, warehouse, bucket, qty) in enumerate(
+			[
+				(dates[0], "W", "unlinked_return", -9),
+				(dates[1], "W", "normal", 10),
+				(dates[1], "w", "normal", 3),
+				(dates[2], "W", "normal", 0),
+				(dates[2], "", "normal", 4),
+				(dates[2], " ", "normal", 5),
+				(dates[3], "W", "normal", 2),
+				("2026-01-02", "W", "normal", 99),
+			]
+		):
+			row = dict.fromkeys(store.SHOP_DAY_FIELDS, 0)
+			row.update(company="C", posting_date=day, warehouse=warehouse)
+			row[f"{bucket}_has_rows"] = 1
+			row[f"{bucket}_first_seen_key"] = f"1|{day}|{9 - index:012d}"
+			for field, value in (("qty", qty), ("base_amount", 3 * qty), ("buying_amount", 2 * qty)):
+				row[f"{bucket}_{field}"] = value
+			row[f"{bucket}_abs_qty_sum"] = abs(qty)
+			row[f"{bucket}_abs_base_sum"] = abs(3 * qty)
+			row[f"{bucket}_abs_buying_sum"] = abs(2 * qty)
+			stored_rows.append(row)
+		db.executemany(
+			"INSERT INTO `tabDaily Profit by Shop` VALUES (" + ", ".join(f":{field}" for field in store.SHOP_DAY_FIELDS) + ")",
+			stored_rows,
+		)
+
+		def sql(statement, params, *, as_dict):
+			self.assertTrue(as_dict)
+			statement = (
+				statement.replace("%s", "?")
+				.replace("AS BINARY", "AS BLOB")
+				.replace("CHAR_LENGTH", "LENGTH")
+				.replace("EXTRACT(YEAR_MONTH FROM `posting_date`)", "substr(`posting_date`, 1, 7)")
+			)
+			if " AS BLOB) IN " in statement:
+				params = [value.encode() if value in {"W", "w"} else value for value in params]
+			return [dict(row) for row in db.execute(statement, params)]
+
+		with patch.object(FRAPPE.db, "sql", sql):
+			for group_by in ("Warehouse", "Monthly"):
+				for scope in (None, {"W"}, set()):
+					for include_returns in (False, True):
+						with self.subTest(group_by=group_by, scope=scope, include_returns=include_returns):
+							filters = {
+								"group_by": group_by,
+								"warehouse": "Root" if scope is not None else None,
+								"include_returned_invoices": include_returns,
+							}
+							baseline = query.aggregate_summary_rows(stored_rows[:-1], [], filters, warehouse_scope=scope or set())
+							grouped = store.get_shop_day_groups(
+								"C", dates, group_by, warehouse_scope=scope, include_returns=include_returns
+							)
+							result = query.aggregate_summary_rows(
+								grouped, [], filters, warehouse_scope=scope or set(), stored_rows_are_grouped=True
+							)
+							self.assertEqual(result["input_row_count"], baseline["input_row_count"])
+							self.assertEqual(result["cap_exceeded"], baseline["cap_exceeded"])
+							self.assertEqual(
+								query.format_summary_groups(result["groups"], filters),
+								query.format_summary_groups(baseline["groups"], filters),
+							)
+
 	def test_max_safe_abs_sum_formula(self):
 		self.assertEqual(MAX_SAFE_ABS_SUM(3), 100_000_000_000)
 		self.assertEqual(MAX_SAFE_ABS_SUM(6), 100_000_000)
@@ -801,6 +923,35 @@ class TestClaimCursorEligibilityAndHooks(unittest.TestCase):
 
 
 class TestCleanOnlyQueryIntegration(unittest.TestCase):
+	def test_restricted_grouped_reports_use_actor_scoped_detail_instead_of_shared_summary(self):
+		actor = "restricted@example.test"
+		predicate = "`tabSales Invoice`.`customer` = 'visible'"
+		previous = FRAPPE.session.user
+		seen = []
+
+		def match_conditions(doctype, user=None):
+			return predicate if user == actor else ""
+
+		def detail(filters):
+			seen.append((filters["group_by"], FRAPPE.session.user))
+			return [], [{"selling_amount": 75}]
+
+		filters = {"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-02", "currency": "MMK"}
+		with patch.object(FRAPPE.permissions, "build_match_conditions", side_effect=match_conditions), patch.object(
+			query, "authorize_profit_request"
+		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
+			store, "get_shop_day_groups", side_effect=AssertionError("Restricted rows cannot use the shared summary")
+		), patch.object(query, "preflight_detail_input_rows", return_value=1), patch.object(
+			query, "_fast_gross_profit_module", return_value=SimpleNamespace(run_detail_gross_profit=detail)
+		):
+			for group in ("Warehouse", "Monthly"):
+				with self.subTest(group=group):
+					result = query.query_profit({**filters, "group_by": group}, user=actor)
+					self.assertEqual(result["mode"], "detail")
+					self.assertEqual(result["eligibility"]["reason"], "match_conditions_not_company_only")
+					self.assertEqual(FRAPPE.session.user, previous)
+		self.assertEqual(seen, [("Warehouse", actor), ("Monthly", actor)])
+
 	def test_clean_past_only_stored_reads_dirty_replacement_and_future_live_days(self):
 		states = {
 			"2026-01-01": {
@@ -879,7 +1030,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 			"evaluate_summary_eligibility",
 			return_value={"eligible": True, "reason": "eligible", "match_conditions_safe": True, "has_blocking_repost": False, "dirty_days": [], "replay_invoices": 0},
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", return_value=[]
+			store, "get_shop_day_groups", return_value=[]
 		), patch.object(store, "get_replay_candidates", return_value=replay_rows), patch.object(
 			replay, "collect_replay_contributions", side_effect=AssertionError("must fail fast before replay collect")
 		):
@@ -923,7 +1074,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 				day = live_filters["from_date"]
 				return batch([contribution("LIVE", posting_date=day, first_seen_key=f"1|{day}|100000000000")])
 
-		def fake_shop_rows(company, dates):
+		def fake_shop_rows(company, dates, group_by, **kwargs):
 			read_dates["shop"] = list(dates)
 			return [stored] if dates else []
 
@@ -937,7 +1088,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
 			store, "current_day_flags", return_value={"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", side_effect=fake_shop_rows
+			store, "get_shop_day_groups", side_effect=fake_shop_rows
 		), patch.object(store, "get_replay_candidates", side_effect=fake_replay_rows), patch.object(
 			query, "_fast_gross_profit_module", return_value=FakeFast()
 		), patch.object(query, "_site_today", return_value="2026-01-03"):
@@ -983,7 +1134,7 @@ class TestCleanOnlyQueryIntegration(unittest.TestCase):
 		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
 			store, "current_day_flags", return_value={"calc_version": 1, "currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)", "is_additive_safe": True}
 		), patch.object(query, "partition_request_days", return_value=partition), patch.object(
-			store, "get_shop_day_rows", return_value=[]
+			store, "get_shop_day_groups", return_value=[]
 		), patch.object(store, "get_replay_candidates", return_value=[]), patch.object(
 			query, "_fast_gross_profit_module", return_value=fake_fast
 		), patch.object(replay, "_fast_gross_profit_module", return_value=fake_fast), patch.object(
@@ -1038,7 +1189,7 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		with patch.object(query, "partition_request_days", return_value=partition), patch.object(
 			query, "_collect_live_batches", side_effect=AssertionError("must not extract live rows")
 		), patch.object(store, "get_replay_candidates", return_value=[]), patch.object(
-			store, "get_shop_day_rows", side_effect=AssertionError("must not read stored rows")
+			store, "get_shop_day_groups", side_effect=AssertionError("must not read stored rows")
 		):
 			result = query._query_summary_in_snapshot(filters, {"eligible": True})
 		self.assertEqual(result["mode"], "pending")
@@ -1092,7 +1243,7 @@ class TestPr12ReviewFixes(unittest.TestCase):
 			export_service, "run_detail_gross_profit", side_effect=AssertionError("must not extract")
 		):
 			with self.assertRaises(export_service.frappe.ValidationError):
-				export_service.write_profit_csv({"company": "C", "group_by": "Invoice"}, "unused.csv")
+				export_service.write_profit_csv({"company": "C", "group_by": "Warehouse"}, "unused.csv")
 
 	def test_precision_beyond_storage_scale_is_not_additive_safe(self):
 		# Codex P2: decimal(18, 6) columns would silently round 7+ decimal values.
@@ -1122,6 +1273,76 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		)
 		self.assertIn("(`si`.`name` = %s OR `si`.`return_against` = %s)", sql)
 		self.assertEqual(params.count("SI-9"), 4)
+
+	def test_preflight_scopes_customer_item_brand_item_group_and_sales_person_filters(self):
+		sql, params = build_detail_preflight_query(
+			{
+				"company": "C",
+				"from_date": "2026-01-01",
+				"to_date": "2026-12-31",
+				"customer": "CUST-1",
+				"item_code": "ITEM-1",
+				"brand": "Phsar Select",
+				"item_group": "Beverages",
+				"sales_person": "SP-1",
+				"group_by": "Sales Person",
+			},
+			cap=50,
+		)
+		self.assertIn("`si`.`customer` = %s", sql)
+		self.assertIn("`sii`.`item_code` = %s", sql)
+		self.assertIn("`sii`.`brand` = %s", sql)
+		self.assertIn("INNER JOIN `tabItem` AS `item` ON `item`.`name` = `sii`.`item_code`", sql)
+		self.assertIn("`item`.`item_group` = %s", sql)
+		self.assertIn("EXISTS (SELECT 1 FROM `tabSales Team` AS `st_f`", sql)
+		self.assertIn("AND `st_f`.`sales_person` = %s)", sql)
+		self.assertEqual(sql.count("LEFT JOIN `tabSales Team`"), 1)
+		self.assertEqual(params[-1], 51)
+		self.assertEqual(params.count("CUST-1"), 2)
+		self.assertEqual(params.count("ITEM-1"), 2)
+		self.assertEqual(params.count("Phsar Select"), 2)
+		self.assertEqual(params.count("Beverages"), 2)
+		self.assertEqual(params.count("SP-1"), 2)
+
+		def fake_cached_value(doctype, name, fields):
+			if doctype == "Item Group":
+				return (10, 25)
+			if doctype == "Sales Person":
+				return (1, 8)
+			return None
+
+		with patch.object(FRAPPE, "get_cached_value", side_effect=fake_cached_value, create=True):
+			sql_tree, params_tree = build_detail_preflight_query(
+				{
+					"company": "C",
+					"from_date": "2026-01-01",
+					"to_date": "2026-12-31",
+					"item_group": "All Item Groups",
+					"sales_person": "Sales Team",
+				},
+				cap=20,
+			)
+		self.assertIn("FROM `tabItem Group` AS `ig` WHERE `ig`.`lft` >= %s AND `ig`.`rgt` <= %s", sql_tree)
+		self.assertIn("AND `st_f`.`sales_person` = %s)", sql_tree)
+		self.assertEqual(params_tree, ["C", "2026-01-01", "2026-12-31", 10, 25, "Sales Team", "C", "2026-01-01", "2026-12-31", 10, 25, "Sales Team", 21])
+
+	def test_preflight_uses_covering_index_range_scan_and_straight_join_packed_drive(self):
+		sql, _params = build_detail_preflight_query(
+			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "warehouse": "W-1"},
+			cap=100,
+		)
+		self.assertIn("`si`.`is_return` IN (0, 1)", sql)
+		self.assertIn("FROM `tabSales Invoice` AS `si` FORCE INDEX (`khitmee_si_co_ds_ret_date`)", sql)
+		self.assertIn("STRAIGHT_JOIN `tabSales Invoice Item` AS `sii` FORCE INDEX (`khitmee_sii_parent_warehouse`)", sql)
+		self.assertIn("STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent` = `si`.`name`", sql)
+
+		sql_narrow, _params_narrow = build_detail_preflight_query(
+			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "sales_invoice": "SI-9", "item_code": "ITEM-1", "warehouse": "W-1"},
+			cap=100,
+		)
+		self.assertNotIn("FORCE INDEX (`khitmee_si_co_ds_ret_date`)", sql_narrow)
+		self.assertNotIn("FORCE INDEX (`khitmee_sii_parent_warehouse`)", sql_narrow)
+		self.assertIn("`si`.`is_return` IN (0, 1)", sql_narrow)
 
 	def test_clean_report_without_replay_uses_site_precision(self):
 		# Devin: the empty replay batch's placeholder precision must not win.

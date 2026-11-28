@@ -1,8 +1,12 @@
+import hashlib
+import hmac
 import json
 import sys
 import types
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -13,8 +17,8 @@ if str(APP_ROOT) not in sys.path:
 
 def _install_frappe_and_erpnext_stubs():
 	try:
-		import frappe  # noqa: F401
-		import erpnext  # noqa: F401
+		import frappe
+		import erpnext
 		return
 	except ImportError:
 		pass
@@ -87,7 +91,7 @@ def _install_frappe_and_erpnext_stubs():
 
 _install_frappe_and_erpnext_stubs()
 
-from khitmee_ops.api import vouchers
+from khitmee_ops.api import profit_export, stock_locks, vouchers
 from khitmee_ops.api.payloads import (
 	idempotency_key,
 	make_receipt_payload,
@@ -189,7 +193,7 @@ class FakeStockEntry:
 		self.docstatus = 1
 
 
-def create_invoice(doc, payment_mode="Cash"):
+def create_invoice(doc, payment_mode="Cash", item_code="ITEM-1"):
 	with (
 		patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
 		patch.object(vouchers, "_validate_sale_inputs", return_value=None),
@@ -200,7 +204,7 @@ def create_invoice(doc, payment_mode="Cash"):
 			"Main Warehouse",
 			"Customer",
 			"Standard Selling",
-			[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+			[{"item_code": item_code, "qty": 1, "uom": "Nos", "rate": 100}],
 			payment_mode,
 			False,
 		)
@@ -208,6 +212,50 @@ def create_invoice(doc, payment_mode="Cash"):
 
 
 class TestSinglePassVoucherSubmit(unittest.TestCase):
+	def test_bundle_components_are_locked_with_parent_before_submit(self):
+		warehouse = "Main Warehouse"
+		doc = FakeSalesInvoice()
+		doc.update_stock = 1
+		doc.set_warehouse = warehouse
+		doc.items = [{"item_code": "Z-BUNDLE", "warehouse": warehouse}]
+		lock_queries = []
+
+		def submit():
+			# ERPNext builds the packed table before running the hook.
+			doc.packed_items = [
+				{"item_code": "A-COMP", "warehouse": warehouse},
+				{"item_code": "B-COMP", "warehouse": "Service Warehouse"},
+			]
+			stock_locks.lock_stock_voucher_before_submit(doc)
+
+		def sql(query, params=()):
+			if "JOIN `tabProduct Bundle Item`" in query:
+				return [("B-COMP", "Service Warehouse"), ("A-COMP", warehouse), ("A-COMP", warehouse)]
+			if "FOR UPDATE" in query:
+				lock_queries.append(params)
+			return []
+
+		stock_locks.clear_transaction_stock_locks()
+		self.addCleanup(stock_locks.clear_transaction_stock_locks)
+		after_commit, after_rollback = [], []
+		with (
+			patch.object(doc, "insert", side_effect=submit),
+			patch.object(vouchers.frappe.db, "sql", side_effect=sql),
+			patch.object(stock_locks.frappe.db, "after_commit", SimpleNamespace(add=after_commit.append), create=True),
+			patch.object(stock_locks.frappe.db, "after_rollback", SimpleNamespace(add=after_rollback.append), create=True),
+		):
+			create_invoice(doc, payment_mode=None, item_code="Z-BUNDLE")
+
+		self.assertEqual(after_commit, [stock_locks.clear_transaction_stock_locks])
+		self.assertEqual(after_rollback, after_commit)
+		self.assertEqual(
+			lock_queries,
+			[
+				("A-COMP", "B-COMP", "Z-BUNDLE"),
+				("A-COMP", warehouse, "B-COMP", "Service Warehouse", "Z-BUNDLE", warehouse),
+			],
+		)
+
 	def test_sales_invoice_currency_defaults_come_from_cached_metadata(self):
 		doc = FakeSalesInvoice(payable_total=100)
 		cached_values = {
@@ -270,17 +318,171 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 		self.assertEqual(doc.payments[0].amount, 100)
 		self.assertEqual(doc.paid_amount, 100)
+		self.assertEqual(doc.base_paid_amount, 100)
+		self.assertEqual(doc.outstanding_amount, 0.0)
+		self.assertEqual(doc.change_amount, 0.0)
+		self.assertEqual(doc.base_change_amount, 0.0)
 		self.assertEqual(doc.payments[0].account, "Cash - Cash")
 		self.assertEqual(
 			doc.events,
 			[
 				"set_paid_amount",
 				"set_account_for_mode_of_payment",
-				"calculate_taxes_and_totals",
 				"validate_pos",
 				"validate_pos_paid_amount",
 			],
 		)
+
+	def test_counter_autopay_falls_back_to_recalculate_for_multicurrency_or_advances(self):
+		for extra in (
+			{"conversion_rate": 1.25},
+			{"total_advance": 10},
+			{"write_off_amount": 1},
+			{"loyalty_amount": 5},
+			{"base_paid_amount": 99.99},
+		):
+			doc = FakeSalesInvoice(payable_total=100)
+			doc.is_pos = 1
+			doc.flags.khitmee_counter_autopay = True
+			doc.payments = [FakePayment("Cash", 0)]
+			for key, val in extra.items():
+				setattr(doc, key, val)
+
+			vouchers.sync_counter_autopay_payment(doc)
+
+			self.assertIn("calculate_taxes_and_totals", doc.events)
+
+	def test_counter_autopay_rejects_small_precision3_drift_and_falls_back(self):
+		doc = FakeSalesInvoice(payable_total=100.0)
+		doc.is_pos = 1
+		doc.flags.khitmee_counter_autopay = True
+		doc.payments = [FakePayment("Cash", 0)]
+		# 0.002 drift (< 0.005 old tolerance, > 1e-9 exact tolerance) must fall back!
+		doc.set_paid_amount = lambda: setattr(doc, "paid_amount", 99.998)
+
+		vouchers.sync_counter_autopay_payment(doc)
+
+		self.assertIn("calculate_taxes_and_totals", doc.events)
+
+	def test_posting_timestamp_is_captured_strictly_after_lock_acquisition(self):
+		events = []
+		doc = FakeSalesInvoice(payable_total=100)
+
+		def record_lock(pairs, item_codes=None):
+			events.append("lock")
+			return {"items": ["ITEM-1"], "bins": [], "pairs": list(pairs)}
+
+		def record_nowdate():
+			events.append("nowdate")
+			return "2026-11-28"
+
+		def record_nowtime():
+			events.append("nowtime")
+			return "12:00:00"
+
+		with (
+			patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
+			patch.object(vouchers, "_validate_sale_inputs", return_value=None),
+			patch.object(vouchers, "lock_stock_coordinates", side_effect=record_lock),
+			patch.object(vouchers, "nowdate", side_effect=record_nowdate),
+			patch.object(vouchers, "nowtime", side_effect=record_nowtime),
+			patch.object(vouchers.frappe, "get_doc", return_value=doc),
+		):
+			vouchers._create_sales_invoice(
+				"client-1",
+				"Main Warehouse",
+				"Customer",
+				"Standard Selling",
+				[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+				"Cash",
+				False,
+			)
+
+		self.assertEqual(events, ["lock", "nowdate", "nowtime"])
+
+	def test_run_idempotent_rolls_back_pre_lock_snapshot_before_reserving(self):
+		events = []
+		fresh_seen = []
+		lock = TestIdempotencyLockCleanup.Lock()
+		doc = FakeSalesInvoice(payable_total=100)
+
+		with (
+			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 0, create=True),
+			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback"), create=True),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
+			patch.object(vouchers, "_bind_reservation", return_value=None),
+			patch.object(vouchers, "_release_lock_after_transaction", return_value=None),
+		):
+			vouchers._run_idempotent(
+				"client-1",
+				"sale",
+				"Sales Invoice",
+				"fp",
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
+				prepare=lambda: events.append("prepare") or {"company": "C"},
+			)
+
+		self.assertEqual(events, ["lookup", "prepare", "rollback", "reserve", "create"])
+		self.assertEqual(fresh_seen, [True])
+
+	def test_run_idempotent_skips_rollback_and_fails_closed_when_outer_transaction_has_writes(self):
+		events = []
+		fresh_seen = []
+		lock = TestIdempotencyLockCleanup.Lock()
+		doc = FakeSalesInvoice(payable_total=100)
+
+		with (
+			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 2, create=True),
+			patch.object(vouchers.frappe.db, "rollback", side_effect=AssertionError("must not rollback outer writes"), create=True),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
+			patch.object(vouchers, "_bind_reservation", return_value=None),
+			patch.object(vouchers, "_release_lock_after_transaction", return_value=None),
+		):
+			vouchers._run_idempotent(
+				"client-1",
+				"sale",
+				"Sales Invoice",
+				"fp",
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
+				prepare=lambda: events.append("prepare") or {"company": "C"},
+			)
+
+		self.assertEqual(events, ["lookup", "prepare", "reserve", "create"])
+		self.assertEqual(fresh_seen, [False])
+
+	def test_create_sales_invoice_disables_future_sle_fastpath_when_fresh_snapshot_is_false(self):
+		doc = FakeSalesInvoice(payable_total=100)
+		seen_enabled = []
+
+		from contextlib import contextmanager
+
+		@contextmanager
+		def spy_fastpath(d, pairs, *, enabled=True):
+			seen_enabled.append(enabled)
+			yield None
+
+		with (
+			patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
+			patch.object(vouchers, "_validate_sale_inputs", return_value=None),
+			patch.object(vouchers, "proven_empty_future_sle_fastpath", side_effect=spy_fastpath),
+			patch.object(vouchers.frappe, "get_doc", return_value=doc),
+		):
+			vouchers._create_sales_invoice(
+				"client-1",
+				"Main Warehouse",
+				"Customer",
+				"Standard Selling",
+				[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+				"Cash",
+				False,
+				fresh_snapshot=False,
+			)
+
+		self.assertEqual(seen_enabled, [False])
 
 	def test_counter_autopay_validate_hook_leaves_credit_and_unflagged_invoices_untouched(self):
 		for is_pos, flagged in ((0, True), (1, False)):
@@ -311,6 +513,10 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 
 class TestIdempotencyLockCleanup(unittest.TestCase):
+	def setUp(self):
+		if not hasattr(vouchers.frappe.db, "rollback"):
+			vouchers.frappe.db.rollback = Mock()
+
 	class Lock:
 		def __init__(self):
 			self.release_calls = 0
@@ -382,6 +588,12 @@ class TestIdempotencyLockCleanup(unittest.TestCase):
 
 
 class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
+	def setUp(self):
+		if not hasattr(vouchers.frappe.db, "rollback"):
+			vouchers.frappe.db.rollback = Mock()
+		if not hasattr(vouchers.frappe.db, "exists"):
+			vouchers.frappe.db.exists = lambda *args, **kwargs: True
+
 	def test_load_idempotent_document_for_update_uses_locking_read_and_locked_get_doc(self):
 		existing = AttrDict(reference_doctype="Sales Invoice", reference_name="SI-LOCK-1")
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-LOCK-1")
@@ -448,7 +660,26 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 		rollback.assert_called_once_with()
 		sleep.assert_called_once_with(0.03)
 
-	def test_deadlock_retry_is_bounded_to_one_retry(self):
+	def test_stock_restart_carries_exclusive_hint_only_after_rollback(self):
+		events = []
+
+		def attempt():
+			events.append(stock_locks.stock_retry_items())
+			if not stock_locks.stock_retry_items():
+				error = stock_locks.StockLockRestart(["ITEM-1"])
+				error.retryable = True
+				raise error
+			return "created"
+
+		with (
+			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback")),
+			patch.object(vouchers.time, "sleep", side_effect=lambda _: events.append("jitter")),
+		):
+			self.assertEqual(vouchers._execute_with_deadlock_retry(attempt), "created")
+		self.assertEqual(events, [set(), "rollback", "jitter", {"ITEM-1"}])
+		self.assertEqual(stock_locks.stock_retry_items(), set())
+
+	def test_deadlock_retry_is_bounded_to_three_retries_by_default(self):
 		calls = []
 
 		def always_deadlocked():
@@ -463,7 +694,7 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 			with self.assertRaises(vouchers.frappe.QueryDeadlockError):
 				vouchers._execute_with_deadlock_retry(always_deadlocked)
 
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(calls), 4)
 
 	def test_validation_errors_are_never_retried_as_deadlocks(self):
 		calls = []
@@ -478,6 +709,54 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 		self.assertEqual(len(calls), 1)
 		rollback.assert_not_called()
+
+	def test_failure_after_naming_rolls_back_voucher_and_reuses_next_stock_serial(self):
+		committed_series = 41
+		pending = {}
+		lock = TestIdempotencyLockCleanup.Lock()
+
+		def stock_allocate():
+			pending["series"] = pending.get("series", committed_series) + 1
+			return f"ACC-SINV-2026-{pending['series']:05d}"
+
+		def create_invoice():
+			name = stock_allocate()
+			pending["invoice"] = name
+			pending["stock_ledger"] = name
+			pending["general_ledger"] = name
+			return SimpleNamespace(doctype="Sales Invoice", name=name)
+
+		def reserve(key, fingerprint):
+			pending["idempotency"] = key
+			return True
+
+		def fail_after_naming(key, doctype, name):
+			self.assertEqual(name, stock_name)
+			self.assertEqual(set(pending), {"series", "invoice", "stock_ledger", "general_ledger", "idempotency"})
+			raise RuntimeError("injected after naming")
+
+		with (
+			patch.object(vouchers.frappe.db, "commit", side_effect=AssertionError("request owns commit"), create=True) as commit,
+			patch.object(vouchers.frappe.db, "rollback", side_effect=pending.clear),
+			patch.object(vouchers, "_lookup_idempotency", return_value=None),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=reserve),
+			patch.object(vouchers, "_bind_reservation", side_effect=fail_after_naming),
+		):
+			stock_name = stock_allocate()
+			vouchers.frappe.db.rollback()
+			with self.assertRaisesRegex(RuntimeError, "injected after naming"):
+				try:
+					vouchers._run_idempotent("client-1", "sale", "Sales Invoice", "fingerprint", create_invoice)
+				except RuntimeError:
+					# Model the surrounding Frappe request's exception rollback.
+					vouchers.frappe.db.rollback()
+					raise
+
+			self.assertEqual(pending, {})
+			self.assertEqual(stock_allocate(), stock_name)
+			commit.assert_not_called()
+			self.assertEqual(lock.release_calls, 1)
 
 	def test_submit_sale_runs_voucher_creation_through_deadlock_retry_helper(self):
 		with (
@@ -516,7 +795,10 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 class TestPermissionDeduplication(unittest.TestCase):
 	def test_validate_items_checks_permissions_once_per_unique_item_code(self):
-		with patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission:
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=True),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
 			cleaned = vouchers._validate_items(
 				[
 					{"item_code": "ITEM-1", "qty": 1},
@@ -527,8 +809,97 @@ class TestPermissionDeduplication(unittest.TestCase):
 			)
 
 		self.assertEqual(len(cleaned), 4)
-		item_calls = [call.kwargs.get("doc") for call in has_permission.call_args_list if call.args[0] == "Item"]
+		item_calls = [
+			call.kwargs.get("doc")
+			for call in has_permission.call_args_list
+			if call.args[0] == "Item" and call.kwargs.get("doc") is not None
+		]
 		self.assertEqual(item_calls, ["ITEM-1", "ITEM-2"])
+
+	def test_validate_items_skips_per_item_permission_checks_when_unrestricted(self):
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=False),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
+			cleaned = vouchers._validate_items(
+				[{"item_code": f"ITEM-{i}", "qty": 1} for i in range(10)]
+			)
+
+		self.assertEqual(len(cleaned), 10)
+		self.assertEqual(has_permission.call_count, 1)
+		self.assertEqual(has_permission.call_args.args, ("Item",))
+		self.assertIsNone(has_permission.call_args.kwargs.get("doc"))
+
+	def test_item_permission_restrictions_fail_closed_for_has_permission_if_owner_and_applicable_for(self):
+		orig_user = vouchers.frappe.session.user
+		try:
+			vouchers.frappe.session.user = "cashier@example.com"
+			clean_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
+				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": None}]},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", clean_perms, create=True),
+			):
+				self.assertFalse(vouchers._item_permission_restrictions_active())
+
+			# 1) has_permission hook for Item -> restricted
+			with (
+				patch.object(
+					vouchers.frappe,
+					"get_hooks",
+					side_effect=lambda name, default=None: {"Item": ["custom.check"]} if name == "has_permission" else {},
+					create=True,
+				),
+				patch.object(vouchers.frappe, "permissions", clean_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 2) if_owner=1 on Item read -> restricted
+			if_owner_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 1}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", if_owner_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 3) User Permission with applicable_for='Item' -> restricted
+			applicable_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
+				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": "Item"}]},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", applicable_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 4) Zero-valued if_owner['read'] = 0 (Frappe owner-only marker) or missing read -> restricted
+			zero_if_owner_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 0}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", zero_if_owner_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			no_read_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 0, "if_owner": {}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", no_read_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+		finally:
+			vouchers.frappe.session.user = orig_user
 
 	def test_voucher_read_permission_reuses_the_loaded_document_object(self):
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-0001")
@@ -628,6 +999,166 @@ class TestReceiptPayloadShape(unittest.TestCase):
 				total=0,
 				footer="",
 			)
+
+
+class ProfitExportDownloadTestCase(unittest.TestCase):
+	def setUp(self):
+		self.service = profit_export.export_service
+		self.user = "owner@example.com"
+		self.filters = {"company": "Company", "from_date": "2026-11-01", "to_date": "2026-11-30"}
+		now = datetime(2026, 11, 28, 12)
+		self.doc = {
+			"name": "EXP-TEST",
+			"requested_by": self.user,
+			"filters_json": json.dumps(self.filters),
+			"filters_hash": self.service.compute_filters_hash(self.filters),
+			"export_uuid": "11111111-2222-3333-4444-555555555555",
+			"permission_fingerprint": "fingerprint",
+			"status": "Completed",
+			"artifact_published": 1,
+			"exported_invoice_sha256": "published-digest",
+			"expires_at": now + timedelta(hours=1),
+		}
+		self.actor = SimpleNamespace(user=self.user)
+		self.signing_key = "test-snapshot-signing-key"
+		frappe = SimpleNamespace(
+			session=self.actor,
+			db=SimpleNamespace(get_value=Mock(return_value=1)),
+			get_doc=Mock(return_value=self.doc),
+			conf={"encryption_key": self.signing_key},
+		)
+		private_dir = Path(self.enterContext(TemporaryDirectory()))
+		csv_path = private_dir / "snapshot.csv"
+		self.snapshot = b"invoice,amount\nSI-1,10\n"
+		csv_path.write_bytes(self.snapshot)
+		self.enterContext(patch.object(profit_export, "frappe", frappe))
+		self.enterContext(patch.object(profit_export, "_now", return_value=now))
+		self.enterContext(patch.object(self.service, "frappe", frappe))
+		self.authorize = self.enterContext(patch.object(self.service, "authorize_profit_request"))
+		self.enterContext(
+			patch.object(self.service, "compute_permission_fingerprint", return_value="fingerprint")
+		)
+		self.enterContext(patch.object(self.service, "has_restricted_match_conditions", return_value=True))
+		self.enterContext(patch.object(self.service, "get_export_paths", return_value=(None, str(csv_path))))
+		digest_result = ("published-digest", ["SI-1"], False)
+		self.digest = self.enterContext(
+			patch.object(self.service, "compute_exported_invoice_digest", return_value=digest_result)
+		)
+
+	def download(self):
+		return profit_export.download_export(self.doc["name"])
+
+
+class TestProfitExportDownload(ProfitExportDownloadTestCase):
+	def test_restricted_published_export_checks_scope_before_streaming_snapshot(self):
+		with patch.object(
+			self.service, "exported_invoice_scope_is_current", return_value=True, create=True
+		) as scope:
+			response = self.download()
+
+		self.authorize.assert_called_once_with(self.filters, self.user, require_export=True)
+		scope.assert_called_once_with(self.doc, self.filters, self.user)
+		self.digest.assert_not_called()
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), self.snapshot)
+
+	def test_scope_check_error_fails_closed(self):
+		with patch.object(
+			self.service, "exported_invoice_scope_is_current", side_effect=OSError, create=True
+		):
+			self.assertEqual(self.download().status_code, 403)
+		self.digest.assert_not_called()
+
+	def test_non_owner_is_rejected_before_scope_check(self):
+		self.actor.user = "other@example.com"
+		with patch.object(self.service, "exported_invoice_scope_is_current", create=True) as scope:
+			self.assertEqual(self.download().status_code, 403)
+		self.authorize.assert_not_called()
+		scope.assert_not_called()
+
+
+@unittest.skipUnless(
+	hasattr(profit_export.export_service, "exported_invoice_scope_is_current"),
+	"ADR 0004 scope helper is supplied by the report_paths integration",
+)
+class TestProfitExportDownloadScope(ProfitExportDownloadTestCase):
+	def write_scope(self):
+		_, scope_path = self.service._export_scope_paths(self.doc["export_uuid"])
+		self.service._write_export_scope(scope_path, self.doc, self.doc["exported_invoice_sha256"], ["SI-1"])
+		return Path(scope_path)
+
+	def test_new_matching_invoice_preserves_downloaded_snapshot(self):
+		self.write_scope()
+		visible_names = ["SI-1", "SI-POSTED-LATER"]
+		self.digest.return_value = ("new-digest", visible_names, False)
+
+		def select_visible(filters, user, *, limit, invoice_names):
+			return [name for name in visible_names if name in invoice_names], False
+
+		with patch.object(
+			self.service, "select_accessible_invoice_names", side_effect=select_visible
+		) as select:
+			response = self.download()
+
+		select.assert_called_once_with(self.filters, self.user, limit=1, invoice_names=["SI-1"])
+		self.digest.assert_not_called()
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), self.snapshot)
+
+	def test_revoked_captured_invoice_denies_download(self):
+		self.write_scope()
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=([], False)
+		) as select:
+			self.assertEqual(self.download().status_code, 403)
+
+		select.assert_called_once_with(self.filters, self.user, limit=1, invoice_names=["SI-1"])
+		self.digest.assert_not_called()
+
+	def test_tampered_manifest_denies_download_without_digest_fallback(self):
+		scope_path = self.write_scope()
+		manifest = json.loads(scope_path.read_bytes())
+		manifest["scope"]["invoice_names"] = ["SI-OTHER"]
+		scope_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+		with patch.object(self.service, "select_accessible_invoice_names") as select:
+			self.assertEqual(self.download().status_code, 403)
+		select.assert_not_called()
+		self.digest.assert_not_called()
+
+	def test_restricted_export_without_manifest_denies_without_legacy_lookup(self):
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=(["SI-1"], False)
+		) as lookup:
+			self.assertEqual(self.download().status_code, 403)
+		lookup.assert_not_called()
+		self.digest.assert_not_called()
+
+	def test_restricted_export_with_signed_v1_manifest_denies_without_legacy_lookup(self):
+		# Use the legacy payload and signing domain to reproduce an authentic old artifact.
+		invoice_names = ["SI-1"]
+		payload = {
+			"version": 1,
+			"export_log_name": self.doc["name"],
+			"export_uuid": self.doc["export_uuid"],
+			"requested_by": self.user,
+			"filters_hash": self.doc["filters_hash"],
+			"permission_fingerprint": self.doc["permission_fingerprint"],
+			"exported_invoice_sha256": self.doc["exported_invoice_sha256"],
+			"invoice_names": invoice_names,
+			"invoice_names_sha256": hashlib.sha256(self.service._scope_json(invoice_names)).hexdigest(),
+		}
+		message = b"khitmee:profit-export-scope:v1\x00" + self.service._scope_json(payload)
+		signature = hmac.new(self.signing_key.encode("utf-8"), message, "sha256").hexdigest()
+		_, scope_path = self.service._export_scope_paths(self.doc["export_uuid"])
+		Path(scope_path).write_text(json.dumps({"scope": payload, "signature": signature}), encoding="utf-8")
+
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=(["SI-1"], False)
+		) as lookup:
+			self.assertEqual(self.download().status_code, 403)
+		lookup.assert_not_called()
+		self.digest.assert_not_called()
 
 
 if __name__ == "__main__":

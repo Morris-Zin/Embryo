@@ -1,0 +1,39 @@
+services:
+  backend:
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --workers=${GENERAL_GUNICORN_WORKERS:-1}
+      - --worker-class=sync
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+
+  cashier:
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=${CASHIER_GUNICORN_THREADS:-3}
+      - --workers=${CASHIER_GUNICORN_WORKERS:-1}
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --access-logfile=-
+      - --access-logformat=%({x-k6-request-id}i)s|%({x-k6-endpoint-class}i)s|%(m)s|%(U)s|%(q)s|%(s)s|%(D)s|%(p)s
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+
+  frontend:
+    volumes:
+      - ../seasonal/nginx-attribution.conf.template:/templates/nginx/frappe.conf.template:ro

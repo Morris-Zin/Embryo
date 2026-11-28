@@ -1,0 +1,364 @@
+[
+  {
+    "AppArmorProfile": "",
+    "Args": [
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci",
+      "--skip-character-set-client-handshake",
+      "--innodb-snapshot-isolation=OFF",
+      "--innodb-buffer-pool-size=320M",
+      "--innodb-log-file-size=128M",
+      "--innodb-buffer-pool-dump-pct=100",
+      "--innodb-buffer-pool-load-at-startup=ON",
+      "--innodb-buffer-pool-dump-at-shutdown=ON",
+      "--innodb-io-capacity=1000",
+      "--innodb-io-capacity-max=2000",
+      "--innodb-log-buffer-size=16M",
+      "--aria-pagecache-buffer-size=8M",
+      "--key-buffer-size=1M",
+      "--innodb-flush-log-at-trx-commit=1",
+      "--innodb-flush-method=O_DIRECT",
+      "--max-connections=60",
+      "--thread-cache-size=32",
+      "--table-open-cache=400",
+      "--table-definition-cache=400",
+      "--tmp-table-size=16M",
+      "--max-heap-table-size=16M",
+      "--sort-buffer-size=1M",
+      "--join-buffer-size=256K",
+      "--innodb-lock-wait-timeout=20",
+      "--performance-schema=OFF",
+      "--slow-query-log=ON",
+      "--log-slow-query-file=/var/lib/mysql/mariadb-slow.log",
+      "--long-query-time=1"
+    ],
+    "Config": {
+      "AttachStderr": true,
+      "AttachStdin": false,
+      "AttachStdout": true,
+      "Cmd": [
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_unicode_ci",
+        "--skip-character-set-client-handshake",
+        "--innodb-snapshot-isolation=OFF",
+        "--innodb-buffer-pool-size=320M",
+        "--innodb-log-file-size=128M",
+        "--innodb-buffer-pool-dump-pct=100",
+        "--innodb-buffer-pool-load-at-startup=ON",
+        "--innodb-buffer-pool-dump-at-shutdown=ON",
+        "--innodb-io-capacity=1000",
+        "--innodb-io-capacity-max=2000",
+        "--innodb-log-buffer-size=16M",
+        "--aria-pagecache-buffer-size=8M",
+        "--key-buffer-size=1M",
+        "--innodb-flush-log-at-trx-commit=1",
+        "--innodb-flush-method=O_DIRECT",
+        "--max-connections=60",
+        "--thread-cache-size=32",
+        "--table-open-cache=400",
+        "--table-definition-cache=400",
+        "--tmp-table-size=16M",
+        "--max-heap-table-size=16M",
+        "--sort-buffer-size=1M",
+        "--join-buffer-size=256K",
+        "--innodb-lock-wait-timeout=20",
+        "--performance-schema=OFF",
+        "--slow-query-log=ON",
+        "--log-slow-query-file=/var/lib/mysql/mariadb-slow.log",
+        "--long-query-time=1"
+      ],
+      "Domainname": "",
+      "Entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "Env": [
+        "LD_PRELOAD=<redacted>",
+        "MARIADB_AUTO_UPGRADE=<redacted>",
+        "MYSQL_ROOT_PASSWORD=<redacted>",
+        "PATH=<redacted>",
+        "GOSU_VERSION=<redacted>",
+        "LANG=<redacted>",
+        "MARIADB_VERSION=<redacted>"
+      ],
+      "ExposedPorts": {
+        "3306/tcp": {}
+      },
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 12,
+        "StartPeriod": 5000000000,
+        "Test": [
+          "CMD",
+          "healthcheck.sh",
+          "--connect",
+          "--innodb_initialized"
+        ],
+        "Timeout": 5000000000
+      },
+      "Hostname": "975ea84ca8d2",
+      "Image": "mariadb:11.8.9@sha256:e1d5495f445654134f226f55a41ce0da227116f6f27f283101f405c794d841fc",
+      "Labels": {
+        "com.docker.compose.config-hash": "dc1cb22733c68aa8ceac83286637f9014bc8f072b32b0b988a782859db6b88c2",
+        "com.docker.compose.container-number": "1",
+        "com.docker.compose.depends_on": "",
+        "com.docker.compose.image": "sha256:e1d5495f445654134f226f55a41ce0da227116f6f27f283101f405c794d841fc",
+        "com.docker.compose.oneoff": "False",
+        "com.docker.compose.project": "khitmee-perf",
+        "com.docker.compose.project.config_files": "/mnt/c/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-b7a1b418-4aa009bb8b5e1640/perf-suite/docker/compose.base.yaml,/mnt/c/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-b7a1b418-4aa009bb8b5e1640/perf-suite/docker/profile-2gb.yaml,/mnt/c/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-b7a1b418-4aa009bb8b5e1640/perf-suite/docker/khitmee-ops-2gb.yaml",
+        "com.docker.compose.project.environment_file": "/mnt/c/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-b7a1b418-4aa009bb8b5e1640/perf-suite/docker/.env",
+        "com.docker.compose.project.working_dir": "/mnt/c/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-b7a1b418-4aa009bb8b5e1640/perf-suite/docker",
+        "com.docker.compose.replace": "db-1",
+        "com.docker.compose.service": "db",
+        "com.docker.compose.version": "2.40.3",
+        "org.opencontainers.image.authors": "MariaDB Community",
+        "org.opencontainers.image.base.name": "docker.io/library/ubuntu:noble",
+        "org.opencontainers.image.description": "MariaDB Database for relational SQL",
+        "org.opencontainers.image.documentation": "https://hub.docker.com/_/mariadb/",
+        "org.opencontainers.image.licenses": "GPL-2.0",
+        "org.opencontainers.image.source": "https://github.com/MariaDB/mariadb-docker",
+        "org.opencontainers.image.title": "MariaDB Database",
+        "org.opencontainers.image.url": "https://github.com/MariaDB/mariadb-docker",
+        "org.opencontainers.image.vendor": "MariaDB Community",
+        "org.opencontainers.image.version": "11.8.9"
+      },
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Tty": false,
+      "User": "",
+      "Volumes": {
+        "/var/lib/mysql": {}
+      },
+      "WorkingDir": ""
+    },
+    "Created": "2026-11-28T11:53:33.249383552Z",
+    "Driver": "overlayfs",
+    "ExecIDs": null,
+    "HostConfig": {
+      "AutoRemove": false,
+      "Binds": [
+        "perf-db-data:/var/lib/mysql:rw"
+      ],
+      "BlkioDeviceReadBps": null,
+      "BlkioDeviceReadIOps": null,
+      "BlkioDeviceWriteBps": null,
+      "BlkioDeviceWriteIOps": null,
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": null,
+      "CapAdd": null,
+      "CapDrop": null,
+      "Cgroup": "",
+      "CgroupParent": "",
+      "CgroupnsMode": "private",
+      "ConsoleSize": [
+        0,
+        0
+      ],
+      "ContainerIDFile": "",
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpuShares": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "Devices": null,
+      "Dns": null,
+      "DnsOptions": null,
+      "DnsSearch": null,
+      "ExtraHosts": [],
+      "GroupAdd": null,
+      "IOMaximumBandwidth": 0,
+      "IOMaximumIOps": 0,
+      "IpcMode": "private",
+      "Isolation": "",
+      "Links": null,
+      "LogConfig": {
+        "Config": {},
+        "Type": "json-file"
+      },
+      "MaskedPaths": [
+        "/proc/acpi",
+        "/proc/asound",
+        "/proc/interrupts",
+        "/proc/kcore",
+        "/proc/keys",
+        "/proc/latency_stats",
+        "/proc/sched_debug",
+        "/proc/scsi",
+        "/proc/timer_list",
+        "/proc/timer_stats",
+        "/sys/devices/virtual/powercap",
+        "/sys/firmware"
+      ],
+      "Memory": 964689920,
+      "MemoryReservation": 0,
+      "MemorySwap": 1929379840,
+      "MemorySwappiness": null,
+      "NanoCpus": 600000000,
+      "NetworkMode": "khitmee-perf_default",
+      "OomKillDisable": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "PidsLimit": null,
+      "PortBindings": {},
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyPaths": [
+        "/proc/bus",
+        "/proc/fs",
+        "/proc/irq",
+        "/proc/sys",
+        "/proc/sysrq-trigger"
+      ],
+      "ReadonlyRootfs": false,
+      "RestartPolicy": {
+        "MaximumRetryCount": 0,
+        "Name": "unless-stopped"
+      },
+      "Runtime": "runc",
+      "SecurityOpt": null,
+      "ShmSize": 67108864,
+      "UTSMode": "",
+      "Ulimits": null,
+      "UsernsMode": "",
+      "VolumeDriver": "",
+      "VolumesFrom": null
+    },
+    "HostnamePath": "/var/lib/docker/containers/975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af/hostname",
+    "HostsPath": "/var/lib/docker/containers/975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af/hosts",
+    "Id": "975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af",
+    "Image": "sha256:e1d5495f445654134f226f55a41ce0da227116f6f27f283101f405c794d841fc",
+    "ImageManifestDescriptor": {
+      "annotations": {
+        "com.docker.official-images.bashbrew.arch": "amd64",
+        "org.opencontainers.image.base.digest": "sha256:9a04f13b3f80ef056361e30868593b1cfd2279fe19e4081cb93a90bf56819d6a",
+        "org.opencontainers.image.base.name": "ubuntu:noble",
+        "org.opencontainers.image.created": "2026-11-20T03:23:50Z",
+        "org.opencontainers.image.revision": "bdfe641466a5312bb97d06a1a4e1fb411c49e6b6",
+        "org.opencontainers.image.source": "https://github.com/MariaDB/mariadb-docker.git#bdfe641466a5312bb97d06a1a4e1fb411c49e6b6:11.8",
+        "org.opencontainers.image.url": "https://hub.docker.com/_/mariadb",
+        "org.opencontainers.image.version": "11.8.9-noble"
+      },
+      "digest": "sha256:6e562000e74ce36a9c7cc1302e462c271e3e3a5e0e7ae0ec2ab5f71f0f586f02",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 2478
+    },
+    "LogPath": "/var/lib/docker/containers/975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af/975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af-json.log",
+    "MountLabel": "",
+    "Mounts": [
+      {
+        "Destination": "/var/lib/mysql",
+        "Driver": "local",
+        "Mode": "rw",
+        "Name": "perf-db-data",
+        "Propagation": "",
+        "RW": true,
+        "Source": "/var/lib/docker/volumes/perf-db-data/_data",
+        "Type": "volume"
+      }
+    ],
+    "Name": "/khitmee-perf-db-1",
+    "NetworkSettings": {
+      "Networks": {
+        "khitmee-perf_default": {
+          "Aliases": [
+            "khitmee-perf-db-1",
+            "db"
+          ],
+          "DNSNames": [
+            "khitmee-perf-db-1",
+            "db",
+            "975ea84ca8d2"
+          ],
+          "DriverOpts": null,
+          "EndpointID": "3d09abab1f2248a1a35ddebba1e437daf493cf2ee3c65603559b2b45373b5ed1",
+          "Gateway": "172.20.0.1",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "GwPriority": 0,
+          "IPAMConfig": null,
+          "IPAddress": "172.20.0.2",
+          "IPPrefixLen": 16,
+          "IPv6Gateway": "",
+          "Links": null,
+          "MacAddress": "f2:60:5f:8a:30:32",
+          "NetworkID": "323c94baaf319bbeaa34ff9eb18e8d2b45aff94ddb3fe5099b0f3e5b81c5acb0"
+        }
+      },
+      "Ports": {
+        "3306/tcp": null
+      },
+      "SandboxID": "af4c1bec59d6bcf94b8b0a0ca349f4fcbbb3ecbf5b3772a85e419a9a421da042",
+      "SandboxKey": "/var/run/docker/netns/af4c1bec59d6"
+    },
+    "Path": "docker-entrypoint.sh",
+    "Platform": "linux",
+    "ProcessLabel": "",
+    "ResolvConfPath": "/var/lib/docker/containers/975ea84ca8d23d096103320f9e5b27a98409fd82ffecb77853b901be41cdd5af/resolv.conf",
+    "RestartCount": 0,
+    "State": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "2026-11-28T11:59:16.872512407Z",
+      "Health": {
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "End": "2026-11-28T11:58:59.45557811Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-28T11:58:59.402715832Z"
+          },
+          {
+            "End": "2026-11-28T11:59:04.501937245Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-28T11:59:04.456665378Z"
+          },
+          {
+            "End": "2026-11-28T11:59:09.568449477Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-28T11:59:09.503178927Z"
+          },
+          {
+            "End": "2026-11-28T11:59:14.654617325Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-28T11:59:14.569103883Z"
+          },
+          {
+            "End": "2026-11-28T12:00:25.640442002Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-28T12:00:25.586190597Z"
+          }
+        ],
+        "Status": "healthy"
+      },
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 326129,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-11-28T12:00:21.020843176Z",
+      "Status": "running"
+    },
+    "Storage": {
+      "RootFS": {
+        "Snapshot": {
+          "Name": "overlayfs"
+        }
+      }
+    }
+  }
+]

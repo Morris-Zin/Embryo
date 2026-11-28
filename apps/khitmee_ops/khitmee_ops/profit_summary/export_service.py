@@ -1,11 +1,21 @@
 import csv
 import hashlib
+import hmac
 import json
 import os
-import re
+import threading
+import time
 import uuid
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Literal, TypedDict
+
+from khitmee_ops.profit_summary.eligibility import (
+	SALES_INVOICE_SCOPE_BATCH_SIZE,
+	company_only_match_conditions,
+	sales_invoice_match_conditions,
+)
+from khitmee_ops.profit_summary.store import batched
 
 try:
 	import frappe
@@ -15,16 +25,38 @@ except ImportError:  # pragma: no cover - offline unit tests install a frappe st
 
 class ExportEnqueueResult(TypedDict):
 	export_log_name: str
-	status: Literal["Queued", "Running", "Completed"]
+	status: Literal["Queued", "Running", "Completed", "Failed", "Expired"]
 	deduplicated: bool
 	expires_at: str
 	artifact_published: int
 
 
+class ProfitExportBusyError(Exception):
+	http_status_code = 429
+
+
+class ProfitExportHeartbeatError(Exception):
+	pass
+
+
 EXPORT_DOCTYPE = "Khitmee Profit Export Log"
+EXPORT_TIMEOUT_SECONDS = 3600
+EXPORT_RECOVERY_GRACE_SECONDS = 60
+EXPORT_HEARTBEAT_INTERVAL_SECONDS = 30
+EXPORT_HEARTBEAT_RETRY_SECONDS = 5
+EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS = 10
+EXPORT_HEARTBEAT_READ_TIMEOUT_SECONDS = 10
+EXPORT_HEARTBEAT_WRITE_TIMEOUT_SECONDS = 10
+EXPORT_HEARTBEAT_FAILURE_SECONDS = 3 * EXPORT_HEARTBEAT_INTERVAL_SECONDS
+EXPORT_HEARTBEAT_FAILURE_REASON = "export heartbeat lost"
+EXPORT_HEARTBEAT_STALE_SECONDS = EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS
+EXPORT_RECOVERY_SCAN_LIMIT = 8
+ABANDONED_WORKER_REASON = "abandoned: worker lost"
+ABANDONED_QUEUE_REASON = "abandoned: queue job missing"
 EXPORT_DIRECTORY = "khitmee_profit_exports"
 RESTRICTED_EXPORT_MAX_INVOICES = 5000
-MAX_SINGLE_FAMILY_ROWS = 5000
+EXPORT_SCOPE_CHECK_BATCH_SIZE = SALES_INVOICE_SCOPE_BATCH_SIZE
+MAX_EXPORT_SCOPE_BYTES = RESTRICTED_EXPORT_MAX_INVOICES * (140 * 6 + 3) + 4096
 MAX_EXPORT_GROUPS = 50000
 EXPORT_FLUSH_LINES = 2000
 
@@ -41,12 +73,12 @@ def authorize_profit_request(filters, user, *, require_export=False):
 	return implementation(filters, user, require_export=require_export)
 
 
-def run_detail_gross_profit(filters, *, invoice_ids=None, enforce_budget=False):
+def run_detail_gross_profit(filters, *, invoice_ids=None, enforce_budget=False, **options):
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 		run_detail_gross_profit as implementation,
 	)
 
-	return implementation(filters, invoice_ids=invoice_ids, enforce_budget=enforce_budget)
+	return implementation(filters, invoice_ids=invoice_ids, enforce_budget=enforce_budget, **options)
 
 
 def _doc_get(doc, fieldname, default=None):
@@ -83,7 +115,7 @@ def canonical_filters(filters):
 	return {
 		str(key): _json_value(value)
 		for key, value in sorted(filters.items())
-		if value not in (None, "", [], {})
+		if key != "invoice_page" and value not in (None, "", [], {})
 	}
 
 
@@ -105,13 +137,7 @@ def _frappe_permissions():
 
 
 def build_sales_invoice_match_conditions():
-	try:
-		from frappe.desk.reportview import build_match_conditions
-	except (ImportError, ModuleNotFoundError, AttributeError) as error:
-		if frappe is not None:
-			raise RuntimeError("Sales Invoice match conditions are unavailable") from error
-		return ""
-	return build_match_conditions("Sales Invoice") or ""
+	return sales_invoice_match_conditions(frappe.session.user)
 
 
 def _permission_names(user_permissions, doctype):
@@ -170,38 +196,6 @@ def compute_permission_fingerprint(filters, user):
 	return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def _strip_outer_parentheses(condition):
-	condition = condition.strip()
-	while condition.startswith("(") and condition.endswith(")"):
-		depth = 0
-		encloses_all = True
-		for index, character in enumerate(condition):
-			if character == "(":
-				depth += 1
-			elif character == ")":
-				depth -= 1
-				if depth == 0 and index != len(condition) - 1:
-					encloses_all = False
-					break
-		if not encloses_all:
-			break
-		condition = condition[1:-1].strip()
-	return condition
-
-
-def is_company_only_match_condition(match_conditions, company):
-	condition = " ".join(str(match_conditions or "").split()).strip().rstrip(";")
-	if not condition:
-		return True
-	condition = _strip_outer_parentheses(condition).replace("`", "")
-	pattern = re.compile(
-		r"^(?:(?:tabSales Invoice)\.)?company\s*=\s*(['\"])(?P<company>.*?)\1$",
-		flags=re.IGNORECASE,
-	)
-	match = pattern.match(condition)
-	return bool(match and match.group("company") == str(company or ""))
-
-
 def has_restricted_match_conditions(filters, user):
 	previous_user = frappe.session.user
 	frappe.set_user(user)
@@ -209,26 +203,23 @@ def has_restricted_match_conditions(filters, user):
 		match_conditions = build_sales_invoice_match_conditions() or ""
 	finally:
 		frappe.set_user(previous_user)
-	return bool(match_conditions) and not is_company_only_match_condition(
-		match_conditions, (filters or {}).get("company")
-	)
+	return not company_only_match_conditions(match_conditions, (filters or {}).get("company"))
 
 
-def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MAX_INVOICES):
-	conditions = ["`docstatus` = 1", "`is_opening` != 'Yes'"]
+def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MAX_INVOICES, invoice_names=None):
+	conditions = []
 	params = []
 	if filters.get("company"):
 		conditions.append("`company` = %s")
 		params.append(filters.get("company"))
-	if filters.get("from_date"):
-		conditions.append("`posting_date` >= %s")
-		params.append(filters.get("from_date"))
-	if filters.get("to_date"):
-		conditions.append("`posting_date` <= %s")
-		params.append(filters.get("to_date"))
-	if filters.get("sales_invoice"):
-		conditions.append("`name` = %s")
-		params.append(filters.get("sales_invoice"))
+	if invoice_names is None:
+		conditions.extend(["`docstatus` = 1", "`is_opening` != 'Yes'"])
+		for field, condition in (
+			("from_date", "`posting_date` >= %s"), ("to_date", "`posting_date` <= %s"), ("sales_invoice", "`name` = %s")
+		):
+			if filters.get(field):
+				conditions.append(condition)
+				params.append(filters[field])
 
 	previous_user = frappe.session.user
 	frappe.set_user(user)
@@ -239,21 +230,32 @@ def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MA
 	if match_conditions:
 		conditions.append(f"({match_conditions})")
 
-	sql_limit = int(limit) + 1
-	rows = frappe.db.sql(
-		"""
-		SELECT `name`
-		FROM `tabSales Invoice`
-		WHERE {conditions}
-		ORDER BY `name` ASC
-		LIMIT {sql_limit}
-		""".format(conditions=" AND ".join(conditions), sql_limit=sql_limit),
-		params,
-		as_dict=True,
-	)
-	names = [str(row.get("name") if hasattr(row, "get") else row[0]) for row in rows]
-	truncated = len(names) > limit
-	return names[:limit], truncated
+	# Report eligibility was checked inside the snapshot. Download rechecks visibility for captured names.
+	chunks = (None,) if invoice_names is None else batched(sorted(set(invoice_names)), EXPORT_SCOPE_CHECK_BATCH_SIZE)
+	names = []
+	for chunk in chunks:
+		batch_conditions, batch_params = conditions, params
+		sql_limit = limit + 1 - len(names)
+		if chunk is not None:
+			placeholders = ", ".join(["%s"] * len(chunk))
+			batch_conditions = [*conditions, f"`name` IN ({placeholders})"]
+			batch_params = [*params, *chunk]
+			sql_limit = min(sql_limit, len(chunk) + 1)
+		rows = frappe.db.sql(
+			"""
+			SELECT `name`
+			FROM `tabSales Invoice`
+			WHERE {conditions}
+			ORDER BY `name` ASC
+			LIMIT {sql_limit}
+			""".format(conditions=" AND ".join(batch_conditions), sql_limit=sql_limit),
+			batch_params,
+			as_dict=True,
+		)
+		names.extend(str(row.get("name") if hasattr(row, "get") else row[0]) for row in rows)
+		if len(names) > limit:
+			return names[:limit], True
+	return names, False
 
 
 def invoice_names_sha256(invoice_names):
@@ -285,6 +287,113 @@ def get_export_paths(export_uuid):
 	return temporary_path, final_path
 
 
+def _export_scope_paths(export_uuid):
+	_, csv_path = get_export_paths(export_uuid)
+	return f"{csv_path}.scope.json.tmp", f"{csv_path}.scope.json"
+
+
+def _export_scope_binding(doc, report_digest):
+	return {
+		"version": 3,
+		"export_log_name": _doc_get(doc, "name"),
+		"export_uuid": _doc_get(doc, "export_uuid"),
+		"requested_by": _doc_get(doc, "requested_by"),
+		"filters_hash": _doc_get(doc, "filters_hash"),
+		"permission_fingerprint": _doc_get(doc, "permission_fingerprint"),
+		"exported_invoice_sha256": report_digest,
+	}
+
+
+def _scope_json(value):
+	return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _sign_export_scope(payload):
+	secret = frappe.conf.get("encryption_key") or frappe.conf.get("db_password")
+	if not secret:
+		raise frappe.PermissionError("The site has no key for signing profit export scope")
+	message = b"khitmee:profit-export-scope:v1\x00" + _scope_json(payload)
+	return hmac.new(secret.encode("utf-8"), message, "sha256").hexdigest()
+
+
+def _write_export_scope(path, doc, report_digest, invoice_names, *, hidden_invoice_names=()):
+	names = sorted(invoice_names)
+	payload = {
+		**_export_scope_binding(doc, report_digest),
+		"invoice_names": names,
+		"hidden_invoice_names": sorted(hidden_invoice_names),
+		"invoice_names_sha256": hashlib.sha256(_scope_json(names)).hexdigest(),
+	}
+	encoded = _scope_json({"scope": payload, "signature": _sign_export_scope(payload)})
+	if len(encoded) > MAX_EXPORT_SCOPE_BYTES:
+		raise frappe.ValidationError("Profit export scope manifest exceeds its size limit")
+	with open(path, "wb", opener=_open_private_write) as handle:
+		handle.write(encoded)
+
+
+def _open_private_write(path, flags):
+	return os.open(path, flags, 0o600)
+
+
+class _ExportInvoiceScope:
+	def __init__(self, match_conditions):
+		self.match_conditions = match_conditions
+		self.invoice_names = set()
+		self.hidden_invoice_names = set()
+
+	def include(self, names):
+		self._include(self.invoice_names, names)
+
+	def include_hidden(self, names):
+		self._include(self.hidden_invoice_names, names)
+
+	def _include(self, scope, names):
+		for name in names:
+			scope.add(name)
+			if len(self.invoice_names) + len(self.hidden_invoice_names) > RESTRICTED_EXPORT_MAX_INVOICES:
+				raise frappe.PermissionError(
+					f"Restricted profit exports are limited to {RESTRICTED_EXPORT_MAX_INVOICES} contributing invoices"
+				)
+
+
+def exported_invoice_scope_is_current(doc, filters, user):
+	"""Require a signed scope that attests to the invoices and returns read during export."""
+	report_digest = _doc_get(doc, "exported_invoice_sha256")
+	if user != _doc_get(doc, "requested_by") or not report_digest:
+		return False
+	_, final_path = _export_scope_paths(_doc_get(doc, "export_uuid"))
+	try:
+		with open(final_path, "rb") as handle:
+			encoded = handle.read(MAX_EXPORT_SCOPE_BYTES + 1)
+	except FileNotFoundError:
+		return False
+	if len(encoded) > MAX_EXPORT_SCOPE_BYTES:
+		return False
+	try:
+		manifest = json.loads(encoded)
+		payload = manifest["scope"]
+		signature_valid = hmac.compare_digest(manifest["signature"], _sign_export_scope(payload))
+	except (KeyError, ValueError, TypeError):
+		return False
+	if not signature_valid:
+		return False
+	if any(payload.get(key) != value for key, value in _export_scope_binding(doc, report_digest).items()):
+		return False
+	if payload["filters_hash"] != compute_filters_hash(filters):
+		return False
+	names = payload["invoice_names"]
+	hidden_names = payload.get("hidden_invoice_names")
+	if not isinstance(names, list) or not isinstance(hidden_names, list):
+		return False
+	if len(names) + len(hidden_names) > RESTRICTED_EXPORT_MAX_INVOICES or set(names).intersection(hidden_names):
+		return False
+	if hashlib.sha256(_scope_json(names)).hexdigest() != payload["invoice_names_sha256"]:
+		return False
+	scope_names = [*names, *hidden_names]
+	visible, truncated = select_accessible_invoice_names(filters, user, limit=len(scope_names), invoice_names=scope_names)
+	return not truncated and set(visible) == set(names)
+
+
 def _export_result(doc, *, deduplicated):
 	expires_at = _doc_get(doc, "expires_at")
 	return {
@@ -296,23 +405,363 @@ def _export_result(doc, *, deduplicated):
 	}
 
 
-def _get_existing_active_export(active_dedupe_key):
-	return frappe.db.get_value(
-		EXPORT_DOCTYPE,
-		{"active_dedupe_key": active_dedupe_key},
-		["name", "status", "expires_at", "artifact_published"],
+def _lock_export_admission():
+	db = frappe.db
+	lock_name = "CONCAT(DATABASE(), ':khitmee-profit-export-admission')"
+	if db.sql(f"SELECT GET_LOCK({lock_name}, 0)")[0][0] != 1:
+		raise ProfitExportBusyError("A profit export is being queued. Retry shortly.")
+
+	def release():
+		db.sql(f"SELECT RELEASE_LOCK({lock_name})")
+
+	db.after_commit.add(release)
+	db.after_rollback.add(release)
+
+
+def _datetime_value(value):
+	if isinstance(value, datetime):
+		return value
+	if isinstance(value, str):
+		try:
+			return datetime.fromisoformat(value)
+		except ValueError:
+			return None
+	return None
+
+
+def _rq_job_matches_export(job, export_log_name):
+	try:
+		queue_args = job.kwargs
+	except Exception:
+		return False
+	if not hasattr(queue_args, "get"):
+		return False
+	site = getattr(getattr(frappe, "local", None), "site", None)
+	if site and queue_args.get("site") != site:
+		return False
+	job_kwargs = queue_args.get("kwargs") or {}
+	return hasattr(job_kwargs, "get") and job_kwargs.get("export_log_name") == export_log_name
+
+
+def _scan_rq_for_export(export_log_name):
+	if not export_log_name:
+		return None
+	try:
+		from frappe.utils.background_jobs import get_queue, get_running_jobs_in_queue
+	except Exception:
+		return None
+	try:
+		queue = get_queue("long")
+		jobs = [*queue.jobs, *get_running_jobs_in_queue(queue)]
+	except Exception:
+		return None
+	return any(_rq_job_matches_export(job, export_log_name) for job in jobs)
+
+
+def _rq_job_is_active(job_id, export_log_name=None):
+	if not job_id:
+		return None
+	try:
+		from frappe.utils.background_jobs import get_job_status
+	except Exception:
+		return None
+	try:
+		status = get_job_status(str(job_id))
+	except Exception:
+		return None
+	if status is not None:
+		status_value = getattr(status, "value", status)
+		return str(status_value).lower() in {"queued", "started", "deferred", "scheduled"}
+	return _scan_rq_for_export(export_log_name)
+
+
+def _heartbeat_now_function():
+	try:
+		from frappe.utils import get_system_timezone
+
+		zone = ZoneInfo(get_system_timezone())
+	except Exception:
+		return datetime.now
+	return lambda: datetime.now(zone).replace(tzinfo=None)
+
+
+def _open_export_heartbeat_connection():
+	from frappe.database import get_db
+
+	conf = frappe.conf
+	db_name = conf.get("db_name")
+	database = get_db(
+		socket=conf.get("db_socket"),
+		host=conf.get("db_host"),
+		port=conf.get("db_port"),
+		user=conf.get("db_user") or db_name,
+		password=conf.get("db_password"),
+		cur_db_name=db_name,
+	)
+	connection_settings = database.get_connection_settings()
+	if database.db_type == "mariadb":
+		connection_settings.update(
+			connect_timeout=EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS,
+			read_timeout=EXPORT_HEARTBEAT_READ_TIMEOUT_SECONDS,
+			write_timeout=EXPORT_HEARTBEAT_WRITE_TIMEOUT_SECONDS,
+		)
+	elif database.db_type == "postgres":
+		connection_settings["connect_timeout"] = EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS
+	database.get_connection_settings = lambda: dict(connection_settings)
+	database._conn = database.get_connection()
+	database._cursor = None
+	return database
+
+
+class _ExportHeartbeat:
+	def __init__(
+		self,
+		export_log_name,
+		database,
+		*,
+		interval=EXPORT_HEARTBEAT_INTERVAL_SECONDS,
+		retry_interval=EXPORT_HEARTBEAT_RETRY_SECONDS,
+		failure_timeout=EXPORT_HEARTBEAT_FAILURE_SECONDS,
+		now=None,
+		monotonic=None,
+	):
+		self.export_log_name = export_log_name
+		self.database = database
+		self.interval = interval
+		self.retry_interval = retry_interval
+		self.failure_timeout = failure_timeout
+		self.now = now or datetime.now
+		self.monotonic = monotonic or time.monotonic
+		self.last_error = None
+		self.last_successful_beat_at = None
+		self.claimed_at = self.monotonic()
+		self.failure_started_at = None
+		self.failure = None
+		self.terminal = False
+		self.retry_delay = retry_interval
+		self._stop_event = threading.Event()
+		self._thread = threading.Thread(
+			target=self._run,
+			name=f"khitmee-profit-export-heartbeat-{export_log_name}",
+			daemon=True,
+		)
+
+	def start(self):
+		self._thread.start()
+		return self
+
+	def beat(self):
+		connection = self.database._conn
+		if connection is None:
+			raise RuntimeError("profit export heartbeat database is not connected")
+		cursor = connection.cursor()
+		try:
+			cursor.execute(
+				f"UPDATE `tab{EXPORT_DOCTYPE}` SET `modified` = %s WHERE `name` = %s AND `status` = 'Running'",
+				(self.now(), self.export_log_name),
+			)
+			rowcount = cursor.rowcount
+			connection.commit()
+			return rowcount
+		except Exception:
+			connection.rollback()
+			raise
+		finally:
+			cursor.close()
+
+	def _reconnect(self):
+		connection = getattr(self.database, "_conn", None)
+		if connection is not None:
+			try:
+				connection.close()
+			except Exception:
+				pass
+		try:
+			self.database._conn = None
+			self.database._conn = self.database.get_connection()
+			self.database._cursor = None
+		except Exception as error:
+			self.last_error = error
+
+	def _record_failure(self, error):
+		now = self.monotonic()
+		if self.failure_started_at is None:
+			self.failure_started_at = now
+		else:
+			self.retry_delay = min(self.retry_delay * 2, self.interval)
+		self.last_error = error
+		self._reconnect()
+		failure = self._stale_failure()
+		if failure is not None:
+			self.failure = failure
+
+	def _run_iteration(self):
+		try:
+			rowcount = self.beat()
+		except Exception as error:
+			self._record_failure(error)
+			return self.failure is None
+		if rowcount != 1:
+			self.terminal = True
+			return False
+		self.last_successful_beat_at = self.monotonic()
+		if self.failure is None:
+			self.failure_started_at = None
+			self.last_error = None
+			self.retry_delay = self.retry_interval
+		return True
+
+	def _run(self):
+		delay = 0
+		while not self._stop_event.wait(delay):
+			if not self._run_iteration():
+				break
+			delay = self.retry_delay if self.failure_started_at is not None else self.interval
+
+	def _stale_failure(self):
+		last_liveness_at = self.last_successful_beat_at
+		if last_liveness_at is None:
+			last_liveness_at = self.claimed_at
+		if self.monotonic() - last_liveness_at > self.failure_timeout:
+			return ProfitExportHeartbeatError(EXPORT_HEARTBEAT_FAILURE_REASON)
+		return None
+
+	def raise_if_failed(self):
+		failure = self.failure or self._stale_failure()
+		if failure is not None:
+			self.failure = failure
+			raise failure
+
+	def close(self):
+		self._stop_event.set()
+		if self._thread.ident is not None:
+			self._thread.join(timeout=5)
+		if not self._thread.is_alive():
+			try:
+				self.database.close()
+			except Exception as error:
+				self.last_error = self.last_error or error
+
+
+def _start_export_heartbeat(export_log_name):
+	database = _open_export_heartbeat_connection()
+	heartbeat = _ExportHeartbeat(export_log_name, database, now=_heartbeat_now_function())
+	try:
+		return heartbeat.start()
+	except Exception:
+		database.close()
+		raise
+
+
+def _abandoned_export_reason(export, now):
+	status = _doc_get(export, "status")
+	modified = _datetime_value(_doc_get(export, "modified"))
+	if modified is None:
+		return None
+	if status == "Running":
+		heartbeat_timeout = timedelta(seconds=EXPORT_HEARTBEAT_STALE_SECONDS)
+		if modified + heartbeat_timeout < now:
+			return ABANDONED_WORKER_REASON
+	elif status == "Queued":
+		enqueue_grace = timedelta(seconds=EXPORT_RECOVERY_GRACE_SECONDS)
+		if modified + enqueue_grace > now:
+			return None
+		if _rq_job_is_active(_doc_get(export, "export_uuid"), _doc_get(export, "name")) is False:
+			return ABANDONED_QUEUE_REASON
+	return None
+
+
+def _fail_abandoned_export(export, reason):
+	frappe.db.sql(
+		f"""
+		UPDATE `tab{EXPORT_DOCTYPE}`
+		SET `status` = 'Failed',
+			`active_dedupe_key` = NULL,
+			`error` = %s,
+			`modified` = %s
+		WHERE `name` = %s
+			AND `status` = %s
+			AND `modified` = %s
+		""",
+		(
+			reason,
+			_now_datetime(),
+			_doc_get(export, "name"),
+			_doc_get(export, "status"),
+			_doc_get(export, "modified"),
+		),
+	)
+	rows = frappe.db.sql("SELECT ROW_COUNT()")
+	return bool(rows and rows[0][0])
+
+
+def _recover_abandoned_export(export):
+	"""Return True when admission must re-read this export before using it."""
+	reason = _abandoned_export_reason(export, _now_datetime())
+	if not reason:
+		return False
+	_fail_abandoned_export(export, reason)
+	return True
+
+
+def _get_active_export(active_dedupe_key):
+	# A current read must see admissions committed after this request began.
+	rows = frappe.db.sql(
+		f"""
+		SELECT `name`, `status`, `expires_at`, `artifact_published`, `active_dedupe_key`, `permission_fingerprint`,
+			`modified`, `export_uuid`
+		FROM `tab{EXPORT_DOCTYPE}`
+		WHERE `active_dedupe_key` IS NOT NULL AND `status` IN ('Queued', 'Running')
+		ORDER BY (`active_dedupe_key` = %s) DESC
+		LIMIT 1 FOR UPDATE
+		""",
+		(active_dedupe_key,),
 		as_dict=True,
 	)
+	return rows[0] if rows else None
 
 
-def _duplicate_error(error):
-	message = str(error).lower()
-	return "duplicate" in message or "unique" in message or "1062" in message
+def _get_live_active_export(active_dedupe_key):
+	for _ in range(EXPORT_RECOVERY_SCAN_LIMIT):
+		existing = _get_active_export(active_dedupe_key)
+		if not existing or not _recover_abandoned_export(existing):
+			return existing
+	raise ProfitExportBusyError("Profit export recovery is still settling. Retry shortly.")
 
 
-def enqueue_profit_csv_export(filters: dict) -> ExportEnqueueResult:
+def _whitelist():
+	if frappe is not None and hasattr(frappe, "whitelist"):
+		return frappe.whitelist()
+	return lambda function: function
+
+
+@_whitelist()
+def enqueue_profit_csv_export(filters: dict | str | None = None) -> ExportEnqueueResult:
 	_require_frappe()
-	return enqueue_profit_csv_export_for_user(filters, frappe.session.user, source="ui")
+	if isinstance(filters, str):
+		filters = json.loads(filters)
+	return enqueue_profit_csv_export_for_user(filters or {}, frappe.session.user, source="ui")
+
+
+@_whitelist()
+def download_profit_csv_export(export_log_name: str):
+	from khitmee_ops.api.profit_export import download_export
+
+	return download_export(export_log_name)
+
+
+@_whitelist()
+def get_profit_csv_export_status(export_log_name: str):
+	_require_frappe()
+	doc = frappe.get_doc(EXPORT_DOCTYPE, export_log_name)
+	user = frappe.session.user
+	if user != _doc_get(doc, "requested_by"):
+		raise frappe.PermissionError("Not permitted to view this profit export")
+	filters = json.loads(_doc_get(doc, "filters_json"))
+	authorize_profit_request(filters, user, require_export=True)
+	if compute_permission_fingerprint(filters, user) != _doc_get(doc, "permission_fingerprint"):
+		raise frappe.PermissionError("Profit export permission fingerprint changed")
+	return _export_result(doc, deduplicated=False)
 
 
 def enqueue_profit_csv_export_for_user(
@@ -330,11 +779,16 @@ def enqueue_profit_csv_export_for_user(
 	filters_hash = hashlib.sha256(filters_json.encode("utf-8")).hexdigest()
 	active_dedupe_key = f"{user}:{filters_hash}"
 
-	existing = _get_existing_active_export(active_dedupe_key)
+	permission_fingerprint = compute_permission_fingerprint(normalized_filters, user)
+	_lock_export_admission()
+	existing = _get_live_active_export(active_dedupe_key)
 	if existing:
+		if _doc_get(existing, "active_dedupe_key") != active_dedupe_key:
+			raise ProfitExportBusyError("A profit export is already queued or running. Retry after it finishes.")
+		if _doc_get(existing, "permission_fingerprint") != permission_fingerprint:
+			raise frappe.PermissionError("Profit export permission fingerprint changed")
 		return _export_result(existing, deduplicated=True)
 
-	permission_fingerprint = compute_permission_fingerprint(normalized_filters, user)
 	export_uuid = str(uuid.uuid4())
 	expires_at = _now_datetime() + timedelta(hours=24)
 	doc = frappe.get_doc(
@@ -354,23 +808,23 @@ def enqueue_profit_csv_export_for_user(
 			"expires_at": expires_at,
 		}
 	)
-	try:
-		doc.insert(ignore_permissions=True)
-	except Exception as error:
-		if not _duplicate_error(error):
-			raise
-		existing = _get_existing_active_export(active_dedupe_key)
-		if existing:
-			return _export_result(existing, deduplicated=True)
-		raise
+	doc.insert(ignore_permissions=True)
 
 	def enqueue_after_commit():
-		frappe.enqueue(
-			"khitmee_ops.profit_summary.export_service.run_profit_csv_export",
-			queue="long",
-			timeout=3600,
-			export_log_name=_doc_get(doc, "name"),
-		)
+		export_log_name = _doc_get(doc, "name")
+		if source == "cli" and frappe.db.get_value(EXPORT_DOCTYPE, export_log_name, "status") != "Queued":
+			return  # --run-sync claimed the job in the transaction that just committed.
+		try:
+			frappe.enqueue(
+				"khitmee_ops.profit_summary.export_service.run_profit_csv_export",
+				queue="long",
+				timeout=EXPORT_TIMEOUT_SECONDS,
+				job_id=export_uuid,
+				export_log_name=export_log_name,
+			)
+		except Exception as error:
+			_mark_export_failed(export_log_name, error, expected_status="Queued")
+			raise
 
 	frappe.db.after_commit.add(enqueue_after_commit)
 	return _export_result(doc, deduplicated=False)
@@ -401,6 +855,48 @@ class _NullSentinel:
 NULL = _NullSentinel()
 
 
+FENCED_COMPLETION_DIAGNOSTIC = "fenced late completion: export ownership was lost before worker finished"
+
+
+def _sql_row_count():
+	rows = frappe.db.sql("SELECT ROW_COUNT()")
+	return int(rows[0][0]) if rows else 0
+
+
+def _log_export_diagnostic(message):
+	try:
+		logger = getattr(frappe, "logger", None)
+		if logger:
+			logger().warning(message)
+	except Exception:
+		pass
+
+
+def _surface_fenced_completion(export_log_name):
+	state = _lock_export_state(export_log_name)
+	status = _doc_get(state, "status") or "missing"
+	diagnostic = f"{FENCED_COMPLETION_DIAGNOSTIC} (current status: {status})"
+	_log_export_diagnostic(f"Profit export {export_log_name}: {diagnostic}")
+	if not state or status != "Failed":
+		return diagnostic
+
+	export_uuid = _doc_get(state, "export_uuid")
+	if export_uuid:
+		_, final_path = get_export_paths(export_uuid)
+		_, scope_path = _export_scope_paths(export_uuid)
+		for path in (final_path, scope_path):
+			_remove_file_quietly(path)
+
+	error = _doc_get(state, "error") or ""
+	if FENCED_COMPLETION_DIAGNOSTIC not in error:
+		error = f"{error}\n{diagnostic}".strip()[:1000]
+		frappe.db.sql(
+			f"UPDATE `tab{EXPORT_DOCTYPE}` SET `error` = %s, `modified` = %s WHERE `name` = %s AND `status` = 'Failed'",
+			(error, _now_datetime(), export_log_name),
+		)
+	return diagnostic
+
+
 def _commit_completed_export(export_log_name, exported_invoice_sha256, row_count):
 	frappe.db.sql(
 		f"""
@@ -413,13 +909,36 @@ def _commit_completed_export(export_log_name, exported_invoice_sha256, row_count
 			`error` = NULL,
 			`modified` = %s
 		WHERE `name` = %s
+			AND `status` = 'Running'
 		""",
 		(exported_invoice_sha256, row_count, _now_datetime(), export_log_name),
 	)
+	if _sql_row_count() == 1:
+		frappe.db.commit()
+		return True
+	_surface_fenced_completion(export_log_name)
 	frappe.db.commit()
+	return False
 
 
-def _mark_export_failed(export_log_name, error):
+def _lock_export_state(export_log_name):
+	rows = frappe.db.sql(
+		f"""
+		SELECT `status`, `expires_at`, `modified`, `error`, `export_uuid`, `artifact_published`
+		FROM `tab{EXPORT_DOCTYPE}`
+		WHERE `name` = %s FOR UPDATE
+		""",
+		(export_log_name,),
+		as_dict=True,
+	)
+	return rows[0] if rows else None
+
+
+def _mark_export_failed(export_log_name, error, *, expected_status):
+	state = _lock_export_state(export_log_name)
+	if not state or state["status"] != expected_status:
+		frappe.db.rollback()
+		return False
 	_update_export_log(
 		export_log_name,
 		status="Failed",
@@ -427,21 +946,13 @@ def _mark_export_failed(export_log_name, error):
 		error=str(error)[:1000],
 	)
 	frappe.db.commit()
+	return True
 
 
 def _claim_export(export_log_name) -> bool:
-	"""Atomically move one Queued export to Running; False if another worker has it.
-
-	`--run-sync` runs the worker inline while the after-commit enqueue also starts
-	a queued copy; both used to accept the log and write the same temporary path.
-	"""
-	rows = frappe.db.sql(
-		f"SELECT `status` FROM `tab{EXPORT_DOCTYPE}` WHERE `name` = %s FOR UPDATE",
-		(export_log_name,),
-	)
-	row = rows[0] if rows else None
-	status = (row.get("status") if hasattr(row, "get") else row[0]) if row else None
-	if status != "Queued":
+	"""Claim the temporary paths once, including when a queued job is redelivered."""
+	state = _lock_export_state(export_log_name)
+	if not state or state["status"] != "Queued" or state["expires_at"] <= _now_datetime():
 		frappe.db.rollback()
 		return False
 	_update_export_log(export_log_name, status="Running", error=NULL)
@@ -449,31 +960,17 @@ def _claim_export(export_log_name) -> bool:
 	return True
 
 
-def _family_key(row):
-	if row.get("sales_invoice") == "Total":
-		return None
-	if row.get("indent") == 0 or row.get("indent") == 0.0:
-		return row.get("sales_invoice")
-	return row.get("parent_invoice") or row.get("sales_invoice")
-
-
-def _enforce_invoice_family_caps(data):
-	counts = {}
-	for row in data:
-		if not hasattr(row, "get"):
-			continue
-		key = _family_key(row)
-		if key:
-			counts[key] = counts.get(key, 0) + 1
-	oversized = [key for key, count in counts.items() if count > MAX_SINGLE_FAMILY_ROWS]
-	if oversized:
-		raise frappe.ValidationError(
-			f"Profit export family row cap exceeded for {oversized[0]} ({MAX_SINGLE_FAMILY_ROWS} rows)"
-		)
+def _scrub_column_label(label):
+	if frappe is not None and hasattr(frappe, "scrub"):
+		return frappe.scrub(label)
+	return str(label or "").replace(" ", "_").replace("-", "_").lower()
 
 
 def _column_fieldnames(columns):
-	return [str(column.get("fieldname") or column.get("label") or index) for index, column in enumerate(columns or [])]
+	return [
+		str(column.get("fieldname") or _scrub_column_label(column.get("label")) or index)
+		for index, column in enumerate(columns or [])
+	]
 
 
 def _column_headers(columns):
@@ -516,12 +1013,65 @@ def _row_values(row, fieldnames):
 	return [_csv_value(row)]
 
 
-# The export worker materializes the whole report before writing, so cap its input
-# up front instead of letting a year-long Invoice export exhaust the long worker.
+# Other groupings still use the materialized report and retain their input cap.
 MAX_EXPORT_INPUT_ROWS = 50_000
 
 
-def write_profit_csv(filters, path, *, invoice_ids=None):
+def _write_invoice_csv(filters, path, invoice_ids, export_scope, heartbeat=None):
+	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
+		_copy_report_filters,
+		flag_restricted_adjustment,
+		invoice_total_row,
+	)
+	from khitmee_ops.khitmee_ops.report.fast_gross_profit.invoice_batches import (
+		invoice_detail_columns,
+		iter_invoice_detail_batches,
+	)
+
+	filters = _copy_report_filters({**filters, "group_by": "Invoice"})
+	total_base_amount = total_buying_amount = 0
+	row_count = 0
+	incomplete_total = False
+	with open(path, "w", newline="", encoding="utf-8") as csv_file:
+		writer = csv.writer(csv_file)
+		fieldnames = None
+		options = {} if export_scope is None else {"export_scope": export_scope}
+		for columns, data in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids, **options):
+			if heartbeat is not None:
+				heartbeat.raise_if_failed()
+			if fieldnames is None:
+				writer.writerow(_column_headers(columns))
+				fieldnames = _column_fieldnames(columns)
+			for row in data:
+				if heartbeat is not None:
+					heartbeat.raise_if_failed()
+				if row.get("indent") == 1:
+					if row.get("restricted_adjustment"):
+						incomplete_total = True
+					else:
+						total_base_amount += row.get("selling_amount") or 0.0
+						total_buying_amount += row.get("buying_amount") or 0.0
+				writer.writerow(_row_values(row, fieldnames))
+				row_count += 1
+			csv_file.flush()
+		if fieldnames is None:
+			columns = invoice_detail_columns(filters)
+			writer.writerow(_column_headers(columns))
+			fieldnames = _column_fieldnames(columns)
+		if not filters.currency:
+			filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
+		total = invoice_total_row(filters, total_base_amount, total_buying_amount)
+		if incomplete_total:
+			flag_restricted_adjustment(total)
+		writer.writerow(_row_values(total, fieldnames))
+	return row_count + 1
+
+
+def write_profit_csv(filters, path, *, invoice_ids=None, export_scope=None, heartbeat=None):
+	group_by = (filters or {}).get("group_by") or "Invoice"
+	if group_by == "Invoice":
+		return _write_invoice_csv(filters or {}, path, invoice_ids, export_scope, heartbeat=heartbeat)
+
 	if invoice_ids is None:
 		from khitmee_ops.profit_summary.budget import preflight_detail_input_rows
 
@@ -530,12 +1080,10 @@ def write_profit_csv(filters, path, *, invoice_ids=None):
 			raise frappe.ValidationError(
 				f"Profit export input cap exceeded ({MAX_EXPORT_INPUT_ROWS} invoice lines); narrow the date range"
 			)
-	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False)
-	group_by = (filters or {}).get("group_by") or "Invoice"
-	if group_by != "Invoice" and max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:
+	options = {} if export_scope is None else {"export_scope": export_scope}
+	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False, **options)
+	if max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:
 		raise frappe.ValidationError(f"Profit export group cap exceeded ({MAX_EXPORT_GROUPS} groups)")
-	if group_by == "Invoice":
-		_enforce_invoice_family_caps(data)
 
 	fieldnames = _column_fieldnames(columns)
 	row_count = 0
@@ -543,6 +1091,8 @@ def write_profit_csv(filters, path, *, invoice_ids=None):
 		writer = csv.writer(csv_file)
 		writer.writerow(_column_headers(columns))
 		for row in data:
+			if heartbeat is not None:
+				heartbeat.raise_if_failed()
 			writer.writerow(_row_values(row, fieldnames))
 			row_count += 1
 			if row_count % EXPORT_FLUSH_LINES == 0:
@@ -560,7 +1110,7 @@ def _remove_file_quietly(path):
 
 def _begin_repeatable_read_snapshot():
 	frappe.db.sql("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	frappe.db.sql("START TRANSACTION")
+	frappe.db.sql("START TRANSACTION WITH CONSISTENT SNAPSHOT")
 
 
 def run_profit_csv_export(export_log_name):
@@ -573,12 +1123,15 @@ def run_profit_csv_export(export_log_name):
 		return
 
 	previous_user = frappe.session.user
-	frappe.set_user(_doc_get(doc, "requested_by"))
-	temporary_path = None
+	temporary_paths = []
+	renamed_paths = []
+	heartbeat = None
 	try:
+		heartbeat = _start_export_heartbeat(export_log_name)
 		_begin_repeatable_read_snapshot()
 		filters = json.loads(_doc_get(doc, "filters_json") or "{}")
 		requested_by = _doc_get(doc, "requested_by")
+		frappe.set_user(requested_by)
 		authorize_profit_request(filters, requested_by, require_export=True)
 		live_fingerprint = compute_permission_fingerprint(filters, requested_by)
 		if live_fingerprint != _doc_get(doc, "permission_fingerprint"):
@@ -586,6 +1139,7 @@ def run_profit_csv_export(export_log_name):
 
 		invoice_ids = None
 		exported_invoice_sha256 = None
+		export_scope = None
 		if has_restricted_match_conditions(filters, requested_by):
 			exported_invoice_sha256, invoice_ids, truncated = compute_exported_invoice_digest(
 				filters, requested_by
@@ -594,21 +1148,43 @@ def run_profit_csv_export(export_log_name):
 				raise frappe.PermissionError(
 					f"Restricted profit exports are limited to {RESTRICTED_EXPORT_MAX_INVOICES} invoices"
 				)
+			export_scope = _ExportInvoiceScope(build_sales_invoice_match_conditions())
 
-		temporary_path, final_path = get_export_paths(_doc_get(doc, "export_uuid"))
-		row_count = write_profit_csv(filters, temporary_path, invoice_ids=invoice_ids)
+		export_uuid = _doc_get(doc, "export_uuid")
+		temporary_path, final_path = get_export_paths(export_uuid)
+		temporary_paths.append(temporary_path)
+		row_count = write_profit_csv(
+			filters, temporary_path, invoice_ids=invoice_ids, export_scope=export_scope, heartbeat=heartbeat
+		)
+		if export_scope is not None:
+			scope_tmp, scope_path = _export_scope_paths(export_uuid)
+			temporary_paths.append(scope_tmp)
+			_write_export_scope(
+				scope_tmp, doc, exported_invoice_sha256, export_scope.invoice_names,
+				hidden_invoice_names=export_scope.hidden_invoice_names,
+			)
+			os.replace(scope_tmp, scope_path)
+			renamed_paths.append(scope_path)
+		if heartbeat is not None:
+			heartbeat.raise_if_failed()
 		os.replace(temporary_path, final_path)
+		renamed_paths.append(final_path)
 		_commit_completed_export(
 			export_log_name,
 			exported_invoice_sha256,
 			row_count,
 		)
 	except Exception as error:
-		_mark_export_failed(export_log_name, error)
+		frappe.db.rollback()
+		if _mark_export_failed(export_log_name, error, expected_status="Running"):
+			for path in renamed_paths:
+				_remove_file_quietly(path)
 		raise
 	finally:
-		if temporary_path:
-			_remove_file_quietly(temporary_path)
+		if heartbeat is not None:
+			heartbeat.close()
+		for path in temporary_paths:
+			_remove_file_quietly(path)
 		frappe.set_user(previous_user)
 
 
@@ -625,12 +1201,18 @@ def cleanup_expired_exports():
 	now = _now_datetime()
 	expired_count = 0
 	for doc in _expired_export_logs(now):
-		temporary_path, final_path = get_export_paths(_doc_get(doc, "export_uuid"))
-		_remove_file_quietly(final_path)
-		_remove_file_quietly(temporary_path)
-		if _doc_get(doc, "status") != "Expired":
+		name = _doc_get(doc, "name")
+		state = _lock_export_state(name)
+		if not state or state["expires_at"] > now:
+			continue
+		if state["status"] == "Running" and state["modified"] + timedelta(seconds=EXPORT_TIMEOUT_SECONDS) > now:
+			continue  # A worker can start just before the original expiry.
+		export_uuid = _doc_get(doc, "export_uuid")
+		for path in (*get_export_paths(export_uuid), *_export_scope_paths(export_uuid)):
+			_remove_file_quietly(path)
+		if state["status"] != "Expired":
 			_update_export_log(
-				_doc_get(doc, "name"),
+				name,
 				status="Expired",
 				active_dedupe_key=NULL,
 			)

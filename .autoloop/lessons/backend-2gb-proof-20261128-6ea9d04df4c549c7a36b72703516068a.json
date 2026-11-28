@@ -1,0 +1,12 @@
+{
+  "applies_to": [
+    "tools/**",
+    ".autoloop/**"
+  ],
+  "created_at": "2026-11-28T11:59:12Z",
+  "draft": false,
+  "evidence": "verify_tooling gate 58s Windows vs 10.5s Linux; autoloop suite 43.9s vs 8.7s",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Run autoloop shard gates on the Linux gate host (WSL KhitmeeERPNext /root/gate: venv with pinned dev group + pip nodejs wheel). Windows gates are 5-10x slower and base tooling lacks Windows support (compose, fcntl, CRLF)."
+}

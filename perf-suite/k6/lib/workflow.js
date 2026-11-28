@@ -45,9 +45,8 @@ export function targetUrl() {
   return assertSafeTarget(__ENV.TARGET_URL || DEFAULT_TARGET_URL);
 }
 
-export function authenticate() {
-  const user = __ENV.PERF_USER || __ENV.FRAPPE_USER || 'Administrator';
-  const password = __ENV.PERF_PASSWORD || __ENV.FRAPPE_PASSWORD || '';
+export function authenticate(user = __ENV.PERF_USER || __ENV.FRAPPE_USER || 'Administrator',
+  password = __ENV.PERF_PASSWORD || __ENV.FRAPPE_PASSWORD || '') {
   return login(targetUrl(), user, password);
 }
 
@@ -66,7 +65,7 @@ function responseObject(parsed) {
   return parsed.ok && parsed.data && typeof parsed.data === 'object' ? parsed.data : {};
 }
 
-function responseOk(response) {
+export function responseOk(response) {
   if (!response || response.status < 200 || response.status >= 400) {
     return false;
   }
@@ -386,7 +385,10 @@ function submitMeasured(session, voucherType, callable, roundTrips) {
 
 export function submitVoucher(session, warehouse, voucherType, options = {}) {
   const mode = currentMode();
-  const type = voucherType === 'transfer' ? 'transfer' : 'sale';
+  if (!['sale', 'transfer'].includes(voucherType)) {
+    throw new Error(`Unsupported voucher type '${voucherType}'. Refusing to silently substitute a sale.`);
+  }
+  const type = voucherType;
   let measured;
   let voucherId = null;
   let skuQtys = [];
@@ -394,12 +396,12 @@ export function submitVoucher(session, warehouse, voucherType, options = {}) {
 
   if (type === 'sale') {
     if (mode === 'stock') {
-      const flow = buildStockSaleFlow({ warehouse, contention: options.contention });
+      const flow = buildStockSaleFlow({ warehouse, contention: options.contention, lineCount: options.lineCount });
       voucherId = flow.doc.name;
       skuQtys = skuQtysFromItems(flow.doc.items);
       measured = submitMeasured(session, type, () => executeStockFlow(session, flow), flow.roundTrips);
     } else {
-      const payload = buildKhitmeeSalePayload({ warehouse, contention: options.contention });
+      const payload = buildKhitmeeSalePayload({ warehouse, contention: options.contention, lineCount: options.lineCount });
       voucherId = payload.client_voucher_id;
       skuQtys = skuQtysFromItems(payload.items);
       measured = submitMeasured(
@@ -421,6 +423,7 @@ export function submitVoucher(session, warehouse, voucherType, options = {}) {
         sourceWarehouse: warehouse,
         targetWarehouse,
         contention: options.contention,
+        lineCount: options.lineCount,
       });
       voucherId = flow.doc.name;
       skuQtys = skuQtysFromItems(flow.doc.items);
@@ -431,6 +434,7 @@ export function submitVoucher(session, warehouse, voucherType, options = {}) {
         targetWarehouse,
         transferMode: options.transferMode,
         contention: options.contention,
+        lineCount: options.lineCount,
       });
       voucherId = payload.client_voucher_id;
       skuQtys = skuQtysFromItems(payload.items);
