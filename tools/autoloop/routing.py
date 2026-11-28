@@ -85,7 +85,10 @@ def _receipt_attempts(repo: Path) -> list[dict[str, Any]]:
     if repo_id is None:
         return []
     rows = []
-    settled = Broker(repo_id, _root=root).settled()
+    settled = [
+        (record, receipt) for record, receipt in Broker(repo_id, _root=root).settled()
+        if "cache_key_digest" not in record
+    ]
     first_reserved = {
         (record["run"], record["shard"], record["role"]): record["reserved_at"]
         for record, _ in settled if record["generation"] == 1

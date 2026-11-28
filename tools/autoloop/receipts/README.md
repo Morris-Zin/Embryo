@@ -1,6 +1,6 @@
 # Shadow receipts broker
 
-The broker records T3 delegation evidence for ADR 0005. It runs entirely in
+The broker records T3 delegation and local check evidence for ADR 0005. It runs entirely in
 Python’s standard library and makes zero model calls. The coordinator calls it
 explicitly. The existing autoloop dispatch, verification, and merge commands
 have no broker dependency.
@@ -45,6 +45,25 @@ start the work. A missing response or timeout alone is insufficient proof.
 An attached task stays available for settlement after recovery, including when
 its expiry has passed.
 
+## Local check executions
+
+For a coordinator-run subprocess, pass the verification cache's
+`cache_key_digest` to `reserve`. Each key has its own generation within the
+run, shard, and role. Call `settle_execution` directly with the exit code,
+output and evidence digests, evidence ID, integer completion timestamp, elapsed
+seconds, and Git fingerprints. The broker computes the digest of the full
+canonical outcome. A nonzero exit code can be attested. The check must finish
+on the reserved Git fingerprint to publish.
+
+Pass `broker.validate_execution_receipt` to the cache as its receipt
+validator. The validator requires the exact key, outcome digest, and outcome
+fields. Both validation and `current_publication` check the generation,
+revocation, and expiration at read time. A local publication lookup also takes
+`cache_key_digest`. The historical receipt remains available through
+`settled` after its publication expires. For an interrupted local run,
+`reconcile` preserves the reservation so the coordinator can settle a known
+outcome or revoke it and reserve a replacement.
+
 ## Storage and reporting
 
 The ledger uses the host resource lease authority and the same OS mutex as
@@ -67,5 +86,6 @@ run/shard/role identifies the assignment. A late accepted result contributes
 its cost while acceptance in the report requires a recorded shadow
 publication. Estimates appear separately from observed spend. Legacy rows
 remain historical observations, read once per digest into the report without
-writing to the ledger. For a receipt-inclusive report from WSL, invoke the
-existing CLI with Windows Python.
+writing to the ledger. Local check receipts are available through the broker
+and excluded from delegation routing statistics. For a receipt-inclusive
+report from WSL, invoke the existing CLI with Windows Python.
