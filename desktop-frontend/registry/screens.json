@@ -574,10 +574,10 @@
         "experiments/0008-sales-invoice-detail-qualification.md"
       ],
       "failures": [
-        "draft validation error parity pending",
-        "detail tabs and document actions pending",
-        "keyboard/visual/performance evidence pending",
-        "multi-item return paid and overdue invoice states pending"
+        "comprehensive server-side validation matrix pending",
+        "detail tabs and non-save document actions pending",
+        "form focus-order and comprehensive visual-state evidence pending",
+        "performance evidence pending"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
