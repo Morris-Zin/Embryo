@@ -1,0 +1,216 @@
+{
+  "allow_policy_paths": [
+    "tools/perf_parity.py",
+    "tools/fast_check.py",
+    "tools/khitmee_dev.py",
+    "tools/perf_eval_ledger.py"
+  ],
+  "allowed_paths": [],
+  "base_branch": "feat/backend-2gb-2vcpu-autoloop",
+  "base_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+  "contract_revision": 1,
+  "contract_sha256": "d4c6f58553b4e74b4260a80a4d89fcd5726eaa2950c7daf00db8c1f142ffb3f3",
+  "created_at": "2026-11-28T11:06:41Z",
+  "dead_ends": [],
+  "findings": {},
+  "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle",
+  "grill_summary": "Stacked on PR17 (left untouched). Oracle: stock ERPNext/Frappe never edited; mismatches reported with root cause. Acceptance: 1h seasonal (100/125 vouchers/min + managers) on 2vCPU/2GiB capped guest, p95 budgets, no OOM, exact parity. Known first wall: naming-series lock hold (87.5% SQL time). Inherited PR17 review bugs fixed here. Rust allowed for proven Python hotspots. Architecture changes decided by GPT-6.2 Astra. Workers: SWE-2.1 standard speed / GPT-6.2 Sol. Review: deep (Astra) + cloud. Merge: auto.",
+  "history": [
+    {
+      "at": "2026-11-28T11:06:41Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T11:07:05Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T11:07:05Z",
+      "contract_revision": 1,
+      "contract_sha256": "d4c6f58553b4e74b4260a80a4d89fcd5726eaa2950c7daf00db8c1f142ffb3f3",
+      "event": "lock",
+      "status": "locked"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": null,
+  "last_integrated_detached": null,
+  "last_integrated_sha": null,
+  "last_integrated_worktree": null,
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "auto",
+  "models": {
+    "architecture": "codex gpt-6.2-astra",
+    "coordinator": "claude-opus-5-5 (ultracode)",
+    "reviewer": "codex gpt-6.2-astra high + cloud PR bots",
+    "workers": "devin swe-2-1-medium (standard speed) / codex gpt-6.2-sol"
+  },
+  "pending_contract_amendments": [],
+  "pr_number": null,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": true,
+    "deep": true
+  },
+  "reviews": [],
+  "run_id": "backend-2gb-proof-20261128",
+  "safeguards": [],
+  "schema_version": 1,
+  "shards": {
+    "cashier_correctness": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/api/**",
+        "apps/khitmee_ops/khitmee_ops/hooks.py",
+        "apps/khitmee_ops/khitmee_ops/setup/**",
+        "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_stock_locks_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_voucher_fastpath_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_search_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_catalog_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_indexes_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_naming_*.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "docs": {
+      "allowed_paths": [
+        "docs/**",
+        "GLOSSARY.md"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B tools/autoloop/cli.py lint"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "native_accel": {
+      "allowed_paths": [
+        "native/**",
+        "apps/khitmee_ops/khitmee_ops/accel/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/accel -t apps/khitmee_ops -p test_*.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "report_paths": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/khitmee_ops/report/**",
+        "apps/khitmee_ops/khitmee_ops/profit_summary/**",
+        "apps/khitmee_ops/khitmee_ops/tests/test_fast_gross_profit_parity.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_*.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "runtime_profile": {
+      "allowed_paths": [
+        "perf-suite/docker/**",
+        "perf-suite/scripts/**",
+        "perf-suite/offload/**",
+        "runtime-config/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s perf-suite/docker -p test_*.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "seasonal_harness": {
+      "allowed_paths": [
+        "perf-suite/k6/**",
+        "perf-suite/lab/**",
+        "perf-suite/seasonal/**",
+        "perf-suite/seeder/**",
+        "perf-suite/browser/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s perf-suite/k6 -p test_*.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "verify_tooling": {
+      "allowed_paths": [
+        "tools/*.py",
+        "tools/*.sh"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s tools -p test_*.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    }
+  },
+  "status": "locked",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T11:07:05Z"
+}
