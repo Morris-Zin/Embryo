@@ -26,11 +26,13 @@ def png_chunk(kind: bytes, payload: bytes) -> bytes:
 
 
 def write_rgb_png(path: Path, red: int, green: int, blue: int, transparent: bool) -> None:
-    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    width, height = 8, 5
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     chunks = [png_chunk(b"IHDR", ihdr)]
     if transparent:
         chunks.append(png_chunk(b"tRNS", struct.pack(">HHH", red, green, blue)))
-    chunks.append(png_chunk(b"IDAT", zlib.compress(b"\x00" + bytes((red, green, blue)))))
+    row = b"\x00" + bytes((red, green, blue)) * width
+    chunks.append(png_chunk(b"IDAT", zlib.compress(row * height)))
     chunks.append(png_chunk(b"IEND", b""))
     path.write_bytes(PNG_SIGNATURE + b"".join(chunks))
 
@@ -134,6 +136,7 @@ class VerifyHarnessTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
+                    "-S",
                     str(ROOT / "tools" / "compare_screenshots.py"),
                     str(reference),
                     str(native),
@@ -145,7 +148,8 @@ class VerifyHarnessTest(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0, result.stderr + result.stdout)
             report = json.loads((tmp / "compare.json").read_text())
-            self.assertEqual(report["failedPixels"], 1)
+            self.assertEqual(report["failedPixels"], 40)
+            self.assertEqual(report["regionalFailedPixelRatio"]["0,0"], 0.0)
 
     def test_missing_behavioral_keyboard_evidence_fails(self):
         with tempfile.TemporaryDirectory() as raw:

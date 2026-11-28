@@ -90,7 +90,13 @@ def main() -> int:
                             for y in range(top_bound, bottom_bound):
                                 for x in range(left_bound, right_bound):
                                     offset = (y * width + x) * 4
-                                    if any(diff_pixels[offset + channel] for channel in range(4)):
+                                    luminance = (
+                                        diff_pixels[offset] * 299
+                                        + diff_pixels[offset + 1] * 587
+                                        + diff_pixels[offset + 2] * 114
+                                        + 500
+                                    ) // 1000
+                                    if luminance:
                                         region_failed += 1
                             regions[f"{gx},{gy}"] = round(region_failed / region_total, 6) if region_total else 1.0
                     report.update(
