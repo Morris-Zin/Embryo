@@ -624,8 +624,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			self.assertEqual(export_scope.match_conditions, self.state.match_conditions)
 			generator.si_list = [Row(parent="SI-1")]
 			generator._export_scope = export_scope
-			generator._build_returned_invoice_query = lambda parents: types.SimpleNamespace(limit=lambda size: parents)
-			generator._run_invoice_query = lambda query: [Row(
+			generator._read_restricted_linked_returns = lambda *_: [Row(
 				name="RET-1", return_against="SI-1", sales_invoice_item="LINE-1", item_code="ITEM", base_amount=-25,
 			)]
 			generator._invoice_row_limit = invoice_row_limit
@@ -816,6 +815,17 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 
 
 class TestDownloadPrecedence(ExportServiceTestCase):
+	def test_signed_scope_rechecks_hidden_returns_against_their_snapshot_visibility(self):
+		doc = self.make_log()
+		filters = json.loads(doc["filters_json"])
+		doc["filters_hash"] = export_service.compute_filters_hash(filters)
+		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
+		export_service._write_export_scope(scope_path, doc, "digest", ["SI-1"], hidden_invoice_names=["RET-HIDDEN"])
+		self.state.invoice_names = ["SI-1", "SI-NEW"]
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.state.invoice_names.append("RET-HIDDEN")
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+
 	def test_snapshot_scope_ignores_new_postings_and_denies_revoked_snapshot_invoice(self):
 		doc = self.make_log()
 		filters = json.loads(doc["filters_json"])
@@ -862,10 +872,11 @@ class TestDownloadPrecedence(ExportServiceTestCase):
 		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
 		export_service._write_export_scope(scope_path, doc, "digest", {"SI-1"})
 		manifest = json.loads(Path(scope_path).read_bytes())
-		manifest["scope"]["version"] = 1
-		manifest["signature"] = export_service._sign_export_scope(manifest["scope"])
-		Path(scope_path).write_text(json.dumps(manifest), encoding="utf-8")
-		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		for version in (1, 2):
+			manifest["scope"]["version"] = version
+			manifest["signature"] = export_service._sign_export_scope(manifest["scope"])
+			Path(scope_path).write_text(json.dumps(manifest), encoding="utf-8")
+			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
 		self.digest.assert_not_called()
 
 	def test_missing_log_returns_404(self):

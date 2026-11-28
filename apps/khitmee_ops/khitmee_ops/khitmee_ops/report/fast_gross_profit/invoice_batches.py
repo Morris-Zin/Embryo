@@ -146,13 +146,20 @@ def _read_invoice_page(filters, page, keys, invoice_ids):
 	if remaining > 0 and skip == 0:
 		base_amount = buying_amount = 0
 		columns = None
+		incomplete_total = False
 		for batch_columns, rows in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids):
 			columns = batch_columns
 			for row in rows:
 				if row.get("indent") == 1:
-					base_amount += row.get("selling_amount") or 0.0
-					buying_amount += row.get("buying_amount") or 0.0
-		yield columns or invoice_detail_columns(filters), [fast.invoice_total_row(filters, base_amount, buying_amount)]
+					if row.get("restricted_adjustment"):
+						incomplete_total = True
+					else:
+						base_amount += row.get("selling_amount") or 0.0
+						buying_amount += row.get("buying_amount") or 0.0
+		total = fast.invoice_total_row(filters, base_amount, buying_amount)
+		if incomplete_total:
+			fast.flag_restricted_adjustment(total)
+		yield columns or invoice_detail_columns(filters), [total]
 
 
 def invoice_detail_columns(filters):

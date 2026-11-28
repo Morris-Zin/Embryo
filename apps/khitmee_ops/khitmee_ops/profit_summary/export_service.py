@@ -7,7 +7,11 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Literal, TypedDict
 
-from khitmee_ops.profit_summary.eligibility import company_only_match_conditions, sales_invoice_match_conditions
+from khitmee_ops.profit_summary.eligibility import (
+	SALES_INVOICE_SCOPE_BATCH_SIZE,
+	company_only_match_conditions,
+	sales_invoice_match_conditions,
+)
 from khitmee_ops.profit_summary.store import batched
 
 try:
@@ -32,7 +36,7 @@ EXPORT_DOCTYPE = "Khitmee Profit Export Log"
 EXPORT_TIMEOUT_SECONDS = 3600
 EXPORT_DIRECTORY = "khitmee_profit_exports"
 RESTRICTED_EXPORT_MAX_INVOICES = 5000
-EXPORT_SCOPE_CHECK_BATCH_SIZE = 256
+EXPORT_SCOPE_CHECK_BATCH_SIZE = SALES_INVOICE_SCOPE_BATCH_SIZE
 MAX_EXPORT_SCOPE_BYTES = RESTRICTED_EXPORT_MAX_INVOICES * (140 * 6 + 3) + 4096
 MAX_EXPORT_GROUPS = 50000
 EXPORT_FLUSH_LINES = 2000
@@ -271,7 +275,7 @@ def _export_scope_paths(export_uuid):
 
 def _export_scope_binding(doc, report_digest):
 	return {
-		"version": 2,
+		"version": 3,
 		"export_log_name": _doc_get(doc, "name"),
 		"export_uuid": _doc_get(doc, "export_uuid"),
 		"requested_by": _doc_get(doc, "requested_by"),
@@ -293,11 +297,12 @@ def _sign_export_scope(payload):
 	return hmac.new(secret.encode("utf-8"), message, "sha256").hexdigest()
 
 
-def _write_export_scope(path, doc, report_digest, invoice_names):
+def _write_export_scope(path, doc, report_digest, invoice_names, *, hidden_invoice_names=()):
 	names = sorted(invoice_names)
 	payload = {
 		**_export_scope_binding(doc, report_digest),
 		"invoice_names": names,
+		"hidden_invoice_names": sorted(hidden_invoice_names),
 		"invoice_names_sha256": hashlib.sha256(_scope_json(names)).hexdigest(),
 	}
 	encoded = _scope_json({"scope": payload, "signature": _sign_export_scope(payload)})
@@ -315,11 +320,18 @@ class _ExportInvoiceScope:
 	def __init__(self, match_conditions):
 		self.match_conditions = match_conditions
 		self.invoice_names = set()
+		self.hidden_invoice_names = set()
 
 	def include(self, names):
+		self._include(self.invoice_names, names)
+
+	def include_hidden(self, names):
+		self._include(self.hidden_invoice_names, names)
+
+	def _include(self, scope, names):
 		for name in names:
-			self.invoice_names.add(name)
-			if len(self.invoice_names) > RESTRICTED_EXPORT_MAX_INVOICES:
+			scope.add(name)
+			if len(self.invoice_names) + len(self.hidden_invoice_names) > RESTRICTED_EXPORT_MAX_INVOICES:
 				raise frappe.PermissionError(
 					f"Restricted profit exports are limited to {RESTRICTED_EXPORT_MAX_INVOICES} contributing invoices"
 				)
@@ -351,11 +363,15 @@ def exported_invoice_scope_is_current(doc, filters, user):
 	if payload["filters_hash"] != compute_filters_hash(filters):
 		return False
 	names = payload["invoice_names"]
-	if not isinstance(names, list) or len(names) > RESTRICTED_EXPORT_MAX_INVOICES:
+	hidden_names = payload.get("hidden_invoice_names")
+	if not isinstance(names, list) or not isinstance(hidden_names, list):
+		return False
+	if len(names) + len(hidden_names) > RESTRICTED_EXPORT_MAX_INVOICES or set(names).intersection(hidden_names):
 		return False
 	if hashlib.sha256(_scope_json(names)).hexdigest() != payload["invoice_names_sha256"]:
 		return False
-	visible, truncated = select_accessible_invoice_names(filters, user, limit=len(names), invoice_names=names)
+	scope_names = [*names, *hidden_names]
+	visible, truncated = select_accessible_invoice_names(filters, user, limit=len(scope_names), invoice_names=scope_names)
 	return not truncated and set(visible) == set(names)
 
 
@@ -637,6 +653,7 @@ MAX_EXPORT_INPUT_ROWS = 50_000
 def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 		_copy_report_filters,
+		flag_restricted_adjustment,
 		invoice_total_row,
 	)
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.invoice_batches import (
@@ -647,6 +664,7 @@ def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 	filters = _copy_report_filters({**filters, "group_by": "Invoice"})
 	total_base_amount = total_buying_amount = 0
 	row_count = 0
+	incomplete_total = False
 	with open(path, "w", newline="", encoding="utf-8") as csv_file:
 		writer = csv.writer(csv_file)
 		fieldnames = None
@@ -657,8 +675,11 @@ def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 				fieldnames = _column_fieldnames(columns)
 			for row in data:
 				if row.get("indent") == 1:
-					total_base_amount += row.get("selling_amount") or 0.0
-					total_buying_amount += row.get("buying_amount") or 0.0
+					if row.get("restricted_adjustment"):
+						incomplete_total = True
+					else:
+						total_base_amount += row.get("selling_amount") or 0.0
+						total_buying_amount += row.get("buying_amount") or 0.0
 				writer.writerow(_row_values(row, fieldnames))
 				row_count += 1
 			csv_file.flush()
@@ -669,6 +690,8 @@ def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 		if not filters.currency:
 			filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
 		total = invoice_total_row(filters, total_base_amount, total_buying_amount)
+		if incomplete_total:
+			flag_restricted_adjustment(total)
 		writer.writerow(_row_values(total, fieldnames))
 	return row_count + 1
 
@@ -761,7 +784,10 @@ def run_profit_csv_export(export_log_name):
 		if export_scope is not None:
 			scope_tmp, scope_path = _export_scope_paths(export_uuid)
 			temporary_paths.append(scope_tmp)
-			_write_export_scope(scope_tmp, doc, exported_invoice_sha256, export_scope.invoice_names)
+			_write_export_scope(
+				scope_tmp, doc, exported_invoice_sha256, export_scope.invoice_names,
+				hidden_invoice_names=export_scope.hidden_invoice_names,
+			)
 			os.replace(scope_tmp, scope_path)
 			renamed_paths.append(scope_path)
 		os.replace(temporary_path, final_path)

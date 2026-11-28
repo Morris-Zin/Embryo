@@ -1138,11 +1138,15 @@ def format_invoice_rows_inplace(columns, gross_profit_data, filters, group_wise_
 
 	total_base_amount = 0
 	total_buying_amount = 0
+	incomplete_total = False
 	invoice_columns = group_wise_columns.get("invoice")
 	for src in gross_profit_data.si_list:
 		if src.indent == 1:
-			total_base_amount += src.base_amount or 0.0
-			total_buying_amount += src.buying_amount or 0.0
+			if src.get("restricted_adjustment"):
+				incomplete_total = True
+			else:
+				total_base_amount += src.base_amount or 0.0
+				total_buying_amount += src.buying_amount or 0.0
 
 		row_values = {
 			"indent": src.indent,
@@ -1151,12 +1155,30 @@ def format_invoice_rows_inplace(columns, gross_profit_data, filters, group_wise_
 		}
 		for col in invoice_columns:
 			row_values[column_names[col]] = src.get(col)
+		if src.get("restricted_adjustment"):
+			flag_restricted_adjustment(row_values)
 		src.clear()
 		src.update(row_values)
 		data.append(src)
 
 	gross_profit_data.si_list.clear()
-	data.append(invoice_total_row(filters, total_base_amount, total_buying_amount))
+	total = invoice_total_row(filters, total_base_amount, total_buying_amount)
+	if incomplete_total:
+		flag_restricted_adjustment(total)
+	data.append(total)
+
+
+RESTRICTED_ADJUSTMENT_MESSAGE = "Amounts withheld: linked return is outside your access"
+RESTRICTED_AMOUNT_FIELDS = frozenset({
+	"qty", "avg._selling_rate", "valuation_rate", "selling_amount", "buying_amount",
+	"gross_profit", "gross_profit_%", "allocated_amount", "incentives",
+})
+
+
+def flag_restricted_adjustment(row):
+	for field in RESTRICTED_AMOUNT_FIELDS.intersection(row):
+		row[field] = None
+	row["restricted_adjustment"] = RESTRICTED_ADJUSTMENT_MESSAGE
 
 
 def invoice_total_row(filters, total_base_amount, total_buying_amount):
@@ -1208,6 +1230,7 @@ def _render_detail_result(gross_profit_data, filters):
 	data = []
 	group_wise_columns = _group_wise_columns()
 	columns = standard_gross_profit.get_columns(group_wise_columns, filters)
+	restricted = bool(gross_profit_data._get_linked_return_match_conditions())
 
 	if filters.group_by == "Invoice":
 		format_invoice_rows_inplace(columns, gross_profit_data, filters, group_wise_columns, data)
@@ -1215,6 +1238,22 @@ def _render_detail_result(gross_profit_data, filters):
 		standard_gross_profit.get_data_when_not_grouped_by_invoice(
 			gross_profit_data, filters, group_wise_columns, data
 		)
+		affected = gross_profit_data._restricted_group_keys
+		if affected:
+			group_field = standard_gross_profit.scrub(filters.group_by)
+			amount_indices = [i for i, col in enumerate(columns) if col.get("fieldname") in RESTRICTED_AMOUNT_FIELDS]
+			for index, row in enumerate(data):
+				flagged = index == len(data) - 1 or gross_profit_data.grouped_data[index].get(group_field) in affected
+				if flagged:
+					for column_index in amount_indices:
+						row[column_index] = None
+				row.append(RESTRICTED_ADJUSTMENT_MESSAGE if flagged else None)
+		elif restricted:
+			for row in data:
+				row.append(None)
+
+	if restricted:
+		columns.append({"fieldname": "restricted_adjustment", "label": "Restricted adjustment", "fieldtype": "Data", "width": 300})
 
 	return columns, data
 
@@ -1562,6 +1601,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self.grouped = {}
 		self.grouped_data = []
 		self.invoice_item_amounts = {}
+		self._restricted_group_keys = set()
 
 		grouped_by_invoice = self.filters.get("group_by") == "Invoice"
 		grouped_by_month = self.filters.get("group_by") == "Monthly"
@@ -1570,6 +1610,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		if grouped_by_invoice:
 			buying_amount = 0
 			base_amount = 0
+			incomplete_header = False
 
 		for row in reversed(self.si_list):
 			sales_invoice_item = row.item_row
@@ -1609,6 +1650,9 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				row.base_amount = base_amount
 				buying_amount = 0
 				base_amount = 0
+				if incomplete_header:
+					row["restricted_adjustment"] = True
+				incomplete_header = False
 			elif row.is_debit_note:
 				if not grouped_by_invoice:
 					row.qty = 0
@@ -1639,8 +1683,11 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 			if self.is_not_invoice_row(row):
 				self.update_return_invoices(row, sales_invoice_item)
+				if row.get("restricted_adjustment"):
+					row.qty = row.base_amount = row.buying_amount = 0
 
 			if grouped_by_invoice and row.indent == 1.0:
+				incomplete_header |= bool(row.get("restricted_adjustment"))
 				buying_amount += row.buying_amount
 				base_amount += row.base_amount
 
@@ -1660,6 +1707,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 			if track_grouped_amounts:
 				group_key = row.get(standard_gross_profit.scrub(self.filters.group_by))
+				if row.get("restricted_adjustment"):
+					self._restricted_group_keys.add(group_key)
 				group_rows = self.grouped.get(group_key)
 				if group_rows is None:
 					# Stock get_average_rate_based_on_group_by() folds every row of a
@@ -1886,13 +1935,6 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		if self.filters.company:
 			query = query.where(si.company == self.filters.company)
-		if match_conditions := self._get_linked_return_match_conditions():
-			from pypika.terms import LiteralValue
-
-			# Use the requester's Sales Invoice predicate in its own table scope.
-			# Match permissions independently of the report's selected original IDs.
-			visible = frappe.qb.from_(si).select(si.name).where(LiteralValue(f"({match_conditions})"))
-			query = query.where(si.name.isin(visible))
 		return query
 
 	def _get_linked_return_match_conditions(self):
@@ -1911,27 +1953,80 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			self.legacy_returned_invoices = frappe._dict()
 			return
 
-		returned_invoices = []
-		for parent_chunk in batched(parents, 1000):
-			query = self._build_returned_invoice_query(parent_chunk)
-			row_limit = getattr(self, "_invoice_row_limit", None)
-			if row_limit is not None:
-				query = query.limit(row_limit - len(returned_invoices) + 1)
-			returned_invoices.extend(self._run_invoice_query(query) or [])
-			if row_limit is not None and len(returned_invoices) > row_limit:
-				raise InvoiceBatchTooLarge()
+		match_conditions = self._get_linked_return_match_conditions()
+		row_limit = getattr(self, "_invoice_row_limit", None)
+		if match_conditions:
+			returned_invoices = self._read_restricted_linked_returns(parents, match_conditions, row_limit)
+		else:
+			returned_invoices = []
+			for parent_chunk in batched(parents, 1000):
+				query = self._build_returned_invoice_query(parent_chunk)
+				if row_limit is not None:
+					query = query.limit(row_limit - len(returned_invoices) + 1)
+				returned_invoices.extend(self._run_invoice_query(query) or [])
+				if row_limit is not None and len(returned_invoices) > row_limit:
+					raise InvoiceBatchTooLarge()
 
 		self.returned_invoices = frappe._dict()
 		self.legacy_returned_invoices = frappe._dict()
+		hidden = [inv for inv in returned_invoices if inv.get("hidden_return")]
 		if (scope := getattr(self, "_export_scope", None)) is not None:
-			scope.include(inv.name for inv in returned_invoices)
+			scope.include(inv.name for inv in returned_invoices if not inv.get("hidden_return"))
+			scope.include_hidden(inv.name for inv in hidden)
 		for inv in returned_invoices:
+			if inv.get("hidden_return"):
+				continue
 			invoice_returns = (
 				self.returned_invoices if inv.sales_invoice_item else self.legacy_returned_invoices
 			)
 			invoice_returns.setdefault(inv.return_against, frappe._dict()).setdefault(
 				inv.sales_invoice_item or inv.item_code, []
 			).append(inv)
+		if hidden:
+			self._flag_hidden_return_lines(hidden)
+
+	def _read_restricted_linked_returns(self, parents, match_conditions, row_limit):
+		from khitmee_ops.profit_summary.eligibility import SALES_INVOICE_SCOPE_BATCH_SIZE
+
+		# Limit each query by the parent batch. Hidden amounts never leave SQL.
+		rows = []
+		limit_sql = "LIMIT %s" if row_limit is not None else ""
+		for chunk in batched(parents, SALES_INVOICE_SCOPE_BATCH_SIZE):
+			placeholders = ", ".join(["%s"] * len(chunk))
+			params = [self.filters.company, self.filters.from_date, self.filters.to_date, *chunk]
+			if row_limit is not None:
+				params.append(row_limit - len(rows) + 1)
+			rows.extend(frappe.db.sql(
+				f"""
+			SELECT si.name, si.return_against, sii.item_code, sii.sales_invoice_item,
+				visible.name IS NULL AS hidden_return,
+				CASE WHEN visible.name IS NOT NULL THEN sii.stock_qty END AS qty,
+				CASE WHEN visible.name IS NOT NULL THEN sii.base_net_amount END AS base_amount
+			FROM `tabSales Invoice` si
+			JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
+			LEFT JOIN (SELECT name FROM `tabSales Invoice` WHERE ({match_conditions})) visible ON visible.name = si.name
+			WHERE si.company = %s AND si.docstatus = 1 AND si.is_return = 1
+				AND si.posting_date BETWEEN %s AND %s AND si.return_against IN ({placeholders})
+			{limit_sql}
+				""",
+				params,
+				as_dict=True,
+			))
+			if row_limit is not None and len(rows) > row_limit:
+				raise InvoiceBatchTooLarge()
+		return rows
+
+	def _flag_hidden_return_lines(self, hidden):
+		details = {(inv.return_against, inv.sales_invoice_item) for inv in hidden if inv.sales_invoice_item}
+		legacy_groups = {(inv.return_against, inv.item_code) for inv in hidden if not inv.sales_invoice_item}
+		# Explicit returns consume capacity before legacy returns are allocated. If
+		# one is hidden, the legacy return can affect any matching line of that item.
+		for row in self.si_list:
+			if (row.parent, row.item_row) in details and row.item_code in self.legacy_returned_invoices.get(row.parent, {}):
+				legacy_groups.add((row.parent, row.item_code))
+		for row in self.si_list:
+			if (row.parent, row.item_row) in details or (row.parent, row.item_code) in legacy_groups:
+				row["restricted_adjustment"] = True
 
 	def load_product_bundle(self):
 		"""Load Packed Item only for bundle-selling invoices and their linked Delivery Notes."""

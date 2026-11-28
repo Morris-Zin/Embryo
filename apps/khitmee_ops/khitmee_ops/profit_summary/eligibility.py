@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover
 ALLOWED_SUMMARY_FILTER_KEYS = frozenset(
 	{"company", "from_date", "to_date", "group_by", "warehouse", "include_returned_invoices", "currency"}
 )
+SALES_INVOICE_SCOPE_BATCH_SIZE = 256
 
 LINK_FILTER_DOCTYPES = {
 	"company": "Company",
