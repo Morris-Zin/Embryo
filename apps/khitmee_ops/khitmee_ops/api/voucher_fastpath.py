@@ -104,7 +104,7 @@ def _normalize_posting_time(value):
 	if value is None:
 		return ""
 	if isinstance(value, datetime.timedelta):
-		total_us = int(round(value.total_seconds() * 1_000_000))
+		total_us = round(value.total_seconds() * 1_000_000)
 		if total_us < 0:
 			total_us = 0
 		total_s, us = divmod(total_us, 1_000_000)
