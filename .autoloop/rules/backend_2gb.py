@@ -207,24 +207,54 @@ def _planned_lock_issues(functions, reachable, queries, parent_map):
     for table, query, sql in ordered:
         iterable, point_lock = _PLANNED_LOCK_SQL[table]
         loop = enclosing(query, parent_map, (ast.For, ast.While))
+        coordinates = ("item",) if table == "tabitem" else ("item", "warehouse")
+        target = "item" if table == "tabitem" else "(item, warehouse)"
         if not (
             isinstance(loop, ast.For) and loop in acquire.body and dotted(loop.iter) == iterable
-            and point_lock.search(sql)
+            and ast.unparse(loop.target) == target and point_lock.search(sql)
+            and len(query.args) >= 2 and isinstance(query.args[1], ast.Tuple)
+            and tuple(dotted(arg) for arg in query.args[1].elts) == coordinates
+            and not any(
+                isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del))
+                and node.id in coordinates for statement in loop.body for node in ast.walk(statement)
+            )
         ):
             issues.append(violation(STOCK_LOCKS, query, f"lock {table} by its exact key in {iterable} order"))
-    # Both coordinate lists come from the planner's sorted, deduplicated
-    # identities. The hook path plans and acquires once as a single expression.
-    plans = list(calls(planner, "StockLockPlan")) if planner else []
+    for node in ast.walk(acquire):
+        if not (
+            isinstance(node, (ast.Name, ast.Attribute)) and isinstance(node.ctx, (ast.Store, ast.Del))
+            and dotted(node) in {"plan", "plan.items", "plan.pairs"}
+        ):
+            continue
+        # The fallback may clear shared lock modes but must preserve coordinates.
+        statement = parent_map[node]
+        if not (
+            isinstance(statement, ast.Assign)
+            and ast.unparse(statement) == "plan = replace(plan, shared={})"
+        ):
+            issues.append(violation(STOCK_LOCKS, node, "preserve planned Item and Bin order during acquisition"))
+
+    # Match the actual values returned, including early paths. A nested sorted()
+    # also appears in reverse, slice and conditional expressions.
+    returns = [
+        node for node in ast.walk(planner)
+        if isinstance(node, ast.Return) and enclosing(node, parent_map, SCOPE) is planner
+    ] if planner else []
+    canonical = ("tuple(sorted(set(item_aliases.values())))", "tuple(sorted(set(aliases.values())))")
+    for node in returns:
+        value = node.value
+        if not (
+            isinstance(value, ast.Call) and dotted(value.func) == "StockLockPlan"
+            and tuple(ast.unparse(arg) for arg in value.args[:2]) in {canonical, ("()", "()")}
+        ):
+            issues.append(violation(STOCK_LOCKS, node, "return stock plans in canonical ascending Item and Bin order"))
+    if not returns or not isinstance(planner.body[-1], ast.Return):
+        issues.append(violation(STOCK_LOCKS, planner, "return a canonical stock plan on every planner path"))
     acquisitions = list(calls(entry, "acquire_stock_plan")) if entry else []
-    if not plans or any(
-        len(call.args) < 2 or any(
-            not (isinstance(arg, ast.Tuple) and not arg.elts or list(calls(arg, "sorted")))
-            for arg in call.args[:2]
-        )
-        for call in plans
+    if len(acquisitions) != 1 or not (
+        acquisitions[0].args and isinstance(acquisitions[0].args[0], ast.Call)
+        and dotted(acquisitions[0].args[0].func) == "plan_stock_locks"
     ):
-        issues.append(violation(STOCK_LOCKS, planner, "construct stock plans with sorted Items and Bin coordinates"))
-    if len(acquisitions) != 1 or not list(calls(acquisitions[0], "plan_stock_locks")):
         issues.append(violation(STOCK_LOCKS, entry, "use the stock planner before acquiring its locks"))
     return issues
 
@@ -250,6 +280,10 @@ def rule_stock_locks(file_map):
             name = dotted(node.func).rsplit(".", 1)[-1]
             scope = enclosing(node, parent_map, SCOPE)
             scope_name = getattr(scope, "name", "")
+            if name == "StockLockPlan" and "/tests/" not in path and (
+                path != STOCK_LOCKS or scope is not functions.get("plan_stock_locks")
+            ):
+                issues.append(violation(path, node, "construct stock lock plans only through plan_stock_locks"))
             if name in _LOCK_HELPERS and (path != STOCK_LOCKS or scope_name != "lock_stock_coordinates"):
                 issues.append(violation(path, node, "use lock_stock_coordinates for stock row locks"))
                 continue
@@ -295,7 +329,14 @@ def rule_stock_locks(file_map):
             for name, sorter in (("lock_items", "ordered_item_codes"), ("lock_existing_bins", "ordered_bin_pairs")):
                 helper = functions.get(name)
                 sorter_def = functions.get(sorter)
-                if helper is None or not list(calls(helper, sorter)) or sorter_def is None or not list(calls(sorter_def, "sorted")):
+                returns = [
+                    node for node in ast.walk(sorter_def)
+                    if isinstance(node, ast.Return) and enclosing(node, parent_map, SCOPE) is sorter_def
+                ] if sorter_def else []
+                if (
+                    helper is None or not list(calls(helper, sorter)) or not returns
+                    or any(node.value is None or ast.unparse(node.value) != "sorted(cleaned)" for node in returns)
+                ):
                     issues.append(violation(path, helper, f"{name} must sort its lock inputs via {sorter}"))
     return issues
 
@@ -420,6 +461,53 @@ def rule_report_columns(file_map):
     return issues
 
 
+def _benchmark_mapping(node):
+    while isinstance(node, ast.Subscript):
+        node = node.value
+    return dotted(node) == "benchmarks"
+
+
+def _writes_benchmark(node):
+    if isinstance(node, (ast.Name, ast.Subscript)):
+        return isinstance(node.ctx, (ast.Store, ast.Del)) and _benchmark_mapping(node)
+    return (
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and _benchmark_mapping(node.func.value)
+        and node.func.attr in {"update", "setdefault", "clear", "pop", "popitem", "__setitem__", "__delitem__"}
+    )
+
+
+def _has_unavailable_benchmark_guard(loop, classifier, predicate, parent_map):
+    if loop is None:
+        return False
+    guard = next((
+        stmt for stmt in loop.body
+        if isinstance(stmt, ast.If) and ast.unparse(stmt.test) == predicate and stmt.lineno > classifier.lineno
+    ), None)
+    if guard is None or not isinstance(guard.body[-1], (ast.Continue, ast.Return)):
+        return False
+    writes = [node for stmt in guard.body for node in ast.walk(stmt) if _writes_benchmark(node)]
+    if len(writes) != 1:
+        return False
+    target = writes[0]
+    store = parent_map[target]
+    if not (
+        isinstance(target, ast.Subscript) and dotted(target.value) == "benchmarks" and dotted(target.slice) == "label"
+        and isinstance(store, ast.Assign) and store in guard.body and store.targets == [target]
+        and isinstance(store.value, ast.Call) and dotted(store.value.func) == "unavailable_report_measurement"
+    ):
+        return False
+    if any(
+        isinstance(node, (ast.Break, ast.Continue, ast.Return))
+        for stmt in guard.body[:guard.body.index(store)] for node in ast.walk(stmt)
+    ):
+        return False
+    return not any(
+        _writes_benchmark(node)
+        for stmt in loop.body[:loop.body.index(guard)] for node in ast.walk(stmt)
+    )
+
+
 def rule_bench_results(file_map):
     if PERF_BENCH not in file_map:
         return []
@@ -448,23 +536,9 @@ def rule_bench_results(file_map):
                 if isinstance(typed_assignment, ast.Assign) and len(typed_assignment.targets) == 1
                 else None
             )
-            guards = [
-                guard for guard in (loop.body if loop else [])
-                if isinstance(guard, ast.If)
-                and target_name
-                and ast.unparse(guard.test) == f"isinstance({target_name}, UnavailableGrossProfit)"
-                and list(calls(guard, "unavailable_report_measurement"))
-                and any(isinstance(stmt, (ast.Continue, ast.Return)) for stmt in guard.body)
-                and guard.lineno > execute.lineno
-            ]
-            early_records = [
-                node for node in ast.walk(loop or tree)
-                if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store)
-                and dotted(node.value) == "benchmarks" and node.lineno > execute.lineno
-                and guards and node.lineno < guards[0].lineno
-                and not any(guard in ast_nodes_above(node, parent_map) for guard in guards)
-            ]
-            if not guards or early_records:
+            if not target_name or not _has_unavailable_benchmark_guard(
+                loop, typed_assignment, f"isinstance({target_name}, UnavailableGrossProfit)", parent_map,
+            ):
                 issues.append(violation(PERF_BENCH, execute, "skip successful timing when the classifier reports an unavailable result"))
             continue
         if not (isinstance(classified, ast.Call) and dotted(classified.func) == "split_query_report_result"):
@@ -485,30 +559,9 @@ def rule_bench_results(file_map):
             continue
         reason = dotted(target.elts[2])
         loop = enclosing(execute, parent_map, (ast.For, ast.While))
-        block = loop.body if loop else []
-        bypasses = [
-            guard for guard in block
-            if isinstance(guard, ast.If)
-            and ast.unparse(guard.test) == f"{reason} is not None"
-            and list(calls(guard, "unavailable_report_measurement"))
-            and any(isinstance(stmt, (ast.Continue, ast.Return)) for stmt in guard.body)
-            and guard.lineno > split_assignment.lineno
-        ]
-        records = [
-            node for node in ast.walk(loop or tree)
-            if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store)
-            and dotted(node.value) == "benchmarks" and node.lineno > execute.lineno
-            and not any(guard in ast_nodes_above(node, parent_map) for guard in bypasses)
-        ]
-        if not bypasses or any(node.lineno < bypasses[0].lineno for node in records):
+        if not _has_unavailable_benchmark_guard(loop, split_assignment, f"{reason} is not None", parent_map):
             issues.append(violation(PERF_BENCH, execute, "skip successful timing when the classifier reports an unavailable result"))
     return issues
-
-
-def ast_nodes_above(node, parent_map):
-    while node in parent_map:
-        node = parent_map[node]
-        yield node
 
 
 def attribute_entries(raw):
