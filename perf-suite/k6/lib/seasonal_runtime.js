@@ -1176,8 +1176,8 @@ export function reportFilters(groupBy, fullYear = false, plan = null) {
 }
 
 function executeReportCall(session, reportName, filters, timeout, extraPayload = {}, endpointClass = 'manager_summary') {
-  sleepForSimulatedRtt(1);
   const uxStart = Date.now();
+  sleepForSimulatedRtt(1);
   const serverStart = Date.now();
   const response = postMethod(
     session,
@@ -1562,8 +1562,8 @@ export function performSeasonalSearch(session, plan, phase, arrivalIndex) {
   const itemCode = lines[0].item_code;
   const exact = stableHash32(seedKey) % 4 === 0;
   const term = exact ? itemCode : itemCode.slice(0, 3 + (stableHash32(`${seedKey}:len`) % Math.max(1, Math.min(7, itemCode.length - 2))));
-  sleepForSimulatedRtt(1);
   const uxStart = Date.now();
+  sleepForSimulatedRtt(1);
   const serverStart = Date.now();
   const query =
     `khitmee_ops.api.search.search_items?q=${encodeURIComponent(term)}` +
