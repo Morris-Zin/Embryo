@@ -12,6 +12,7 @@ import unittest
 import zlib
 from pathlib import Path
 
+import architecture_lint
 from png_codec import PNG_SIGNATURE, write_png_rgba
 
 
@@ -150,6 +151,17 @@ class VerifyHarnessTest(unittest.TestCase):
             report = json.loads((tmp / "compare.json").read_text())
             self.assertEqual(report["failedPixels"], 40)
             self.assertEqual(report["regionalFailedPixelRatio"]["0,0"], 0.0)
+
+    def test_architecture_lint_fallback_reads_dependency_subtable_aliases(self):
+        with tempfile.TemporaryDirectory() as raw:
+            manifest = Path(raw) / "Cargo.toml"
+            manifest.write_text('[dependencies.tauri-ui]\nversion = "1"\n', encoding="utf-8")
+            original = architecture_lint.tomllib
+            architecture_lint.tomllib = None
+            try:
+                self.assertIn("tauri-ui", architecture_lint.manifest_dependency_names(manifest))
+            finally:
+                architecture_lint.tomllib = original
 
     def test_missing_behavioral_keyboard_evidence_fails(self):
         with tempfile.TemporaryDirectory() as raw:

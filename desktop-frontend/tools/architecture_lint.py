@@ -53,8 +53,14 @@ def manifest_dependency_names(manifest: Path) -> set[str]:
         if "=" not in line:
             continue
         dependency = line.split("=", 1)[0].strip().strip("'\"")
-        if section in {"dependencies", "dev-dependencies", "build-dependencies"} or section.endswith(".dependencies"):
+        direct_sections = {"dependencies", "dev-dependencies", "build-dependencies"}
+        section_parts = [part.strip().strip("'\"") for part in section.split(".")]
+        if section in direct_sections or section.endswith(".dependencies"):
             dependency_names.add(dependency)
+        elif len(section_parts) == 2 and section_parts[0] in direct_sections:
+            dependency_names.add(section_parts[-1])
+        elif len(section_parts) >= 2 and section_parts[-2] == "dependencies":
+            dependency_names.add(section_parts[-1])
     return dependency_names
 
 
