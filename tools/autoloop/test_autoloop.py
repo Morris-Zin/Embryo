@@ -1979,6 +1979,11 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         _git(rb_repo, "add", f".autoloop/experiments/{run2}-BAD_CAPS.md")
         _git(rb_repo, "commit", "-m", "invalid exp filename")
         self.assertFalse(is_framework_metadata_path(f".autoloop/experiments/{run2}-BAD_CAPS.md", run2))
+        # Lessons recorded by record-lesson for this run are framework metadata; others are not.
+        self.assertTrue(is_framework_metadata_path(f".autoloop/lessons/{run2}-{'a1' * 16}.json", run2))
+        self.assertFalse(is_framework_metadata_path(f".autoloop/lessons/{run2}-notahexid.json", run2))
+        self.assertFalse(is_framework_metadata_path(f".autoloop/lessons/other-run-{'a1' * 16}.json", run2))
+        self.assertFalse(is_framework_metadata_path(f".autoloop/lessons/{run2}-{'a1' * 16}.py", run2))
         self.assertNotEqual(compute_code_tree_sha256(rb_repo, "HEAD", run_id=run2), orig_hash)
 
     def test_kernel_mutex_recovers_instantly_on_process_kill(self) -> None:
