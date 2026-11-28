@@ -105,6 +105,7 @@ class FrozenContract:
     shards: tuple[ShardContract, ...]
     approvals: tuple[ApprovalRequirement, ...] = field(default_factory=tuple)
     review_required: bool = True
+    require_delegation_receipts: bool = False
     policy: PolicyContract | None = None
 
 

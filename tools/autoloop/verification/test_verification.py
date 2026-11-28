@@ -347,6 +347,44 @@ class VerificationPredicateTests(unittest.TestCase):
         self.assertEqual((), shard_blocked.obligations_met)
         self.assertIn("missing-shard-evidence", {failure.reason for failure in shard_blocked.failures})
 
+    def test_review_coverage_is_conditional_when_review_is_not_required(self) -> None:
+        no_review_contract = replace(self.contract, review_required=False)
+        without_review = replace(self.snapshot, reviews=())
+        decision = verify(target(Obligation.MERGE_ELIGIBILITY), no_review_contract, without_review)
+        self.assertTrue(decision.ok, decision.failures)
+
+        invalid_finding = replace_item(without_review, "findings", 0, reviewed_tree="0" * 64)
+        rejected = verify(target(Obligation.MERGE_ELIGIBILITY), no_review_contract, invalid_finding)
+        self.assertFalse(rejected.ok)
+        self.assertIn("stale-finding-tree", {failure.reason for failure in rejected.failures})
+
+        invalid_safeguard = replace_item(without_review, "safeguards", 0, tree_digest="0" * 64)
+        rejected = verify(target(Obligation.MERGE_ELIGIBILITY), no_review_contract, invalid_safeguard)
+        self.assertFalse(rejected.ok)
+        self.assertIn("stale-safeguard-tree", {failure.reason for failure in rejected.failures})
+
+    def test_delegation_receipts_are_optional_unless_contract_requires_them(self) -> None:
+        without_delegation_receipt = replace_item(self.snapshot, "shard_results", 0, implementation_receipt_id="")
+        legacy = verify(target(Obligation.SHARD), self.contract, without_delegation_receipt)
+        self.assertTrue(legacy.ok, legacy.failures)
+
+        requiring_contract = replace(self.contract, require_delegation_receipts=True)
+        with_receipt = verify(target(Obligation.SHARD), requiring_contract, self.snapshot)
+        self.assertTrue(with_receipt.ok, with_receipt.failures)
+        required = verify(target(Obligation.SHARD), requiring_contract, without_delegation_receipt)
+        self.assertFalse(required.ok)
+        self.assertIn("missing-implementation-receipt", {failure.reason for failure in required.failures})
+
+        missing_integration_receipt = replace_item(self.snapshot, "integrations", 0, integration_receipt_id="")
+        integrated = verify(target(Obligation.INTEGRATED), self.contract, missing_integration_receipt)
+        self.assertFalse(integrated.ok)
+        self.assertIn("missing-integration-receipt", {failure.reason for failure in integrated.failures})
+
+        missing_check_receipt = replace_item(self.snapshot, "checks", 0, receipt_id="")
+        check = verify(target(Obligation.SHARD), self.contract, missing_check_receipt)
+        self.assertFalse(check.ok)
+        self.assertIn("missing-check-provenance", {failure.reason for failure in check.failures})
+
     def _per_gate_tooling_snapshot(self) -> tuple[EvidenceSnapshot, str]:
         """Shard check ran with tooling that excludes the shard; integrated checks with overlay tooling."""
         shard_sources = (ToolingSource("tools/autoloop/state.py", "3" * 64),)
@@ -384,6 +422,13 @@ class VerificationPredicateTests(unittest.TestCase):
         self.assertFalse(decision.ok)
         self.assertEqual((Obligation.SHARD,), decision.obligations_met)
         self.assertIn("stale-check-tooling", {failure.reason for failure in decision.failures})
+
+    def test_fallback_gate_tooling_requires_source_evidence(self) -> None:
+        snapshot, _ = self._per_gate_tooling_snapshot()
+        only_bound_shard_tooling = replace(snapshot, tooling=(snapshot.tooling[1],))
+        decision = verify(target(Obligation.INTEGRATED), self.contract, only_bound_shard_tooling)
+        self.assertFalse(decision.ok)
+        self.assertIn("missing-tooling-evidence", {failure.reason for failure in decision.failures})
 
     def test_conflicting_tooling_records_for_one_gate_are_contradictory(self) -> None:
         snapshot, _ = self._per_gate_tooling_snapshot()

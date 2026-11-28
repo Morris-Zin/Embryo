@@ -66,7 +66,12 @@ def verify(target: Target | Obligation | str, frozen_contract: FrozenContract, e
     for obligation in obligations_through(target_value.obligation):
         failures: list[VerificationFailure] = []
         if obligation is Obligation.SHARD:
-            shard_tree = _validate_shard_obligation(shard_contract, evidence_snapshot, failures)
+            shard_tree = _validate_shard_obligation(
+                shard_contract,
+                evidence_snapshot,
+                failures,
+                require_delegation_receipts=frozen_contract.require_delegation_receipts,
+            )
         elif obligation is Obligation.INTEGRATED:
             _validate_integrated_obligation(evidence_snapshot, failures)
         elif obligation is Obligation.REVIEW_SUBMISSION:
@@ -151,6 +156,8 @@ def _validate_shard_obligation(
     shard_contract: ShardContract,
     snapshot: EvidenceSnapshot,
     failures: list[VerificationFailure],
+    *,
+    require_delegation_receipts: bool,
 ) -> str | None:
     _validate_tooling(snapshot, failures)
 
@@ -190,7 +197,7 @@ def _validate_shard_obligation(
                     item.meta.evidence_id,
                 )
             )
-        if not item.implementation_receipt_id:
+        if require_delegation_receipts and not item.implementation_receipt_id:
             failures.append(
                 VerificationFailure(
                     Obligation.SHARD,
@@ -287,10 +294,24 @@ def _tooling_digest_for_gate(snapshot: EvidenceSnapshot, gate: Obligation) -> st
     (which unbound records must equal) applies. Contradictory bound records are
     reported by ``_validate_tooling`` and make the foundation fail first.
     """
-    bound = sorted({item.tooling_digest for item in snapshot.tooling if item.gate is gate})
+    bound = sorted({item.tooling_digest for item in snapshot.tooling if item.gate == gate})
     if bound:
         return bound[0]
     return snapshot.tooling_digest
+
+
+def _has_tooling_evidence_for_gate(snapshot: EvidenceSnapshot, gate: Obligation, digest: str) -> bool:
+    def valid_record(item) -> bool:
+        if item.tooling_digest != digest:
+            return False
+        try:
+            return tooling_sources_digest(item.sources) == digest
+        except ValueError:
+            return False
+
+    if any(item.gate == gate for item in snapshot.tooling):
+        return any(item.gate == gate and valid_record(item) for item in snapshot.tooling)
+    return any(item.gate is None and valid_record(item) for item in snapshot.tooling)
 
 
 def _validate_integrated_obligation(snapshot: EvidenceSnapshot, failures: list[VerificationFailure]) -> None:
@@ -397,7 +418,7 @@ def _validate_review_obligation(
         covered_findings.update(referenced)
 
     uncovered = expected_findings - covered_findings
-    if uncovered:
+    if frozen_contract.review_required and uncovered:
         failures.append(
             VerificationFailure(
                 Obligation.MERGE_ELIGIBILITY,
@@ -771,6 +792,20 @@ def _validate_required_checks(
     failures: list[VerificationFailure] = []
     requirements = [item for item in shard_contract.checks if item.obligation == obligation]
     expected_generation = _generation_for(snapshot.generations, obligation)
+    expected_gate_tooling = _tooling_digest_for_gate(snapshot, obligation)
+    if (
+        requirements
+        and snapshot.tooling
+        and expected_gate_tooling
+        and not _has_tooling_evidence_for_gate(snapshot, obligation, expected_gate_tooling)
+    ):
+        failures.append(
+            VerificationFailure(
+                obligation,
+                "missing-tooling-evidence",
+                f"no tooling evidence with matching sources is available for gate {obligation.value!r} and digest {expected_gate_tooling!r}",
+            )
+        )
     for requirement in requirements:
         matches = [
             item
@@ -830,7 +865,7 @@ def _validate_required_checks(
                         check.meta.evidence_id,
                     )
                 )
-            expected_tooling = _tooling_digest_for_gate(snapshot, check.obligation)
+            expected_tooling = expected_gate_tooling
             if check.tooling_digest != expected_tooling:
                 failures.append(
                     VerificationFailure(
