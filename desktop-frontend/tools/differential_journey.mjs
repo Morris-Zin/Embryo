@@ -236,7 +236,8 @@ if(screen==='invoice-detail'){
   }
   const businessOutcomeEvidence=screen==='invoice-list'?{attempted:false,matched:true,reason:'read-only invoice journey'}:screen==='invoice-detail'?await invoiceDetailOutcome(page):await businessOutcome(page,steps);
   failures.push(...(businessOutcomeEvidence.mismatches||[]).map(d=>({step:'businessOutcome',op:'erp-readback',...d})));
-  if((screen==='sales-voucher'||screen==='stock-transfer')&&/submission|success|idempotency|transit-receive/.test(scenario)&&!businessOutcomeEvidence.matched)failures.push({step:'businessOutcome',op:'erp-readback',field:'erp-confirmation',web:businessOutcomeEvidence.web||businessOutcomeEvidence.reason,native:businessOutcomeEvidence.native||businessOutcomeEvidence.nativeVoucher});
+  const positiveSubmit=sequence.some((a,index)=>(a.op==='submit-click'||a.op==='f9')&&sequence.slice(0,index).some(prior=>prior.op==='scan'||prior.op==='choose'))&&!/validation|permission/.test(scenario);
+  if((screen==='sales-voucher'||screen==='stock-transfer')&&(/submission|success|idempotency|transit-receive/.test(scenario)||positiveSubmit)&&!businessOutcomeEvidence.matched)failures.push({step:'businessOutcome',op:'erp-readback',field:'erp-confirmation',web:businessOutcomeEvidence.web||businessOutcomeEvidence.reason,native:businessOutcomeEvidence.native||businessOutcomeEvidence.nativeVoucher});
   await browser.close();
   const report={schemaVersion:1,scenario,passed:failures.length===0,failures,businessOutcome:businessOutcomeEvidence,steps};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
