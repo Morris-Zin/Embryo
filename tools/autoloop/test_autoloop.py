@@ -1451,9 +1451,23 @@ class TestReport(unittest.TestCase):
             ["tools/script.sh"],
         )
 
-    def test_current_memory_hooks_stub_matches_the_legacy_baseline(self) -> None:
+    def test_legacy_stub_baseline_matches_lf_and_crlf_fixtures(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py"
-        self.assertEqual(self.rules["test-stubs-restored"]({path: (REPO_ROOT / path).read_bytes()}), [])
+        rule = self.rules["test-stubs-restored"]
+        fixture = TOOLS_DIR / "autoloop/fixtures/memory_hooks_legacy.py"
+        lf = fixture.read_bytes().replace(b"\r\n", b"\n")
+        assignment = b"    frappe.form_dict = {}"
+        self.assertIn(assignment, lf)
+        for newline in (b"\n", b"\r\n"):
+            with self.subTest(newline=newline):
+                source = lf.replace(b"\n", newline)
+                self.assertEqual(rule({path: source}), [])
+                changed = source.replace(assignment, b"    frappe.form_dict = {'new': True}")
+                duplicate = source.replace(assignment, assignment + newline + assignment)
+                for edited in (changed, duplicate):
+                    hits = rule({path: edited})
+                    self.assertEqual(len(hits), 1)
+                    self.assertIn("frappe.form_dict", hits[0]["message"])
 
     def test_wsl_missing_root_directive_counts_once_even_when_a_shard_adds_scripts(self) -> None:
         rule = self.rules["wsl-scripts-lf"]

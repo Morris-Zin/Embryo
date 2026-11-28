@@ -3,81 +3,82 @@
 import ast
 from collections import Counter
 from hashlib import sha256
+import json
 
 TESTS = "apps/khitmee_ops/khitmee_ops/tests/"
 MODULES = {"frappe", "erpnext"}
 FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 SCOPES = (*FUNCTIONS, ast.ClassDef, ast.Lambda)
 
-# Existing unscoped assignments, keyed by file, scope, attribute and AST fingerprint.
+# Existing unscoped assignments, keyed by file, scope, attribute and canonical AST fingerprint.
 # When removing a legacy assignment, reduce its ceiling or delete its entry.
 LEGACY = {
-    ('test_catalog_unit.py', 'TestCatalogEndpoint.setUp', 'catalog.frappe.session.user', '1ddedc10a183d99a'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.PermissionError', '37712c5142d49a1b'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe._', '6f01ce52ee96b4dc'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe._dict', '48e6944f1f272a71'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.db', '9e88e4159b7b8018'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.get_cached_value', 'af6a1df4d3029f14'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.get_value', '249113224f7cc35f'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.has_permission', '46d6ca4398cfbdff'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.local', '58d0fa8b3e12e6a8'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.session', 'd7bbfaf630ccd965'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.throw', 'ec7950b5b384c144'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.utils.cint', '37410f474e9fff0d'): 1,
-    ('test_catalog_unit.py', 'module', 'frappe.whitelist', 'e9e454f513f2f348'): 1,
-    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.flags', '21ab0a373a8ddba1'): 1,
-    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.form_dict', 'e07c7f6e12a75a79'): 1,
-    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.local', 'c4fc63bcb8674411'): 1,
-    ('test_memory_hooks_unit.py', 'module', 'frappe.flags', '2ced795d7ab03e9c'): 1,
-    ('test_memory_hooks_unit.py', 'module', 'frappe.form_dict', '611ef6e2e393c2f3'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.PermissionError', 'da8e9a31261a0f67'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.QueryDeadlockError', 'c5ebccfef4cbc583'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.ValidationError', 'df5f0032b656f8dd'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.db', '9e5f6a30e5afcbec'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.get_all', '5cdc96b355352fc9'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.get_roles', '6849278ae9446827'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.has_permission', '46d6ca4398cfbdff'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.permissions', '9290796b1080b05b'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.session', 'dc1f6a98e04f03f6'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.set_user', '37adcaa2c46a74af'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.utils.add_days', 'd2b6ae5c6b6162b9'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.utils.cint', '37410f474e9fff0d'): 1,
-    ('test_profit_summary_unit.py', 'module', 'frappe.utils.nowdate', 'a5f8b11d8199aedc'): 1,
-    ('test_profit_summary_unit.py', 'module', 'module.frappe', '10f5e2fbe5e44dd4'): 1,
-    ('test_profit_summary_unit.py', 'setUpModule', 'module.frappe', '10f5e2fbe5e44dd4'): 1,
-    ('test_search_unit.py', 'TestItemCatalogCache.setUp', 'search.frappe.cache', '49d2adddad4f993e'): 1,
-    ('test_search_unit.py', 'TestItemCatalogCache.setUp', 'search.frappe.local.site', '2b51238b19df4f5e'): 1,
-    ('test_search_unit.py', 'TestPass3SearchOptimizations.setUp', 'search.frappe.cache', '49d2adddad4f993e'): 1,
-    ('test_search_unit.py', 'TestPass3SearchOptimizations.setUp', 'search.frappe.local.site', '2b51238b19df4f5e'): 1,
-    ('test_search_unit.py', 'module', 'frappe.PermissionError', '37712c5142d49a1b'): 1,
-    ('test_search_unit.py', 'module', 'frappe._', '6f01ce52ee96b4dc'): 1,
-    ('test_search_unit.py', 'module', 'frappe._dict', '48e6944f1f272a71'): 1,
-    ('test_search_unit.py', 'module', 'frappe.cache', '7bfab532d1c86a29'): 1,
-    ('test_search_unit.py', 'module', 'frappe.db', '07eb6d1de391ae3d'): 1,
-    ('test_search_unit.py', 'module', 'frappe.get_cached_value', '26ce7a14771d70a3'): 1,
-    ('test_search_unit.py', 'module', 'frappe.get_hooks', '18a9096170e3ebcf'): 1,
-    ('test_search_unit.py', 'module', 'frappe.get_list', '25507cad9fef9ff8'): 1,
-    ('test_search_unit.py', 'module', 'frappe.has_permission', '46d6ca4398cfbdff'): 1,
-    ('test_search_unit.py', 'module', 'frappe.local', '58d0fa8b3e12e6a8'): 1,
-    ('test_search_unit.py', 'module', 'frappe.log_error', '1f3db0acb96ac9ee'): 1,
-    ('test_search_unit.py', 'module', 'frappe.session', 'd7bbfaf630ccd965'): 1,
-    ('test_search_unit.py', 'module', 'frappe.throw', 'ec7950b5b384c144'): 1,
-    ('test_search_unit.py', 'module', 'frappe.utils.cint', '37410f474e9fff0d'): 1,
-    ('test_search_unit.py', 'module', 'frappe.whitelist', 'e9e454f513f2f348'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.PermissionError', '37712c5142d49a1b'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.QueryDeadlockError', 'c5ebccfef4cbc583'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.ValidationError', 'df5f0032b656f8dd'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe._', '6f01ce52ee96b4dc'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.cache', '424a19a9b8b4454e'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.db', '05c2c6c470d0c511'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.get_cached_value', 'f6e72bd97ba9796f'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.get_doc', '4ed22e6394a64c77'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.has_permission', '3bc707e908ed9079'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.log_error', '1f3db0acb96ac9ee'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.parse_json', '5140fa887285e077'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.session', 'd7bbfaf630ccd965'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.throw', 'ec7950b5b384c144'): 1,
-    ('test_vouchers_unit.py', 'module', 'frappe.whitelist', 'e9e454f513f2f348'): 1,
+    ('test_catalog_unit.py', 'TestCatalogEndpoint.setUp', 'catalog.frappe.session.user', '21cb706a0994618f'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.PermissionError', '00e204e7764d8dae'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe._', 'e4474466810eb104'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe._dict', '168e12c91f9ee7c1'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.db', '145e21e8d8725796'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.get_cached_value', '5d7a7e7576d8c247'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.get_value', 'c3039a9308bf01ad'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.has_permission', '0512dd766e046411'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.local', '88bd2da7aad2e366'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.session', '8cf37f13c41453f7'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.throw', '32a1c2b53114ad64'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.utils.cint', 'bcac4282224b4203'): 1,
+    ('test_catalog_unit.py', 'module', 'frappe.whitelist', '6385be25bd7f1ea8'): 1,
+    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.flags', 'dcc467657b93e6e6'): 1,
+    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.form_dict', 'ed2569ea3110d46e'): 1,
+    ('test_memory_hooks_unit.py', 'TestMaybeTrimHeap.setUp', 'memory.frappe.local', '62cf16e27dcbd7e7'): 1,
+    ('test_memory_hooks_unit.py', 'module', 'frappe.flags', '9c1cf4cf26005aef'): 1,
+    ('test_memory_hooks_unit.py', 'module', 'frappe.form_dict', 'e14eba9c938f2add'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.PermissionError', '56bf6c551fa6e1c0'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.QueryDeadlockError', '889a121ef25f6d02'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.ValidationError', 'ee27b55e5cdc610c'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.db', 'ef6e428419884128'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.get_all', 'ff6261f0dea14b38'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.get_roles', 'd3e786406e94e9d4'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.has_permission', '0512dd766e046411'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.permissions', '20b98ebfeca55b50'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.session', '7da0e27e37d9680e'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.set_user', 'f8e98e8ba031b9f6'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.utils.add_days', '2339c260533e4550'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.utils.cint', 'bcac4282224b4203'): 1,
+    ('test_profit_summary_unit.py', 'module', 'frappe.utils.nowdate', '0476fc606b6081d8'): 1,
+    ('test_profit_summary_unit.py', 'module', 'module.frappe', 'a95a48f2e065f782'): 1,
+    ('test_profit_summary_unit.py', 'setUpModule', 'module.frappe', 'a95a48f2e065f782'): 1,
+    ('test_search_unit.py', 'TestItemCatalogCache.setUp', 'search.frappe.cache', '612f5e2fb8e79852'): 1,
+    ('test_search_unit.py', 'TestItemCatalogCache.setUp', 'search.frappe.local.site', 'f6cff5dcc68fcc73'): 1,
+    ('test_search_unit.py', 'TestPass3SearchOptimizations.setUp', 'search.frappe.cache', '612f5e2fb8e79852'): 1,
+    ('test_search_unit.py', 'TestPass3SearchOptimizations.setUp', 'search.frappe.local.site', 'f6cff5dcc68fcc73'): 1,
+    ('test_search_unit.py', 'module', 'frappe.PermissionError', '00e204e7764d8dae'): 1,
+    ('test_search_unit.py', 'module', 'frappe._', 'e4474466810eb104'): 1,
+    ('test_search_unit.py', 'module', 'frappe._dict', '168e12c91f9ee7c1'): 1,
+    ('test_search_unit.py', 'module', 'frappe.cache', '3dcafe3aa4ba0bc3'): 1,
+    ('test_search_unit.py', 'module', 'frappe.db', '6cf033c9cc1884bd'): 1,
+    ('test_search_unit.py', 'module', 'frappe.get_cached_value', 'cbe52b2e4f0c538c'): 1,
+    ('test_search_unit.py', 'module', 'frappe.get_hooks', 'e011ce461a53c5ff'): 1,
+    ('test_search_unit.py', 'module', 'frappe.get_list', '79624d2bc1bab944'): 1,
+    ('test_search_unit.py', 'module', 'frappe.has_permission', '0512dd766e046411'): 1,
+    ('test_search_unit.py', 'module', 'frappe.local', '88bd2da7aad2e366'): 1,
+    ('test_search_unit.py', 'module', 'frappe.log_error', '79b3221647614333'): 1,
+    ('test_search_unit.py', 'module', 'frappe.session', '8cf37f13c41453f7'): 1,
+    ('test_search_unit.py', 'module', 'frappe.throw', '32a1c2b53114ad64'): 1,
+    ('test_search_unit.py', 'module', 'frappe.utils.cint', 'bcac4282224b4203'): 1,
+    ('test_search_unit.py', 'module', 'frappe.whitelist', '6385be25bd7f1ea8'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.PermissionError', '00e204e7764d8dae'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.QueryDeadlockError', '889a121ef25f6d02'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.ValidationError', 'ee27b55e5cdc610c'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe._', 'e4474466810eb104'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.cache', '79e79ab07477f979'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.db', '8fee2760a2d11859'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.get_cached_value', 'a8460384dd6e3055'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.get_doc', '34fce2dd01445dc4'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.has_permission', '62f2f840bcab4b60'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.log_error', '79b3221647614333'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.parse_json', '8882067c648db374'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.session', '8cf37f13c41453f7'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.throw', '32a1c2b53114ad64'): 1,
+    ('test_vouchers_unit.py', 'module', 'frappe.whitelist', '6385be25bd7f1ea8'): 1,
 }
 
 
@@ -261,11 +262,32 @@ def candidates(body, aliases, functions, teardown=None, visited=None):
             yield from candidates(functions[helper].body, aliases, functions, visited=visited)
 
 
+def _canonical_ast(value):
+    """Encode semantic AST fields without Python-version-specific dump formatting."""
+    if isinstance(value, ast.AST):
+        fields = {
+            field: _canonical_ast(child)
+            for field, child in ast.iter_fields(value)
+            if child is not None and child != []
+        }
+        return [type(value).__name__, fields]
+    if isinstance(value, list):
+        return [_canonical_ast(item) for item in value]
+    if isinstance(value, (bytes, complex)) or value is Ellipsis:
+        return {"type": type(value).__name__, "literal": repr(value)}
+    return value
+
+
+def _assignment_fingerprint(node):
+    data = json.dumps(_canonical_ast(node), sort_keys=True, separators=(",", ":"))
+    return sha256(data.encode("ascii")).hexdigest()[:16]
+
+
 def find_unrestored(file_map):
     for path, raw in sorted(file_map.items()):
         if not path.startswith(TESTS) or not path.endswith(".py"):
             continue
-        tree = ast.parse(raw, filename=path)
+        tree = ast.parse(raw.replace(b"\r\n", b"\n"), filename=path)
         parent_map = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
         aliases = module_aliases(tree)
         functions = function_defs(tree.body)
@@ -280,8 +302,7 @@ def find_unrestored(file_map):
         for scope, body, helpers, teardown in scopes:
             for ref, node in candidates(body, aliases, helpers, teardown):
                 if not adds_missing_attribute(node, ref, parent_map, aliases):
-                    fingerprint = sha256(ast.dump(node).encode()).hexdigest()[:16]
-                    yield (path.removeprefix(TESTS), scope, ref), node.lineno, fingerprint
+                    yield (path.removeprefix(TESTS), scope, ref), node.lineno, _assignment_fingerprint(node)
 
 
 def rule_test_stubs_restored(file_map):
