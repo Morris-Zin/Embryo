@@ -49,7 +49,7 @@ Save confirmed lessons with `record-lesson --run-id <id> --kind process --summar
    `python tools/autoloop/cli.py check --run-id <id> --shard <shard_id>`
    Invoke `check` through the trusted coordinator checkout. The tooling snapshot uses the recorded run base and owner-scoped tooling changes from individually passed policy shards. A shard's own changes cannot supply its gate. An attempt using `--skip-fast-check` cannot promote tooling. The checkpoint records the tooling digest and source commits. Frozen shard commands still run inside their shard worktrees.
    Run `doctor` to diagnose Python, the pinned dev group, uv, Docker, and KhitmeeERPNext on Windows. It prints repair commands without installing anything. Investigate steps taking over 60 seconds using the slow-step output and the last five timing records per scope, including the `fast_check.py` job timings.
-4. For multi-shard runs (and after adding post-review safeguard tests/code), merge shard branches into the integration branch and record the shared integrated `code_tree_sha256`:
+4. For multi-shard runs (and after adding post-review safeguard tests/code), the coordinator first merges every active shard's `last_green_sha` into the integration branch. Run this command from the integration checkout to verify ancestry, gate the integrated tree, and record its shared `code_tree_sha256`:
    `python tools/autoloop/cli.py check --run-id <id> --all-shards`
 5. If the base branch (`main`) advances, reopen shards for fresh checks before resubmitting:
    `python tools/autoloop/cli.py refresh-base --run-id <id> --new-base-sha <sha>`
@@ -60,6 +60,7 @@ Save confirmed lessons with `record-lesson --run-id <id> --kind process --summar
    - Safe rollback refuses (`exit 4`) whenever the worktree has uncommitted or untracked edits anywhere (inside or outside `allowed_paths`).
    - If scope must change (including from `gate_passed`/`safeguard_pending`/`ready_to_merge`), call `request-contract-change` and wait for owner `resolve-contract-change` (monotonic `contract_revision`).
    - To add a shard, request it with `request-contract-change --run-id <id> --shard <new> --reason "<reason>" --proposed-path '<glob>'`. The owner runs `resolve-contract-change --run-id <id> --decision approve --add-shard-paths '<new>=<glob>' --shard-check '<new>=<command>'`, then publishes the new revision before starting that shard.
+   - To remove an unused shard, run `request-contract-change --run-id <id> --shard <id> --drop --reason "<reason>"`. The owner runs `resolve-contract-change --run-id <id> --decision approve` and publishes the revised contract. A shard with findings or a registered worktree cannot be dropped. A started shard must also have no commits in its scope. Re-add former paths to an active shard through another approved amendment before changing them.
    - If strikes reach `needs_replan`, run `apply-replan`; if `blocked_human`, pause for `human-resolve`.
 
 Record each delegated attempt with `record-attempt --task-id <id> --attempt 1 --task-class implementation --provider codex --model "GPT-6.2 Sol" --disposition accepted --checks-passed true`. Add difficulty, effort, speed, evidence ID, cost, review minutes, and elapsed time to acceptance when available. `routing-report` attributes first and eventual acceptance to the starting model, and spend to the model that incurred it. Routes with fewer than five initial attempts are flagged. Both commands accept `--log <external-path>`.
@@ -68,7 +69,7 @@ Record each delegated attempt with `record-attempt --task-id <id> --attempt 1 --
 
 Register confirmed incidents, gate failures, and inherited review findings as soon as they are known.
 `python tools/autoloop/cli.py record-finding --run-id <id> --finding-id <id> --severity P1 --source incident --summary "<bug>" --evidence "<log, review, or commit>" [--fixed-by <commit>]`
-Use `--fixed-by` for a fix already committed. Review requires that commit in the gated tree. For an open finding, fix it and use `resolve-finding` before submission. A finding recorded during or after review reopens submission.
+Use `--shard <id>` to associate a finding with its active shard and `--fixed-by` for a fix already committed. Review requires that commit in the gated tree. For an open finding, fix it and use `resolve-finding` before submission. A finding recorded during or after review reopens submission.
 
 1. Once all shards reach `passed` at the same `code_tree_sha256` (`gate_passed`), run:
    `python tools/autoloop/cli.py submit-for-review --run-id <id>`

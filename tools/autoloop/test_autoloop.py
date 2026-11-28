@@ -1409,6 +1409,23 @@ class TestBackendSafeguardRules(unittest.TestCase):
                 hits = self.rules[directory.name](examples)
                 self.assertTrue(any(hit["path"] in examples for hit in hits))
 
+    def test_stock_locks_accept_the_adr0003_planner_in_plan_order(self) -> None:
+        path = "apps/khitmee_ops/khitmee_ops/api/stock_locks.py"
+        raw = (TOOLS_DIR / "autoloop/fixtures/stock_locks_adr0003.py").read_bytes()
+        rule = self.rules["stock-row-locks-only-in-stock-locks"]
+        self.assertEqual(rule({path: raw}), [])
+        reversed_items = raw.replace(b"for item in plan.items:", b"for item in reversed(plan.items):")
+        self.assertTrue(any("plan.items order" in v["message"] for v in rule({path: reversed_items})))
+        orphaned_lock = raw + (
+            b"\n\ndef out_of_order():\n"
+            b"    frappe.db.sql('SELECT name FROM tabBin WHERE name = %s FOR UPDATE', ('BIN',))\n"
+        )
+        self.assertTrue(any("ordered stock_locks helpers" in v["message"] for v in rule({path: orphaned_lock})))
+        outside = {"apps/khitmee_ops/khitmee_ops/api/other.py": (
+            b"def lock():\n    frappe.db.sql('SELECT name FROM tabItem LOCK IN SHARE MODE')\n"
+        )}
+        self.assertEqual([v["path"] for v in rule(outside)], list(outside))
+
     def test_stubs_allow_patches_and_matching_cleanups(self) -> None:
         path = "apps/khitmee_ops/khitmee_ops/tests/test_new.py"
         source = b"""
@@ -3099,6 +3116,102 @@ class TestWorkflowMetadata(unittest.TestCase):
         _write_lf(self.repo / f".autoloop/runs/{run_id}.json", json.dumps(approved) + "\n")
         with self.assertRaisesRegex(GuardError, "checks tampered"):
             verify_untampered(self.repo, run_id, shard_id="new")
+
+    def test_drop_unused_shard_revises_contract_and_releases_scope(self) -> None:
+        run_id = "drop-unused"
+        run = ("--run-id", run_id)
+        self.cli("init", *run, "--goal", "Keep only justified shards", "--no-cloud-review", "--no-deep-review")
+        self.cli("complete-grill", *run, "--summary", "Two proposed shards",
+                 "--shard", "keep=src/a.py", "--shard", "unused=src/b.py", "--allowed-path", "src/**")
+        self.cli("lock", *run, "--pr", "55")
+        self.cli("start-shard", *run, "--shard", "keep")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 42\n")
+        _git(self.repo, "commit", "-am", "Implement active shard")
+        self.cli("check", *run, "--shard", "keep", "--skip-fast-check")
+        reason = "ADRs found no justified work"
+        request = ("request-contract-change", *run, "--shard", "unused", "--drop", "--reason", reason)
+        pending, _ = self.cli(*request)
+        self.assertEqual(pending["contract_revision"], 1)
+        self.assertIn("unused", pending["shards"])
+        resolve = ("resolve-contract-change", *run, "--decision")
+        rejected, _ = self.cli(*resolve, "reject")
+        self.assertEqual(rejected["shards"]["unused"]["status"], "locked")
+        self.assertEqual(rejected["contract_revision"], 1)
+        self.cli(*request)
+        approved, _ = self.cli(*resolve, "approve")
+        self.assertEqual(approved["contract_revision"], 2)
+        self.assertEqual(set(approved["shards"]), {"keep"})
+        self.assertTrue(approved["shards"]["keep"]["has_passed_individually"])
+        drop = {"shard": "unused", "allowed_paths": ["src/b.py"], "reason": reason, "contract_revision": 2}
+        self.assertEqual(approved["history"][-1]["dropped_shards"], [drop])
+        self.assertEqual(_build_frozen_contract(approved)["dropped_shards"], [drop])
+        self.assertEqual(set(verify_untampered(self.repo, run_id)["contract_shards"]), {"keep"})
+        with self.assertRaisesRegex(GuardError, "unknown shard"):
+            verify_untampered(self.repo, run_id, shard_id="unused")
+        integrated, _ = self.cli("check", *run, "--all-shards", "--skip-fast-check")
+        ready, _ = self.cli("submit-for-review", *run)
+        self.assertEqual(ready["status"], "ready_to_merge")
+        self.cli("publish-contract", *run)
+        _git(self.repo, "add", f".autoloop/runs/{run_id}.json")
+        _git(self.repo, "commit", "-m", "Checkpoint approved scope drop")
+
+        def ci(mode="preflight"):
+            return verify_pr_integrity(
+                self.repo, base_sha=self.base, head_sha=_git(self.repo, "rev-parse", "HEAD"),
+                pr_number=55, pr_author="worker", pr_labels=["autoloop"], mode=mode,
+                trusted_contracts_dir=self.repo / ".autoloop/trusted-contracts",
+                candidate_checks_result="success", trusted_shard_results={"keep": integrated["code_tree_sha256"]},
+            )
+
+        self.assertEqual([row["shard_id"] for row in ci()["shard_checks"]], ["keep"])
+        self.assertEqual(ci("finalize")["verdict"], "enrolled-pass")
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 9\n")
+        _git(self.repo, "commit", "-am", "Change former scope")
+        with self.assertRaisesRegex(GuardError, "dropped shard scope.*src/b.py"):
+            verify_untampered(self.repo, run_id, base_ref="HEAD")
+        with self.assertRaisesRegex(GuardError, "dropped shard scope.*src/b.py"):
+            ci()
+        self.cli("request-contract-change", *run, "--shard", "replacement", "--reason", "New justified scope")
+        self.cli(*resolve, "approve", "--add-shard-paths", "replacement=src/b.py")
+        self.assertTrue(verify_untampered(self.repo, run_id)["ok"])
+
+    def test_drop_started_shard_rechecks_commit_evidence_on_approval(self) -> None:
+        run = ("--run-id", "drop-started")
+        self.create_run("drop-started", shard="keep=src/a.py")
+        self.cli("request-contract-change", *run, "--shard", "idle", "--reason", "Provisional scope")
+        resolve = ("resolve-contract-change", *run, "--decision", "approve")
+        self.cli(*resolve, "--add-shard-paths", "idle=src/b.py")
+        _git(self.repo, "checkout", "-b", "idle-local")
+        self.cli("start-shard", *run, "--shard", "idle")
+        req = ("request-contract-change", *run, "--shard", "idle", "--drop", "--reason", "No work needed")
+        self.cli(*req)
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 8\n")
+        _git(self.repo, "commit", "-am", "Work lands after request")
+        _git(self.repo, "checkout", "main")
+        _, error = self.cli(*resolve, expected=EXIT_ILLEGAL_TRANSITION)
+        self.assertIn("commits in its allowed paths", error)
+        self.assertIn("idle", load_run(self.repo, "drop-started")["shards"])
+        _git(self.repo, "branch", "-D", "idle-local")
+        state, _ = self.cli(*resolve)
+        self.assertEqual(set(state["shards"]), {"keep"})
+
+    def test_drop_rejects_worktrees_findings_and_the_only_shard(self) -> None:
+        run = ("--run-id", "drop-protected")
+        self.cli("init", *run, "--goal", "Respect active work")
+        self.cli("complete-grill", *run, "--summary", "Separate scopes",
+                 "--shard", "keep=src/a.py", "--shard", "worked=src/b.py", "--shard", "reported=docs/**")
+        self.cli("lock", *run)
+        self.cli("start-shard", *run, "--shard", "worked", "--worktree", str(self.repo))
+        self.cli("record-finding", *run, "--shard", "reported", "--finding-id", "F1", "--severity", "P1",
+                 "--source", "review", "--summary", "Existing finding", "--evidence", "review")
+        for shard, diagnostic in (("worked", "registered worktree"), ("reported", "has findings")):
+            _, error = self.cli("request-contract-change", *run, "--shard", shard, "--drop", "--reason", "Unused",
+                                expected=EXIT_ILLEGAL_TRANSITION)
+            self.assertIn(diagnostic, error)
+        self.create_run("drop-only")
+        _, error = self.cli("request-contract-change", "--run-id", "drop-only", "--shard", "a", "--drop",
+                            "--reason", "Unused", expected=EXIT_ILLEGAL_TRANSITION)
+        self.assertIn("last active shard", error)
 
     def test_preintegrated_base_hint_and_retarget(self) -> None:
         _git(self.repo, "checkout", "-b", "parent")

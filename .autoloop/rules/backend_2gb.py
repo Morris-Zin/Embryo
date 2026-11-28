@@ -142,11 +142,18 @@ def rule_fastpath_validators(file_map):
 
 
 _STOCK_TABLE = re.compile(r"\btab(?:Item|Bin)\b", re.I)
-_FOR_UPDATE = re.compile(r"\bFOR\s+UPDATE\b", re.I)
+_LOCK_CLAUSE = re.compile(r"\b(?:FOR\s+UPDATE|LOCK\s+IN\s+SHARE\s+MODE)\b", re.I)
 _LOCK_HELPERS = {"lock_items", "lock_existing_bins"}
 _ORDERED_LOCK_SQL = {
     "lock_items": re.compile(r"\bORDER\s+BY\s+name\s+FOR\s+UPDATE\b", re.I),
     "lock_existing_bins": re.compile(r"\bORDER\s+BY\s+item_code\s*,\s*warehouse\s*,\s*name\s+FOR\s+UPDATE\b", re.I),
+}
+_PLANNED_LOCK_SQL = {
+    "tabitem": ("plan.items", re.compile(r"\bitem\.name\s*=\s*%s", re.I)),
+    "tabbin": ("plan.pairs", re.compile(
+        r"FORCE\s+INDEX\s*\(`unique_item_warehouse`\)\s+WHERE\s+item_code\s*=\s*%s"
+        r"\s+AND\s+warehouse\s*=\s*%s\s+FOR\s+UPDATE\b", re.I,
+    )),
 }
 
 
@@ -157,6 +164,71 @@ def strings(node):
     )
 
 
+def _sql_text(query, scope):
+    parts = [strings(query)]
+    references = {node.id for node in ast.walk(query) if isinstance(node, ast.Name)}
+    if references:
+        for assignment in ast.walk(scope):
+            if isinstance(assignment, ast.Assign):
+                targets = assignment.targets
+            elif isinstance(assignment, ast.AugAssign):
+                targets = [assignment.target]
+            else:
+                continue
+            if references.intersection(dotted(target) for target in targets):
+                parts.append(strings(assignment.value))
+    return " ".join(parts)
+
+
+def _reachable_functions(functions, entry, parent_map):
+    reachable = set()
+    pending = [entry]
+    while pending:
+        name = pending.pop()
+        if name not in functions or name in reachable:
+            continue
+        reachable.add(name)
+        function = functions[name]
+        pending.extend(
+            dotted(call.func) for call in calls(function, *functions)
+            if enclosing(call, parent_map, SCOPE) is function
+        )
+    return reachable
+
+
+def _planned_lock_issues(functions, reachable, queries, parent_map):
+    acquire = functions.get("acquire_stock_plan")
+    planner = functions.get("plan_stock_locks")
+    entry = functions.get("_lock_stock_adr0003")
+    issues = []
+    ordered = sorted(queries, key=lambda query: query[1].lineno)
+    if "acquire_stock_plan" not in reachable or [table for table, _, _ in ordered] != ["tabitem", "tabbin"]:
+        issues.append(violation(STOCK_LOCKS, acquire, "acquire planned Items then Bins through lock_stock_coordinates"))
+    for table, query, sql in ordered:
+        iterable, point_lock = _PLANNED_LOCK_SQL[table]
+        loop = enclosing(query, parent_map, (ast.For, ast.While))
+        if not (
+            isinstance(loop, ast.For) and loop in acquire.body and dotted(loop.iter) == iterable
+            and point_lock.search(sql)
+        ):
+            issues.append(violation(STOCK_LOCKS, query, f"lock {table} by its exact key in {iterable} order"))
+    # Both coordinate lists come from the planner's sorted, deduplicated
+    # identities. The hook path plans and acquires once as a single expression.
+    plans = list(calls(planner, "StockLockPlan")) if planner else []
+    acquisitions = list(calls(entry, "acquire_stock_plan")) if entry else []
+    if not plans or any(
+        len(call.args) < 2 or any(
+            not (isinstance(arg, ast.Tuple) and not arg.elts or list(calls(arg, "sorted")))
+            for arg in call.args[:2]
+        )
+        for call in plans
+    ):
+        issues.append(violation(STOCK_LOCKS, planner, "construct stock plans with sorted Items and Bin coordinates"))
+    if len(acquisitions) != 1 or not list(calls(acquisitions[0], "plan_stock_locks")):
+        issues.append(violation(STOCK_LOCKS, entry, "use the stock planner before acquiring its locks"))
+    return issues
+
+
 def rule_stock_locks(file_map):
     issues = []
     for path in sorted(file_map):
@@ -164,7 +236,10 @@ def rule_stock_locks(file_map):
             continue
         tree = python(file_map, path)
         parent_map = parents(tree)
+        functions = {node.name: node for node in tree.body if isinstance(node, FUNCTION)} if path == STOCK_LOCKS else {}
+        reachable = _reachable_functions(functions, "lock_stock_coordinates", parent_map)
         lock_queries = []
+        planned_queries = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and path != STOCK_LOCKS:
                 for imported in node.names:
@@ -181,20 +256,17 @@ def rule_stock_locks(file_map):
             # Inspect SQL strings and f-strings at their call sites, including local SQL variables.
             query = node.args[0] if node.args else next((kw.value for kw in node.keywords if kw.arg == "query"), None)
             if name == "sql" and query is not None:
-                statement = strings(query)
-                if isinstance(query, ast.Name):
-                    statement = " ".join(
-                        strings(assignment.value)
-                        for assignment in ast.walk(scope or tree)
-                        if isinstance(assignment, (ast.Assign, ast.AugAssign))
-                        and query.id in {dotted(t) for t in (
-                            assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
-                        )}
-                    )
-                if _STOCK_TABLE.search(statement) and _FOR_UPDATE.search(statement):
-                    lock_queries.append(scope_name)
+                statement = _sql_text(query, scope or tree)
+                table = _STOCK_TABLE.search(statement)
+                if table and _LOCK_CLAUSE.search(statement):
+                    if scope_name == "acquire_stock_plan" and scope_name in reachable and scope is functions[scope_name]:
+                        planned_queries.append((table[0].lower(), node, statement))
+                    else:
+                        lock_queries.append(scope_name)
                     order = _ORDERED_LOCK_SQL.get(scope_name)
-                    if path != STOCK_LOCKS or order is None or not order.search(statement):
+                    if scope_name not in reachable or scope is not functions[scope_name] or (
+                        scope_name != "acquire_stock_plan" and (order is None or not order.search(statement))
+                    ):
                         issues.append(violation(path, node, "stock row SQL locks require the ordered stock_locks helpers"))
             locking = name == "for_update" or any(
                 kw.arg == "for_update" and not (isinstance(kw.value, ast.Constant) and kw.value.value is False)
@@ -207,7 +279,11 @@ def rule_stock_locks(file_map):
             ):
                 issues.append(violation(path, node, "use the ordered stock_locks SQL for Item and Bin locks"))
         if path == STOCK_LOCKS:
-            coordinator = next((node for node in tree.body if isinstance(node, FUNCTION) and node.name == "lock_stock_coordinates"), None)
+            if "acquire_stock_plan" in functions:
+                issues.extend(_planned_lock_issues(functions, reachable, planned_queries, parent_map))
+            if not (_LOCK_HELPERS & functions.keys()) and "acquire_stock_plan" in functions:
+                continue
+            coordinator = functions.get("lock_stock_coordinates")
             sequence = list(calls(coordinator, *_LOCK_HELPERS)) if coordinator is not None else []
             if sorted(lock_queries) != sorted(_LOCK_HELPERS) or [
                 dotted(call.func) for call in sequence
@@ -217,8 +293,8 @@ def rule_stock_locks(file_map):
                 if parent_map[call] not in coordinator.body:
                     issues.append(violation(path, call, "keep both lock phases together, outside conditional or repeated blocks"))
             for name, sorter in (("lock_items", "ordered_item_codes"), ("lock_existing_bins", "ordered_bin_pairs")):
-                helper = next((node for node in tree.body if isinstance(node, FUNCTION) and node.name == name), None)
-                sorter_def = next((node for node in tree.body if isinstance(node, FUNCTION) and node.name == sorter), None)
+                helper = functions.get(name)
+                sorter_def = functions.get(sorter)
                 if helper is None or not list(calls(helper, sorter)) or sorter_def is None or not list(calls(sorter_def, "sorted")):
                     issues.append(violation(path, helper, f"{name} must sort its lock inputs via {sorter}"))
     return issues
