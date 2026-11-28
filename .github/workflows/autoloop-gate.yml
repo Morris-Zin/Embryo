@@ -428,3 +428,19 @@ jobs:
             --event-path "${GITHUB_EVENT_PATH}" \
             --repo-slug "${{ github.repository }}" \
             --main-ref "origin/${DEFAULT_BRANCH}"
+
+      - name: Report Phase 2 shadow verification
+        if: ${{ !cancelled() && needs.autoloop-preflight.outputs.enrolled == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO_SLUG: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          python -B tools/autoloop/cli.py verify-pr-integrity \
+            --mode preflight --shadow-verification \
+            --event-path "${GITHUB_EVENT_PATH}" \
+            --repo-slug "${REPO_SLUG}" \
+            --main-ref "origin/${DEFAULT_BRANCH}"
