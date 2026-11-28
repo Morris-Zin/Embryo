@@ -1,0 +1,12 @@
+{
+  "applies_to": [
+    "perf-suite/docker/**",
+    "perf-suite/seasonal/**"
+  ],
+  "created_at": "2026-11-28T12:47:46Z",
+  "draft": false,
+  "evidence": "qualify-gunicorn-2x1-smoke-20261128T122152Z container-stats.csv",
+  "kind": "perf_insight",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Per-container hard CPU quotas do not model a 2 vCPU VPS: tiny quotas on shared services (redis-cache 0.02 CPU, throttled 202 s in a 6-min smoke) starve every request. Emulate with one parent cgroup capping the whole stack at 2 cores / 2 GiB. Also, a smoke must deploy the candidate tree, not the harness worktree's base code."
+}
