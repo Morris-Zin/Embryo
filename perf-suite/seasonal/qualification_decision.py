@@ -115,12 +115,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     foreign_end = load_json(artifact / 'foreign-load-end.json')
     candidate = load_json(artifact / 'candidate-deployment.json')
     migration = load_json(artifact / 'candidate-migration.json')
+    candidate_apps = load_json(artifact / 'candidate-apps.json')
     guest_before = load_json(artifact / 'guest-attestation-before.json')
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
     fixture_restore = load_json(artifact / 'fixture-restore.json')
     load_generator = load_json(artifact / 'load-generator-attestation.json')
     attribution = load_json(artifact / 'attribution' / 'attribution-summary.json')
+    environment = load_json(artifact / 'environment-attestation.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -191,6 +193,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     attribution_ok = attribution.get('collection_passed') is True
     if not attribution_ok:
         evidence_problems.append('request attribution collection evidence missing or failed')
+    environment_ok = environment.get('passed') is True and environment.get('attestation') == 'qualifying'
+    if not environment_ok:
+        evidence_problems.append('owner host-environment attestation missing, inconsistent, or diagnostic only')
     actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
     fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
@@ -210,9 +215,20 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     migration_tree_hash_ok = (
         migration.get('exit_code') == 0
         and migration.get('tree_hash_verified') is True
+        and migration.get('hash_algorithm') == 'git-tree-object-sha1'
         and migration.get('app_tree_hash_expected') == candidate.get('app_tree_hash')
+        and migration.get('pre_migration_app_tree_hash') == candidate.get('app_tree_hash')
+        and migration.get('post_migration_app_tree_hash') == candidate.get('app_tree_hash')
         and migration.get('migrated_app_tree_hash') == candidate.get('app_tree_hash')
     )
+    candidate_apps_ok = (
+        candidate_apps.get('passed') is True
+        and 'khitmee_ops' in (candidate_apps.get('apps_txt') or [])
+        and not (candidate_apps.get('missing_from_apps_txt') or [])
+        and not (candidate_apps.get('extra_in_apps_txt') or [])
+    )
+    if not candidate_apps_ok:
+        evidence_problems.append('candidate apps.txt evidence missing or inconsistent with restored installed apps')
     if migration.get('exit_code') != 0:
         evidence_problems.append('candidate migration evidence missing or failed')
     elif not migration_tree_hash_ok:
@@ -257,6 +273,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'attribution_collection_ok': attribution_ok,
         'attribution_collection_problems': attribution.get('collection_problems', []),
         'attribution_join_ratio': attribution.get('join_ratio'),
+        'environment_attestation_ok': environment_ok,
+        'environment_attestation': environment.get('attestation'),
+        'environment_attestation_problems': environment.get('problems', []),
         'resource_window_ok': resource_window_ok,
         'resource_window_problems': window['problems'],
         'qualification_resource_measurement_ok': resource_measurement_ok,
@@ -286,6 +305,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'candidate_migration_tree_hash_verified': migration.get('tree_hash_verified') is True,
         'candidate_migrated_app_tree_hash': migration.get('migrated_app_tree_hash'),
         'migration_tree_hash_ok': migration_tree_hash_ok,
+        'candidate_apps_ok': candidate_apps_ok,
+        'candidate_apps_missing': candidate_apps.get('missing_from_apps_txt', []),
+        'candidate_apps_extra': candidate_apps.get('extra_in_apps_txt', []),
         'candidate_migration_log': migration.get('log'),
         'candidate_role_grants': candidate.get('role_grants_artifact'),
         'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),

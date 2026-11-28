@@ -403,6 +403,89 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         self.assertEqual(detail.status, "FAIL", detail)
         self.assertIn("pagination", detail.detail)
 
+    def manager_core_events(self):
+        events = []
+        for phase in ("baseline", "margin", "recovery"):
+            for group_by in ("Warehouse", "Monthly"):
+                events.append({
+                    "event": "manager_summary",
+                    "phase": phase,
+                    "group_by": group_by,
+                    "warm": True,
+                    "duration_ms": 100,
+                })
+            events.append({
+                "event": "manager_detail",
+                "phase": phase,
+                "pagination_honored": True,
+                "first_50_duration_ms": 100,
+            })
+        return events
+
+    def test_manager_rejects_fail_despite_one_fast_success(self):
+        for endpoint in ("detail", "summary"):
+            with self.subTest(endpoint=endpoint):
+                events = self.manager_core_events()
+                if endpoint == "detail":
+                    events.extend({
+                        "event": "manager_detail_reject",
+                        "phase": "baseline",
+                        "reason": "synthetic timeout",
+                    } for _ in range(100))
+                    gate = evaluate_seasonal.detail_gate(events_bundle(events), True)
+                else:
+                    events.extend({
+                        "event": "manager_summary_reject",
+                        "phase": "baseline",
+                        "group_by": "Warehouse",
+                        "reason": "synthetic timeout",
+                    } for _ in range(100))
+                    gate = evaluate_seasonal.summary_gate(events_bundle(events), True)
+                self.assertEqual(gate.status, "FAIL", gate)
+                self.assertIn("reject", gate.detail + gate.observed)
+                self.assertIn("100", gate.detail + gate.observed)
+
+    def test_normal_manager_core_phases_pass_reliability_and_latency(self):
+        bundle = events_bundle(self.manager_core_events())
+        self.assertEqual(evaluate_seasonal.summary_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.detail_gate(bundle, True).status, "PASS")
+
+    def test_intended_overload_rejections_are_not_core_manager_failures(self):
+        events = self.manager_core_events()
+        events.extend([
+            {"event": "voucher_reject", "client_voucher_id": "overload-sale", "phase": "overload", "reason": "admission control 429"},
+            {"event": "search_reject", "phase": "overload", "reason": "admission control 429"},
+            {"event": "manager_detail_reject", "phase": "overload", "reason": "overload timeout outside scored core phases"},
+            {"event": "export_complete", "phase": "baseline", "row_count": 10, "body_bytes": 100, "sha256": "a" * 64},
+            {"event": "export_reject", "phase": "overload", "reason": "overload timeout outside scored core phases"},
+        ])
+        bundle = events_bundle(events)
+        overload = evaluate_seasonal.overload_failure_gate(bundle)
+        self.assertEqual(overload.status, "PASS", overload)
+        self.assertEqual(evaluate_seasonal.detail_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.summary_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.export_gate(bundle, True).status, "PASS")
+
+    def test_export_success_cannot_mask_export_rejection(self):
+        events = [
+            {"event": "export_complete", "phase": "baseline", "row_count": 10, "body_bytes": 100, "sha256": "a" * 64},
+            {"event": "export_reject", "phase": "margin", "reason": "export worker timeout"},
+        ]
+        gate = evaluate_seasonal.export_gate(events_bundle(events), True)
+        self.assertEqual(gate.status, "FAIL", gate)
+        self.assertIn("zero export rejections", gate.threshold)
+        self.assertIn("export worker timeout", gate.detail)
+
+    def test_manager_iteration_exceptions_become_endpoint_reject_evidence(self):
+        scenario = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
+        self.assertIn("noteManagerIterationError", scenario)
+        self.assertIn("'manager_summary_reject'", scenario)
+        self.assertIn("'manager_detail_reject'", scenario)
+        self.assertIn("'export_reject'", scenario)
+        self.assertIn("attempted-request denominator", scenario)
+        self.assertIn("errors{endpoint_class:${endpointClass},phase:${phase}}", scenario)
+        self.assertIn("endpoint_class: 'manager_summary'", (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8"))
+
     def test_offered_counts_detect_missing_completion_accounting(self):
         segment = schedule_test_segment()
         starts = scheduled_test_starts(segment, 88, 1)
@@ -1311,6 +1394,58 @@ console.log(JSON.stringify({
         self.assertIn("detailPageCount: Math.max(10", source)
         self.assertIn("errors: ['count==0']", source)
         self.assertIn("preflight_result", source)
+
+    def test_remote_docker_runner_copies_inputs_and_fails_closed_on_copyback(self):
+        source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        remote_start = source.index('if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then', source.index('PASSTHROUGH_VARS'))
+        remote_end = source.index('  else' + chr(10) + '    DOCKER_CMD=(', remote_start)
+        remote = source[remote_start:remote_end]
+        local = source[remote_end:source.index('else' + chr(10) + '  echo "Running k6 scenario', remote_end)]
+        self.assertIn("create", remote)
+        self.assertIn('k6_docker cp "$REMOTE_STAGE/perf-suite/." "$CONTAINER_ID:/perf-suite"', remote)
+        self.assertIn('k6_docker start -a "$CONTAINER_ID"', remote)
+        self.assertIn('k6_docker cp "$CONTAINER_ID:$CONTAINER_SUMMARY" "$K6_SUMMARY"', remote)
+        self.assertIn("COPY_BACK_STATUS", remote)
+        self.assertIn("K6_STATUS=7", remote)
+        self.assertNotIn('-v "$PERF_ROOT:/perf-suite"', remote)
+        # The old one-shot run path remains only for the daemon-local branch,
+        # where bind mounts resolve on the same machine that hosts this checkout.
+        self.assertIn('-v "$PERF_ROOT:/perf-suite"', local)
+        self.assertIn("run --rm", local)
+        self.assertIn('NETWORK="${K6_NETWORK:-bridge}"', source)
+
+    def test_remote_docker_runner_requires_explicit_guest_reachable_target(self):
+        source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn("TARGET_URL_EXPLICIT=0", source)
+        remote_start = source.index('if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then', source.index('DOCKER_TARGET_URL="$TARGET_URL"'))
+        remote_end = source.index('  elif [[ "$TARGET_HOST"', remote_start)
+        remote = source[remote_start:remote_end]
+        self.assertIn('"$TARGET_URL_EXPLICIT" != "1"', remote)
+        self.assertIn("set TARGET_URL explicitly", remote)
+        self.assertIn('"$TARGET_HOST" == "frontend"', remote)
+        self.assertIn("resolves on the remote generator", remote)
+        rewrite = source[remote_end:source.index('EFFECTIVE_HOST_HEADER', remote_end)]
+        self.assertIn('DOCKER_TARGET_URL="http://frontend:8080"', rewrite)
+        # Red/green: the old remote path reused the local loopback-to-frontend
+        # rewrite. In the fixed ordering that rewrite is unreachable for a
+        # validated remote generator because frontend/loopback are rejected first.
+        self.assertNotIn('DOCKER_TARGET_URL="http://frontend:8080"', remote)
+
+    def test_endpoint_class_tags_and_measured_window_events_are_emitted(self):
+        auth = (ROOT / "lib/auth.js").read_text(encoding="utf-8")
+        scenario = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
+        runner = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn("function tagsWithEndpointClass", auth)
+        self.assertIn("endpoint_class: observabilityEndpointClass(options)", auth)
+        self.assertGreaterEqual(auth.count("tagsWithEndpointClass"), 5)
+        self.assertIn("event: 'measured_window_start'", scenario)
+        self.assertIn("event: 'measured_window_end'", scenario)
+        self.assertIn("http_reqs{endpoint_class:${endpointClass}}", scenario)
+        self.assertIn("'search'", scenario)
+        self.assertIn("count>=0", scenario)
+        self.assertIn("Object.assign(endpointAttributionThresholds(), phaseThresholds())", scenario)
+        self.assertIn('--k6-summary "$K6_SUMMARY"', runner)
+        self.assertIn('--k6-log "$K6_LOG"', runner)
 
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Khitmee seasonal owner environment attestation",
+  "type": "object",
+  "required": ["schema_version", "attested_at", "owner", "guest", "load_generator"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "seasonal-environment-attestation-v1"},
+    "attested_at": {"type": "string", "minLength": 10},
+    "owner": {"type": "string", "minLength": 1},
+    "guest": {
+      "type": "object",
+      "required": ["host_identity", "vm_identity", "vcpus", "assigned_memory_mib", "swap_mib"],
+      "additionalProperties": false,
+      "properties": {
+        "host_identity": {"type": "string", "minLength": 1},
+        "vm_identity": {"type": "string", "minLength": 1},
+        "vcpus": {"const": 2},
+        "assigned_memory_mib": {"const": 2048},
+        "swap_mib": {"const": 0}
+      }
+    },
+    "load_generator": {
+      "type": "object",
+      "required": ["host_identity", "address"],
+      "additionalProperties": false,
+      "properties": {
+        "host_identity": {"type": "string", "minLength": 1},
+        "address": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

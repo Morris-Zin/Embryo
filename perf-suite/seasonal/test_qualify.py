@@ -108,7 +108,7 @@ class QualifyEntryPointTests(unittest.TestCase):
 
         deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
         self.assertIn('SERVICES = ["backend", "cashier", "queue", "scheduler", "websocket"]', deploy)
-        self.assertIn("khitmee-migration-transient.yaml", deploy)
+        self.assertIn("khitmee-migration-readonly.yaml", deploy)
         observability = (ROOT / "compose-observability.yaml").read_text(encoding="utf-8")
         self.assertIn("cashier:", observability)
         self.assertIn("--access-logformat=%({x-k6-request-id}i)s", observability)
@@ -301,6 +301,97 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertIn("missing, unreadable, or contains no upstream rows", " ".join(empty["collection_problems"]))
 
 
+    def test_attribution_uses_k6_counts_per_class_and_window_timestamps(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        summary = {
+            "metrics": {
+                "http_reqs": {"values": {"count": 100}},
+                "http_reqs{endpoint_class:search,name:seasonal_search}": {"values": {"count": 20}},
+                "http_reqs{endpoint:seasonal_query_report,endpoint_class:manager_summary,name:seasonal_query_report}": {"values": {"count": 20}},
+            }
+        }
+        counts = module.k6_endpoint_counts(summary)
+        self.assertEqual(counts, {"search": 20, "manager_summary": 20})
+
+        def row(endpoint_class, joined=True, time="2026-01-01T10:00:20Z", index=0):
+            return {
+                "time": time,
+                "endpoint_class": endpoint_class,
+                "join_status": "joined" if joined else "nginx_only",
+            }
+
+        green_rows = [row("search", True, index=i) for i in range(19)] + [row("manager_summary", True, index=i) for i in range(19)]
+        coverage = module.endpoint_coverage(green_rows, counts)
+        self.assertEqual(coverage["problems"], [])
+        self.assertTrue(coverage["classes"]["search"]["coverage_passed"])
+
+        # Red/green: the round-3 denominator was only surviving nginx rows, so
+        # 18 surviving rows out of 18 looked complete. The k6 denominator shows
+        # two lost rows and both nginx/joined coverage must fail per class.
+        legacy_global = module.collection_status(18, 18, 18)
+        self.assertTrue(legacy_global["collection_passed"])
+        partial_rows = [row("search", True, index=i) for i in range(18)] + [row("manager_summary", True, index=i) for i in range(20)]
+        coverage = module.endpoint_coverage(partial_rows, counts)
+        self.assertIn("search: nginx rows cover 18/20", " ".join(coverage["problems"]))
+        self.assertIn("search: joined rows cover 18/20", " ".join(coverage["problems"]))
+        disjoint_rows = [row("manager_summary", False, index=i) for i in range(20)] + [row("search", True, index=i) for i in range(19)]
+        coverage = module.endpoint_coverage(disjoint_rows, counts)
+        self.assertIn("manager_summary: joined rows cover 0/20", " ".join(coverage["problems"]))
+
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "k6.log"
+            events = [
+                {"event": "measured_window_start", "at": "2026-01-01T10:00:00Z"},
+                {"event": "measured_window_end", "at": "2026-01-01T10:10:00Z"},
+            ]
+            log.write_text("".join("noise KHITMEE_SEASONAL_EVENT " + json.dumps(event) + chr(10) for event in events))
+            start, end = module.measured_window_from_log(log)
+            self.assertIsNotNone(start)
+            self.assertIsNotNone(end)
+            window_rows = [
+                row("search", True, "2026-01-01T10:00:20Z"),
+                row("search", True, "2026-01-01T10:09:40Z", 1),
+            ]
+            window = module.nginx_window_coverage(window_rows, start, end)
+            self.assertTrue(window["passed"], window["problems"])
+            self.assertEqual(window["first_nginx_at"], "2026-01-01T10:00:20Z")
+            self.assertEqual(window["last_nginx_at"], "2026-01-01T10:09:40Z")
+            late_start = [row("search", True, "2026-01-01T10:01:00Z"), window_rows[1]]
+            self.assertFalse(module.nginx_window_coverage(late_start, start, end)["passed"])
+            contaminated_start = [row("search", True, "2026-01-01T09:59:00Z"), window_rows[1]]
+            contaminating = module.nginx_window_coverage(contaminated_start, start, end)
+            self.assertFalse(contaminating["passed"])
+            self.assertIn("predates the measured window start", " ".join(contaminating["problems"]))
+            early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
+            self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
+
+    def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Red/green: empty input used to produce a benign-looking zero lock
+        # delta. The snapshot status must make that collection failure explicit.
+        zero_delta = module.delta_locks("", "")
+        self.assertEqual(zero_delta["row_lock_waits_delta"], 0)
+        good = {"db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": "Innodb_row_lock_waits" + chr(9) + "7" + chr(10)}}
+        empty = {"db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": ""}}
+        failed = {"db_innodb_row_locks": {"ok": False, "rc": 1, "stdout": "", "stderr": "mariadb unavailable"}}
+        self.assertTrue(module.db_lock_snapshot_status(good, "start")["passed"])
+        for label, snapshot in (("empty", empty), ("failed", failed), ("missing", {})):
+            status = module.db_lock_snapshot_status(snapshot, "start")
+            self.assertFalse(status["passed"], label)
+            self.assertIn("failed or returned no rows", status["problem"])
+        problems = [module.db_lock_snapshot_status(empty, "start")["problem"], module.db_lock_snapshot_status(failed, "end")["problem"]]
+        status = module.collection_status(10, 10, 10, problems)
+        self.assertFalse(status["collection_passed"])
+        self.assertIn("MariaDB InnoDB row-lock start snapshot", " ".join(status["collection_problems"]))
+        self.assertIn("MariaDB InnoDB row-lock end snapshot", " ".join(status["collection_problems"]))
+        source = (ROOT / "attribution.py").read_text(encoding="utf-8")
+        self.assertIn('"db_lock_snapshots": db_lock_snapshots', source)
+
     def test_preflight_evaluator_requires_every_step_status_and_denial(self):
         spec = importlib.util.spec_from_file_location("evaluate_preflight", ROOT / "evaluate_preflight.py")
         module = importlib.util.module_from_spec(spec)
@@ -351,8 +442,19 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "required": True,
                 "exit_code": 0,
                 "app_tree_hash_expected": "b" * 40,
+                "pre_migration_app_tree_hash": "b" * 40,
+                "post_migration_app_tree_hash": "b" * 40,
                 "migrated_app_tree_hash": "b" * 40,
                 "tree_hash_verified": True,
+                "hash_algorithm": "git-tree-object-sha1",
+            },
+            "candidate-apps.json": {
+                "schema_version": "seasonal-candidate-apps-v1",
+                "passed": True,
+                "apps_txt": ["erpnext", "frappe", "khitmee_ops"],
+                "installed_apps": ["erpnext", "frappe", "khitmee_ops"],
+                "missing_from_apps_txt": [],
+                "extra_in_apps_txt": [],
             },
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
@@ -364,6 +466,12 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "attestation": "qualifying",
                 "generator_endpoint": "tcp://builder.example:2375",
                 "generator_daemon_identity": {"daemon_id": "remote-daemon", "name": "builder"},
+            },
+            "environment-attestation.json": {
+                "schema_version": "seasonal-environment-attestation-v1-result",
+                "passed": True,
+                "attestation": "qualifying",
+                "problems": [],
             },
         }.items():
             (artifact / name).write_text(json.dumps(value))
@@ -395,6 +503,54 @@ class QualifyEntryPointTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_candidate_deploy_regenerates_apps_txt_before_migration_and_gates_it(self):
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        service_pos = deploy.index('candidate application service deployment')
+        rewrite_pos = deploy.index('regenerate apps.txt with the candidate tree mounted')
+        verify_pos = deploy.index('verify candidate apps.txt against installed applications')
+        migrate_pos = deploy.index('bench migrate for candidate tree')
+        # The false-GO ordering went straight from service recreation to
+        # migration; apps.txt rewritten by the base configurator still omitted
+        # khitmee_ops. The fixed ordering must be deploy -> rewrite -> verify -> migrate.
+        self.assertLess(service_pos, rewrite_pos)
+        self.assertLess(rewrite_pos, verify_pos)
+        self.assertLess(verify_pos, migrate_pos)
+        self.assertIn("ls -1 apps > sites/apps.txt", deploy)
+        self.assertIn("tabInstalled Application", deploy)
+        self.assertIn("missing_from_apps_txt", deploy)
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "candidate-apps.json"
+            data = json.loads(path.read_text())
+            # This shape represents the old failure: the database still has the
+            # restored app installed, while base-generated apps.txt dropped it.
+            data["apps_txt"] = ["erpnext", "frappe"]
+            data["missing_from_apps_txt"] = ["khitmee_ops"]
+            data["passed"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["candidate_apps_ok"])
+            self.assertEqual(result["candidate_apps_missing"], ["khitmee_ops"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "candidate-apps.json"
+            data = json.loads(path.read_text())
+            data["apps_txt"] = ["erpnext", "frappe", "khitmee_ops", "uninstalled_extra"]
+            data["extra_in_apps_txt"] = ["uninstalled_extra"]
+            data["passed"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["candidate_apps_ok"])
+            self.assertEqual(result["candidate_apps_extra"], ["uninstalled_extra"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertTrue(result["candidate_apps_ok"])
 
     def test_startup_does_not_migrate_checkout_and_migration_tree_mismatch_is_no_go(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
@@ -429,6 +585,91 @@ class QualifyEntryPointTests(unittest.TestCase):
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+    def test_owner_environment_attestation_is_required_and_cross_checked(self):
+        spec = importlib.util.spec_from_file_location("environment_attestation", ROOT / "environment_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        guest_evidence = {
+            "online_cpu_count": 2,
+            "guest_mem_total_mib": 1980.0,
+            "guest_swap_total_bytes": 0,
+        }
+        generator_evidence = {
+            "generator_endpoint": "tcp://builder.example:2375",
+            "generator_daemon_identity": {"name": "builder"},
+        }
+
+        def write_attestation(directory, guest_memory=2048, guest_vcpus=2, swap=0, generator_host="builder", address="builder.example"):
+            data = {
+                "schema_version": "seasonal-environment-attestation-v1",
+                "attested_at": "2026-11-28T00:00:00Z",
+                "owner": "environment-owner",
+                "guest": {
+                    "host_identity": "hypervisor-a",
+                    "vm_identity": "qualification-vm",
+                    "vcpus": guest_vcpus,
+                    "assigned_memory_mib": guest_memory,
+                    "swap_mib": swap,
+                },
+                "load_generator": {"host_identity": generator_host, "address": address},
+            }
+            path = Path(directory) / "environment.json"
+            path.write_text(json.dumps(data))
+            return path
+
+        with tempfile.TemporaryDirectory() as td:
+            valid_path = write_attestation(td)
+            valid = module.validate(valid_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertTrue(valid["passed"], valid["problems"])
+
+            # Red/green trust boundary: 1980 MiB visible memory is consistent
+            # with a normal 2048 MiB assignment, but the in-guest measurement
+            # alone cannot distinguish it from an oversized/undersized assignment.
+            self.assertGreaterEqual(1980.0, 2048.0 * 0.9)
+            oversized_path = write_attestation(td, guest_memory=2112)
+            oversized = module.validate(oversized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(oversized["passed"])
+            self.assertIn("exactly 2048 MiB", " ".join(oversized["problems"]))
+            undersized_path = write_attestation(td, guest_memory=1984)
+            undersized = module.validate(undersized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(undersized["passed"])
+
+            # A distinct Docker daemon ID on the same machine would pass the
+            # round-3 daemon comparison; owner identity evidence must reject it.
+            same_machine_path = write_attestation(td, generator_host="qualification-vm")
+            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(same_machine["passed"])
+            self.assertIn("distinct from the guest", " ".join(same_machine["problems"]))
+            mismatch_path = write_attestation(td, address="other-builder.example")
+            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(mismatch["passed"])
+            self.assertIn("does not match owner-declared generator address", " ".join(mismatch["problems"]))
+
+        decision = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "environment-attestation.json").unlink()
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["environment_attestation_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["passed"] = False
+            data["attestation"] = "diagnostic"
+            path.write_text(json.dumps(data))
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+
+        source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        self.assertIn("--environment-attestation PATH", source)
+        self.assertIn("Owner environment attestation procedure:", source)
+        self.assertIn("--enforce-generator", source)
+        self.assertTrue((ROOT / "environment-attestation.schema.json").is_file())
+        self.assertTrue((ROOT / "environment-attestation.example.json").is_file())
 
     def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
         spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")
@@ -590,6 +831,59 @@ class QualifyEntryPointTests(unittest.TestCase):
             (Path(td) / "resource-proof-after.json").write_text(json.dumps(after_proof))
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertFalse(result["resource_window_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
+
+    def test_migration_tree_hash_comes_from_mounted_files_pre_and_post(self):
+        spec = importlib.util.spec_from_file_location("git_tree_hash", ROOT / "git_tree_hash.py")
+        hasher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hasher)
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            target = repo / "apps" / "khitmee_ops"
+            (target / "sub").mkdir(parents=True)
+            (target / "a.txt").write_bytes(b"hello" + bytes([10]))
+            (target / "sub" / "b.txt").write_bytes(b"world")
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"], check=True, stdout=subprocess.DEVNULL)
+            expected = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD:apps/khitmee_ops"], text=True).strip()
+            self.assertEqual(hasher.git_tree_hash(target), expected)
+            # Mutating a mounted file must change the same Git-compatible digest.
+            (target / "a.txt").write_bytes(b"mutated" + bytes([10]))
+            self.assertNotEqual(hasher.git_tree_hash(target), expected)
+
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        pre_pos = deploy.index("pre-migration mounted tree hash")
+        migrate_pos = deploy.index("bench migrate for candidate tree")
+        post_pos = deploy.index("post-migration mounted tree hash")
+        marker_pos = deploy.index("record migrated candidate tree hash")
+        self.assertLess(pre_pos, migrate_pos)
+        self.assertLess(migrate_pos, post_pos)
+        self.assertLess(post_pos, marker_pos)
+        self.assertIn("expected_tree_hash == pre_migration_tree_hash == post_migration_tree_hash", deploy)
+        self.assertIn("read_only: true", (ROOT / "khitmee-migration-readonly.yaml").read_text(encoding="utf-8"))
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            migration["post_migration_app_tree_hash"] = "c" * 40
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            # The round-3 marker shape proved only that the script read back
+            # its own expected input; it had no mounted-file pre/post digests.
+            for key in ("pre_migration_app_tree_hash", "post_migration_app_tree_hash", "hash_algorithm"):
+                migration.pop(key, None)
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
             self.assertEqual(result["qualified"], "NO-GO")
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):

@@ -29,6 +29,7 @@ APP_REF=""
 PREFLIGHT_ONLY=0
 ORACLE_COMMAND=""
 CGROUP_PARENT="/sys/fs/cgroup/khitmeeperf.slice"
+ENVIRONMENT_ATTESTATION=""
 
 usage() {
   cat <<'EOF'
@@ -49,6 +50,18 @@ Options:
   --preflight                                   Run one idle end-to-end request of each class, then stop before load
   --oracle-command CMD                          Paired stock-oracle command; must write oracle-evidence.json in the artifact dir
   --cgroup-parent PATH                          ADR parent cgroup to attest (default /sys/fs/cgroup/khitmeeperf.slice)
+  --environment-attestation PATH                Owner-attested host environment JSON
+
+Owner environment attestation procedure:
+  1. Copy perf-suite/seasonal/environment-attestation.example.json outside the repo.
+  2. The environment owner fills guest.host_identity and guest.vm_identity from
+     hypervisor/host inventory, and vcpus, assigned_memory_mib and swap_mib from
+     the actual VM/WSL assignment. Qualification accepts exactly 2, 2048 and 0.
+  3. Fill load_generator.host_identity and load_generator.address from the
+     separate machine that runs k6. The address must be the host used in
+     K6_DOCKER_HOST (for example tcp://builder.example:2375 uses builder.example).
+  4. Pass the completed file with --environment-attestation. Missing,
+     inconsistent, or diagnostic-only evidence can never produce GO.
 EOF
 }
 
@@ -79,6 +92,8 @@ while (($#)); do
     --oracle-command=*) ORACLE_COMMAND="${1#*=}"; shift ;;
     --cgroup-parent) CGROUP_PARENT="${2:?}"; shift 2 ;;
     --cgroup-parent=*) CGROUP_PARENT="${1#*=}"; shift ;;
+    --environment-attestation) ENVIRONMENT_ATTESTATION="${2:?}"; shift 2 ;;
+    --environment-attestation=*) ENVIRONMENT_ATTESTATION="${1#*=}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -370,6 +385,9 @@ fi
 
 echo "Attesting k6 load-generator placement"
 python3 -B "$SCRIPT_DIR/load_generator_attestation.py"   --runtime "$K6_RUNTIME"   --docker-host "${K6_DOCKER_HOST:-}"   --output "$ARTIFACT_DIR/load-generator-attestation.json"   >"$ARTIFACT_DIR/load-generator-attestation.stdout" 2>&1 || true
+
+echo "Validating owner host-environment attestation"
+python3 -B "$SCRIPT_DIR/environment_attestation.py"   --attestation "$ENVIRONMENT_ATTESTATION"   --guest-evidence "$ARTIFACT_DIR/guest-attestation-before.json"   --generator-evidence "$ARTIFACT_DIR/load-generator-attestation.json"   --enforce-generator   --output "$ARTIFACT_DIR/environment-attestation.json"   >"$ARTIFACT_DIR/environment-attestation.stdout" 2>&1 || true
 
 K6_SCENARIO="seasonal"
 if [[ "$PREFLIGHT_ONLY" == "1" ]]; then

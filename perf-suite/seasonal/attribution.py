@@ -139,6 +139,7 @@ def parse_nginx_log(path):
         except Exception:
             continue
         rows.append({
+            "time": row.get("time") or "",
             "request_id": row.get("request_id") or "",
             "endpoint_class": row.get("endpoint_class") or "unclassified",
             "method": row.get("method") or "",
@@ -253,8 +254,146 @@ def delta_locks(before_text, after_text):
     }
 
 
-def collection_status(nginx_count, gunicorn_count, joined_count=None):
+def parse_iso_time(value):
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def parse_tag_selector(key):
+    if "{" not in key or not key.endswith("}"):
+        return key, {}
+    metric, selector = key.split("{", 1)
+    tags = {}
+    for part in selector[:-1].split(","):
+        if ":" in part:
+            name, value = part.split(":", 1)
+            tags[name.strip()] = value.strip()
+    return metric, tags
+
+
+def metric_count(metric):
+    values = metric.get("values") if isinstance(metric, dict) else {}
+    if not isinstance(values, dict):
+        return 0
+    for key in ("count", "value"):
+        try:
+            return int(values.get(key) or 0)
+        except (TypeError, ValueError):
+            pass
+    return 0
+
+
+def k6_endpoint_counts(summary):
+    """Return actual per-endpoint-class HTTP request counts from k6 summary metrics."""
+    counts = {}
+    metrics = (summary or {}).get("metrics") or {}
+    for key, metric in metrics.items():
+        name, tags = parse_tag_selector(key)
+        if name != "http_reqs" or not tags:
+            continue
+        endpoint_class = tags.get("endpoint_class")
+        if endpoint_class:
+            counts[endpoint_class] = counts.get(endpoint_class, 0) + metric_count(metric)
+    return counts
+
+
+def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO):
+    rows = {}
     problems = []
+    classes = sorted(set(expected_counts) | {row.get("endpoint_class") or "unclassified" for row in joined})
+    for endpoint_class in classes:
+        class_rows = [row for row in joined if (row.get("endpoint_class") or "unclassified") == endpoint_class]
+        nginx_count = len(class_rows)
+        joined_count = sum(1 for row in class_rows if row.get("join_status") == "joined")
+        expected = int(expected_counts.get(endpoint_class) or 0)
+        nginx_ratio = nginx_count / expected if expected else None
+        joined_ratio = joined_count / expected if expected else None
+        rows[endpoint_class] = {
+            "k6_requests": expected,
+            "nginx_rows": nginx_count,
+            "joined_rows": joined_count,
+            "nginx_coverage_ratio": nginx_ratio,
+            "joined_coverage_ratio": joined_ratio,
+            "coverage_passed": bool(expected) and nginx_ratio is not None and joined_ratio is not None and nginx_ratio >= minimum_ratio and joined_ratio >= minimum_ratio,
+        }
+        if expected:
+            if nginx_ratio is None or nginx_ratio < minimum_ratio:
+                problems.append(f"{endpoint_class}: nginx rows cover {nginx_count}/{expected} k6 requests, below {minimum_ratio:.2f}")
+            if joined_ratio is None or joined_ratio < minimum_ratio:
+                problems.append(f"{endpoint_class}: joined rows cover {joined_count}/{expected} k6 requests, below {minimum_ratio:.2f}")
+    return {"classes": rows, "problems": problems}
+
+
+def measured_window_from_log(path):
+    start = None
+    end = None
+    try:
+        lines = pathlib.Path(path).read_text(errors="replace").splitlines()
+    except Exception:
+        return None, None
+    for line in lines:
+        if "KHITMEE_SEASONAL_EVENT" not in line:
+            continue
+        try:
+            event = json.loads(line.split("KHITMEE_SEASONAL_EVENT", 1)[1].strip())
+        except Exception:
+            continue
+        if event.get("event") == "measured_window_start":
+            start = parse_iso_time(event.get("at"))
+        elif event.get("event") == "measured_window_end":
+            end = parse_iso_time(event.get("at"))
+    return start, end
+
+
+def nginx_window_coverage(nginx_rows, measured_start, measured_end, tolerance_seconds=30.0):
+    times = [parse_iso_time(row.get("time")) for row in nginx_rows]
+    times = [value for value in times if value is not None]
+    result = {
+        "measured_start": measured_start.isoformat().replace("+00:00", "Z") if measured_start else None,
+        "measured_end": measured_end.isoformat().replace("+00:00", "Z") if measured_end else None,
+        "first_nginx_at": min(times).isoformat().replace("+00:00", "Z") if times else None,
+        "last_nginx_at": max(times).isoformat().replace("+00:00", "Z") if times else None,
+        "tolerance_seconds": tolerance_seconds,
+        "passed": False,
+        "problems": [],
+    }
+    if measured_start is None or measured_end is None:
+        result["problems"].append("k6 measured-window start/end events are missing")
+    if not times:
+        result["problems"].append("nginx attribution rows lack parseable first/last timestamps")
+    if result["problems"]:
+        return result
+    first = min(times)
+    last = max(times)
+    if (measured_start - first).total_seconds() > tolerance_seconds:
+        result["problems"].append("first nginx attribution timestamp predates the measured window start")
+    if (first - measured_start).total_seconds() > tolerance_seconds:
+        result["problems"].append("first nginx attribution timestamp is too late to cover the measured window start")
+    if (measured_end - last).total_seconds() > tolerance_seconds:
+        result["problems"].append("last nginx attribution timestamp is too early to cover the measured window end")
+    result["passed"] = not result["problems"]
+    return result
+
+
+def db_lock_snapshot_status(snapshot, label):
+    evidence = (snapshot or {}).get("db_innodb_row_locks") or {}
+    stdout = str(evidence.get("stdout") or "")
+    rows_present = bool(stdout.strip())
+    ok = evidence.get("ok") is True and rows_present
+    return {
+        "label": label,
+        "command_ok": evidence.get("ok") is True,
+        "returncode": evidence.get("rc"),
+        "rows_present": rows_present,
+        "passed": ok,
+        "problem": "" if ok else f"MariaDB InnoDB row-lock {label} snapshot failed or returned no rows",
+    }
+
+
+def collection_status(nginx_count, gunicorn_count, joined_count=None, extra_problems=None):
+    problems = list(extra_problems or [])
     if joined_count is None:
         joined_count = min(nginx_count, gunicorn_count)
     join_ratio = (joined_count / nginx_count) if nginx_count else 0.0
@@ -307,7 +446,25 @@ def cmd_finish(args):
         writer.writeheader()
         writer.writerows(joined)
     joined_count = len(joined) - missing
-    status = collection_status(len(nginx_rows), len(gunicorn_rows), joined_count)
+    try:
+        k6_summary = json.loads(pathlib.Path(args.k6_summary).read_text(encoding="utf-8")) if args.k6_summary else {}
+    except Exception:
+        k6_summary = {}
+    expected_counts = k6_endpoint_counts(k6_summary)
+    coverage = endpoint_coverage(joined, expected_counts)
+    measured_start, measured_end = measured_window_from_log(args.k6_log) if args.k6_log else (None, None)
+    window = nginx_window_coverage(nginx_rows, measured_start, measured_end)
+    coverage_problems = []
+    if not expected_counts:
+        coverage_problems.append("k6 summary is missing per-endpoint-class http_reqs counts")
+    coverage_problems.extend(coverage["problems"])
+    coverage_problems.extend(window["problems"])
+    db_lock_snapshots = {
+        "start": db_lock_snapshot_status(start, "start"),
+        "end": db_lock_snapshot_status(end, "end"),
+    }
+    coverage_problems.extend(row["problem"] for row in db_lock_snapshots.values() if row["problem"])
+    status = collection_status(len(nginx_rows), len(gunicorn_rows), joined_count, coverage_problems)
     collection_passed = status["collection_passed"]
     collection_problems = status["collection_problems"]
     summary = {
@@ -322,6 +479,10 @@ def cmd_finish(args):
         "joined_rows": joined_count,
         "unjoined_nginx_rows": missing,
         "endpoint_classes": endpoint_summary(joined),
+        "k6_endpoint_request_counts": expected_counts,
+        "endpoint_coverage": coverage["classes"],
+        "window_coverage": window,
+        "db_lock_snapshots": db_lock_snapshots,
         "redis_cache_commandstats_delta": delta_commandstats((start.get("redis_cache_commandstats") or {}).get("stdout", ""), (end.get("redis_cache_commandstats") or {}).get("stdout", "")),
         "redis_queue_commandstats_delta": delta_commandstats((start.get("redis_queue_commandstats") or {}).get("stdout", ""), (end.get("redis_queue_commandstats") or {}).get("stdout", "")),
         "redis_cache_latency_end": latency_snapshot((end.get("redis_cache_latency") or {}).get("stdout", "") + (end.get("redis_cache_latency") or {}).get("stderr", "")),
@@ -339,6 +500,8 @@ def main():
         child = sub.add_parser(name)
         child.add_argument("--artifact-dir", required=True)
         child.add_argument("--docker-dir", required=True)
+        child.add_argument("--k6-summary", default="")
+        child.add_argument("--k6-log", default="")
         child.set_defaults(func=func)
     args = parser.parse_args()
     return args.func(args)

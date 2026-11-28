@@ -17,6 +17,36 @@ MANAGER_KEYS = [
     "SEASONAL_MANAGER_EXPORT_USER",
 ]
 
+APPS_STATE_SCRIPT = r'''
+import json
+import pathlib
+import sys
+import frappe
+
+site = sys.argv[1]
+apps_txt_path = pathlib.Path("/home/frappe/frappe-bench/sites/apps.txt")
+apps_txt = []
+try:
+    apps_txt = [line.strip() for line in apps_txt_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+except Exception:
+    apps_txt = []
+frappe.init(site=site, sites_path="/home/frappe/frappe-bench/sites")
+frappe.connect()
+try:
+    rows = frappe.db.sql("SELECT app_name FROM `tabInstalled Application` ORDER BY app_name")
+    installed = sorted(str(row[0]) for row in rows if row and row[0])
+finally:
+    frappe.destroy()
+missing = sorted(set(installed) - set(apps_txt))
+extra = sorted(set(apps_txt) - set(installed))
+print("APPS_STATE_EVIDENCE " + json.dumps({
+    "apps_txt": apps_txt,
+    "installed_apps": installed,
+    "missing_from_apps_txt": missing,
+    "extra_in_apps_txt": extra,
+}, sort_keys=True))
+'''
+
 MIGRATION_STATE_SCRIPT = r'''
 import json
 import sys
@@ -151,26 +181,103 @@ def main():
         if frontend_up is not None:
             require_ok(frontend_up, "candidate frontend attribution deployment")
 
+        apps_rewrite = run(
+            compose + [
+                "exec", "-T", "backend", "bash", "-lc",
+                "cd /home/frappe/frappe-bench && ls -1 apps > sites/apps.txt && cat sites/apps.txt",
+            ],
+            timeout=120,
+        )
+        (artifact / "candidate-apps-rewrite.log").write_text(apps_rewrite.stdout + apps_rewrite.stderr)
+        require_ok(apps_rewrite, "regenerate apps.txt with the candidate tree mounted")
+        apps_state_result = run(
+            compose + [
+                "exec", "-T", "backend",
+                "/home/frappe/frappe-bench/env/bin/python", "-", args.site,
+            ],
+            input_text=APPS_STATE_SCRIPT,
+            timeout=180,
+        )
+        (artifact / "candidate-apps-state.log").write_text(apps_state_result.stdout + apps_state_result.stderr)
+        require_ok(apps_state_result, "verify candidate apps.txt against installed applications")
+        marker = "APPS_STATE_EVIDENCE "
+        apps_state = None
+        for line in apps_state_result.stdout.splitlines():
+            if line.startswith(marker):
+                apps_state = json.loads(line[len(marker):])
+        if apps_state is None:
+            raise RuntimeError("apps.txt verification did not emit machine-readable evidence")
+        missing_from_apps_txt = sorted(apps_state.get("missing_from_apps_txt") or [])
+        extra_in_apps_txt = sorted(apps_state.get("extra_in_apps_txt") or [])
+        apps_txt_rows = sorted(apps_state.get("apps_txt") or [])
+        apps_state.update({
+            "schema_version": "seasonal-candidate-apps-v1",
+            "passed": not missing_from_apps_txt and not extra_in_apps_txt and "khitmee_ops" in apps_txt_rows,
+            "log": str(artifact / "candidate-apps-state.log"),
+        })
+        (artifact / "candidate-apps.json").write_text(json.dumps(apps_state, indent=2, sort_keys=True) + "\n")
+        if "khitmee_ops" not in apps_txt_rows:
+            raise RuntimeError("regenerated apps.txt does not contain khitmee_ops")
+        if missing_from_apps_txt:
+            raise RuntimeError("regenerated apps.txt lacks restored-site installed apps: " + ",".join(missing_from_apps_txt))
+        if extra_in_apps_txt:
+            raise RuntimeError("regenerated apps.txt contains apps not installed in the restored site: " + ",".join(extra_in_apps_txt))
+
         migrate_log = artifact / "candidate-migrate.log"
         migrate_started = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-        migration_overlay = pathlib.Path(args.docker_dir) / "khitmee-migration-transient.yaml"
+        migration_overlay = pathlib.Path(__file__).resolve().with_name("khitmee-migration-readonly.yaml")
         if not migration_overlay.is_file():
-            raise RuntimeError(f"ADR migration overlay missing: {migration_overlay}")
+            raise RuntimeError(f"read-only migration overlay missing: {migration_overlay}")
+        expected_tree_hash = str(metadata.get("app_tree_hash") or "")
+        if not expected_tree_hash:
+            raise RuntimeError("candidate metadata lacks app_tree_hash; refusing migration evidence collection")
+        hash_script = pathlib.Path(__file__).resolve().with_name("git_tree_hash.py").read_text(encoding="utf-8")
+        mounted_path = "/home/frappe/frappe-bench/apps/khitmee_ops"
+        hash_command = compose + [
+            "-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T",
+            "-e", "PYTHONDONTWRITEBYTECODE=1", "backend",
+            "/home/frappe/frappe-bench/env/bin/python", "-", mounted_path,
+        ]
+
+        def mounted_tree_hash(log_name, description):
+            result = run(hash_command, input_text=hash_script, timeout=180)
+            (artifact / log_name).write_text(result.stdout + result.stderr)
+            require_ok(result, description)
+            marker = "TREE_HASH_EVIDENCE "
+            for line in result.stdout.splitlines():
+                if line.startswith(marker):
+                    payload = json.loads(line[len(marker):])
+                    digest = str(payload.get("tree_hash") or "")
+                    if digest:
+                        return digest
+            raise RuntimeError(description + " did not emit machine-readable tree evidence")
+
+        pre_migration_tree_hash = mounted_tree_hash("candidate-tree-hash-pre.log", "pre-migration mounted tree hash")
         migrate = run(
-            compose + ["-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T", "backend", "bench", "--site", args.site, "migrate"],
+            compose + [
+                "-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T",
+                "-e", "PYTHONDONTWRITEBYTECODE=1", "backend",
+                "bench", "--site", args.site, "migrate",
+            ],
             timeout=1800,
         )
         migrate_finished = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
         migrate_log.write_text(migrate.stdout + migrate.stderr)
         require_ok(migrate, "bench migrate for candidate tree")
-        expected_tree_hash = str(metadata.get("app_tree_hash") or "")
-        if not expected_tree_hash:
-            raise RuntimeError("candidate metadata lacks app_tree_hash; refusing to record migration state")
+        post_migration_tree_hash = mounted_tree_hash("candidate-tree-hash-post.log", "post-migration mounted tree hash")
+        tree_hash_verified = expected_tree_hash == pre_migration_tree_hash == post_migration_tree_hash
+        if not tree_hash_verified:
+            raise RuntimeError(
+                "mounted app tree digest mismatch: expected " + expected_tree_hash
+                + ", pre-migrate " + pre_migration_tree_hash
+                + ", post-migrate " + post_migration_tree_hash
+            )
         state_result = run(
             compose + [
                 "-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T",
+                "-e", "PYTHONDONTWRITEBYTECODE=1",
                 "-w", "/home/frappe/frappe-bench/sites", "backend",
-                "/home/frappe/frappe-bench/env/bin/python", "-", args.site, expected_tree_hash,
+                "/home/frappe/frappe-bench/env/bin/python", "-", args.site, post_migration_tree_hash,
             ],
             input_text=MIGRATION_STATE_SCRIPT,
             timeout=180,
@@ -185,10 +292,10 @@ def main():
         if state_evidence is None:
             raise RuntimeError("migration state script did not emit machine-readable evidence")
         migrated_tree_hash = str(state_evidence.get("tree_hash") or "")
-        tree_hash_verified = migrated_tree_hash == expected_tree_hash
-        if not tree_hash_verified:
+        if migrated_tree_hash != post_migration_tree_hash:
             raise RuntimeError(
-                "migrated app tree digest mismatch: expected " + expected_tree_hash + " but recorded " + migrated_tree_hash
+                "migration state readback mismatch: mounted post-migrate " + post_migration_tree_hash
+                + " but recorded " + migrated_tree_hash
             )
         migration = {
             "required": True,
@@ -198,11 +305,17 @@ def main():
             "exit_code": migrate.returncode,
             "log": str(migrate_log),
             "app_tree_hash_expected": expected_tree_hash,
+            "pre_migration_app_tree_hash": pre_migration_tree_hash,
+            "post_migration_app_tree_hash": post_migration_tree_hash,
             "migrated_app_tree_hash": migrated_tree_hash,
             "tree_hash_verified": tree_hash_verified,
+            "hash_algorithm": "git-tree-object-sha1",
+            "read_only_mount_overlay": str(migration_overlay),
+            "pre_hash_log": str(artifact / "candidate-tree-hash-pre.log"),
+            "post_hash_log": str(artifact / "candidate-tree-hash-post.log"),
             "state_log": str(artifact / "candidate-migration-state.log"),
         }
-        (artifact / "candidate-migration.json").write_text(json.dumps(migration, indent=2, sort_keys=True) + "\n")
+        (artifact / "candidate-migration.json").write_text(json.dumps(migration, indent=2, sort_keys=True) + chr(10))
 
         actors = json.loads(pathlib.Path(args.actors).read_text())
         manager_users = []
