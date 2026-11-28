@@ -71,6 +71,13 @@
       "event": "shard-passed",
       "shard": "native_frontend",
       "status": "ready_to_merge"
+    },
+    {
+      "at": "2026-11-28T11:17:38Z",
+      "code_tree_sha256": "c6714ecc44d4b2d5456acf3195a59e24915f14a2ab505d530dfff07a46bad637",
+      "event": "shard-passed",
+      "shard": "native_frontend",
+      "status": "ready_to_merge"
     }
   ],
   "issue_number": null,
@@ -131,8 +138,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "deb2f55dd8ce10b74dace82d1c1b7f2aaf554efd",
-      "passed_code_tree_sha256": "4e2eb40dbf0d80d8e9cc43e941fccaf2ccd848f93e7ed09e391fba12600c6bf6",
+      "last_green_sha": "0d6220e13af55614d68e7de2c4342de3889980cd",
+      "passed_code_tree_sha256": "c6714ecc44d4b2d5456acf3195a59e24915f14a2ab505d530dfff07a46bad637",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -142,5 +149,5 @@
   },
   "status": "ready_to_merge",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T11:15:26Z"
+  "updated_at": "2026-11-28T11:17:38Z"
 }
