@@ -53,20 +53,20 @@ That oracle caught one pre-existing parity defect on the fresh seed: ERPNext's i
 
 ## Reproduction
 
-Build the two executables, copying them aside before rebuilding the other revision:
+Build the two pinned executables, copying them aside before rebuilding the other revision. These pinned revisions already compile the Slint MCP server into the default binary; `--features ui-mcp` applies only to later revisions that make it optional:
 
 ```bash
 # baseline
 git worktree add --detach /tmp/embryo-baseline-main c7b1e0c592b7a4f97e1c6463de48e7cf839871b2
 cd /tmp/embryo-baseline-main/desktop-frontend
-cargo build -p khitmee-desktop --locked --features ui-mcp
+cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-base
 
 # candidate
 cd /path/to/worktree
 git checkout 915830c7cef85b9973278d93fd810db22a79e455
 cd desktop-frontend
-cargo build -p khitmee-desktop --locked --features ui-mcp
+cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-opt
 ```
 
