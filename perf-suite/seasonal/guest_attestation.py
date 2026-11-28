@@ -19,10 +19,11 @@ EXPECTED_MEMORY_MAX = 2 * 1024**3
 REQUIRED_ONLINE_CPUS = 2
 EXPECTED_ASSIGNED_MEMORY_MIB = 2048.0
 # MemTotal is the kernel-visible remainder after firmware/hypervisor/kernel
-# reservation, so it never equals the nominal assignment exactly. A +/-10%
-# envelope accepts normal reservation overhead while rejecting larger hosts
-# such as 8 CPU / 16 GiB and materially undersized guests.
-ASSIGNED_MEMORY_TOLERANCE_RATIO = 0.10
+# reservation, so it never equals the nominal assignment exactly. The 10%
+# allowance is deliberately one-sided: normal reservation may lower MemTotal,
+# but a value above the nominal 2048 MiB assignment is evidence of an
+# oversized guest and is diagnostic rather than qualification evidence.
+ASSIGNED_MEMORY_RESERVATION_ALLOWANCE_RATIO = 0.10
 
 
 def read_text(path):
@@ -64,13 +65,13 @@ def guest_fact_problems(facts):
     if nproc_count != REQUIRED_ONLINE_CPUS:
         problems.append(f"nproc reports {nproc_count} CPUs; dedicated qualification requires exactly {REQUIRED_ONLINE_CPUS}")
     memory_mib = float(facts.get("guest_mem_total_bytes") or 0) / 1024**2
-    tolerance = EXPECTED_ASSIGNED_MEMORY_MIB * ASSIGNED_MEMORY_TOLERANCE_RATIO
-    low = EXPECTED_ASSIGNED_MEMORY_MIB - tolerance
-    high = EXPECTED_ASSIGNED_MEMORY_MIB + tolerance
+    allowance = EXPECTED_ASSIGNED_MEMORY_MIB * ASSIGNED_MEMORY_RESERVATION_ALLOWANCE_RATIO
+    low = EXPECTED_ASSIGNED_MEMORY_MIB - allowance
+    high = EXPECTED_ASSIGNED_MEMORY_MIB
     if not low <= memory_mib <= high:
         problems.append(
-            f"guest MemTotal is {memory_mib:.1f} MiB; dedicated qualification requires about 2048 MiB "
-            f"within +/-10% ({low:.1f}..{high:.1f} MiB) for kernel/hypervisor reservation"
+            f"guest MemTotal is {memory_mib:.1f} MiB; dedicated qualification requires no more than 2048 MiB "
+            f"with a one-sided kernel/hypervisor reservation allowance ({low:.1f}..{high:.1f} MiB)"
         )
     if int(facts.get("guest_swap_total_bytes") or 0) != 0:
         problems.append("guest swap is enabled; dedicated qualification requires swap to be disabled")
@@ -112,7 +113,7 @@ def guest_facts():
         "guest_swap_total_bytes": meminfo.get("SwapTotal", 0),
         "required_online_cpus": REQUIRED_ONLINE_CPUS,
         "expected_assigned_memory_mib": EXPECTED_ASSIGNED_MEMORY_MIB,
-        "assigned_memory_tolerance_ratio": ASSIGNED_MEMORY_TOLERANCE_RATIO,
+        "assigned_memory_reservation_allowance_ratio": ASSIGNED_MEMORY_RESERVATION_ALLOWANCE_RATIO,
     }
 
 

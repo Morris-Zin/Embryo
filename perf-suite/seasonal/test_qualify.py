@@ -478,6 +478,48 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("backend: restart count changed 0 -> 1", result["resource_window_problems"])
 
+    def test_oversized_guest_memory_is_diagnostic_under_one_sided_window(self):
+        spec = importlib.util.spec_from_file_location("guest_attestation", ROOT / "guest_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Reproduce the old two-sided acceptance shape: 2200 MiB was inside
+        # 2048 MiB +/- 10%, so the former check would have qualified it.
+        self.assertLessEqual(2200.0, 2048.0 * 1.10)
+        with tempfile.TemporaryDirectory() as td:
+            parent = Path(td) / "khitmeeperf.slice"
+            parent.mkdir()
+            (parent / "cpuset.cpus.effective").write_text("2-3")
+            (parent / "cpu.max").write_text("200000 100000")
+            (parent / "memory.max").write_text(str(2 * 1024**3))
+            (parent / "memory.swap.max").write_text("0")
+            members = ([{"service": service, "member": True} for service in module.SERVICES], [])
+
+            def facts(memory_mib):
+                return {
+                    "online_cpu_count": 2,
+                    "nproc_count": 2,
+                    "guest_mem_total_bytes": int(memory_mib * 1024**2),
+                    "guest_swap_total_bytes": 0,
+                }
+
+            def attest(memory_mib):
+                return module.attest(
+                    str(parent),
+                    fact_reader=lambda: facts(memory_mib),
+                    membership_reader=lambda project, parent_path: members,
+                )
+
+            oversized = attest(2200)
+            self.assertFalse(oversized["dedicated_guest_passed"])
+            self.assertFalse(oversized["passed"])
+            self.assertEqual(oversized["attestation"], "diagnostic")
+            self.assertIn("no more than 2048 MiB", " ".join(oversized["guest_problems"]))
+
+            reserved = attest(1980)
+            self.assertTrue(reserved["dedicated_guest_passed"], reserved["guest_problems"])
+            self.assertTrue(reserved["passed"], reserved["problems"])
+            self.assertEqual(reserved["attestation"], "qualifying")
+
     def test_larger_host_slice_is_diagnostic_and_never_qualified(self):
         spec = importlib.util.spec_from_file_location("guest_attestation", ROOT / "guest_attestation.py")
         module = importlib.util.module_from_spec(spec)
