@@ -209,7 +209,7 @@ async function main(){
  try{
   const deadline=Date.now()+30000;
   while(Date.now()<deadline&&!(await nativeReady()))await sleep(100);
-  if(!(await nativeReady()))throw Error('native MCP did not start');
+  if(!(await nativeReady()))throw Error('native MCP did not start; build the native app with `cargo build -p khitmee-desktop --features ui-mcp` (add `--release` for release qualification) or pass --exe to an MCP-instrumented binary');
   await sleep(1200);
   const launch={headless:true};const devinChrome='C:/devin/chrome/chrome-win64/chrome.exe';if(process.platform==='win32'&&existsSync(devinChrome))launch.executablePath=devinChrome;else if(process.platform==='win32')launch.channel='chrome';const browser=await chromium.launch(launch);
   const page=await (await browser.newContext({viewport:{width:1180,height:760},deviceScaleFactor:1})).newPage();

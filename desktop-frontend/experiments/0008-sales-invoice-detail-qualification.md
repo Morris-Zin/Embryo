@@ -24,6 +24,9 @@ Evidence:
 Reproduction:
 
 ```bash
+cd desktop-frontend
+cargo build -p khitmee-desktop --locked --features ui-mcp
+cd ..
 node desktop-frontend/tools/differential_journey.mjs \
   --screen invoice-detail \
   --out desktop-frontend/evidence/journeys/invoice-detail-initial.json \
