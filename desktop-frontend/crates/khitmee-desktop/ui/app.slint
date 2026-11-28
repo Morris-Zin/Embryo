@@ -1229,6 +1229,7 @@ component InvoiceDetailScreen inherits Rectangle {
     in property <[DetailField]> detail-fields: [];
     in property <[InvoiceDetailItem]> detail-items: [];
     in property <bool> detail-dirty: false;
+    in property <string> detail-error-text: "";
     callback back-to-list();
     callback detail-field-edited(string, string);
     callback detail-save();
@@ -1266,13 +1267,13 @@ component InvoiceDetailScreen inherits Rectangle {
         Text { width: parent.width; height: parent.height; text: root.display-status; color: #c01048; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
     }
     Text { x: root.content-x + 107px; y: 66px; width: 190px; height: 22px; text: root.detail-name; color: Design.muted; font-size: 11px; vertical-alignment: center; accessible-label: root.detail-name; }
-    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-status != "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; }
-    BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-status == "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-status == "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-status != "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 244px; y: 13px; width: 68px; height: 32px; text: "View"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; visible: root.detail-error-text == ""; }
+    BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-error-text == "" && root.detail-status == "Draft"; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-error-text == "" && root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-error-text == "" && root.detail-status != "Draft"; }
     Rectangle {
         x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
         border-radius: 8px; accessible-role: button; accessible-label: "Back to Sales Invoice list"; accessible-enabled: true;
@@ -1287,7 +1288,13 @@ component InvoiceDetailScreen inherits Rectangle {
         vertical-alignment: center; accessible-label: tab;
     }
 
+    if root.detail-error-text != "": Rectangle {
+        x: root.content-x + 20px; y: 126px; width: root.content-width - 40px; height: parent.height - 146px;
+        background: #ffffff; border-color: #e4e7ec; border-width: 1px;
+        Text { width: parent.width; height: 160px; text: root.detail-error-text; accessible-label: root.detail-error-text; color: Design.text; font-size: 16px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+    }
     Flickable {
+        visible: root.detail-error-text == "";
         x: root.content-x; y: 126px; width: root.content-width; height: parent.height - 126px;
         content-width: root.content-width;
         content-height: root.detail-content-height;
@@ -1353,6 +1360,7 @@ export component AppWindow inherits Window {
     in property <[DetailField]> invoice-detail-fields: [];
     in property <[InvoiceDetailItem]> invoice-detail-items: [];
     in property <bool> invoice-detail-dirty: false;
+    in property <string> invoice-detail-error-text: "";
     in property <int> invoice-detail-editing-index: -1;
     in property <string> invoice-detail-title: "Sales Invoice";
     in property <string> invoice-detail-name: "";
@@ -1488,6 +1496,7 @@ export component AppWindow inherits Window {
         detail-fields: root.invoice-detail-fields;
         detail-items: root.invoice-detail-items;
         detail-dirty: root.invoice-detail-dirty;
+        detail-error-text: root.invoice-detail-error-text;
         detail-editing-index: root.invoice-detail-editing-index;
         back-to-list => { current-screen = 2; }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }

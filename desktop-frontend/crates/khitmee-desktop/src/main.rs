@@ -631,6 +631,7 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
     };
     match client.sales_invoice_detail(invoice_name) {
         Ok(mut doc) => {
+            app.set_invoice_detail_error_text("".into());
             if let Some(time) = doc
                 .get("posting_time")
                 .and_then(|value| value.as_str())
@@ -780,6 +781,14 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
             app.set_status_text(format!("Loaded Sales Invoice {invoice_name}").into());
         }
         Err(error) => {
+            let text = invoice_error_text(error.as_ref());
+            app.set_invoice_detail_error_text(text.clone().into());
+            app.set_invoice_detail_fields(
+                Rc::new(VecModel::from(Vec::<DetailField>::new())).into(),
+            );
+            app.set_invoice_detail_items(
+                Rc::new(VecModel::from(Vec::<InvoiceDetailItem>::new())).into(),
+            );
             app.set_status_text(format!("Sales Invoice detail failed: {error}").into());
         }
     }
@@ -1010,9 +1019,10 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
 
 fn invoice_error_text(error: &dyn std::error::Error) -> String {
     let message = error.to_string();
-    if message
-        .to_ascii_lowercase()
-        .contains("insufficient permission")
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("insufficient permission")
+        || lower.contains("no permission for")
+        || lower.contains("doctype access via role permission")
     {
         "Not Permitted\n\nYou are not permitted to access this page.".into()
     } else {

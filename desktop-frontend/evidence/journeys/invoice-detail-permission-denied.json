@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "scenario": "detail-permission-denied",
+  "passed": true,
+  "failures": [],
+  "businessOutcome": {
+    "attempted": true,
+    "matched": true,
+    "webVoucher": "ACC-SINV-2026-04935",
+    "nativeVoucher": "ACC-SINV-2026-04935",
+    "web": {
+      "error": "HTTP 403"
+    },
+    "native": {
+      "error": "HTTP 403"
+    },
+    "mismatches": []
+  },
+  "steps": [
+    {
+      "index": "initial",
+      "action": {
+        "op": "initial"
+      },
+      "web": {
+        "title": "Sales Invoice",
+        "invoiceName": "ACC-SINV-2026-04935",
+        "customerTitle": "",
+        "status": "",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "not-permitted"
+      },
+      "native": {
+        "title": "Sales Invoice",
+        "invoiceName": "",
+        "customerTitle": "",
+        "status": "",
+        "fields": {
+          "Customer": "",
+          "Customer Name": "",
+          "Posting Date": "",
+          "Posting Time": "",
+          "Payment Due Date": "",
+          "Update Stock": "",
+          "Source Warehouse": "",
+          "Total Quantity": "",
+          "Total (USD)": "",
+          "Grand Total (USD)": "",
+          "In Words": "",
+          "Rounding Adjustment (USD)": "",
+          "Rounded Total (USD)": "",
+          "Total Advance (USD)": "",
+          "Outstanding Amount (USD)": ""
+        },
+        "itemRows": [],
+        "itemCount": 0,
+        "actions": [],
+        "editableFields": {
+          "Customer": "not-editable",
+          "Payment Due Date": "not-editable",
+          "Update Stock": "not-editable",
+          "Source Warehouse": "not-editable"
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "not-permitted"
+      },
+      "differences": []
+    }
+  ]
+}

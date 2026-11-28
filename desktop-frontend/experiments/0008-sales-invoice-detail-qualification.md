@@ -52,3 +52,6 @@ The ERP password is read from the isolated environment in the normal qualificati
 ## Item-grid quantity edit milestone
 
 `evidence/journeys/invoice-detail-item-grid-edit.json` passed with zero differential failures. Web and native independently opened the first item row into editable controls, exposed matching item code/qty/rate/amount/warehouse editor values, changed quantity from 1.000 to 2.000 with amount recalculated from 18.46 to 36.92, entered matching dirty Save states, saved, submitted, and matched authoritative ERP readback for the item and financial totals. This proves first-row quantity mutation only; row add/remove, item-code changes, rate editing and validation-error behavior remain open.
+## Direct detail permission milestone
+
+`evidence/journeys/invoice-detail-permission-denied.json` passed with zero differential failures for `noperm.counter@example.com` opening `ACC-SINV-2026-04935` directly. Browser and native both exposed a non-vacuous `not-permitted` state, no invoice fields, no item rows, no document actions, and no editable controls. This is direct-detail permission evidence in addition to the earlier invoice-list denial evidence.
