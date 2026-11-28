@@ -1,0 +1,211 @@
+{
+  "allow_policy_paths": [
+    "tools/autoloop/**",
+    ".github/workflows/autoloop-gate.yml"
+  ],
+  "allowed_paths": [],
+  "base_branch": "feat/backend-2gb-proof",
+  "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+  "contract_revision": 1,
+  "contract_sha256": "1f79f97ff021f61f85f1bde163098fb9b17621aa3dab6bab43a8447a0d736f87",
+  "created_at": "2026-11-28T14:24:07Z",
+  "dead_ends": [],
+  "findings": {},
+  "goal": "ADR 0005 Phases 0-2: make autoloop measurably more capable per token via a deterministic evidence spine (token profiling, delegation receipts with generation fencing, admission/budgets, one verify predicate with content-addressed check cache, red-proof safeguards, deterministic review supervisor), shadow mode first; zero recurring model tokens",
+  "grill_summary": "Owner directives: token efficiency first-class; token-poor (no enforced independent reviewers, no panels, no LLM judge, no always-on meta agent); profile before optimizing; deterministic Tier-0 first; reject savings that weaken gates or complete less. ADR 0005 (Astra, e03050f+03548c3) binding. Phases 0-2 only; Phase 3 remote evaluator awaits owner provisioning off-machine.",
+  "history": [
+    {
+      "at": "2026-11-28T14:24:07Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T14:24:07Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T14:24:08Z",
+      "contract_revision": 1,
+      "contract_sha256": "1f79f97ff021f61f85f1bde163098fb9b17621aa3dab6bab43a8447a0d736f87",
+      "event": "lock",
+      "status": "locked"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": null,
+  "last_integrated_detached": null,
+  "last_integrated_sha": null,
+  "last_integrated_worktree": null,
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "human",
+  "models": {
+    "architecture": "codex gpt-6.2-astra",
+    "coordinator": "claude-opus-5-5",
+    "reviewer": "codex gpt-6.2-astra high",
+    "workers": "devin swe-2-1-medium standard (default) / codex gpt-6.2-sol for concurrency"
+  },
+  "pending_contract_amendments": [],
+  "pr_number": null,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": true,
+    "deep": true
+  },
+  "reviews": [],
+  "run_id": "autoloop-recursive-20261128",
+  "safeguards": [],
+  "schema_version": 1,
+  "shards": {
+    "admission": {
+      "allowed_paths": [
+        "tools/autoloop/admission/**",
+        "tools/autoloop/leases.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "integration": {
+      "allowed_paths": [
+        "tools/autoloop/cli.py",
+        "tools/autoloop/state.py",
+        "tools/autoloop/guard.py",
+        ".github/workflows/autoloop-gate.yml",
+        "tools/autoloop/integration_tests/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "profile": {
+      "allowed_paths": [
+        "tools/autoloop/profile/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "proofs": {
+      "allowed_paths": [
+        "tools/autoloop/proofs/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "rdocs": {
+      "allowed_paths": [
+        "docs/adr/0005-recursive-self-improving-autoloop.md"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B tools/autoloop/cli.py lint"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "receipts": {
+      "allowed_paths": [
+        "tools/autoloop/receipts/**",
+        "tools/autoloop/routing.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "supervision": {
+      "allowed_paths": [
+        "tools/autoloop/supervision/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "verification": {
+      "allowed_paths": [
+        "tools/autoloop/verification/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    }
+  },
+  "status": "locked",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T14:24:08Z"
+}
