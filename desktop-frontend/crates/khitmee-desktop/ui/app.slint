@@ -712,7 +712,7 @@ component InvoiceScreen inherits Rectangle {
     }
 
     invoice-scroll := ListView {
-        x: 0px; y: 190px; width: 100%; height: parent.height - 190px;
+        x: 0px; y: 190px; width: 100%; height: parent.height - 235px;
         for row[index] in root.invoice-rows: InvoiceGeneratedRow {
             width: root.width; invoice: row; index: index;
             open-invoice(name) => { root.invoice-open(name); }
