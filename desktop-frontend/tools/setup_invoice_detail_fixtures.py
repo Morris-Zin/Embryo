@@ -95,6 +95,66 @@ def ensure_editable_draft(side):
     unique_marker = f"{marker}-{time.time_ns()}"
     return ensure_invoice(unique_marker, [("KM-00001", 1, 18.46)], submit=False)
 
+def ensure_paid_invoice(marker):
+    if existing := find_invoice(marker):
+        return existing
+    payload = {
+        "doctype": "Sales Invoice",
+        "customer": "KM-CUST-0001",
+        "company": "Khit Me Distribution",
+        "posting_date": "2026-11-28",
+        "posting_time": "10:30:00",
+        "due_date": "2026-11-28",
+        "currency": "USD",
+        "conversion_rate": 1,
+        "selling_price_list": "Standard Selling",
+        "price_list_currency": "USD",
+        "plc_conversion_rate": 1,
+        "update_stock": 1,
+        "set_warehouse": "Dist Hub 1 - KMD",
+        "is_pos": 1,
+        "remarks": marker,
+        "items": [
+            {"item_code": "KM-00001", "qty": 1, "rate": 18.46, "warehouse": "Dist Hub 1 - KMD"}
+        ],
+        "payments": [{"mode_of_payment": "Cash", "amount": 18.46}],
+    }
+    created = call(resource, payload)
+    name = created["data"]["name"]
+    call(resource + "/" + urllib.parse.quote(name), {"docstatus": 1}, "PUT")
+    fetched = json.load(opener.open(base + resource + "/" + urllib.parse.quote(name)))["data"]
+    if fetched.get("status") != "Paid" or float(fetched.get("outstanding_amount") or 0) != 0:
+        raise RuntimeError(f"paid fixture {name} did not reach Paid/zero-outstanding state")
+    return name
+
+paid_name = ensure_paid_invoice("migration-detail-paid-v1")
+
+def ensure_overdue_invoice(marker):
+    if existing := find_invoice(marker):
+        return existing
+    name = ensure_invoice(marker, [("KM-00001", 1, 18.46)], submit=True)
+    import subprocess
+    for expression in [
+        f"frappe.db.set_value('Sales Invoice','{name}','due_date','2026-11-26')",
+        f"frappe.db.sql(\"update `tabPayment Schedule` set due_date='2026-11-26' where parent='{name}'\")",
+        f"frappe.db.set_value('Sales Invoice','{name}','status','Overdue')",
+    ]:
+        result = subprocess.run(
+            ["docker", "exec", "khitmee-perf-backend-1", "bench", "--site", "bench-loadtest.localhost", "execute", expression],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"overdue fixture setup failed: {result.stderr[:500] or result.stdout[:500]}")
+    fetched = json.load(opener.open(base + resource + "/" + urllib.parse.quote(name)))["data"]
+    if fetched.get("status") != "Overdue":
+        raise RuntimeError(f"overdue fixture {name} did not read back as Overdue")
+    return name
+
+overdue_name = ensure_overdue_invoice("migration-detail-overdue-v1")
+
 web_draft = ensure_editable_draft("web")
 native_draft = ensure_editable_draft("native")
-print(json.dumps({"multi_item": multi_name, "draft": draft_name, "web_draft": web_draft, "native_draft": native_draft}))
+print(json.dumps({"multi_item": multi_name, "draft": draft_name, "paid": paid_name, "overdue": overdue_name, "web_draft": web_draft, "native_draft": native_draft}))
