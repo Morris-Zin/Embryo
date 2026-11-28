@@ -1,9 +1,12 @@
+import csv
 import os
 import sqlite3
 import sys
 import types
 import unittest
+from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +15,7 @@ if str(APP_ROOT) not in sys.path:
 
 import khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit as fast_gross_profit
 from khitmee_ops.khitmee_ops.report.fast_gross_profit import invoice_batches
+from khitmee_ops.profit_summary import export_service
 from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	FastGrossProfitGenerator,
 	SI_IDX,
@@ -1746,7 +1750,8 @@ class TestInvoicePageOracleParity(unittest.TestCase):
 			"RET-STANDALONE": family("RET-STANDALONE", -10, -6, -1),
 			"RET-HIDDEN-ORIGINAL": family("RET-HIDDEN-ORIGINAL", -25, -15, -1),
 		}
-		columns = [{"fieldname": "sales_invoice"}]
+		fields = ("sales_invoice", "parent_invoice", "qty", "selling_amount", "buying_amount", "gross_profit_%")
+		columns = [{"fieldname": field} for field in fields]
 		cases = (
 			("Administrator", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
 			("Administrator", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
@@ -1796,29 +1801,44 @@ class TestInvoicePageOracleParity(unittest.TestCase):
 		frappe_stub = types.SimpleNamespace(
 			_dict=AttrDict, session=session, db=types.SimpleNamespace(get_default=lambda field: 3)
 		)
-		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+		with TemporaryDirectory() as directory, patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
 			fast_gross_profit, "validate_date_range"
 		), patch.object(fast_gross_profit, "run_detail_gross_profit", side_effect=render_batch), patch.object(
 			invoice_batches, "_invoice_keys", side_effect=scoped_keys
 		), patch.object(invoice_batches, "INVOICE_KEY_BATCH_SIZE", 2):
 			for actor, include_returns, names, selling, buying, margin in cases:
-				for page_size in (2, 3):
-					with self.subTest(actor=actor, include_returns=include_returns, page_size=page_size), patch.object(
-						invoice_batches, "INVOICE_PAGE_SIZE", page_size
-					):
-						session.user = actor
-						filters = {"group_by": "Invoice", "include_returned_invoices": include_returns, "currency": "MMK"}
-						stock_rows = [row for name in names for row in families[name]] + [{
-							"sales_invoice": "Total", "qty": None, "avg._selling_rate": None, "valuation_rate": None,
-							"selling_amount": selling, "buying_amount": buying, "gross_profit": selling - buying,
-							"gross_profit_%": margin, "currency": "MMK",
-						}]
-						paged_rows = []
-						for page in range(1, (len(stock_rows) - 1) // page_size + 3):
-							for page_columns, rows in invoice_batches.iter_invoice_detail_batches(filters, page=page):
-								self.assertEqual(page_columns, columns)
-								paged_rows.extend(rows)
-						self.assertEqual(paged_rows, stock_rows)
+				with self.subTest(actor=actor, include_returns=include_returns):
+					session.user = actor
+					filters = {"group_by": "Invoice", "include_returned_invoices": include_returns, "currency": "MMK"}
+					stock_rows = [row for name in names for row in families[name]] + [{
+						"sales_invoice": "Total", "qty": None, "avg._selling_rate": None, "valuation_rate": None,
+						"selling_amount": selling, "buying_amount": buying, "gross_profit": selling - buying,
+						"gross_profit_%": margin, "currency": "MMK",
+					}]
+					for page_size in (2, 3):
+						with self.subTest(page_size=page_size), patch.object(invoice_batches, "INVOICE_PAGE_SIZE", page_size):
+							paged_rows = []
+							for page in range(1, (len(stock_rows) - 1) // page_size + 3):
+								for page_columns, rows in invoice_batches.iter_invoice_detail_batches(filters, page=page):
+									self.assertEqual(page_columns, columns)
+									paged_rows.extend(rows)
+							self.assertEqual(paged_rows, stock_rows)
+
+					path = Path(directory) / "stock-parity.csv"
+					self.assertEqual(export_service.write_profit_csv(filters, path), len(stock_rows))
+					with path.open(newline="", encoding="utf-8") as output:
+						reader = csv.DictReader(output)
+						self.assertEqual(reader.fieldnames, list(fields))
+						decoded = [
+							{field: Decimal(value) if index >= 2 and value else value for index, (field, value) in enumerate(row.items())}
+							for row in reader
+						]
+					expected = [
+						{field: Decimal(str(row[field])) if index >= 2 and row.get(field) is not None else row.get(field) or ""
+						 for index, field in enumerate(fields)}
+						for row in stock_rows
+					]
+					self.assertEqual(decoded, expected)
 
 
 class TestFastGrossProfitERPNextParity(unittest.TestCase):
