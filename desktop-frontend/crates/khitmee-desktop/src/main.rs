@@ -1391,9 +1391,16 @@ In Payment Schedule, Due Date is required in every row.";
             );
         }
         Err(error) => {
+            let message = error.to_string();
+            if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
+                field.value = "".into();
+            }
+            app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
+            app.set_invoice_detail_validation_title("Validation Error".into());
+            app.set_invoice_detail_validation_text(message.clone().into());
             app.set_status_text(
                 format!(
-                    "Sales Invoice {} failed: {error}",
+                    "Sales Invoice {} failed: {message}",
                     if submit { "submit" } else { "save" }
                 )
                 .into(),

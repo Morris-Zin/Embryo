@@ -90,3 +90,6 @@ The native detail form no longer uses a flat field grid or overlapping header bu
 ## Tab navigation milestone
 
 `evidence/journeys/invoice-detail-tabs.json` passes with zero differential failures. Web and native both move through Details, Payments, Address & Contact, Terms, More Info, Connections, and back to Details with matching active-tab state and visible section headings. The verifier initially exposed an oracle defect: hidden browser tab content was being read from the DOM even though users could not see it; extraction now filters hidden controls/rows. Remaining tab work is authoritative field values and editing inside those tabs, especially payment schedule, address/contact, terms, tax, accounting, print, subscription, and connection data.
+## Server-validation defect currently under repair
+
+The new due-date validation harness caught real native/server-integration defects: ERP validation errors were not surfaced as validation UI, native validation text initially could not be generically extracted, and the browser clears `In Words` after the failed save while native state handling diverged. The current `invoice-detail-server-validation.json` remains failing and must not be counted as passed evidence. Repair is in progress; comprehensive server-side validation remains pending.
