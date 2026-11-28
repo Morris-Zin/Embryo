@@ -300,6 +300,40 @@
           "fast_check.py/zizmor_workflows": 0.317,
           "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.465
         }
+      },
+      {
+        "at": "2026-11-28T13:11:24Z",
+        "head_sha": "56576270c845831372ff59e77e141103fec599af",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 2.739,
+          "fast_check.py/autoloop_lint": 2.562,
+          "fast_check.py/bash": 0.111,
+          "fast_check.py/compose": 0.224,
+          "fast_check.py/guardrails": 2.655,
+          "fast_check.py/javascript": 0.066,
+          "fast_check.py/knip": 1.112,
+          "fast_check.py/python": 2.037,
+          "fast_check.py/ruff_and_dev_deps": 0.042,
+          "fast_check.py/zizmor_workflows": 0.277
+        }
+      },
+      {
+        "at": "2026-11-28T13:11:39Z",
+        "head_sha": "56576270c845831372ff59e77e141103fec599af",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 3.029,
+          "fast_check.py/autoloop_lint": 2.775,
+          "fast_check.py/bash": 0.277,
+          "fast_check.py/compose": 0.206,
+          "fast_check.py/guardrails": 2.937,
+          "fast_check.py/javascript": 0.067,
+          "fast_check.py/knip": 1.279,
+          "fast_check.py/python": 2.093,
+          "fast_check.py/ruff_and_dev_deps": 0.07,
+          "fast_check.py/zizmor_workflows": 0.338
+        }
       }
     ],
     "shard:runtime_profile": [
@@ -1086,6 +1120,24 @@
       "event": "bind-pr",
       "pr_number": 19,
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T13:11:24Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "56576270c845831372ff59e77e141103fec599af",
+      "shard": "report_paths",
+      "signature": "fast_check.py::EXIT_1::fast_check.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:11:39Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "56576270c845831372ff59e77e141103fec599af",
+      "shard": "report_paths",
+      "signature": "fast_check.py::EXIT_1::fast_check.py",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -1245,26 +1297,12 @@
         "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py"
       ],
       "goal": "",
-      "has_passed_individually": true,
+      "has_passed_individually": false,
       "last_green_sha": "1efc5d44071699c065ca1f495790193c3f444929",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
-      "passed_tooling": {
-        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-        "fast_check_ran": true,
-        "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
-        },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
-        "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
-        }
-      },
-      "pending_dead_end_sig": null,
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": "fast_check.py::EXIT_1::fast_check.py",
       "retry_scope": null,
-      "status": "passed",
-      "trusted_policy_pass_sha": "1efc5d44071699c065ca1f495790193c3f444929",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
     },
@@ -1373,7 +1411,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T13:10:26Z"
+  "updated_at": "2026-11-28T13:11:39Z"
 }
