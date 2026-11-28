@@ -1,0 +1,11 @@
+{
+  "applies_to": [
+    ".autoloop/**"
+  ],
+  "created_at": "2026-11-28T12:56:10Z",
+  "draft": false,
+  "evidence": "all-shards refused: last_green_sha not ancestor; native_accel locked",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Correction: integration = coordinator merges exactly each shard's recorded last_green_sha into the integration branch, then check --all-shards verifies ancestry and gates the integrated tree. What must never happen is merging un-gated shard heads or merging the integration branch back into shard branches. Also: do not contract speculative shards (e.g. native_accel); they block --all-shards."
+}
