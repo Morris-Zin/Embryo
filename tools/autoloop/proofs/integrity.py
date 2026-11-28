@@ -3,8 +3,11 @@
 The guard compares a candidate tree with a trusted base manifest.  It is
 conservative rather than judgment-based: semantic evidence that disappears,
 new suppression mechanisms, weakened numeric boundaries, changed oracles or
-fixtures, and changed command/exit handling fail closed unless an exact,
-unexpired owner waiver applies.  Waivers never waive an acceptance criterion.
+fixtures, changed command/exit handling, and unmanifested protected additions
+fail closed unless an exact, unexpired owner waiver applies.  Expected-absent
+paths and globs let owners protect files that are not present in the base;
+their candidate contents are still scanned in full.  Waivers never waive an
+acceptance criterion.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ import difflib
 import json
 import re
 from collections import Counter, defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -43,6 +46,7 @@ class ProtectedKind(str, Enum):
 class ProtectedPath:
     path: str
     kind: ProtectedKind
+    expected_absent: bool = False
 
 
 @dataclass(frozen=True)
@@ -80,14 +84,25 @@ class TrustedBaseManifest:
         if payload.get("schema_version") != INTEGRITY_SCHEMA_VERSION:
             raise ValueError("trusted base manifest schema_version must be 1")
         protected = tuple(
-            ProtectedPath(str(item["path"]), ProtectedKind(str(item["kind"])))
+            ProtectedPath(
+                _posix_path(str(item["path"])),
+                ProtectedKind(str(item["kind"])),
+                bool(item.get("expected_absent", False)),
+            )
             for item in payload.get("protected_paths", ())
+        ) + tuple(
+            ProtectedPath(
+                _posix_path(str(item["path"])),
+                ProtectedKind(str(item["kind"])),
+                True,
+            )
+            for item in payload.get("expected_absent_paths", ())
         )
         digests = tuple(
-            BaseDigest(str(item["path"]), str(item["sha256"])) for item in payload.get("base_digests", ())
+            BaseDigest(_posix_path(str(item["path"])), str(item["sha256"])) for item in payload.get("base_digests", ())
         )
         criteria = tuple(
-            AcceptanceCriterion(str(item["criterion_id"]), str(item["path"]), str(item.get("token", "")))
+            AcceptanceCriterion(str(item["criterion_id"]), _posix_path(str(item["path"])), str(item.get("token", "")))
             for item in payload.get("acceptance_criteria", ())
         )
         waivers = tuple(
@@ -212,32 +227,80 @@ class _SemanticModel:
     approximations: list[_Occurrence]
     command_events: dict[str, list[_Occurrence]]
     syntax_errors: list[_Occurrence]
+    vacuous_cases: list[_Occurrence]
+
+
+@dataclass(frozen=True)
+class _ProtectedAddition:
+    path: str
+    kind: ProtectedKind
+    covered: bool
 
 
 def trusted_manifest_for_files(
     files: Mapping[str, bytes | str],
     protected_kinds: Mapping[str, str | ProtectedKind],
     *,
+    expected_absent: Mapping[str, str | ProtectedKind] | Iterable[ProtectedPath] = (),
+    expected_absent_paths: Mapping[str, str | ProtectedKind] | Iterable[ProtectedPath] = (),
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = (),
     waivers: tuple[OwnerWaiver, ...] = (),
 ) -> TrustedBaseManifest:
     """Freeze a manifest for already-trusted base files.
 
+    Concrete protected paths that are absent from the base are frozen as
+    expected-absent entries.  ``expected_absent`` (or the equivalent
+    ``expected_absent_paths``) may name additional exact paths or glob
+    patterns.  Glob matches already present in the base are frozen individually;
+    absent matches that appear in the candidate are still scanned in full rather
+    than escaping the guard.
     This helper does not establish trust by itself; it merely removes manual
     digest transcription when an owner or test freezes a trusted base.
     """
 
     normalized = _normalize_files(files)
     protected = tuple(
-        ProtectedPath(_posix_path(path), ProtectedKind(kind) if not isinstance(kind, ProtectedKind) else kind)
+        ProtectedPath(
+            _posix_path(path),
+            ProtectedKind(kind) if not isinstance(kind, ProtectedKind) else kind,
+            not _is_glob_pattern(_posix_path(path)) and _posix_path(path) not in normalized,
+        )
         for path, kind in sorted(protected_kinds.items())
     )
-    digests = []
-    for item in protected:
-        if item.path not in normalized:
-            raise ValueError(f"trusted base is missing protected path {item.path!r}")
-        digests.append(BaseDigest(item.path, sha256_bytes(normalized[item.path])))
-    return TrustedBaseManifest(protected, tuple(digests), acceptance_criteria, waivers)
+    absent = _expected_absent_entries(expected_absent) + _expected_absent_entries(expected_absent_paths)
+    all_protected = protected + absent
+    digest_bytes: dict[str, bytes] = {}
+    for item in all_protected:
+        if _is_glob_pattern(item.path):
+            for path, content in sorted(normalized.items()):
+                if _protected_path_matches(item.path, path):
+                    digest_bytes.setdefault(path, content)
+            continue
+        if item.expected_absent:
+            continue
+        digest_bytes[item.path] = normalized[item.path]
+    digests = tuple(BaseDigest(path, sha256_bytes(digest_bytes[path])) for path in sorted(digest_bytes))
+    return TrustedBaseManifest(all_protected, digests, acceptance_criteria, waivers)
+
+
+def _expected_absent_entries(
+    entries: Mapping[str, str | ProtectedKind] | Iterable[ProtectedPath],
+) -> tuple[ProtectedPath, ...]:
+    if isinstance(entries, Mapping):
+        return tuple(
+            ProtectedPath(
+                _posix_path(path),
+                ProtectedKind(kind) if not isinstance(kind, ProtectedKind) else kind,
+                True,
+            )
+            for path, kind in sorted(entries.items())
+        )
+    result = []
+    for entry in entries:
+        if not isinstance(entry, ProtectedPath):
+            raise TypeError("expected_absent entries must be a path-to-kind mapping or ProtectedPath objects")
+        result.append(ProtectedPath(_posix_path(entry.path), entry.kind, True))
+    return tuple(sorted(result, key=lambda item: item.path))
 
 
 def evaluate_integrity(
@@ -254,19 +317,25 @@ def evaluate_integrity(
     observed_at = _parse_time(now, "now")
     diff_hash = protected_diff_hash(base, candidate, manifest)
 
+    additions = _protected_additions(base, candidate, manifest)
+
     violations: list[IntegrityViolation] = []
     violations.extend(_manifest_shape_violations(manifest))
     violations.extend(_trusted_base_violations(base, manifest))
-    violations.extend(_oracle_fixture_violations(base, candidate, manifest))
+    violations.extend(_oracle_fixture_violations(base, candidate, manifest, additions))
 
     protected_text_kinds = {ProtectedKind.TEST, ProtectedKind.EVALUATOR}
     semantic_paths = {
-        item.path for item in manifest.protected_paths if item.kind in protected_text_kinds
+        path
+        for path, kind in _concrete_protected_kinds(manifest, additions).items()
+        if kind in protected_text_kinds
     }
     base_model = _semantic_model(base, semantic_paths)
     candidate_model = _semantic_model(candidate, semantic_paths)
     violations.extend(_syntax_violations(base_model, candidate_model, manifest))
-    violations.extend(_compare_suppressions(base, candidate, manifest))
+    violations.extend(_protected_addition_violations(additions, manifest))
+    violations.extend(_vacuous_added_test_violations(additions, candidate_model, manifest))
+    violations.extend(_compare_suppressions(base, candidate, manifest, additions))
     violations.extend(_compare_assertions(base_model, candidate_model, manifest))
     violations.extend(_compare_cases(base_model, candidate_model, manifest))
     violations.extend(_compare_thresholds(base_model, candidate_model, manifest))
@@ -288,8 +357,10 @@ def protected_diff_hash(
     base = _normalize_files(base_files)
     candidate = _normalize_files(candidate_files)
     sections: list[str] = []
-    for item in sorted(manifest.protected_paths, key=lambda entry: entry.path):
-        path = item.path
+    concrete_paths = {item.path for item in manifest.protected_paths if not _is_glob_pattern(item.path)}
+    concrete_paths.update(item.path for item in manifest.base_digests)
+    concrete_paths.update(_protected_additions(base, candidate, manifest))
+    for path in sorted(concrete_paths):
         before = base.get(path)
         after = candidate.get(path)
         if before == after:
@@ -334,6 +405,196 @@ def _posix_path(path: str) -> str:
     return str(path).replace("\\", "/")
 
 
+def _is_glob_pattern(path: str) -> bool:
+    return any(character in path for character in "*?[")
+
+
+def _protected_path_matches(pattern: str, path: str) -> bool:
+    pattern = _posix_path(pattern)
+    if not _is_glob_pattern(pattern):
+        return pattern == path
+    try:
+        return re.fullmatch(_glob_regex(pattern), path) is not None
+    except re.error:
+        return False
+
+
+def _glob_regex(pattern: str) -> str:
+    """Translate POSIX-style globs, with ``**`` crossing directory boundaries."""
+
+    pieces = []
+    index = 0
+    while index < len(pattern):
+        character = pattern[index]
+        if character == "*":
+            if index + 1 < len(pattern) and pattern[index + 1] == "*":
+                while index < len(pattern) and pattern[index] == "*":
+                    index += 1
+                if index < len(pattern) and pattern[index] == "/":
+                    pieces.append("(?:.*/)?")
+                    index += 1
+                else:
+                    pieces.append(".*")
+                continue
+            pieces.append("[^/]*")
+        elif character == "?":
+            pieces.append("[^/]")
+        elif character == "[":
+            end = index + 1
+            if end < len(pattern) and pattern[end] == "!":
+                end += 1
+            if end < len(pattern) and pattern[end] == "]":
+                end += 1
+            while end < len(pattern) and pattern[end] != "]":
+                end += 1
+            if end >= len(pattern):
+                pieces.append(re.escape(character))
+            else:
+                content = pattern[index + 1 : end]
+                if content.startswith("!"):
+                    content = "^" + content[1:]
+                pieces.append("[" + content.replace("\\", "\\\\") + "]")
+                index = end
+        else:
+            pieces.append(re.escape(character))
+        index += 1
+    return "".join(pieces)
+
+
+def _concrete_protected_kinds(
+    manifest: TrustedBaseManifest,
+    additions: Mapping[str, _ProtectedAddition] | None = None,
+) -> dict[str, ProtectedKind]:
+    kinds = {
+        item.path: item.kind for item in manifest.protected_paths if not _is_glob_pattern(item.path)
+    }
+    scope_entries = list(manifest.protected_paths)
+    for digest in manifest.base_digests:
+        if digest.path in kinds:
+            continue
+        matches = [item for item in scope_entries if _protected_path_matches(item.path, digest.path)]
+        if matches:
+            kinds[digest.path] = matches[0].kind
+    for path, addition in (additions or {}).items():
+        kinds[path] = addition.kind
+    return kinds
+
+
+def _protected_additions(
+    base: Mapping[str, bytes],
+    candidate: Mapping[str, bytes],
+    manifest: TrustedBaseManifest,
+) -> dict[str, _ProtectedAddition]:
+    additions: dict[str, _ProtectedAddition] = {}
+    for path in sorted(set(candidate) - set(base)):
+        matches = [item for item in manifest.protected_paths if _protected_path_matches(item.path, path)]
+        if matches:
+            kind = matches[0].kind
+        else:
+            inferred = _infer_protected_kind(path)
+            if inferred is None:
+                continue
+            kind = inferred
+        covered = any(item.expected_absent for item in matches)
+        additions[path] = _ProtectedAddition(path, kind, covered)
+    return additions
+
+
+def _is_test_case_file(path: str) -> bool:
+    basename = path.rsplit("/", 1)[-1].lower()
+    if basename == "conftest.py":
+        return False
+    return basename.startswith(("test_", "test-", "test.")) or basename.endswith(
+        ("_test.py", ".test.js", ".spec.js", ".test.ts", ".spec.ts", ".k6.js")
+    )
+
+
+def _infer_protected_kind(path: str) -> ProtectedKind | None:
+    parts = [part.lower() for part in path.split("/") if part]
+    if not parts:
+        return None
+    if any(part in {"oracle", "oracles"} or part.startswith("oracle-") for part in parts):
+        return ProtectedKind.ORACLE
+    if any(part in {"fixture", "fixtures"} or part.startswith("fixture-") for part in parts):
+        return ProtectedKind.FIXTURE
+    if any("evaluator" in part for part in parts):
+        return ProtectedKind.EVALUATOR
+    if _is_test_case_file(path) or any(part in {"test", "tests"} for part in parts):
+        return ProtectedKind.TEST
+    return None
+
+
+def _protected_addition_violations(
+    additions: Mapping[str, _ProtectedAddition],
+    manifest: TrustedBaseManifest,
+) -> list[IntegrityViolation]:
+    violations = []
+    for addition in additions.values():
+        if addition.covered:
+            continue
+        violations.append(
+            _with_acceptance(
+                manifest,
+                IntegrityViolation(
+                    "unmanifested-protected-addition",
+                    addition.path,
+                    f"candidate adds a protected {addition.kind.value} file that is not covered by the trusted base manifest",
+                ),
+                addition.path,
+                "",
+            )
+        )
+    return violations
+
+
+def _vacuous_added_test_violations(
+    additions: Mapping[str, _ProtectedAddition],
+    candidate_model: _SemanticModel,
+    manifest: TrustedBaseManifest,
+) -> list[IntegrityViolation]:
+    violations = []
+    for addition in additions.values():
+        if addition.kind is not ProtectedKind.TEST:
+            continue
+        cases = [
+            occurrence
+            for occurrences in candidate_model.cases.values()
+            for occurrence in occurrences
+            if occurrence.path == addition.path
+        ]
+        if not cases and _is_test_case_file(addition.path):
+            violations.append(
+                _with_acceptance(
+                    manifest,
+                    IntegrityViolation(
+                        "vacuous-test",
+                        addition.path,
+                        "added protected test file contains no test cases",
+                    ),
+                    addition.path,
+                    "",
+                )
+            )
+            continue
+        for occurrence in candidate_model.vacuous_cases:
+            if occurrence.path != addition.path:
+                continue
+            violations.append(
+                _with_acceptance(
+                    manifest,
+                    IntegrityViolation(
+                        "vacuous-test",
+                        addition.path,
+                        "added protected test case contains no assertions",
+                        occurrence.line,
+                    ),
+                    addition.path,
+                    occurrence.text,
+                )
+            )
+    return violations
+
+
 def _parse_time(value: str | datetime, label: str) -> datetime:
     if isinstance(value, datetime):
         parsed = value
@@ -355,10 +616,36 @@ def _manifest_shape_violations(manifest: TrustedBaseManifest) -> list[IntegrityV
         violations.append(
             IntegrityViolation("invalid-trusted-manifest", "", "protected paths or digest paths contain duplicates")
         )
-    if set(protected_paths) != set(digest_paths):
+    required_digest_paths = {
+        item.path
+        for item in manifest.protected_paths
+        if not item.expected_absent and not _is_glob_pattern(item.path)
+    }
+    digest_path_set = set(digest_paths)
+    missing_digests = required_digest_paths - digest_path_set
+    glob_scope = [item for item in manifest.protected_paths if _is_glob_pattern(item.path)]
+    undigested_scope = [
+        path
+        for path in digest_path_set - required_digest_paths
+        if not any(_protected_path_matches(item.path, path) for item in glob_scope)
+    ]
+    if missing_digests or undigested_scope:
         violations.append(
-            IntegrityViolation("invalid-trusted-manifest", "", "protected paths and trusted digest paths differ")
+            IntegrityViolation(
+                "invalid-trusted-manifest",
+                "",
+                "trusted digests do not match concrete protected paths or protected glob scope",
+            )
         )
+    for item in manifest.protected_paths:
+        if not _is_glob_pattern(item.path):
+            continue
+        try:
+            re.compile(_glob_regex(item.path))
+        except re.error:
+            violations.append(
+                IntegrityViolation("invalid-trusted-manifest", item.path, "protected glob pattern is invalid")
+            )
     for item in manifest.base_digests:
         if not re.fullmatch(r"[0-9a-f]{64}", item.sha256):
             violations.append(
@@ -375,28 +662,36 @@ def _trusted_base_violations(base: dict[str, bytes], manifest: TrustedBaseManife
             violations.append(IntegrityViolation("untrusted-base", item.path, "trusted base file is missing"))
         elif sha256_bytes(content) != item.sha256:
             violations.append(IntegrityViolation("untrusted-base", item.path, "base file digest differs from trusted manifest"))
+    for item in manifest.protected_paths:
+        if item.expected_absent and not _is_glob_pattern(item.path) and item.path in base:
+            violations.append(
+                IntegrityViolation("untrusted-base", item.path, "expected-absent protected path exists in the trusted base")
+            )
     return violations
 
 
 def _oracle_fixture_violations(
-    base: dict[str, bytes], candidate: dict[str, bytes], manifest: TrustedBaseManifest
+    base: dict[str, bytes],
+    candidate: dict[str, bytes],
+    manifest: TrustedBaseManifest,
+    additions: Mapping[str, _ProtectedAddition],
 ) -> list[IntegrityViolation]:
     violations: list[IntegrityViolation] = []
-    for item in manifest.protected_paths:
-        if item.kind not in {ProtectedKind.ORACLE, ProtectedKind.FIXTURE}:
+    for path, kind in sorted(_concrete_protected_kinds(manifest, additions).items()):
+        if kind not in {ProtectedKind.ORACLE, ProtectedKind.FIXTURE}:
             continue
-        before = base.get(item.path)
-        after = candidate.get(item.path)
+        before = base.get(path)
+        after = candidate.get(path)
         if before == after:
             continue
-        rule = "changed-oracle-file" if item.kind is ProtectedKind.ORACLE else "changed-fixture-file"
+        rule = "changed-oracle-file" if kind is ProtectedKind.ORACLE else "changed-fixture-file"
         if before is None:
             message = "protected oracle/fixture file was added"
         elif after is None:
             message = "protected oracle/fixture file was deleted"
         else:
             message = "protected oracle/fixture content changed"
-        violations.append(_with_acceptance(manifest, IntegrityViolation(rule, item.path, message), item.path, ""))
+        violations.append(_with_acceptance(manifest, IntegrityViolation(rule, path, message), path, ""))
     return violations
 
 
@@ -422,6 +717,7 @@ def _semantic_model(files: dict[str, bytes], paths: set[str]) -> _SemanticModel:
         approximations=[],
         command_events=defaultdict(list),
         syntax_errors=[],
+        vacuous_cases=[],
     )
     for path in sorted(paths):
         content = files.get(path)
@@ -506,22 +802,33 @@ def _extract_python_semantics(path: str, text: str, model: _SemanticModel) -> No
             )
 
     for function in [item for items in functions.values() for item in items if item.name.startswith("test")]:
-        case = _python_case_signature(path, function, functions, text)
+        case, assertion_count = _python_case_signature(path, function, functions, text)
         model.cases[case.key].append(case)
+        if assertion_count == 0:
+            model.vacuous_cases.append(case)
 
 
 def _extract_javascript_semantics(path: str, text: str, model: _SemanticModel) -> None:
     case_count = 0
+    assertion_count = 0
+    case_lines: list[int] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         compact = re.sub(r"\s+", "", line)
         if _JS_ASSERTION_RE.search(line):
+            assertion_count += 1
             key = "js-assertion:" + re.sub(r"\b[A-Za-z_$][A-Za-z0-9_$]*\b", "_", compact)
             model.assertions[key].append(_Occurrence(key, path, line_number, line.strip()))
         if _JS_CASE_RE.search(line):
             case_count += 1
+            case_lines.append(line_number)
     for index in range(case_count):
         key = "js-case-presence"
         model.cases[key].append(_Occurrence(key, path, 0, f"javascript case {index + 1}"))
+    if case_count > assertion_count:
+        line_number = case_lines[0] if case_lines else 0
+        model.vacuous_cases.append(
+            _Occurrence("js-vacuous-case", path, line_number, "javascript test case has no extracted assertion")
+        )
 
 
 def _assertion_nodes(tree: ast.AST) -> list[tuple[str, ast.AST]]:
@@ -548,7 +855,7 @@ def _python_case_signature(
     function: ast.FunctionDef | ast.AsyncFunctionDef,
     functions: dict[str, list[ast.FunctionDef | ast.AsyncFunctionDef]],
     source: str,
-) -> _Occurrence:
+) -> tuple[_Occurrence, int]:
     assertions: Counter[str] = Counter()
     constants: Counter[str] = Counter()
     visited: set[int] = set()
@@ -577,7 +884,7 @@ def _python_case_signature(
     signature = sha256_json({"assertions": assertion_items, "constants": constant_items})
     text = "\n".join([key for key, _count in assertion_items] + [key for key, _count in constant_items])
     text += "\n" + (ast.get_source_segment(source, function) or "")
-    return _Occurrence(signature, path, function.lineno, text)
+    return _Occurrence(signature, path, function.lineno, text), sum(assertions.values())
 
 
 def _walk_function_body(function: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.AST]:
@@ -842,7 +1149,10 @@ def _syntax_violations(
 
 
 def _compare_suppressions(
-    base: dict[str, bytes], candidate: dict[str, bytes], manifest: TrustedBaseManifest
+    base: dict[str, bytes],
+    candidate: dict[str, bytes],
+    manifest: TrustedBaseManifest,
+    additions: Mapping[str, _ProtectedAddition],
 ) -> list[IntegrityViolation]:
     """Flag suppression markers present in added diff lines after move pairing.
 
@@ -855,11 +1165,11 @@ def _compare_suppressions(
     removed: Counter[str] = Counter()
     occurrences: dict[str, _Occurrence] = {}
     protected_text_kinds = {ProtectedKind.TEST, ProtectedKind.EVALUATOR}
-    for item in sorted(manifest.protected_paths, key=lambda entry: entry.path):
-        if item.kind not in protected_text_kinds:
+    for path, kind in sorted(_concrete_protected_kinds(manifest, additions).items()):
+        if kind not in protected_text_kinds:
             continue
-        before = base.get(item.path)
-        after = candidate.get(item.path)
+        before = base.get(path)
+        after = candidate.get(path)
         if before == after:
             continue
         try:
@@ -872,7 +1182,7 @@ def _compare_suppressions(
                 line = diff_line[2:]
                 for marker, key in _suppression_keys_in_line(line):
                     added[key] += 1
-                    occurrences.setdefault(key, _Occurrence(marker, item.path, _line_number(after_lines, line), line.strip()))
+                    occurrences.setdefault(key, _Occurrence(marker, path, _line_number(after_lines, line), line.strip()))
             elif diff_line.startswith("- "):
                 for _marker, key in _suppression_keys_in_line(diff_line[2:]):
                     removed[key] += 1
@@ -1055,6 +1365,25 @@ def _compare_command_events(
                     "altered-command-or-exit-handling",
                     occurrence.path,
                     f"candidate removes or alters {missing} command/exit handling event(s)",
+                    occurrence.line,
+                ),
+                occurrence.path,
+                occurrence.text,
+            )
+        )
+    for key, candidate_items in sorted(candidate_model.command_events.items()):
+        base_count = len(base_model.command_events.get(key, ()))
+        added = len(candidate_items) - base_count
+        if added <= 0:
+            continue
+        occurrence = candidate_items[min(base_count, len(candidate_items) - 1)]
+        violations.append(
+            _with_acceptance(
+                manifest,
+                IntegrityViolation(
+                    "altered-command-or-exit-handling",
+                    occurrence.path,
+                    f"candidate adds {added} command/exit handling event(s) without a trusted-base counterpart",
                     occurrence.line,
                 ),
                 occurrence.path,
