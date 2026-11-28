@@ -18,7 +18,7 @@ import sys
 import sysconfig
 from tempfile import TemporaryDirectory
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 # Allow running directly as `python tools/autoloop/cli.py ...` without PYTHONPATH tweaks.
 if __package__ in (None, ""):
@@ -30,6 +30,7 @@ from autoloop.guard import (
     CheckCommandError,
     GitHubAPIClient,
     GuardError,
+    ShadowOnlyError,
     advise_test_integrity,
     assert_safe_local_path,
     compute_code_tree_sha256,
@@ -40,7 +41,10 @@ from autoloop.guard import (
     load_config,
     load_verified_local_contract,
     read_verification_key,
-    verification_envelope,
+    refuse_enforcement,
+    refuse_local_enforcement,
+    require_phase2b,
+    run_shadow,
     verify_pr_integrity,
     verify_untampered,
 )
@@ -48,10 +52,8 @@ from autoloop.leases import (
     LeaseError, acquire_lease, lease_status, release_lease, renew_lease, resource_lease_key, resource_lock_dir,
 )
 from autoloop.lessons import LESSON_KINDS, matching_lessons, record_lesson
-from autoloop.receipts import Broker, ReceiptError, checkout_repo_id
 from autoloop.routing import NUMBER_FIELDS, OPTIONAL_FIELDS, REQUIRED_FIELDS, record_attempt, routing_report
 from autoloop.state import (
-    EnforcedVerificationError,
     IllegalTransitionError,
     apply_replan,
     bind_pr,
@@ -86,6 +88,9 @@ from autoloop.state import (
 from autoloop.static_rules import lint_repo
 from autoloop.trusted_tooling import materialize_tooling
 
+if TYPE_CHECKING:
+    from autoloop.receipts import Broker
+
 
 def _default_repo() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -100,7 +105,8 @@ def _verification_options(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _add_verification_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None)
+    parser.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None,
+                        help="Enforcement is deferred to issue #22")
     parser.add_argument("--verification-evidence", type=Path, help="Signed coordinator evidence JSON")
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -111,6 +117,8 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 
 def _broker_repo_id(repo: Path, explicit: str | None = None) -> str:
+    from autoloop.receipts import ReceiptError, checkout_repo_id
+
     repo_id = checkout_repo_id(repo)
     if repo_id and explicit and repo_id != explicit:
         raise ReceiptError("--repo-id differs from the checkout's Git origin")
@@ -119,8 +127,16 @@ def _broker_repo_id(repo: Path, explicit: str | None = None) -> str:
     return repo_id or explicit
 
 
+def _open_broker(repo: Path, repo_id: str | None = None) -> Broker:
+    from autoloop.receipts import Broker
+
+    return Broker(_broker_repo_id(repo, repo_id))
+
+
 def _reserve_delegation(repo: Path, broker: Broker, run_id: str, shard_id: str,
                         worktree: Path | None, data: dict[str, Any]) -> dict[str, Any]:
+    from autoloop.receipts import ReceiptError
+
     run, contract = load_verified_local_contract(repo, run_id)
     if shard_id not in contract["shards"]:
         raise ReceiptError(f"unknown shard {shard_id!r}")
@@ -137,7 +153,7 @@ def _reserve_delegation(repo: Path, broker: Broker, run_id: str, shard_id: str,
 
 
 def _delegation_command(repo: Path, args: argparse.Namespace) -> Any:
-    broker = Broker(_broker_repo_id(repo, args.repo_id))
+    broker = _open_broker(repo, args.repo_id)
     if args.action == "reserve":
         return _reserve_delegation(repo, broker, args.run_id, args.shard, args.worktree, _read_object(args.payload))
     if args.action == "status":
@@ -156,6 +172,7 @@ def _delegation_command(repo: Path, args: argparse.Namespace) -> Any:
 
 
 def _reserve_admission(repo: Path, repo_id: str | None, run_id: str, shard: str, data: dict[str, Any]) -> dict[str, Any]:
+    require_phase2b("Admission reservation")
     from autoloop.admission import AdmissionError, Controller, EnforcedBounds, Usage
 
     _, contract = load_verified_local_contract(repo, run_id)
@@ -170,6 +187,7 @@ def _reserve_admission(repo: Path, repo_id: str | None, run_id: str, shard: str,
 
 
 def _admission_command(repo: Path, args: argparse.Namespace) -> Any:
+    require_phase2b("Admission")
     from autoloop.admission import AdmissionError, Controller, Usage
 
     if args.action == "reserve":
@@ -195,6 +213,10 @@ def _admission_command(repo: Path, args: argparse.Namespace) -> Any:
             raise AdmissionError("admission DAG must list the frozen run shards")
         controller.register_run(**data)
     return {"action": args.action, "status": "registered"}
+
+
+def _advise_admission() -> None:
+    require_phase2b("Admission reservation")
 
 
 def _parse_shard_specs(specs: list[str]) -> dict[str, list[str]]:
@@ -280,6 +302,7 @@ def _run_cacheable_check(
     repo: Path, worktree: Path, run: dict[str, Any], shard: str, command: str,
     head: str, tree: str, tooling: str, report: dict[str, Any],
 ) -> subprocess.CompletedProcess[str] | None:
+    require_phase2b("Check caching")
     from autoloop.verification import CheckCache, CheckCacheKey, CheckOutcome, InputDigest, env_allowlist_digest
 
     try:
@@ -288,7 +311,7 @@ def _run_cacheable_check(
             return None
         argv, environment, interpreter, source = inputs
         cache = CheckCache()
-        broker = Broker(_broker_repo_id(repo))
+        broker = _open_broker(repo)
         key = CheckCacheKey(
             tree, tooling, argv, interpreter, env_allowlist_digest(environment, tuple(environment)),
             platform.platform(), str(worktree),
@@ -354,6 +377,7 @@ def _run_checks_with_cache(
     repo: Path, worktree: Path, snapshot: Path, commands: list[tuple[str, str]], steps: dict[str, float],
     args: argparse.Namespace, run: dict[str, Any], verified: dict[str, Any], tooling: dict[str, Any],
 ) -> bool:
+    require_phase2b("Check caching")
     report: dict[str, Any] = {"hits": 0, "eligible": 0, "subprocess_seconds_avoided": 0.0, "references": []}
     tooling["check_cache"] = report
     try:
@@ -390,11 +414,11 @@ def _run_checks_with_cache(
 def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     try:
         return _run_legacy_check(repo, args)
-    except EnforcedVerificationError:
+    except ShadowOnlyError:
         raise
     except (RuntimeError, OSError):
         if bool(args.shard) != bool(args.all_shards):
-            try:
+            def record_rejection() -> None:
                 state = load_run(repo, args.run_id)
                 registered = (state["shards"].get(args.shard) or {}).get("worktree_path")
                 worktree = args.worktree or (Path(registered) if registered else repo)
@@ -403,12 +427,14 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                     {**_verification_options(args), "git_repo": worktree},
                     head=git_rev_parse(worktree, "HEAD"), shard_id=args.shard,
                 )
-            except (RuntimeError, OSError, ValueError, KeyError) as shadow_error:
-                print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
+            run_shadow("verification legacy rejection", record_rejection)
         raise
 
 
 def _run_legacy_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
+    refuse_enforcement(args.verification_mode)
+    if args.check_cache:
+        require_phase2b("Check caching")
     if bool(args.shard) == bool(args.all_shards):
         raise IllegalTransitionError("check requires exactly one of --shard <id> or --all-shards")
     run, contract = load_verified_local_contract(repo, args.run_id)
@@ -447,17 +473,19 @@ def _run_legacy_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                 )
         commands.extend((shard_id, cmd) for cmd in contract["shards"][shard_id]["checks"])
 
-    advise_test_integrity(worktree, run["base_sha"], requested, now=utc_now())
+    run_shadow("integrity", lambda: advise_test_integrity(worktree, run["base_sha"], requested, now=utc_now()))
     with TemporaryDirectory(prefix="autoloop-tooling-") as temp:
         snapshot = Path(temp)
         tooling = materialize_tooling(repo, snapshot, run, contract, checking_shard=args.shard)
         if args.verification_evidence is not None:
-            from autoloop.verification import ToolingSource, tooling_sources_digest
+            def shadow_tooling() -> dict[str, Any]:
+                from autoloop.verification import ToolingSource, tooling_sources_digest
 
-            verification["checked_tooling_digest"] = tooling_sources_digest(tuple(
-                ToolingSource(path.relative_to(snapshot).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
-                for path in snapshot.rglob("*") if path.is_file()
-            ))
+                return {"checked_tooling_digest": tooling_sources_digest(tuple(
+                    ToolingSource(path.relative_to(snapshot).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+                    for path in snapshot.rglob("*") if path.is_file()
+                ))}
+            verification.update(run_shadow("verification tooling", shadow_tooling))
         steps: dict[str, float] = {}
         passed = False
         stage = "verify-untampered"
@@ -647,25 +675,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="autoloop", description="Opt-in autonomous workflow loop CLI (V3)")
     parser.add_argument("--repo", type=Path, default=_default_repo(), help="Repository root path")
     sub = parser.add_subparsers(dest="command", required=True)
-    from autoloop.profile.__main__ import build_parser as profile_parser
-
-    sub.add_parser("profile", parents=[profile_parser()], add_help=False,
-                   help="Profile existing local agent usage")
+    sub.add_parser("profile", add_help=False, help="Profile existing local agent usage")
 
     p_review_next = sub.add_parser("review-next", help="Print the advisory next review action")
     p_review_next.add_argument("--run-id", required=True)
 
-    from autoloop.proofs import ProofMode
-
-    p_proof = sub.add_parser("red-proof", help="Run a counterexample and good control against two gates")
-    p_proof.add_argument("--run-id", required=True)
-    p_proof.add_argument("--finding-id", required=True)
-    p_proof.add_argument("--bound-tree-digest", required=True)
+    p_proof = sub.add_parser("red-proof", add_help=False, help="Deferred until issue #22")
+    p_proof.add_argument("--run-id")
+    p_proof.add_argument("--finding-id")
+    p_proof.add_argument("--bound-tree-digest")
     p_proof.add_argument("--head-ref", default="HEAD")
-    p_proof.add_argument("--mode", choices=[mode.value for mode in ProofMode], required=True)
-    p_proof.add_argument("--expected-diagnostic", required=True)
+    p_proof.add_argument("--mode")
+    p_proof.add_argument("--expected-diagnostic")
     for name in ("old-gate", "new-gate", "counterexample", "control", "output-dir"):
-        p_proof.add_argument(f"--{name}", type=Path, required=name != "output-dir")
+        p_proof.add_argument(f"--{name}", type=Path)
     p_proof.add_argument("--timeout-seconds", type=float, default=5.0)
 
     # init
@@ -702,7 +725,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lock.add_argument("--require-delegation-receipts", action="store_true",
                         help="Freeze the owner opt-in for delegation receipts")
     p_lock.add_argument("--verification-key", type=Path, help="OpenSSH Ed25519 verification public key to freeze")
-    p_lock.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None)
+    p_lock.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None,
+                        help="Enforcement is deferred to issue #22")
 
     # bind-pr
     p_bind = sub.add_parser("bind-pr", help="Bind PR number into FrozenContractV1 and bump contract_revision")
@@ -726,7 +750,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--worktree", default=None)
     p_start.add_argument("--last-green-sha", default=None)
     p_start.add_argument("--delegation-reservation", type=Path, help="Optional shadow reservation metadata JSON")
-    p_start.add_argument("--admission-reservation", type=Path, help="Optional shadow budget reservation JSON")
+    p_start.add_argument("--admission-reservation", type=Path, help="Report the budget admission deferral (issue #22)")
     p_start.add_argument("--repo-id", help="Stable broker repository ID for a checkout without an origin")
 
     p_delegation = sub.add_parser("delegation", help="Record a delegation in the shadow receipts broker")
@@ -750,7 +774,7 @@ def _build_parser() -> argparse.ArgumentParser:
         elif action == "revoke":
             event.add_argument("--reason", required=True)
 
-    p_admission = sub.add_parser("admission", help="Reserve and account for budget in shadow mode")
+    p_admission = sub.add_parser("admission", help="Budget admission is deferred to issue #22")
     p_admission.add_argument("--repo-id", help="Stable repository ID for a checkout without an origin")
     admission = p_admission.add_subparsers(dest="action", required=True)
     budget = admission.add_parser("reserve")
@@ -807,6 +831,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vpi.add_argument("--offline", action="store_true")
     p_vpi.add_argument("--shadow-verification", action="store_true", help="Print the advisory Phase 2 decision")
     p_vpi.add_argument("--verification-evidence", type=Path, help="Offline signed coordinator evidence JSON")
+    for gate in ("integrated", "finalize"):
+        p_vpi.add_argument(f"--legacy-{gate}-result", choices=("success", "failure", "skipped", "cancelled"),
+                           help="Trusted CI step result for shadow comparison")
 
     # lease
     p_lease = sub.add_parser("lease", help="Acquire, renew, or release a cross-platform resource lease")
@@ -836,8 +863,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("--head-ref", default="HEAD")
     p_check.add_argument("--worktree", type=Path, default=None)
     p_check.add_argument("--skip-fast-check", action="store_true")
-    p_check.add_argument("--check-cache", action="store_true",
-                         help="Reuse attested successes of the allowlisted isolated CPython compile command")
+    p_check.add_argument("--check-cache", action="store_true", help="Check caching is deferred to issue #22")
     _add_verification_options(p_check)
     sub.add_parser("doctor", help="Diagnose Python, dev tools, uv, Docker, and Windows WSL without installing")
 
@@ -973,32 +999,56 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     command_line = list(sys.argv[1:] if argv is None else argv)
-    args = parser.parse_args(command_line)
-    repo: Path = args.repo.resolve()
+    args, remaining = parser.parse_known_args(command_line)
 
     try:
         cmd = args.command
+        refuse_enforcement(getattr(args, "verification_mode", None))
+        if getattr(args, "check_cache", False):
+            require_phase2b("Check caching")
+        if cmd == "red-proof":
+            require_phase2b("Red proof")
+        if cmd == "admission":
+            require_phase2b("Admission")
+        if remaining and cmd != "profile":
+            parser.error(f"unrecognized arguments: {' '.join(remaining)}")
+        repo: Path = args.repo.resolve()
+        if run_id := getattr(args, "run_id", None):
+            refuse_local_enforcement(repo, run_id)
         if cmd == "profile":
-            from autoloop.profile.__main__ import main as profile_main
+            def advise_profile() -> int:
+                from autoloop.profile.__main__ import main as profile_main
 
-            # The only global option is --repo, which the profiler doesn't use.
-            option = command_line[0]
-            offset = (1 if "=" in option else 2) if option.startswith("--") else 0
-            return profile_main(command_line[offset + 1:])
+                try:
+                    return profile_main(remaining)
+                except SystemExit as exc:
+                    if exc.code == 0:  # The profiler's own --help.
+                        return EXIT_OK
+                    raise
+
+            result = run_shadow("profile", advise_profile)
+            if isinstance(result, dict):
+                _emit(result)
+                return EXIT_OK
+            return result
         elif cmd == "review-next":
-            from autoloop.supervision import import_run_state, next_action
+            def advise_review() -> dict[str, Any]:
+                from autoloop.supervision import import_run_state, next_action
 
-            state = load_run(repo, args.run_id)
-            imported = import_run_state(state)
-            shards = tuple(state.get("shards", {}).values())
-            hashes = {shard.get("passed_code_tree_sha256") for shard in shards}
-            checks_valid = (
-                len(hashes) == 1 and None not in hashes
-                and all(shard["status"] == "passed" for shard in shards)
-                and not state.get("pending_contract_amendments")
-            )
-            contract = {**(state.get("review_supervision") or {}), "checks_valid": checks_valid}
-            _emit(next_action(imported.findings, imported.history, state.get("review_budget"), contract).to_dict())
+                state = load_run(repo, args.run_id)
+                imported = import_run_state(state)
+                shards = tuple(state.get("shards", {}).values())
+                hashes = {shard.get("passed_code_tree_sha256") for shard in shards}
+                checks_valid = (
+                    len(hashes) == 1 and None not in hashes
+                    and all(shard["status"] == "passed" for shard in shards)
+                    and not state.get("pending_contract_amendments")
+                )
+                contract = {**(state.get("review_supervision") or {}), "checks_valid": checks_valid}
+                action = next_action(imported.findings, imported.history, state.get("review_budget"), contract)
+                return json.loads(json.dumps(action.to_dict()))
+
+            _emit(run_shadow("review supervision", advise_review))
         elif cmd == "red-proof":
             from autoloop.proofs import ProofMode, ProofVerdict, RedProofSpec, run_red_proof, write_proof_record
 
@@ -1066,22 +1116,16 @@ def main(argv: list[str] | None = None) -> int:
                 repo, args.run_id, args.shard, worktree_path=args.worktree, last_green_sha=args.last_green_sha,
             )
             if args.delegation_reservation is not None:
-                try:
-                    broker = Broker(_broker_repo_id(repo, args.repo_id))
-                    result["shadow_delegation"] = _reserve_delegation(
+                def advise_delegation() -> dict[str, Any]:
+                    broker = _open_broker(repo, args.repo_id)
+                    receipt = _reserve_delegation(
                         repo, broker, args.run_id, args.shard, None, _read_object(args.delegation_reservation),
                     )
-                except (RuntimeError, OSError, TypeError, ValueError) as exc:
-                    print(f"SHADOW-DIVERGENCE delegation reservation: {exc}", file=sys.stderr)
+                    return json.loads(json.dumps(receipt))
+
+                result["shadow_delegation"] = run_shadow("delegation reservation", advise_delegation)
             if args.admission_reservation is not None:
-                try:
-                    result["shadow_admission"] = _reserve_admission(
-                        repo, args.repo_id, args.run_id, args.shard, _read_object(args.admission_reservation),
-                    )
-                    if result["shadow_admission"]["status"] != "reserved":
-                        print(f"SHADOW-DIVERGENCE admission: {result['shadow_admission']['reason']}", file=sys.stderr)
-                except (RuntimeError, OSError, KeyError, TypeError, ValueError) as exc:
-                    print(f"SHADOW-DIVERGENCE admission reservation: {exc}", file=sys.stderr)
+                result["shadow_admission"] = run_shadow("admission", _advise_admission)
             _emit(result)
         elif cmd == "delegation":
             _emit(_delegation_command(repo, args))
@@ -1159,6 +1203,20 @@ def main(argv: list[str] | None = None) -> int:
             if not args.offline and repo_slug:
                 client = GitHubAPIClient(repo_slug)
 
+            legacy_outcomes = {
+                obligation: outcome == "success"
+                for obligation, outcome in (
+                    ("integrated", args.legacy_integrated_result),
+                    ("merge_eligibility", args.legacy_finalize_result),
+                )
+                if outcome in ("success", "failure")
+            }
+            integrated_output = os.environ.get("AUTOLOOP_LEGACY_INTEGRATED_OUTPUT")
+
+            def report_legacy_integration(ok: bool) -> None:
+                with Path(integrated_output).open("a", encoding="utf-8", newline="\n") as output:
+                    output.write("legacy_integrated_result=success\n" if ok else "legacy_integrated_result=failure\n")
+
             result = verify_pr_integrity(
                 repo,
                 base_sha=base_sha,
@@ -1175,7 +1233,9 @@ def main(argv: list[str] | None = None) -> int:
                 trusted_shard_results=trusted_shard_results,
                 pr_body=str(pr_body or ""),
                 shadow_verification=args.shadow_verification,
-                shadow_envelope=verification_envelope(args.verification_evidence),
+                shadow_evidence_path=args.verification_evidence,
+                shadow_legacy_outcomes=legacy_outcomes,
+                report_legacy_integration=report_legacy_integration if integrated_output else None,
             )
             if args.github_output is not None:
                 shard_checks_list = result.get("shard_checks") or []
@@ -1310,10 +1370,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 _emit(submit_for_review(repo, args.run_id, verification=verification))
             except IllegalTransitionError:
-                try:
-                    record_legacy_rejection(repo, args.run_id, "review_submission", verification)
-                except (RuntimeError, OSError, ValueError, KeyError) as shadow_error:
-                    print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
+                run_shadow("verification legacy rejection",
+                           lambda: record_legacy_rejection(repo, args.run_id, "review_submission", verification))
                 raise
         elif cmd == "record-oracle-mismatch":
             _emit(record_oracle_mismatch(

@@ -383,6 +383,7 @@ jobs:
           merge-multiple: true
 
       - name: Finalize trusted integrity verification
+        id: trusted_finalize
         if: needs.autoloop-preflight.outputs.bootstrap != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -397,6 +398,7 @@ jobs:
           if [ "${ENROLLED}" = "true" ]; then
             if [ "${SHARD_CHECKS_RESULT}" != "success" ]; then
               echo "ERROR: autoloop-shard-checks did not succeed (${SHARD_CHECKS_RESULT})." >&2
+              printf 'legacy_integrated_result=failure\n' >> "${GITHUB_OUTPUT:-}" || true
               exit 3
             fi
             TRUSTED_SHARD_RESULTS_B64="$(python - <<'PY'
@@ -421,6 +423,7 @@ jobs:
           )"
             EXTRA_ARGS+=(--trusted-shard-results-b64 "${TRUSTED_SHARD_RESULTS_B64}")
           fi
+          AUTOLOOP_LEGACY_INTEGRATED_OUTPUT="${GITHUB_OUTPUT:-}" \
           python -B tools/autoloop/cli.py verify-pr-integrity \
             --mode finalize \
             --candidate-checks-result "${CANDIDATE_CHECKS_RESULT}" \
@@ -438,9 +441,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REPO_SLUG: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LEGACY_INTEGRATED_RESULT: ${{ steps.trusted_finalize.outputs.legacy_integrated_result }}
+          LEGACY_FINALIZE_RESULT: ${{ steps.trusted_finalize.outcome }}
         run: |
           python -B tools/autoloop/cli.py verify-pr-integrity \
             --mode preflight --shadow-verification \
+            --legacy-integrated-result "${LEGACY_INTEGRATED_RESULT:-skipped}" \
+            --legacy-finalize-result "${LEGACY_FINALIZE_RESULT:-skipped}" \
             --event-path "${GITHUB_EVENT_PATH}" \
             --repo-slug "${REPO_SLUG}" \
             --main-ref "origin/${DEFAULT_BRANCH}"
