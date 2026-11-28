@@ -3,33 +3,36 @@
     "tools/perf_parity.py",
     "tools/fast_check.py",
     "tools/khitmee_dev.py",
-    "tools/perf_eval_ledger.py"
+    "tools/perf_eval_ledger.py",
+    "tools/autoloop/**",
+    ".autoloop/rules/**",
+    ".devin/skills/autoloop/**"
   ],
   "allowed_paths": [],
   "base_branch": "main",
   "base_sha": "c7b1e0c592b7a4f97e1c6463de48e7cf839871b2",
   "contract_revision": 1,
-  "contract_sha256": "36718e6806d94383c09f39aacaa217aca33abf23af1879e0570a0e510515cc5e",
-  "created_at": "2026-11-28T11:22:03Z",
+  "contract_sha256": "6f6b366efb1f89c2f723cfb2d6d4b87b51456dfcb4e95ada85b9e444e3722d92",
+  "created_at": "2026-11-28T11:24:26Z",
   "dead_ends": [],
   "findings": {},
   "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle. Integrates PR17 changes.",
   "grill_summary": "Integrates PR17 (merged into branch; PR17 need not merge). Base main. Oracle: stock ERPNext/Frappe never edited; mismatches reported with root cause. Acceptance: 1h seasonal (100/125 vouchers/min + managers) on 2vCPU/2GiB capped guest, p95 budgets, no OOM, no duplicate postings, exact parity. Architecture per ADR 0002 (GPT-6.2 Astra): keep transactional getseries, shrink post-naming work. Rust only for measured CPU-bound pure batch steps. Workers: SWE-2.1 standard / GPT-6.2 Sol. Review: deep (Astra) + cloud. Merge: auto.",
   "history": [
     {
-      "at": "2026-11-28T11:22:03Z",
+      "at": "2026-11-28T11:24:26Z",
       "event": "init",
       "status": "draft"
     },
     {
-      "at": "2026-11-28T11:22:03Z",
+      "at": "2026-11-28T11:24:27Z",
       "event": "complete-grill",
       "status": "grilled"
     },
     {
-      "at": "2026-11-28T11:22:03Z",
+      "at": "2026-11-28T11:24:27Z",
       "contract_revision": 1,
-      "contract_sha256": "36718e6806d94383c09f39aacaa217aca33abf23af1879e0570a0e510515cc5e",
+      "contract_sha256": "6f6b366efb1f89c2f723cfb2d6d4b87b51456dfcb4e95ada85b9e444e3722d92",
       "event": "lock",
       "status": "locked"
     }
@@ -212,5 +215,5 @@
   },
   "status": "locked",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T11:22:03Z"
+  "updated_at": "2026-11-28T11:24:27Z"
 }
