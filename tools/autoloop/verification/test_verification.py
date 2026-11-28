@@ -342,6 +342,69 @@ class VerificationPredicateTests(unittest.TestCase):
         self.assertEqual((), shard_blocked.obligations_met)
         self.assertIn("missing-shard-evidence", {failure.reason for failure in shard_blocked.failures})
 
+    def _per_gate_tooling_snapshot(self) -> tuple[EvidenceSnapshot, str]:
+        """Shard check ran with tooling that excludes the shard; integrated checks with overlay tooling."""
+        shard_sources = (ToolingSource("tools/autoloop/state.py", "3" * 64),)
+        shard_digest = tooling_sources_digest(shard_sources)
+        self.assertNotEqual(shard_digest, TOOLING_DIGEST)
+        snapshot = replace(
+            self.snapshot,
+            tooling=self.snapshot.tooling
+            + (
+                ToolingEvidence(
+                    meta=meta("shard-tooling-evidence", 0),
+                    tooling_digest=shard_digest,
+                    sources=shard_sources,
+                    gate=Obligation.SHARD,
+                ),
+            ),
+        )
+        return replace_item(snapshot, "checks", 0, tooling_digest=shard_digest), shard_digest
+
+    def test_distinct_valid_tooling_per_gate_is_accepted(self) -> None:
+        snapshot, _ = self._per_gate_tooling_snapshot()
+        decision = verify(target(), self.contract, snapshot)
+        self.assertTrue(decision.ok, decision.failures)
+
+    def test_swapped_gate_tooling_digests_are_rejected(self) -> None:
+        snapshot, shard_digest = self._per_gate_tooling_snapshot()
+        # shard check reports the integrated tooling instead of its own gate's tooling
+        shard_swapped = replace_item(snapshot, "checks", 0, tooling_digest=TOOLING_DIGEST)
+        decision = verify(target(Obligation.SHARD), self.contract, shard_swapped)
+        self.assertFalse(decision.ok)
+        self.assertIn("stale-check-tooling", {failure.reason for failure in decision.failures})
+        # integrated check reports the shard gate's tooling
+        integrated_swapped = replace_item(snapshot, "checks", 1, tooling_digest=shard_digest)
+        decision = verify(target(Obligation.INTEGRATED), self.contract, integrated_swapped)
+        self.assertFalse(decision.ok)
+        self.assertEqual((Obligation.SHARD,), decision.obligations_met)
+        self.assertIn("stale-check-tooling", {failure.reason for failure in decision.failures})
+
+    def test_conflicting_tooling_records_for_one_gate_are_contradictory(self) -> None:
+        snapshot, _ = self._per_gate_tooling_snapshot()
+        other_sources = (ToolingSource("tools/autoloop/cli.py", "4" * 64),)
+        conflicting = replace(
+            snapshot,
+            tooling=snapshot.tooling
+            + (
+                ToolingEvidence(
+                    meta=meta("shard-tooling-evidence-2", 0),
+                    tooling_digest=tooling_sources_digest(other_sources),
+                    sources=other_sources,
+                    gate=Obligation.SHARD,
+                ),
+            ),
+        )
+        decision = verify(target(Obligation.SHARD), self.contract, conflicting)
+        self.assertFalse(decision.ok)
+        self.assertIn("contradictory-tooling-evidence", {failure.reason for failure in decision.failures})
+
+    def test_unbound_tooling_must_still_match_snapshot_digest(self) -> None:
+        stale = replace(self.snapshot, tooling_digest=tooling_sources_digest((ToolingSource("x.py", "5" * 64),)))
+        decision = verify(target(Obligation.SHARD), self.contract, stale)
+        self.assertFalse(decision.ok)
+        self.assertIn("stale-tooling-digest", {failure.reason for failure in decision.failures})
+
     def test_reviewer_identity_is_never_part_of_the_predicate(self) -> None:
         mutated = replace_item(self.snapshot, "reviews", 0, reviewer_identity="completely-different-reviewer")
         decision = verify(target(Obligation.REVIEW_SUBMISSION), self.contract, mutated)
