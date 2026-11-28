@@ -115,6 +115,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     foreign_end = load_json(artifact / 'foreign-load-end.json')
     candidate = load_json(artifact / 'candidate-deployment.json')
     migration = load_json(artifact / 'candidate-migration.json')
+    candidate_apps = load_json(artifact / 'candidate-apps.json')
     guest_before = load_json(artifact / 'guest-attestation-before.json')
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
@@ -217,6 +218,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         and migration.get('app_tree_hash_expected') == candidate.get('app_tree_hash')
         and migration.get('migrated_app_tree_hash') == candidate.get('app_tree_hash')
     )
+    candidate_apps_ok = (
+        candidate_apps.get('passed') is True
+        and 'khitmee_ops' in (candidate_apps.get('apps_txt') or [])
+        and not (candidate_apps.get('missing_from_apps_txt') or [])
+        and not (candidate_apps.get('extra_in_apps_txt') or [])
+    )
+    if not candidate_apps_ok:
+        evidence_problems.append('candidate apps.txt evidence missing or inconsistent with restored installed apps')
     if migration.get('exit_code') != 0:
         evidence_problems.append('candidate migration evidence missing or failed')
     elif not migration_tree_hash_ok:
@@ -293,6 +302,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'candidate_migration_tree_hash_verified': migration.get('tree_hash_verified') is True,
         'candidate_migrated_app_tree_hash': migration.get('migrated_app_tree_hash'),
         'migration_tree_hash_ok': migration_tree_hash_ok,
+        'candidate_apps_ok': candidate_apps_ok,
+        'candidate_apps_missing': candidate_apps.get('missing_from_apps_txt', []),
+        'candidate_apps_extra': candidate_apps.get('extra_in_apps_txt', []),
         'candidate_migration_log': migration.get('log'),
         'candidate_role_grants': candidate.get('role_grants_artifact'),
         'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),

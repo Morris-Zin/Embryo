@@ -354,6 +354,14 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "migrated_app_tree_hash": "b" * 40,
                 "tree_hash_verified": True,
             },
+            "candidate-apps.json": {
+                "schema_version": "seasonal-candidate-apps-v1",
+                "passed": True,
+                "apps_txt": ["erpnext", "frappe", "khitmee_ops"],
+                "installed_apps": ["erpnext", "frappe", "khitmee_ops"],
+                "missing_from_apps_txt": [],
+                "extra_in_apps_txt": [],
+            },
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "seasonal-verification.json": {"by_type": {}},
@@ -401,6 +409,54 @@ class QualifyEntryPointTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_candidate_deploy_regenerates_apps_txt_before_migration_and_gates_it(self):
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        service_pos = deploy.index('candidate application service deployment')
+        rewrite_pos = deploy.index('regenerate apps.txt with the candidate tree mounted')
+        verify_pos = deploy.index('verify candidate apps.txt against installed applications')
+        migrate_pos = deploy.index('bench migrate for candidate tree')
+        # The false-GO ordering went straight from service recreation to
+        # migration; apps.txt rewritten by the base configurator still omitted
+        # khitmee_ops. The fixed ordering must be deploy -> rewrite -> verify -> migrate.
+        self.assertLess(service_pos, rewrite_pos)
+        self.assertLess(rewrite_pos, verify_pos)
+        self.assertLess(verify_pos, migrate_pos)
+        self.assertIn("ls -1 apps > sites/apps.txt", deploy)
+        self.assertIn("tabInstalled Application", deploy)
+        self.assertIn("missing_from_apps_txt", deploy)
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "candidate-apps.json"
+            data = json.loads(path.read_text())
+            # This shape represents the old failure: the database still has the
+            # restored app installed, while base-generated apps.txt dropped it.
+            data["apps_txt"] = ["erpnext", "frappe"]
+            data["missing_from_apps_txt"] = ["khitmee_ops"]
+            data["passed"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["candidate_apps_ok"])
+            self.assertEqual(result["candidate_apps_missing"], ["khitmee_ops"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "candidate-apps.json"
+            data = json.loads(path.read_text())
+            data["apps_txt"] = ["erpnext", "frappe", "khitmee_ops", "uninstalled_extra"]
+            data["extra_in_apps_txt"] = ["uninstalled_extra"]
+            data["passed"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["candidate_apps_ok"])
+            self.assertEqual(result["candidate_apps_extra"], ["uninstalled_extra"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertTrue(result["candidate_apps_ok"])
 
     def test_startup_does_not_migrate_checkout_and_migration_tree_mismatch_is_no_go(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
