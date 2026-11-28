@@ -37,6 +37,10 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     hash
 }
 
+fn compact_hash_bytes(bytes: &[u8]) -> u32 {
+    hash_bytes(bytes) as u32
+}
+
 #[derive(Default)]
 struct InternedText {
     original_text: String,
@@ -97,10 +101,9 @@ enum BarcodeSource {
 
 #[derive(Clone, Copy, Debug)]
 struct PreparedBarcodeEntry {
-    hash: u64,
+    hash: u32,
     source: BarcodeSource,
     start: u32,
-    end: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -202,10 +205,9 @@ impl PreparedItem {
             let folded = fold(barcode);
             if !folded.is_empty() {
                 barcode_entries.push(PreparedBarcodeEntry {
-                    hash: hash_bytes(folded.as_bytes()),
+                    hash: compact_hash_bytes(folded.as_bytes()),
                     source: BarcodeSource::Primary,
                     start: 0,
-                    end: 0,
                 });
                 primary_folded = Some(folded);
             }
@@ -218,10 +220,9 @@ impl PreparedItem {
             }
             let start = token.as_ptr() as usize - text_base;
             barcode_entries.push(PreparedBarcodeEntry {
-                hash: hash_bytes(token.as_bytes()),
+                hash: compact_hash_bytes(token.as_bytes()),
                 source: BarcodeSource::TextToken,
                 start: as_u32(start),
-                end: as_u32(start + token.len()),
             });
         }
 
@@ -261,11 +262,36 @@ struct IndexedItem {
 
 #[derive(Clone, Copy, Debug)]
 struct BarcodeEntry {
-    hash: u64,
-    row: u32,
-    source: BarcodeSource,
+    hash: u32,
+    row_and_source: u32,
     start: u32,
-    end: u32,
+}
+
+const TEXT_TOKEN_SOURCE: u32 = 1 << 31;
+
+impl BarcodeEntry {
+    fn new(hash: u32, row: usize, source: BarcodeSource, start: u32) -> Self {
+        let row = as_u32(row);
+        assert!(row < TEXT_TOKEN_SOURCE);
+        let row_and_source = if source == BarcodeSource::TextToken {
+            row | TEXT_TOKEN_SOURCE
+        } else {
+            row
+        };
+        Self {
+            hash,
+            row_and_source,
+            start,
+        }
+    }
+
+    fn row(&self) -> usize {
+        (self.row_and_source & !TEXT_TOKEN_SOURCE) as usize
+    }
+
+    fn is_text_token(&self) -> bool {
+        self.row_and_source & TEXT_TOKEN_SOURCE != 0
+    }
 }
 
 /// Derived searchable catalog representation. Returned rows preserve cashier-facing fields but
@@ -325,13 +351,12 @@ impl CatalogIndexBuilder {
             self.index.original_text.push_str(&item.original_text);
             self.index.search_text.push_str(&item.search_text);
             for entry in item.barcode_entries {
-                self.index.exact_barcode.push(BarcodeEntry {
-                    hash: entry.hash,
-                    row: as_u32(row),
-                    source: entry.source,
-                    start: entry.start,
-                    end: entry.end,
-                });
+                self.index.exact_barcode.push(BarcodeEntry::new(
+                    entry.hash,
+                    row,
+                    entry.source,
+                    entry.start,
+                ));
             }
             let stock_uom_id = item
                 .stock_uom
@@ -373,10 +398,8 @@ impl CatalogIndexBuilder {
         self.index.exact_barcode.sort_by(|left, right| {
             left.hash
                 .cmp(&right.hash)
-                .then_with(|| left.row.cmp(&right.row))
-                .then_with(|| left.source.cmp(&right.source))
+                .then_with(|| left.row_and_source.cmp(&right.row_and_source))
                 .then_with(|| left.start.cmp(&right.start))
-                .then_with(|| left.end.cmp(&right.end))
         });
         self.index.interned_fields.lookup = HashMap::new();
         self.index.exact_barcode.shrink_to_fit();
@@ -518,22 +541,29 @@ impl CatalogIndex {
     }
 
     fn barcode_entry_matches(&self, entry: &BarcodeEntry, folded_term: &str) -> bool {
-        let item = &self.items[entry.row as usize];
-        match entry.source {
-            BarcodeSource::Primary => self
+        let item = &self.items[entry.row()];
+        if !entry.is_text_token() {
+            return self
                 .original_field(item, BARCODE)
-                .is_some_and(|barcode| fold(barcode) == folded_term),
-            BarcodeSource::TextToken => {
-                let barcode_text = self.search_field(item, 4);
-                let start = entry.start as usize;
-                let end = entry.end as usize;
-                barcode_text.get(start..end) == Some(folded_term)
-            }
+                .is_some_and(|barcode| fold(barcode) == folded_term);
         }
+
+        let barcode_text = self.search_field(item, 4);
+        let start = entry.start as usize;
+        let Some(end) = start.checked_add(folded_term.len()) else {
+            return false;
+        };
+        if barcode_text.get(start..end) != Some(folded_term) {
+            return false;
+        }
+        barcode_text[end..]
+            .chars()
+            .next()
+            .is_none_or(char::is_whitespace)
     }
 
     fn exact_barcode_position(&self, folded_term: &str) -> Option<usize> {
-        let hash = hash_bytes(folded_term.as_bytes());
+        let hash = compact_hash_bytes(folded_term.as_bytes());
         let start = self
             .exact_barcode
             .partition_point(|entry| entry.hash < hash);
@@ -541,7 +571,7 @@ impl CatalogIndex {
             .iter()
             .take_while(|entry| entry.hash == hash)
             .find(|entry| self.barcode_entry_matches(entry, folded_term))
-            .map(|entry| entry.row as usize)
+            .map(|entry| entry.row())
     }
 
     pub fn search(&self, term: &str, limit: usize) -> Vec<CatalogItem> {
@@ -722,6 +752,21 @@ mod tests {
     #[test]
     fn compact_row_metadata_stays_small() {
         assert!(std::mem::size_of::<IndexedItem>() <= 56);
+        assert!(std::mem::size_of::<BarcodeEntry>() <= 12);
+    }
+
+    #[test]
+    fn exact_barcode_token_prefix_does_not_match_longer_token() {
+        let mut barcode = row("TOKEN", "Barcode token", "999");
+        barcode.barcode = None;
+        barcode.barcode_text = Some("abcdef other".to_string());
+        let prefix = row("PREFIX", "abc prefix match", "998");
+        let index = CatalogIndex::rebuild(vec![barcode, prefix]);
+        let hits = index.search("abc", 10);
+        assert_eq!(hits[0].item_code, "PREFIX");
+        let hits = index.search("abcdef", 10);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].item_code, "TOKEN");
     }
 
     fn reference_search(rows: &[CatalogItem], term: &str, limit: usize) -> Vec<String> {
