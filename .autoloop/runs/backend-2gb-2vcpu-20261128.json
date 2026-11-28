@@ -221,12 +221,23 @@
       "at": "2026-11-28T07:20:51Z",
       "event": "resolve-finding",
       "finding_id": "F07-perf-bench-inner-duplicate-sale-items"
+    },
+    {
+      "at": "2026-11-28T07:20:56Z",
+      "code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:20:56Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
     }
   ],
   "issue_number": null,
   "last_integrated_branch": "feat/backend-2gb-2vcpu-autoloop",
   "last_integrated_detached": false,
-  "last_integrated_sha": "3482a8fe9de061fd2d1a4e6789d01cbb4e8f70bf",
+  "last_integrated_sha": "6ad06baaff2f1aa67d892c3b799b34e17f4be584",
   "last_integrated_worktree": "E:\\khitmee-backend-2gb-autoloop",
   "limits": {
     "max_replan_count": 1,
@@ -290,7 +301,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "c4ca21adf8fddda72d76ef82e7b3c3c74121a960",
-      "passed_code_tree_sha256": "122737a1bcb54dff37ffaebc158b1394b9966c56ed3cbded247ff561dc522ff9",
+      "passed_code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -316,7 +327,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "747e8db706deef6d320d37a4a1bd9204810ed01f",
-      "passed_code_tree_sha256": "b6f0d7a1c3c1bfa77914f0fde5d38dfe6630204fd2dab40bf48914c9e1c7e364",
+      "passed_code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -345,7 +356,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "526f053d3bb796008ac31ad179dcf163769087f3",
-      "passed_code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "passed_code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -353,7 +364,7 @@
       "worktree_path": "E:\\khitmee-wt-manager-parity"
     }
   },
-  "status": "in_progress",
+  "status": "awaiting_deep_review",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T07:20:51Z"
+  "updated_at": "2026-11-28T07:20:56Z"
 }
