@@ -44,6 +44,9 @@ EXPORT_TIMEOUT_SECONDS = 3600
 EXPORT_RECOVERY_GRACE_SECONDS = 60
 EXPORT_HEARTBEAT_INTERVAL_SECONDS = 30
 EXPORT_HEARTBEAT_RETRY_SECONDS = 5
+EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS = 10
+EXPORT_HEARTBEAT_READ_TIMEOUT_SECONDS = 10
+EXPORT_HEARTBEAT_WRITE_TIMEOUT_SECONDS = 10
 EXPORT_HEARTBEAT_FAILURE_SECONDS = 3 * EXPORT_HEARTBEAT_INTERVAL_SECONDS
 EXPORT_HEARTBEAT_FAILURE_REASON = "export heartbeat lost"
 EXPORT_HEARTBEAT_STALE_SECONDS = EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS
@@ -496,6 +499,14 @@ def _open_export_heartbeat_connection():
 		cur_db_name=db_name,
 	)
 	connection_settings = database.get_connection_settings()
+	if database.db_type == "mariadb":
+		connection_settings.update(
+			connect_timeout=EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS,
+			read_timeout=EXPORT_HEARTBEAT_READ_TIMEOUT_SECONDS,
+			write_timeout=EXPORT_HEARTBEAT_WRITE_TIMEOUT_SECONDS,
+		)
+	elif database.db_type == "postgres":
+		connection_settings["connect_timeout"] = EXPORT_HEARTBEAT_CONNECT_TIMEOUT_SECONDS
 	database.get_connection_settings = lambda: dict(connection_settings)
 	database._conn = database.get_connection()
 	database._cursor = None
@@ -522,6 +533,8 @@ class _ExportHeartbeat:
 		self.now = now or datetime.now
 		self.monotonic = monotonic or time.monotonic
 		self.last_error = None
+		self.last_successful_beat_at = None
+		self.claimed_at = self.monotonic()
 		self.failure_started_at = None
 		self.failure = None
 		self.terminal = False
@@ -578,8 +591,9 @@ class _ExportHeartbeat:
 			self.retry_delay = min(self.retry_delay * 2, self.interval)
 		self.last_error = error
 		self._reconnect()
-		if now - self.failure_started_at >= self.failure_timeout:
-			self.failure = ProfitExportHeartbeatError(EXPORT_HEARTBEAT_FAILURE_REASON)
+		failure = self._stale_failure()
+		if failure is not None:
+			self.failure = failure
 
 	def _run_iteration(self):
 		try:
@@ -590,6 +604,7 @@ class _ExportHeartbeat:
 		if rowcount != 1:
 			self.terminal = True
 			return False
+		self.last_successful_beat_at = self.monotonic()
 		if self.failure is None:
 			self.failure_started_at = None
 			self.last_error = None
@@ -603,9 +618,19 @@ class _ExportHeartbeat:
 				break
 			delay = self.retry_delay if self.failure_started_at is not None else self.interval
 
+	def _stale_failure(self):
+		last_liveness_at = self.last_successful_beat_at
+		if last_liveness_at is None:
+			last_liveness_at = self.claimed_at
+		if self.monotonic() - last_liveness_at > self.failure_timeout:
+			return ProfitExportHeartbeatError(EXPORT_HEARTBEAT_FAILURE_REASON)
+		return None
+
 	def raise_if_failed(self):
-		if self.failure is not None:
-			raise self.failure
+		failure = self.failure or self._stale_failure()
+		if failure is not None:
+			self.failure = failure
+			raise failure
 
 	def close(self):
 		self._stop_event.set()
