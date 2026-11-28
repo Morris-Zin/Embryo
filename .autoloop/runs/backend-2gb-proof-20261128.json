@@ -451,8 +451,8 @@
       }
     ]
   },
-  "contract_revision": 4,
-  "contract_sha256": "ec0d3a8ca2641019c901b82fb92432ce42c55c8f8c5b23d4f71b63e546e830a1",
+  "contract_revision": 5,
+  "contract_sha256": "4cf30ad11fb05a40b26831269ecf38efe4fc045e2405a4a639281099d73f0bf8",
   "created_at": "2026-11-28T11:25:07Z",
   "dead_ends": [],
   "dropped_shards": [
@@ -1074,6 +1074,18 @@
       "code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
       "event": "all-shards-passed",
       "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:09:07Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T13:10:26Z",
+      "contract_revision": 5,
+      "event": "bind-pr",
+      "pr_number": 19,
+      "status": "awaiting_cloud_review"
     }
   ],
   "issue_number": null,
@@ -1095,7 +1107,7 @@
     "workers": "devin swe-2-1-medium (standard speed) / codex gpt-6.2-sol"
   },
   "pending_contract_amendments": [],
-  "pr_number": null,
+  "pr_number": 19,
   "replan_count": 0,
   "reviewers": {
     "cloud": true,
@@ -1361,7 +1373,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "gate_passed",
+  "status": "awaiting_cloud_review",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T13:08:43Z"
+  "updated_at": "2026-11-28T13:10:26Z"
 }
