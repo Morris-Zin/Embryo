@@ -387,7 +387,7 @@ echo "Attesting k6 load-generator placement"
 python3 -B "$SCRIPT_DIR/load_generator_attestation.py"   --runtime "$K6_RUNTIME"   --docker-host "${K6_DOCKER_HOST:-}"   --output "$ARTIFACT_DIR/load-generator-attestation.json"   >"$ARTIFACT_DIR/load-generator-attestation.stdout" 2>&1 || true
 
 echo "Validating owner host-environment attestation"
-python3 -B "$SCRIPT_DIR/environment_attestation.py"   --attestation "$ENVIRONMENT_ATTESTATION"   --guest-evidence "$ARTIFACT_DIR/guest-attestation-before.json"   --generator-evidence "$ARTIFACT_DIR/load-generator-attestation.json"   --enforce-generator   --output "$ARTIFACT_DIR/environment-attestation.json"   >"$ARTIFACT_DIR/environment-attestation.stdout" 2>&1 || true
+python3 -B "$SCRIPT_DIR/environment_attestation.py"   --attestation "$ENVIRONMENT_ATTESTATION"   --guest-evidence "$ARTIFACT_DIR/guest-attestation-before.json"   --generator-evidence "$ARTIFACT_DIR/load-generator-attestation.json"   --output "$ARTIFACT_DIR/environment-attestation.json"   >"$ARTIFACT_DIR/environment-attestation.stdout" 2>&1 || true
 
 K6_SCENARIO="seasonal"
 if [[ "$PREFLIGHT_ONLY" == "1" ]]; then

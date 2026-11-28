@@ -193,9 +193,15 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     attribution_ok = attribution.get('collection_passed') is True
     if not attribution_ok:
         evidence_problems.append('request attribution collection evidence missing or failed')
-    environment_ok = environment.get('passed') is True and environment.get('attestation') == 'qualifying'
+    environment_generator = environment.get('load_generator') or {}
+    environment_generator_ok = (
+        environment_generator.get('checked') is True
+        and environment_generator.get('distinct_from_guest') is True
+        and bool(environment_generator.get('declared_host_identity'))
+    )
+    environment_ok = environment.get('passed') is True and environment.get('attestation') == 'qualifying' and environment_generator_ok
     if not environment_ok:
-        evidence_problems.append('owner host-environment attestation missing, inconsistent, or diagnostic only')
+        evidence_problems.append('owner host-environment attestation missing, inconsistent, unchecked, or diagnostic only')
     actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
     fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (

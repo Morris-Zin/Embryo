@@ -53,7 +53,7 @@ def shape_problems(data):
     return problems, guest, generator
 
 
-def validate(attestation_path, guest_evidence=None, generator_evidence=None, enforce_generator=False):
+def validate(attestation_path, guest_evidence=None, generator_evidence=None):
     path = pathlib.Path(attestation_path) if attestation_path else None
     data = {}
     problems = []
@@ -91,33 +91,36 @@ def validate(attestation_path, guest_evidence=None, generator_evidence=None, enf
     if int(guest_evidence.get("guest_swap_total_bytes") or 0) != 0:
         problems.append("observed guest swap contradicts the owner-declared zero-swap assignment")
 
-    generator_result = {"checked": False}
-    if enforce_generator:
-        generator_result["checked"] = True
-        generator_evidence = generator_evidence or {}
-        observed_address = endpoint_host(generator_evidence.get("generator_endpoint"))
-        declared_address = identity(generator.get("address"))
-        declared_host = identity(generator.get("host_identity"))
-        guest_host = identity(guest.get("host_identity"))
-        guest_vm = identity(guest.get("vm_identity"))
-        daemon_name = identity((generator_evidence.get("generator_daemon_identity") or {}).get("name"))
-        if not declared_host:
-            problems.append("owner attestation lacks load-generator host identity")
-        elif declared_host in {guest_host, guest_vm}:
-            problems.append("owner attestation does not establish a load-generator machine distinct from the guest host/VM")
-        if not declared_address:
-            problems.append("owner attestation lacks load-generator address")
-        elif not observed_address or declared_address != observed_address:
-            problems.append(
-                f"observed generator endpoint host ({observed_address or 'missing'}) does not match owner-declared generator address"
-            )
-        if daemon_name and declared_host and daemon_name != declared_host:
-            problems.append("generator Docker daemon name does not match owner-declared generator host identity")
-        generator_result.update({
-            "observed_address": observed_address,
-            "declared_address": declared_address,
-            "observed_daemon_name": daemon_name,
-        })
+    generator_result = {"checked": True}
+    generator_evidence = generator_evidence or {}
+    observed_address = endpoint_host(generator_evidence.get("generator_endpoint"))
+    declared_address = identity(generator.get("address"))
+    declared_host = identity(generator.get("host_identity"))
+    guest_host = identity(guest.get("host_identity"))
+    guest_vm = identity(guest.get("vm_identity"))
+    daemon_name = identity((generator_evidence.get("generator_daemon_identity") or {}).get("name"))
+    distinct = bool(declared_host) and declared_host not in {guest_host, guest_vm}
+    if not declared_host:
+        problems.append("owner attestation lacks load-generator host identity")
+    elif not distinct:
+        problems.append("owner attestation does not establish a load-generator machine distinct from the guest host/VM")
+    if not declared_address:
+        problems.append("owner attestation lacks load-generator address")
+    elif not observed_address or declared_address != observed_address:
+        problems.append(
+            f"observed generator endpoint host ({observed_address or 'missing'}) does not match owner-declared generator address"
+        )
+    if daemon_name and declared_host and daemon_name != declared_host:
+        problems.append("generator Docker daemon name does not match owner-declared generator host identity")
+    generator_result.update({
+        "observed_address": observed_address,
+        "declared_address": declared_address,
+        "declared_host_identity": declared_host,
+        "guest_host_identity": guest_host,
+        "guest_vm_identity": guest_vm,
+        "distinct_from_guest": distinct,
+        "observed_daemon_name": daemon_name,
+    })
 
     passed = not problems
     return {
@@ -143,13 +146,11 @@ def main(argv=None):
     parser.add_argument("--guest-evidence", required=True)
     parser.add_argument("--generator-evidence", default="")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--enforce-generator", action="store_true")
     args = parser.parse_args(argv)
     result = validate(
         args.attestation,
         load_json(args.guest_evidence),
         load_json(args.generator_evidence) if args.generator_evidence else {},
-        enforce_generator=args.enforce_generator,
     )
     pathlib.Path(args.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))

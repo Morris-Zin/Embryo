@@ -484,6 +484,13 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "passed": True,
                 "attestation": "qualifying",
                 "problems": [],
+                "load_generator": {
+                    "checked": True,
+                    "distinct_from_guest": True,
+                    "declared_host_identity": "builder",
+                    "declared_address": "builder.example",
+                    "observed_address": "builder.example",
+                },
             },
         }.items():
             (artifact / name).write_text(json.dumps(value))
@@ -632,7 +639,7 @@ class QualifyEntryPointTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             valid_path = write_attestation(td)
-            valid = module.validate(valid_path, guest_evidence, generator_evidence, enforce_generator=True)
+            valid = module.validate(valid_path, guest_evidence, generator_evidence)
             self.assertTrue(valid["passed"], valid["problems"])
 
             # Red/green trust boundary: 1980 MiB visible memory is consistent
@@ -640,21 +647,21 @@ class QualifyEntryPointTests(unittest.TestCase):
             # alone cannot distinguish it from an oversized/undersized assignment.
             self.assertGreaterEqual(1980.0, 2048.0 * 0.9)
             oversized_path = write_attestation(td, guest_memory=2112)
-            oversized = module.validate(oversized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            oversized = module.validate(oversized_path, guest_evidence, generator_evidence)
             self.assertFalse(oversized["passed"])
             self.assertIn("exactly 2048 MiB", " ".join(oversized["problems"]))
             undersized_path = write_attestation(td, guest_memory=1984)
-            undersized = module.validate(undersized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            undersized = module.validate(undersized_path, guest_evidence, generator_evidence)
             self.assertFalse(undersized["passed"])
 
             # A distinct Docker daemon ID on the same machine would pass the
             # round-3 daemon comparison; owner identity evidence must reject it.
             same_machine_path = write_attestation(td, generator_host="qualification-vm")
-            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence, enforce_generator=True)
+            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence)
             self.assertFalse(same_machine["passed"])
             self.assertIn("distinct from the guest", " ".join(same_machine["problems"]))
             mismatch_path = write_attestation(td, address="other-builder.example")
-            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence, enforce_generator=True)
+            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence)
             self.assertFalse(mismatch["passed"])
             self.assertIn("does not match owner-declared generator address", " ".join(mismatch["problems"]))
 
@@ -679,9 +686,28 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         self.assertIn("--environment-attestation PATH", source)
         self.assertIn("Owner environment attestation procedure:", source)
-        self.assertIn("--enforce-generator", source)
         self.assertTrue((ROOT / "environment-attestation.schema.json").is_file())
         self.assertTrue((ROOT / "environment-attestation.example.json").is_file())
+
+    def test_unchecked_environment_generator_never_qualifies(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["load_generator"]["checked"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("unchecked", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["load_generator"]["distinct_from_guest"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
         spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")
