@@ -412,6 +412,7 @@
 			}
 			els.search.value = "";
 			scannerUndoEntries.length = 0;
+			scannerRedoEntries.length = 0;
 			hideResults();
 			renderTotals();
 			els.search.focus();
@@ -607,6 +608,7 @@
 		let scannerFlushTimer = null;
 		let scannerInputEventActive = false;
 		const scannerUndoEntries = [];
+		const scannerRedoEntries = [];
 		function dispatchScannerInput(inputType, data) {
 			const inputEvent = new InputEvent("input", {
 				bubbles: true,
@@ -638,6 +640,7 @@
 				inserted: inserted,
 			});
 			if (scannerUndoEntries.length > 32) scannerUndoEntries.shift();
+			scannerRedoEntries.length = 0;
 			els.search.value = oldValue.slice(0, start) + inserted + oldValue.slice(end);
 			const caret = start + inserted.length;
 			if (start !== end || end !== oldValue.length || inserted.length !== 1) {
@@ -652,12 +655,31 @@
 			const insertedEnd = entry.start + entry.inserted.length;
 			if (value.slice(entry.start, insertedEnd) !== entry.inserted) {
 				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
 				return false;
 			}
 			els.search.value = value.slice(0, entry.start) + entry.before + value.slice(insertedEnd);
 			const caret = entry.start + entry.before.length;
 			els.search.setSelectionRange(caret, caret);
+			scannerRedoEntries.push(entry);
 			dispatchScannerInput("deleteContentBackward", null);
+			return true;
+		}
+		function redoScannerInput() {
+			const entry = scannerRedoEntries.pop();
+			if (!entry) return false;
+			const value = els.search.value;
+			const beforeEnd = entry.start + entry.before.length;
+			if (value.slice(entry.start, beforeEnd) !== entry.before) {
+				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
+				return false;
+			}
+			els.search.value = value.slice(0, entry.start) + entry.inserted + value.slice(beforeEnd);
+			const caret = entry.start + entry.inserted.length;
+			els.search.setSelectionRange(caret, caret);
+			scannerUndoEntries.push(entry);
+			dispatchScannerInput("insertText", entry.inserted);
 			return true;
 		}
 		els.search.addEventListener("keydown", function (event) {
@@ -667,7 +689,13 @@
 			// a 16 ms boundary avoids one input-element mutation for every scanner key.
 			if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "z") {
 				flushScannerInput();
-				if (undoScannerInput()) event.preventDefault();
+				const handled = event.shiftKey ? redoScannerInput() : undoScannerInput();
+				if (handled) event.preventDefault();
+				return;
+			}
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "y") {
+				flushScannerInput();
+				if (redoScannerInput()) event.preventDefault();
 				return;
 			}
 			if (event.ctrlKey || event.metaKey || event.altKey || !/^[A-Z0-9-]$/.test(event.key)) {
@@ -679,7 +707,10 @@
 			if (scannerFlushTimer === null) scannerFlushTimer = window.setTimeout(flushScannerInput, 16);
 		});
 		function handleSearchInput() {
-			if (!scannerInputEventActive) scannerUndoEntries.length = 0;
+			if (!scannerInputEventActive) {
+				scannerUndoEntries.length = 0;
+				scannerRedoEntries.length = 0;
+			}
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
