@@ -1,0 +1,11 @@
+{
+  "applies_to": [
+    "tools/autoloop/**"
+  ],
+  "created_at": "2026-11-28T17:15:21Z",
+  "draft": false,
+  "evidence": "report_paths 2439529..a2d1484 guardrail FAIL with verify_tooling in_progress; PASS after re-gating verify_tooling; same cause as earlier cashier 'flake'",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "After any review reject resets all shards to in_progress, re-gate the policy shards (verify_tooling, autoloop_meta) FIRST. Trusted tooling overlays apply only from shards in status passed; gating product shards earlier silently falls back to base fast_check and produces spurious guardrail failures (e.g. oracle-registry on invoice_batches.py). check should order policy shards first or refuse while a policy shard is not passed."
+}
