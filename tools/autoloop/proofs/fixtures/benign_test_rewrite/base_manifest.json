@@ -1,0 +1,23 @@
+{
+  "acceptance_criteria": [
+    {
+      "criterion_id": "exact-totals",
+      "path": "tests/test_totals.py",
+      "token": "total"
+    }
+  ],
+  "base_digests": [
+    {
+      "path": "tests/test_totals.py",
+      "sha256": "0750009fa143a98e30d5635773d089b277b6cf6998ca9a996367879355dc09eb"
+    }
+  ],
+  "protected_paths": [
+    {
+      "kind": "test",
+      "path": "tests/test_totals.py"
+    }
+  ],
+  "schema_version": 1,
+  "waivers": []
+}

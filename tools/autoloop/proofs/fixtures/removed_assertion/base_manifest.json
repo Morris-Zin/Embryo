@@ -1,0 +1,23 @@
+{
+  "acceptance_criteria": [
+    {
+      "criterion_id": "total-assertion",
+      "path": "tests/test_totals.py",
+      "token": "total"
+    }
+  ],
+  "base_digests": [
+    {
+      "path": "tests/test_totals.py",
+      "sha256": "a2b785c529ef5f07d9f5cf05ba0b5df6e89cae12166426ca6d589503efe91ba2"
+    }
+  ],
+  "protected_paths": [
+    {
+      "kind": "test",
+      "path": "tests/test_totals.py"
+    }
+  ],
+  "schema_version": 1,
+  "waivers": []
+}

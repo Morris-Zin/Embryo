@@ -1,0 +1,23 @@
+{
+  "acceptance_criteria": [
+    {
+      "criterion_id": "exact-gross-profit-percent",
+      "path": "tests/test_profit_exactness.py",
+      "token": "gross_profit_%"
+    }
+  ],
+  "base_digests": [
+    {
+      "path": "tests/test_profit_exactness.py",
+      "sha256": "bf0e9733ba5224b9a8433a3bf477d304799760feedd8d9e794341d3f34061fe5"
+    }
+  ],
+  "protected_paths": [
+    {
+      "kind": "test",
+      "path": "tests/test_profit_exactness.py"
+    }
+  ],
+  "schema_version": 1,
+  "waivers": []
+}
