@@ -83,7 +83,7 @@ Comparative interaction benchmark evidence is retained at `desktop-frontend/evid
 
 ## Security and cache findings resolved
 
-- The legacy PR #8 loopback catalog service now denies requests when no token is configured instead of implicitly authorizing them.
+- The legacy PR #8 loopback catalog service and Tauri shell are intentionally absent from this branch, eliminating the tokenless cross-account loopback attack surface from the native implementation.
 - Browser and native counter error surfaces now use ERP's concise `_error_message`, making permission failures understandable and comparable.
 - Item Price deletion correctness is handled through `Deleted Document` recovery because modified-delta queries cannot see deleted rows. The live proof shows a temporary price appears in delta sync and deletion returns the item to its baseline price without a reset.
 
@@ -96,5 +96,5 @@ Comparative interaction benchmark evidence is retained at `desktop-frontend/evid
 1. Automated GraphWalker/Hypothesis-generated differential journeys are investigated but not implemented.
 2. Full performance qualification is incomplete as listed above.
 3. Real barcode scanner hardware and real printer hardware have not been tested; printing is currently dry-run companion evidence.
-4. Browser/Tauri/native cross-process memory comparison is not yet implemented.
+4. Browser/PR #8/native cross-process memory comparison is not yet implemented.
 5. Low-end Windows hardware validation is impossible on the current VM alone.
