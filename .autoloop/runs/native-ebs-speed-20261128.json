@@ -3,8 +3,8 @@
   "allowed_paths": [],
   "base_branch": "devin/1795778138-native-migration-framework",
   "base_sha": "9a43d836d4094aacd22450d7238bf51fc911d869",
-  "contract_revision": 1,
-  "contract_sha256": "3e7227ca72e6793583db3122d05486ccfa13e4b169462bd2530595269f9f6cf6",
+  "contract_revision": 2,
+  "contract_sha256": "5bed434c863b11d670623da607fce21d353d6d2e41c04155188ec9a40579a434",
   "created_at": "2026-11-28T10:47:14Z",
   "dead_ends": [],
   "findings": {},
@@ -33,6 +33,13 @@
       "event": "start-shard",
       "shard": "native_frontend",
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:48:33Z",
+      "contract_revision": 2,
+      "event": "bind-pr",
+      "pr_number": 18,
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -60,7 +67,7 @@
     }
   },
   "pending_contract_amendments": [],
-  "pr_number": null,
+  "pr_number": 18,
   "replan_count": 0,
   "reviewers": {
     "cloud": false,
@@ -103,5 +110,5 @@
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T10:48:12Z"
+  "updated_at": "2026-11-28T10:48:33Z"
 }
