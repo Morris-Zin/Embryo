@@ -64,14 +64,15 @@ cp target/debug/khitmee-desktop /tmp/khitmee-desktop-base
 
 # candidate
 cd /path/to/worktree/desktop-frontend
-git checkout 211e7c72eccfd4a6be32fc1dcc8836cb37555c49
+git checkout e0913ee84280fbb4a646d1003c83595f6f81e596
 cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-opt
 ```
 
-Run the committed comparison harness:
+Run the committed comparison harness from the candidate worktree root (`e0913ee` contains the harness and has the same production code as the final parity-fix revision):
 
 ```bash
+cd /path/to/worktree
 KHITMEE_NATIVE_DATA_DIR=/tmp/khitmee-native-baseline \
 python desktop-frontend/tools/benchmark_startup_compare.py \
   --base-executable /tmp/khitmee-desktop-base \
