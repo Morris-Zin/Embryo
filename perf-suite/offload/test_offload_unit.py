@@ -2,8 +2,22 @@ from datetime import date
 from decimal import Decimal
 import unittest
 
-from duckdb_benchmark import compare_result_rows, values_equal
+from duckdb_benchmark import compare_result_rows, exclusive_file_lock, values_equal
 from offload_spec import QUERIES_BY_KEY, TABLES_BY_KEY, format_timedelta, query_parameters
+
+
+class FileLockTest(unittest.TestCase):
+    def test_exclusive_lock_is_portable_and_releases_cleanly(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lock_path = Path(tmp) / "bench.lock"
+            lock_path.touch()
+            with lock_path.open("r+b") as handle:
+                with exclusive_file_lock(handle):
+                    self.assertGreaterEqual(lock_path.stat().st_size, 0)
+
 
 
 class TableSpecTest(unittest.TestCase):

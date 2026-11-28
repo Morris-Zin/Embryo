@@ -1,0 +1,136 @@
+{
+  "arm": "mariadb-11.8.10",
+  "buffer_pool_preload_status": "Buffer pool(s) load completed at 261128 12:04:15",
+  "buffer_pool_status_before_cases": {
+    "Innodb_buffer_pool_load_status": "Buffer pool(s) load completed at 261128 12:04:15",
+    "Innodb_buffer_pool_pages_data": "19374",
+    "Innodb_buffer_pool_pages_dirty": "1154",
+    "Innodb_buffer_pool_pages_free": "904",
+    "Innodb_buffer_pool_pages_total": "20280",
+    "Innodb_buffer_pool_read_requests": "11887777",
+    "Innodb_buffer_pool_reads": "462055"
+  },
+  "buffer_pool_status_before_exit": {
+    "Innodb_buffer_pool_load_status": "Buffer pool(s) load completed at 261128 12:04:15",
+    "Innodb_buffer_pool_pages_data": "18800",
+    "Innodb_buffer_pool_pages_dirty": "860",
+    "Innodb_buffer_pool_pages_free": "1478",
+    "Innodb_buffer_pool_pages_total": "20280",
+    "Innodb_buffer_pool_read_requests": "20166237",
+    "Innodb_buffer_pool_reads": "661432"
+  },
+  "cache_state": {
+    "buffer_pool_preload_completed_before_measurement": true,
+    "frappe_document_cache_cleared_between_iterations": true,
+    "transactions_rolled_back_between_iterations": true,
+    "warmup_iterations_per_case": 1
+  },
+  "cases": {
+    "100": {
+      "count": 9,
+      "first_invoice": "ACC-SINV-2026-317799",
+      "invoice_parent_count": 100,
+      "last_invoice": "ACC-SINV-2026-317700",
+      "max_ms": 48.845,
+      "mean_ms": 46.803,
+      "min_ms": 43.982,
+      "p50_ms": 47.412,
+      "p95_ms": 48.771,
+      "row_count": 382,
+      "row_hash_sha256": "c2ec7b3d7c3aef11ac65d39624870b2d21b6189989b7b3ce2e2362c08bb7092a",
+      "samples_ms": [
+        48.845,
+        48.659,
+        47.412,
+        48.311,
+        45.877,
+        43.982,
+        45.194,
+        45.454,
+        47.489
+      ],
+      "warmup_ms": [
+        162.914
+      ]
+    },
+    "1000": {
+      "count": 9,
+      "first_invoice": "ACC-SINV-2026-317799",
+      "invoice_parent_count": 1000,
+      "last_invoice": "ACC-SINV-2026-316821",
+      "max_ms": 368.135,
+      "mean_ms": 307.612,
+      "min_ms": 275.965,
+      "p50_ms": 291.583,
+      "p95_ms": 365.944,
+      "row_count": 3741,
+      "row_hash_sha256": "460295688d028c4137e311c3a7f661b3778f37d694ae50d44d3fe3758a7bac7f",
+      "samples_ms": [
+        285.821,
+        314.111,
+        362.658,
+        315.889,
+        368.135,
+        291.583,
+        277.444,
+        276.906,
+        275.965
+      ],
+      "warmup_ms": [
+        276.667
+      ]
+    },
+    "10000": {
+      "count": 9,
+      "first_invoice": "ACC-SINV-2026-317799",
+      "invoice_parent_count": 10000,
+      "last_invoice": "ACC-SINV-2026-307992",
+      "max_ms": 7202.94,
+      "mean_ms": 7025.312,
+      "min_ms": 6707.339,
+      "p50_ms": 7028.25,
+      "p95_ms": 7198.648,
+      "row_count": 37489,
+      "row_hash_sha256": "fa4370a1bf64ee266bb6400cb234122e7d073aa9cbf65eceba34c144fe9ff87c",
+      "samples_ms": [
+        7192.211,
+        6920.036,
+        6998.653,
+        7028.25,
+        6707.339,
+        7154.391,
+        6936.615,
+        7202.94,
+        7087.375
+      ],
+      "warmup_ms": [
+        7185.627
+      ]
+    }
+  },
+  "company": "Khit Me Distribution",
+  "database_variables": {
+    "binlog_format": "MIXED",
+    "innodb_buffer_pool_dump_at_shutdown": "ON",
+    "innodb_buffer_pool_dump_pct": "100",
+    "innodb_buffer_pool_load_at_startup": "ON",
+    "innodb_buffer_pool_size": "335544320",
+    "innodb_flush_log_at_trx_commit": "1",
+    "innodb_flush_method": "O_DIRECT",
+    "innodb_snapshot_isolation": "OFF",
+    "max_connections": "60",
+    "sync_binlog": "0",
+    "transaction_isolation": "REPEATABLE-READ",
+    "version": "11.8.10-MariaDB-ubu2404-log",
+    "version_compile_machine": "x86_64"
+  },
+  "from_date": "2025-11-26",
+  "invoice_scope_sha256": "7e85a0711fc19a4deeb49ef10c3920707bd3f95c54c002386460322cc7f6f5b8",
+  "iterations": 9,
+  "project": "khitmee-perf",
+  "schema_version": "fast-gp-invoice-scaling-v1",
+  "site": "bench-loadtest.localhost",
+  "to_date": "2026-11-25",
+  "warehouse": null,
+  "warmups": 1
+}

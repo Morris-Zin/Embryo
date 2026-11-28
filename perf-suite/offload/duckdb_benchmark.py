@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import date, datetime, time as time_type
 from decimal import Decimal, InvalidOperation
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -21,6 +21,33 @@ try:
     import duckdb
 except ImportError:  # pragma: no cover - exercised in integration, not unit tests
     duckdb = None
+
+
+@contextmanager
+def exclusive_file_lock(lock_handle):
+    """Hold an exclusive benchmark lock; Linux uses the historical flock path."""
+    if os.name == "nt":
+        import msvcrt
+
+        lock_handle.seek(0)
+        if os.fstat(lock_handle.fileno()).st_size == 0:
+            lock_handle.write(b"\0")
+            lock_handle.flush()
+        lock_handle.seek(0)
+        msvcrt.locking(lock_handle.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            lock_handle.seek(0)
+            msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
 def sql_literal(value: str) -> str:
@@ -301,60 +328,60 @@ def main(argv: list[str] | None = None) -> int:
     lock_path = Path(str(database_path) + ".lock")
     lock_path.touch(exist_ok=True)
     with lock_path.open("r+b") as lock_handle:
-        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
-        work_path = working_database_copy(database_path)
-        try:
-            conn = duckdb.connect(str(work_path))
+        with exclusive_file_lock(lock_handle):
+            work_path = working_database_copy(database_path)
             try:
-                conn.execute(f"PRAGMA threads={int(args.threads)}")
-                conn.execute(f"SET memory_limit={sql_literal(args.memory_limit)}")
-                if manifest.get("mode") == "delta":
-                    load_stats = apply_delta(conn, extract_dir, tables)
-                else:
-                    load_stats = load_full(conn, extract_dir, tables)
-                conn.execute("CHECKPOINT")
-                query_keys = args.queries or []
-                query_results = run_duckdb_queries(conn, args.company, args.from_date, args.to_date, query_keys)
+                conn = duckdb.connect(str(work_path))
+                try:
+                    conn.execute(f"PRAGMA threads={int(args.threads)}")
+                    conn.execute(f"SET memory_limit={sql_literal(args.memory_limit)}")
+                    if manifest.get("mode") == "delta":
+                        load_stats = apply_delta(conn, extract_dir, tables)
+                    else:
+                        load_stats = load_full(conn, extract_dir, tables)
+                    conn.execute("CHECKPOINT")
+                    query_keys = args.queries or []
+                    query_results = run_duckdb_queries(conn, args.company, args.from_date, args.to_date, query_keys)
+                finally:
+                    conn.close()
+
+                mariadb_payload = {}
+                parity = {}
+                if args.mariadb_results:
+                    mariadb_payload = json.loads(Path(args.mariadb_results).read_text(encoding="utf-8")).get("queries", {})
+                    parity = verify_parity(Path(args.mariadb_results), query_results)
+
+                report = {
+                    "schema_version": 1,
+                    "engine": "duckdb",
+                    "duckdb_version": duckdb.__version__,
+                    "mode": manifest.get("mode"),
+                    "manifest": manifest,
+                    "company": args.company,
+                    "from_date": args.from_date,
+                    "to_date": args.to_date,
+                    "threads": args.threads,
+                    "memory_limit": args.memory_limit,
+                    "load": load_stats,
+                    "queries": query_results,
+                    "mariadb": mariadb_payload,
+                    "parity": parity,
+                    "parity_passed": bool(parity) and all(row.get("passed") for row in parity.values()),
+                    "duckdb_file_bytes": work_path.stat().st_size if work_path.exists() else 0,
+                }
+                write_json(Path(args.json_out), report)
+                if args.markdown_out:
+                    write_markdown(Path(args.markdown_out), report)
+                if not parity or report["parity_passed"]:
+                    os.replace(work_path, database_path)
+                print(json.dumps({
+                    "queries": {key: {"cold_ms": row["cold_ms"], "warm_ms": row["warm_ms"], "rows": row["row_count"]} for key, row in query_results.items()},
+                    "parity_passed": report["parity_passed"],
+                    "duckdb_file_bytes": report["duckdb_file_bytes"],
+                }, sort_keys=True))
+                return 0 if not parity or report["parity_passed"] else 2
             finally:
-                conn.close()
-
-            mariadb_payload = {}
-            parity = {}
-            if args.mariadb_results:
-                mariadb_payload = json.loads(Path(args.mariadb_results).read_text(encoding="utf-8")).get("queries", {})
-                parity = verify_parity(Path(args.mariadb_results), query_results)
-
-            report = {
-                "schema_version": 1,
-                "engine": "duckdb",
-                "duckdb_version": duckdb.__version__,
-                "mode": manifest.get("mode"),
-                "manifest": manifest,
-                "company": args.company,
-                "from_date": args.from_date,
-                "to_date": args.to_date,
-                "threads": args.threads,
-                "memory_limit": args.memory_limit,
-                "load": load_stats,
-                "queries": query_results,
-                "mariadb": mariadb_payload,
-                "parity": parity,
-                "parity_passed": bool(parity) and all(row.get("passed") for row in parity.values()),
-                "duckdb_file_bytes": work_path.stat().st_size if work_path.exists() else 0,
-            }
-            write_json(Path(args.json_out), report)
-            if args.markdown_out:
-                write_markdown(Path(args.markdown_out), report)
-            if not parity or report["parity_passed"]:
-                os.replace(work_path, database_path)
-            print(json.dumps({
-                "queries": {key: {"cold_ms": row["cold_ms"], "warm_ms": row["warm_ms"], "rows": row["row_count"]} for key, row in query_results.items()},
-                "parity_passed": report["parity_passed"],
-                "duckdb_file_bytes": report["duckdb_file_bytes"],
-            }, sort_keys=True))
-            return 0 if not parity or report["parity_passed"] else 2
-        finally:
-            cleanup_working_database(work_path)
+                cleanup_working_database(work_path)
 
 
 if __name__ == "__main__":
