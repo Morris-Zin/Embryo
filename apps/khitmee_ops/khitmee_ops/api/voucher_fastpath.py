@@ -299,23 +299,11 @@ def find_pairs_with_future_sle(pairs, posting_date, posting_time):
 	return dirty
 
 
-def _should_skip_future_sle_update(
-	ctx, args, allow_zero_rate=False, allow_negative_stock=False, via_landed_cost_voucher=False
-):
+def _should_skip_future_sle_update(ctx, args, allow_negative_stock=False, via_landed_cost_voucher=False):
 	if ctx is None or not ctx.active or via_landed_cost_voucher or allow_negative_stock or not args:
 		return False
 	if cint(_field(args, "is_cancelled", 0)):
 		return False
-	if _field(args, "reserved_stock") or _field(args, "has_reserved_stock"):
-		return False
-	read_ctx = getattr(_THREAD_STATE, "read_cache", None)
-	if read_ctx is not None and read_ctx.active and read_ctx.sre_reserved_map is not None:
-		key = (
-			str(_field(args, "item_code", "") or "").strip(),
-			str(_field(args, "warehouse", "") or "").strip(),
-		)
-		if read_ctx.sre_reserved_map.get(key, 0.0) > 0:
-			return False
 	if _is_tracked_item_row(args):
 		return False
 	if str(_field(args, "voucher_type", "") or "") != ctx.voucher_type:
@@ -344,7 +332,7 @@ def _should_skip_future_sle_update(
 	return True
 
 
-def _make_future_sle_dispatcher(original):
+def _make_future_sle_dispatcher(original, stock_ledger):
 	def _dispatch_update_qty_in_future_sle(*call_args, **call_kwargs):
 		ctx = getattr(_THREAD_STATE, "context", None)
 		sle_args = call_args[0] if call_args else call_kwargs.get("args")
@@ -360,7 +348,12 @@ def _make_future_sle_dispatcher(original):
 			allow_negative_stock=allow_neg,
 			via_landed_cost_voucher=via_lcv,
 		):
-			return None
+			# ERPNext also validates reservations against the current balance,
+			# even when its future-row UPDATE would affect zero rows.
+			sle_args["posting_datetime"] = stock_ledger.get_combine_datetime(
+				sle_args["posting_date"], sle_args["posting_time"]
+			)
+			return stock_ledger.validate_negative_qty_in_future_sle(sle_args, allow_neg)
 
 		if ctx is not None and ctx.active:
 			ctx.fallback_count += 1
@@ -386,7 +379,7 @@ def _ensure_future_sle_dispatcher_installed(stock_ledger_module):
 		current = getattr(stock_ledger_module, "update_qty_in_future_sle", None)
 		if current is None or getattr(current, "_khitmee_dispatcher", False):
 			return
-		stock_ledger_module.update_qty_in_future_sle = _make_future_sle_dispatcher(current)
+		stock_ledger_module.update_qty_in_future_sle = _make_future_sle_dispatcher(current, stock_ledger_module)
 
 
 @contextmanager
@@ -402,7 +395,10 @@ def proven_empty_future_sle_fastpath(doc, locked_pairs, *, enabled=True):
 		return
 
 	stock_ledger_module = _try_import("erpnext.stock.stock_ledger")
-	if stock_ledger_module is None or not hasattr(stock_ledger_module, "update_qty_in_future_sle"):
+	if stock_ledger_module is None or not all(
+		callable(getattr(stock_ledger_module, name, None))
+		for name in ("update_qty_in_future_sle", "get_combine_datetime", "validate_negative_qty_in_future_sle")
+	):
 		yield FutureSleFastpathContext(active=False)
 		return
 

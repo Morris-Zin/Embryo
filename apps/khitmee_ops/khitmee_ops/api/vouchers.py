@@ -462,7 +462,7 @@ def _sales_invoice_payments_match_total(doc, total):
 	)
 
 
-def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode):
+def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items):
 	warehouse_row = _validate_warehouse(warehouse, _("Warehouse"))
 	_validate_sale_inputs(customer, price_list, payment_mode)
 	return {
@@ -470,6 +470,9 @@ def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode):
 		"company_currency": frappe.get_cached_value("Company", warehouse_row.company, "default_currency"),
 		"customer_currency": frappe.get_cached_value("Customer", customer, "default_currency"),
 		"price_list_currency": frappe.get_cached_value("Price List", price_list, "currency"),
+		"stock_pairs": sale_bin_pairs(
+			warehouse, cleaned_items, company=warehouse_row.company, is_pos=bool(payment_mode)
+		),
 	}
 
 
@@ -484,9 +487,11 @@ def _create_sales_invoice(
 	prepared=None,
 	fresh_snapshot=True,
 ):
-	meta = prepared if prepared is not None else _prepare_sale_metadata(
-		warehouse, customer, price_list, payment_mode
-	)
+	if prepared is None:
+		prepared = _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items)
+		# The preflight opened a read snapshot before we acquired stock locks.
+		fresh_snapshot = False
+	meta = prepared
 	company = meta["company"]
 	company_currency = meta["company_currency"]
 	customer_currency = meta["customer_currency"]
@@ -504,7 +509,7 @@ def _create_sales_invoice(
 			item["rate"] = row["rate"]
 		invoice_items.append(item)
 
-	lock_result = lock_stock_coordinates(sale_bin_pairs(warehouse, cleaned_items))
+	lock_result = lock_stock_coordinates(meta["stock_pairs"])
 	posting_date = nowdate()
 	posting_time = nowtime()
 
@@ -528,6 +533,7 @@ def _create_sales_invoice(
 		invoice_payload["price_list_currency"] = price_list_currency or company_currency
 	doc = frappe.get_doc(invoice_payload)
 	doc.flags.ignore_pos_profile = True
+	doc.flags.khitmee_stock_prelocked = True
 	if payment_mode:
 		doc.flags.khitmee_counter_autopay = True
 	if override_rate:
@@ -668,7 +674,7 @@ def submit_sale(
 				prepared=prepared,
 				fresh_snapshot=fresh_snapshot,
 			),
-			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode),
+			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode, cleaned_items),
 		)
 	)
 	_check_voucher_read_permission(doc)

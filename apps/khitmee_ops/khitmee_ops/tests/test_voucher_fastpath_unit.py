@@ -103,6 +103,12 @@ def _ensure_stubs():
 	stock_ledger = sys.modules.setdefault("erpnext.stock.stock_ledger", types.ModuleType("erpnext.stock.stock_ledger"))
 	if not hasattr(stock_ledger, "update_qty_in_future_sle"):
 		stock_ledger.update_qty_in_future_sle = lambda args, **kwargs: ("upstream", args.get("item_code"))
+	if not hasattr(stock_ledger, "get_combine_datetime"):
+		stock_ledger.get_combine_datetime = lambda date, time: datetime.datetime.fromisoformat(
+			f"{date} {voucher_fastpath._normalize_posting_time(time)}"
+		)
+	if not hasattr(stock_ledger, "validate_negative_qty_in_future_sle"):
+		stock_ledger.validate_negative_qty_in_future_sle = lambda args, allow_negative_stock=False: None
 
 	stock_entry = sys.modules.setdefault(
 		"erpnext.stock.doctype.stock_entry.stock_entry",
@@ -559,7 +565,7 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertEqual(calls, [("ITEM-OTHER", True, False)])
 
 
-	def test_future_sle_fastpath_falls_back_when_allow_negative_stock_or_reserved_stock(self):
+	def test_future_sle_fastpath_falls_back_when_allow_negative_stock(self):
 		calls = []
 		orig_fn = STOCK_LEDGER_MOD.update_qty_in_future_sle
 
@@ -579,13 +585,54 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 							"voucher_type": "Sales Invoice",
 							"voucher_no": "SI-0001",
 							"posting_date": "2026-11-28",
-							"posting_time": "10:00:00",
+							"posting_time": doc.posting_time,
 						},
 						allow_negative_stock=True,
 					)
 			self.assertEqual(calls, [("ITEM-1", True, False)])
 		finally:
 			STOCK_LEDGER_MOD.update_qty_in_future_sle = orig_fn
+
+	def test_latest_outgoing_sle_uses_stock_reservation_validation(self):
+		doc = _sale_doc([{"item_code": "ITEM-1", "warehouse": "WH-1"}])
+		args = {
+			"item_code": "ITEM-1",
+			"warehouse": "WH-1",
+			"voucher_type": doc.doctype,
+			"voucher_no": doc.name,
+			"posting_date": doc.posting_date,
+			"posting_time": doc.posting_time,
+			"actual_qty": -2,
+			"reserved_stock": 4,
+		}
+		item_allows_negative, global_allows_negative = True, False
+		balance_after_sale = 3
+		error = voucher_fastpath.frappe.ValidationError
+
+		def validate(sle, allow_negative_stock):
+			self.assertIs(sle, args)
+			self.assertEqual(sle["posting_datetime"], datetime.datetime(2026, 11, 28, 9, 5))
+			if (
+				item_allows_negative
+				and not (global_allows_negative or allow_negative_stock)
+				and sle["actual_qty"] < 0
+				and balance_after_sale < sle["reserved_stock"]
+			):
+				raise error("Reserved Stock: 1.0 units of ITEM-1 needed in WH-1")
+
+		update = Mock()
+		with (
+			patch.object(STOCK_LEDGER_MOD, "update_qty_in_future_sle", lambda *args, **kw: update(*args, **kw)),
+			patch.object(STOCK_LEDGER_MOD, "validate_negative_qty_in_future_sle", side_effect=validate) as validator,
+			patch.object(voucher_fastpath, "find_pairs_with_future_sle", return_value=set()),
+			voucher_fastpath.proven_empty_future_sle_fastpath(doc, [("ITEM-1", "WH-1")]) as ctx,
+			self.assertRaisesRegex(error, r"Reserved Stock: 1\.0 units of ITEM-1 needed in WH-1"),
+		):
+			STOCK_LEDGER_MOD.update_qty_in_future_sle(args, False)
+
+		validator.assert_called_once_with(args, False)
+		self.assertEqual(ctx.skipped_count, 1)
+		update.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -87,7 +87,7 @@ def _install_frappe_and_erpnext_stubs():
 
 _install_frappe_and_erpnext_stubs()
 
-from khitmee_ops.api import vouchers
+from khitmee_ops.api import stock_locks, vouchers
 from khitmee_ops.api.payloads import (
 	idempotency_key,
 	make_receipt_payload,
@@ -189,7 +189,7 @@ class FakeStockEntry:
 		self.docstatus = 1
 
 
-def create_invoice(doc, payment_mode="Cash"):
+def create_invoice(doc, payment_mode="Cash", item_code="ITEM-1"):
 	with (
 		patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
 		patch.object(vouchers, "_validate_sale_inputs", return_value=None),
@@ -200,7 +200,7 @@ def create_invoice(doc, payment_mode="Cash"):
 			"Main Warehouse",
 			"Customer",
 			"Standard Selling",
-			[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+			[{"item_code": item_code, "qty": 1, "uom": "Nos", "rate": 100}],
 			payment_mode,
 			False,
 		)
@@ -208,6 +208,42 @@ def create_invoice(doc, payment_mode="Cash"):
 
 
 class TestSinglePassVoucherSubmit(unittest.TestCase):
+	def test_bundle_components_are_locked_with_parent_before_submit(self):
+		warehouse = "Main Warehouse"
+		doc = FakeSalesInvoice()
+		doc.update_stock = 1
+		doc.set_warehouse = warehouse
+		doc.items = [{"item_code": "Z-BUNDLE", "warehouse": warehouse}]
+		lock_queries = []
+
+		def submit():
+			# ERPNext builds the packed table before running the hook.
+			doc.packed_items = [
+				{"item_code": "A-COMP", "warehouse": warehouse},
+				{"item_code": "B-COMP", "warehouse": "Service Warehouse"},
+			]
+			stock_locks.lock_stock_voucher_before_submit(doc)
+
+		def sql(query, params=()):
+			if "JOIN `tabProduct Bundle Item`" in query:
+				return [("B-COMP", "Service Warehouse"), ("A-COMP", warehouse), ("A-COMP", warehouse)]
+			if "FOR UPDATE" in query:
+				lock_queries.append(params)
+			return []
+
+		stock_locks.clear_transaction_stock_locks()
+		self.addCleanup(stock_locks.clear_transaction_stock_locks)
+		with patch.object(doc, "insert", side_effect=submit), patch.object(vouchers.frappe.db, "sql", side_effect=sql):
+			create_invoice(doc, payment_mode=None, item_code="Z-BUNDLE")
+
+		self.assertEqual(
+			lock_queries,
+			[
+				("A-COMP", "B-COMP", "Z-BUNDLE"),
+				("A-COMP", warehouse, "B-COMP", "Service Warehouse", "Z-BUNDLE", warehouse),
+			],
+		)
+
 	def test_sales_invoice_currency_defaults_come_from_cached_metadata(self):
 		doc = FakeSalesInvoice(payable_total=100)
 		cached_values = {

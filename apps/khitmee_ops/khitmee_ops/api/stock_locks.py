@@ -84,9 +84,32 @@ def ordered_bin_pairs(pairs):
 	return sorted(cleaned)
 
 
-def sale_bin_pairs(warehouse, cleaned_items):
-	"""Return deterministic (item_code, warehouse) coordinates for a counter sale."""
-	return ordered_bin_pairs((row.get("item_code"), warehouse) for row in (cleaned_items or ()))
+def sale_bin_pairs(warehouse, cleaned_items, *, company, is_pos):
+	"""Resolve counter rows and their packed components before acquiring stock locks."""
+	item_codes = ordered_item_codes(row.get("item_code") for row in cleaned_items)
+	pairs = [(code, warehouse) for code in item_codes]
+	for chunk in batched(item_codes, LOCK_BATCH_SIZE):
+		placeholders = ", ".join(["%s"] * len(chunk))
+		# Counter rows have no linked orders, pick lists or existing packed rows.
+		# Match ERPNext's packed warehouse rule for a new, unlinked invoice.
+		pairs.extend(
+			frappe.db.sql(
+				f"""
+				SELECT component.item_code,
+					CASE WHEN %s OR item.is_stock_item THEN %s
+						ELSE COALESCE(NULLIF(defaults.default_warehouse, ''), %s)
+					END
+				FROM `tabProduct Bundle` AS bundle
+				JOIN `tabProduct Bundle Item` AS component ON component.parent = bundle.name
+				LEFT JOIN `tabItem` AS item ON item.name = component.item_code
+				LEFT JOIN `tabItem Default` AS defaults
+					ON defaults.parent = item.name AND defaults.company = %s
+				WHERE bundle.disabled = 0 AND bundle.new_item_code IN ({placeholders})
+				""",
+				(int(is_pos), warehouse, warehouse, company, *chunk),
+			)
+		)
+	return ordered_bin_pairs(pairs)
 
 
 def transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items):
@@ -221,7 +244,7 @@ def lock_existing_bins(pairs):
 	return locked
 
 
-def lock_stock_coordinates(pairs, item_codes=None):
+def lock_stock_coordinates(pairs, item_codes=None, *, require_prelocked=False):
 	"""Acquire sorted tabItem locks followed by sorted existing tabBin locks.
 
 	Re-entrant within a single transaction: if the current transaction already
@@ -243,6 +266,12 @@ def lock_stock_coordinates(pairs, item_codes=None):
 			"bins": [],
 			"pairs": ordered_pairs,
 		}
+
+	if require_prelocked:
+		frappe.throw(
+			frappe._("The sale's stock items or warehouses changed during submission. Please retry."),
+			frappe.ValidationError,
+		)
 
 	locked_items = lock_items(ordered_items)
 	locked_bins = lock_existing_bins(ordered_pairs)
@@ -282,6 +311,8 @@ def lock_stock_voucher_before_submit(doc, method=None):
 
 	if not item_codes and not pairs:
 		return {"items": [], "bins": [], "pairs": []}
+	if getattr(getattr(doc, "flags", None), "khitmee_stock_prelocked", False):
+		return lock_stock_coordinates(pairs, item_codes=item_codes, require_prelocked=True)
 	return lock_stock_coordinates(pairs, item_codes=item_codes)
 
 
