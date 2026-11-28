@@ -15,6 +15,7 @@ Trust model (matching PR #16 stock_oracle_reference.py):
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import concurrent.futures
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_EVEN
@@ -27,7 +28,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, Literal
 
 CACHE_SCHEMA_VERSION = "fast-verify-oracle-cache-v1"
 PARITY_CACHE_SCHEMA_VERSION = "perf-parity-oracle-cache-v1"
@@ -41,6 +42,24 @@ REQUIRED_KEY_FIELDS = (
     "user",
     "precision_settings",
 )
+
+NumericPrecision = Literal["currency", "float", "exact"]
+
+# Stock gross_profit.py, get_columns/get_column_names and GrossProfitGenerator.
+# Fieldtype describes presentation. The two rates use float precision and the
+# percentage uses currency precision in the stock calculations.
+GROSS_PROFIT_PRECISION: Mapping[str, NumericPrecision] = {
+    "qty": "float",
+    "avg._selling_rate": "float",
+    "valuation_rate": "float",
+    "selling_amount": "currency",
+    "base_amount": "currency",  # Internal alias used by older cached row shapes.
+    "buying_amount": "currency",
+    "gross_profit": "currency",
+    "gross_profit_%": "currency",
+    "allocated_amount": "currency",
+    "indent": "exact",  # Invoice tree metadata.
+}
 
 DEFAULT_MONETARY_FIELDS = frozenset(
     {
@@ -73,9 +92,6 @@ DEFAULT_MONETARY_FIELDS = frozenset(
 DEFAULT_FLOAT_FIELDS = frozenset(
     {
         "qty",
-        "avg._selling_rate",
-        "valuation_rate",
-        "gross_profit_%",
         "opening_qty",
         "in_qty",
         "out_qty",
@@ -533,10 +549,8 @@ def compare_financial_value(
     *,
     location: str,
     monetary_fields: set[str],
-    float_fields: set[str],
+    numeric_precisions: Mapping[str, int],
     string_id_fields: set[str],
-    currency_precision: int = 3,
-    float_precision: int = 2,
 ) -> dict[str, Any] | None:
     """Compare one cell with strict type/identifier safety and declared ERPNext precision."""
     if candidate_val is None or oracle_val is None:
@@ -584,8 +598,7 @@ def compare_financial_value(
             }
         return None
 
-    # Monetary and float fields compare at exact declared ERPNext precision (no loose 0.001 tolerance!).
-    if field in monetary_fields or field in float_fields or _is_numeric_value(candidate_val) or _is_numeric_value(oracle_val):
+    if field in numeric_precisions or _is_numeric_value(candidate_val) or _is_numeric_value(oracle_val):
         cand_dec = _to_exact_decimal(candidate_val)
         orac_dec = _to_exact_decimal(oracle_val)
         if cand_dec is None or orac_dec is None:
@@ -596,8 +609,18 @@ def compare_financial_value(
                 "candidate": candidate_val,
                 "oracle": oracle_val,
             }
-        precision = currency_precision if field in monetary_fields else float_precision
-        quantum = Decimal(10) ** (-int(precision))
+        precision = numeric_precisions.get(field)
+        if precision is None:
+            if cand_dec == orac_dec:
+                return None
+            return {
+                "kind": "numeric_mismatch",
+                "field": field,
+                "location": location,
+                "candidate": str(cand_dec),
+                "oracle": str(orac_dec),
+            }
+        quantum = Decimal(10) ** (-precision)
         cand_q = cand_dec.quantize(quantum, rounding=ROUND_HALF_EVEN)
         orac_q = orac_dec.quantize(quantum, rounding=ROUND_HALF_EVEN)
         diff = abs(cand_dec - orac_dec)
@@ -611,7 +634,7 @@ def compare_financial_value(
                 "candidate_quantized": str(cand_q),
                 "oracle_quantized": str(orac_q),
                 "diff": str(diff),
-                "precision": int(precision),
+                "precision": precision,
             }
         return None
 
@@ -650,44 +673,33 @@ def _financial_signature_value(
     field: str,
     value: Any,
     *,
-    monetary_fields: set[str],
-    float_fields: set[str],
-    currency_precision: int,
-    float_precision: int,
+    numeric_precisions: Mapping[str, int],
 ) -> Any:
     """Canonicalize one value with the same numeric semantics as compare_financial_value."""
     if _is_numeric_value(value):
         dec = _to_exact_decimal(value)
         if dec is None:
             return ["invalid_num", type(value).__name__, str(value)]
-        precision = currency_precision if field in monetary_fields else float_precision
-        quantum = Decimal(10) ** (-int(precision))
+        precision = numeric_precisions.get(field)
+        if precision is None:
+            return ["exact_num", *dec.as_integer_ratio()]
+        quantum = Decimal(10) ** (-precision)
         try:
             quantized = dec.quantize(quantum, rounding=ROUND_HALF_EVEN)
         except InvalidOperation:
             return ["invalid_num", type(value).__name__, str(value)]
-        return ["num", int(precision), format(quantized, "f")]
+        return ["num", precision, format(quantized, "f")]
     return _signature_value(value)
 
 
 def _financial_row_signature(
     row: dict[str, Any],
     *,
-    monetary_fields: set[str],
-    float_fields: set[str],
-    currency_precision: int,
-    float_precision: int,
+    numeric_precisions: Mapping[str, int],
 ) -> str:
     return canonical_json(
         {
-            str(k): _financial_signature_value(
-                str(k),
-                v,
-                monetary_fields=monetary_fields,
-                float_fields=float_fields,
-                currency_precision=currency_precision,
-                float_precision=float_precision,
-            )
+            str(k): _financial_signature_value(str(k), v, numeric_precisions=numeric_precisions)
             for k, v in row.items()
             if not str(k).startswith("_")
         }
@@ -708,6 +720,7 @@ def compare_financial_reports(
     check_order: bool = True,
     check_column_metadata: bool = True,
     identity_fields: tuple[str, ...] | None = None,
+    precision_fields: Mapping[str, NumericPrecision] | None = None,
 ) -> list[dict[str, Any]]:
     """Exact precision-aware and type-aware comparator for financial reports.
 
@@ -718,6 +731,7 @@ def compare_financial_reports(
     - string identifier corruption (e.g. "001" vs "1" or "001" vs 1)
     - None vs 0 coercion
     - column metadata drift
+    When precision_fields is supplied, numeric fields outside it compare exactly.
     """
     mismatches: list[dict[str, Any]] = []
     if check_column_metadata and (candidate_columns or oracle_columns):
@@ -729,6 +743,16 @@ def compare_financial_reports(
         frozenset(float_fields) if float_fields is not None else DEFAULT_FLOAT_FIELDS,
         frozenset(string_id_fields) if string_id_fields is not None else DEFAULT_STRING_ID_FIELDS,
     )
+    if precision_fields is None:
+        precision_fields = {
+            **dict.fromkeys(flt_set, "float"),
+            **dict.fromkeys(mon_set, "currency"),
+            **GROSS_PROFIT_PRECISION,
+        }
+    precisions = {"currency": currency_precision, "float": float_precision}
+    numeric_precisions = {
+        field: precisions[rule] for field, rule in precision_fields.items() if rule != "exact"
+    }
 
     cand_dicts = [_row_to_dict(candidate_columns, r) for r in (candidate_rows or [])]
     orac_dicts = [_row_to_dict(oracle_columns, r) for r in (oracle_rows or [])]
@@ -752,10 +776,7 @@ def compare_financial_reports(
                         _financial_signature_value(
                             f,
                             row.get(f),
-                            monetary_fields=mon_set,
-                            float_fields=flt_set,
-                            currency_precision=currency_precision,
-                            float_precision=float_precision,
+                            numeric_precisions=numeric_precisions,
                         )
                     )
                     for f in identity_fields
@@ -776,22 +797,10 @@ def compare_financial_reports(
         cand_counts: dict[str, int] = {}
         orac_counts: dict[str, int] = {}
         for row in cand_dicts:
-            sig = _financial_row_signature(
-                row,
-                monetary_fields=mon_set,
-                float_fields=flt_set,
-                currency_precision=currency_precision,
-                float_precision=float_precision,
-            )
+            sig = _financial_row_signature(row, numeric_precisions=numeric_precisions)
             cand_counts[sig] = cand_counts.get(sig, 0) + 1
         for row in orac_dicts:
-            sig = _financial_row_signature(
-                row,
-                monetary_fields=mon_set,
-                float_fields=flt_set,
-                currency_precision=currency_precision,
-                float_precision=float_precision,
-            )
+            sig = _financial_row_signature(row, numeric_precisions=numeric_precisions)
             orac_counts[sig] = orac_counts.get(sig, 0) + 1
         for sig, count in cand_counts.items():
             if count > orac_counts.get(sig, 0) and count > 1:
@@ -817,15 +826,33 @@ def compare_financial_reports(
                 orac_row.get(field),
                 location=f"row:{idx}",
                 monetary_fields=mon_set,
-                float_fields=flt_set,
+                numeric_precisions=numeric_precisions,
                 string_id_fields=str_set,
-                currency_precision=currency_precision,
-                float_precision=float_precision,
             )
             if diff is not None:
                 mismatches.append(diff)
 
     return mismatches
+
+
+def compare_gross_profit_reports(
+    candidate_columns: list[Any] | None,
+    candidate_rows: list[Any] | None,
+    oracle_columns: list[Any] | None,
+    oracle_rows: list[Any] | None,
+    *,
+    currency_precision: int = 3,
+    float_precision: int = 2,
+) -> list[dict[str, Any]]:
+    return compare_financial_reports(
+        candidate_columns,
+        candidate_rows,
+        oracle_columns,
+        oracle_rows,
+        currency_precision=currency_precision,
+        float_precision=float_precision,
+        precision_fields=GROSS_PROFIT_PRECISION,
+    )
 
 
 # ---------------------------------------------------------------------------

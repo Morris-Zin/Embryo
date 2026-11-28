@@ -28,6 +28,8 @@ import sys
 import time
 from typing import Any
 
+from perf_gp_result import UnavailableGrossProfit, build_report_runner_source, classify_gross_profit_result
+
 PROJECT = "khitmee-perf"
 FORBIDDEN_PROJECT = "khitmee-erpnext"
 BENCH_PYTHON = "/home/frappe/frappe-bench/env/bin/python"
@@ -162,22 +164,6 @@ def _percentile(sorted_vals: list[float], pct: float) -> float:
         return sorted_vals[lo]
     frac = rank - lo
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
-
-
-def split_query_report_result(result: Any) -> tuple[list[Any], list[Any], str | None]:
-    """Return (columns, rows, unavailable_reason) for Frappe query-report responses.
-
-    Fast Gross Profit returns a third message element for pending/over-budget
-    executions.  That short-circuit is not a successful latency measurement.
-    """
-    if not isinstance(result, (list, tuple)) or len(result) < 2:
-        return [], [], "malformed report response"
-    columns = result[0] if isinstance(result[0], list) else []
-    rows = result[1] if isinstance(result[1], list) else []
-    message = result[2] if len(result) >= 3 else None
-    if not rows and message:
-        return columns, rows, str(message)
-    return columns, rows, None
 
 
 def unavailable_report_measurement(reason: str, rss_before: float | None, rss_after: float | None) -> dict[str, Any]:
@@ -669,15 +655,15 @@ def run_inside_backend(args: argparse.Namespace) -> int:
                 with sql_prof:
                     gp_profiler.enable()
                     try:
-                        gp_result = fast_gp_execute(frappe._dict(dict(flt)))
-                        _columns, rows, unavailable_reason = split_query_report_result(gp_result)
+                        gp_result = classify_gross_profit_result(fast_gp_execute(frappe._dict(dict(flt))))
                     finally:
                         gp_profiler.disable()
                 wall_ms = round((time.perf_counter() - t0) * 1000.0, 3)
                 rss_after = current_rss_mib()
-                if unavailable_reason is not None:
-                    benchmarks[label] = unavailable_report_measurement(unavailable_reason, rss_before, rss_after)
+                if isinstance(gp_result, UnavailableGrossProfit):
+                    benchmarks[label] = unavailable_report_measurement(gp_result.reason, rss_before, rss_after)
                     continue
+                rows = gp_result.rows
                 if label == "fast_gp_invoice_detail_50":
                     rows = list(rows or [])[:INVOICE_DETAIL_PAGE_LIMIT]
                 benchmarks[label] = {
@@ -749,7 +735,7 @@ def host_exec(args: argparse.Namespace, argv: list[str]) -> int:
         inner_argv.append(token)
 
     command = build_exec_command(project, inner_argv)
-    source = Path(__file__).read_bytes()
+    source = build_report_runner_source(Path(__file__), ("perf_gp_result",))
     proc = subprocess.run(command, input=source, stdout=subprocess.PIPE, stderr=None)
     if proc.returncode != 0:
         sys.stdout.buffer.write(proc.stdout)

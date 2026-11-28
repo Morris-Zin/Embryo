@@ -19,6 +19,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 import fast_verify as fv
 import perf_bench_inner as pbi
+from perf_gp_result import ComputedGrossProfit, UnavailableGrossProfit, classify_gross_profit_result
 
 
 WAREHOUSE_COLUMNS = [
@@ -180,6 +181,43 @@ class TestStockOracleCache(unittest.TestCase):
 
 
 class TestExactFinancialComparator(unittest.TestCase):
+    def test_gross_profit_mapping_covers_every_stock_numeric_column(self):
+        # Stock get_columns, gross_profit.py:359-399 and :422-428.
+        stock_numeric_columns = {
+            "qty": ("Float", "float"),
+            "avg._selling_rate": ("Currency", "float"),
+            "valuation_rate": ("Currency", "float"),
+            "selling_amount": ("Currency", "currency"),
+            "buying_amount": ("Currency", "currency"),
+            "gross_profit": ("Currency", "currency"),
+            "gross_profit_%": ("Percent", "currency"),
+            "allocated_amount": ("Currency", "currency"),
+        }
+        for field, (fieldtype, precision_rule) in stock_numeric_columns.items():
+            with self.subTest(field=field):
+                self.assertEqual(fv.GROSS_PROFIT_PRECISION[field], precision_rule)
+                columns = [{"fieldname": field, "fieldtype": fieldtype}]
+                mismatches = fv.compare_gross_profit_reports(
+                    columns, [[30.001]], columns, [[30.000]], currency_precision=3, float_precision=2
+                )
+                if precision_rule == "currency":
+                    self.assertEqual([(m["field"], m["precision"]) for m in mismatches], [(field, 3)])
+                else:
+                    self.assertEqual(mismatches, [])
+                    mismatches = fv.compare_gross_profit_reports(
+                        columns, [[30.01]], columns, [[30.00]], currency_precision=3, float_precision=2
+                    )
+                    self.assertEqual([(m["field"], m["precision"]) for m in mismatches], [(field, 2)])
+
+    def test_gross_profit_unknown_numeric_fields_compare_exactly(self):
+        for field, fieldtype in (("new_percent", "Percent"), ("new_amount", "Currency"), ("indent", None)):
+            with self.subTest(field=field):
+                columns = [{"fieldname": field, "fieldtype": fieldtype}]
+                same = fv.compare_gross_profit_reports(columns, [[1]], columns, [[Decimal("1.0000")]])
+                self.assertEqual(same, [])
+                mismatches = fv.compare_gross_profit_reports(columns, [[1.0001]], columns, [[1.0]])
+                self.assertEqual([(m["kind"], m["field"]) for m in mismatches], [("numeric_mismatch", field)])
+
     def test_exact_match_and_binary_float_repr_noise_at_declared_precision_pass(self):
         oracle = _sample_rows()
         candidate = copy.deepcopy(oracle)
@@ -415,22 +453,20 @@ class TestPerfBenchInnerHelpers(unittest.TestCase):
             pbi.build_transfer_payload(pool, 10, "Shop 1", "Shop 1")
 
     def test_gated_report_response_is_unavailable_not_successful_latency(self):
-        columns, rows, reason = pbi.split_query_report_result(
-            ([{"fieldname": "gross_profit"}], [], "Detail budget exceeded")
-        )
-        self.assertEqual(columns, [{"fieldname": "gross_profit"}])
-        self.assertEqual(rows, [])
-        self.assertEqual(reason, "Detail budget exceeded")
+        columns = [{"fieldname": "gross_profit"}]
+        result = classify_gross_profit_result((columns, [], "detail_input_rows_exceeds_sync_row_budget"))
+        self.assertEqual(result, UnavailableGrossProfit(columns, "gated", "detail_input_rows_exceeds_sync_row_budget"))
 
-        measurement = pbi.unavailable_report_measurement(reason, 100.0, 100.5)
+        measurement = pbi.unavailable_report_measurement(result.reason, 100.0, 100.5)
         self.assertTrue(measurement["unavailable"])
         self.assertIsNone(measurement["wall_ms"])
         self.assertIsNone(measurement["sql_count"])
-        self.assertEqual(measurement["reason"], reason)
+        self.assertEqual(measurement["reason"], result.reason)
         self.assertEqual(measurement["rss_delta_mib"], 0.5)
 
-        successful = pbi.split_query_report_result((columns, [{"gross_profit": 1.0}], "ignored when rows exist"))
-        self.assertEqual(successful[2], None)
+        rows = [{"gross_profit": 1.0}]
+        self.assertEqual(classify_gross_profit_result((columns, rows, "informational")), ComputedGrossProfit(columns, rows))
+        self.assertEqual(classify_gross_profit_result((columns, [])), ComputedGrossProfit(columns, []))
 
     def test_latency_stats_aggregation_and_empty_none(self):
         empty = pbi.compute_latency_stats([])
