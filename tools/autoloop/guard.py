@@ -17,7 +17,7 @@ import sys
 from tempfile import TemporaryDirectory
 import time
 from types import UnionType
-from typing import Any, get_args, get_origin, get_type_hints
+from typing import Any, Union, get_args, get_origin, get_type_hints
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -802,7 +802,7 @@ def read_verification_key(path: Path) -> str:
 def _decode_verification_value(schema: Any, value: Any) -> Any:
     """Decode the signed JSON against the service's public evidence dataclasses."""
     origin, args = get_origin(schema), get_args(schema)
-    if origin is UnionType and type(None) in args:
+    if origin in (Union, UnionType) and type(None) in args:
         return None if value is None else _decode_verification_value(next(t for t in args if t is not type(None)), value)
     if origin is tuple and isinstance(value, list):
         return tuple(_decode_verification_value(args[0], item) for item in value)
@@ -872,7 +872,7 @@ def verify_phase2(
     checked_tooling_digest: str | None = None,
 ) -> dict[str, Any]:
     """Use current Git observations and authenticated evidence for local and CI shadow verification."""
-    from .receipts import checkout_repo_id
+    from .receipts import Broker, checkout_repo_id
     from . import verification as v
 
     level = v.Obligation(obligation)
@@ -909,6 +909,8 @@ def verify_phase2(
     for sid in ids:
         shard = run["shards"][sid]
         shard_head = head if level is v.Obligation.SHARD or len(run["shards"]) == 1 else shard.get("last_green_sha")
+        if shard_head and shard_head != head and not git_is_ancestor(repo, shard_head, head):
+            shard_head = None
         shard_tree = (compute_code_tree_sha256(repo, shard_head, run_id=run["run_id"])
                       if shard_head and shard_head != head else code_hash)
         binding = v.Binding(identity, run["run_id"], run.get("issue_number"), run.get("pr_number"),
@@ -935,6 +937,27 @@ def verify_phase2(
             snapshot = None
         if snapshot is None:
             snapshot = v.EvidenceSnapshot(observed_at, binding, generations)
+        if frozen.require_delegation_receipts and snapshot.shard_results:
+            try:
+                broker = Broker(identity)
+                current = broker.current_publication(run["run_id"], sid, "implementation")
+                authorized = (
+                    current is not None
+                    and current.get("git_after") == {"base": base, "head": shard_head, "tree": shard_tree}
+                    and any(
+                        receipt["receipt_id"] == current["receipt_id"]
+                        and reservation["contract_hash"] == digest
+                        and reservation["contract_revision"] == revision
+                        for reservation, receipt in broker.settled()
+                    )
+                )
+            except (RuntimeError, OSError, ValueError):
+                authorized = False
+            snapshot = replace(snapshot, shard_results=tuple(
+                item if authorized and item.implementation_receipt_id == current["receipt_id"]
+                else replace(item, implementation_receipt_id="")
+                for item in snapshot.shard_results
+            ))
         approvals = snapshot.approvals if auto_merge_approved is not False else tuple(
             replace(a, meta=replace(a.meta, status="revoked")) if a.action == "auto-merge" else a
             for a in snapshot.approvals

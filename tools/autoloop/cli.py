@@ -51,6 +51,7 @@ from autoloop.lessons import LESSON_KINDS, matching_lessons, record_lesson
 from autoloop.receipts import Broker, ReceiptError, checkout_repo_id
 from autoloop.routing import NUMBER_FIELDS, OPTIONAL_FIELDS, REQUIRED_FIELDS, record_attempt, routing_report
 from autoloop.state import (
+    EnforcedVerificationError,
     IllegalTransitionError,
     apply_replan,
     bind_pr,
@@ -63,7 +64,7 @@ from autoloop.state import (
     publish_contract,
     record_all_shards_pass,
     record_check_failure,
-    record_failed_check_verification,
+    record_legacy_rejection,
     record_check_timings,
     record_oracle_mismatch,
     record_review,
@@ -387,6 +388,27 @@ def _run_checks_with_cache(
 
 
 def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        return _run_legacy_check(repo, args)
+    except EnforcedVerificationError:
+        raise
+    except (RuntimeError, OSError):
+        if bool(args.shard) != bool(args.all_shards):
+            try:
+                state = load_run(repo, args.run_id)
+                registered = (state["shards"].get(args.shard) or {}).get("worktree_path")
+                worktree = args.worktree or (Path(registered) if registered else repo)
+                record_legacy_rejection(
+                    repo, args.run_id, "integrated" if args.all_shards else "shard",
+                    {**_verification_options(args), "git_repo": worktree},
+                    head=git_rev_parse(worktree, "HEAD"), shard_id=args.shard,
+                )
+            except (RuntimeError, OSError, ValueError, KeyError) as shadow_error:
+                print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
+        raise
+
+
+def _run_legacy_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     if bool(args.shard) == bool(args.all_shards):
         raise IllegalTransitionError("check requires exactly one of --shard <id> or --all-shards")
     run, contract = load_verified_local_contract(repo, args.run_id)
@@ -465,10 +487,6 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                 repo, args.run_id, shard_id=args.shard, head_sha=requested, check_name=check_name,
                 output=output, checked_contract=checked_contract,
             )
-            try:
-                record_failed_check_verification(repo, args.run_id, requested, args.shard, verification)
-            except (RuntimeError, OSError, ValueError) as shadow_error:
-                print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
             raise
         finally:
             if steps:
@@ -1288,7 +1306,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif cmd == "submit-for-review":
-            _emit(submit_for_review(repo, args.run_id, verification=_verification_options(args)))
+            verification = _verification_options(args)
+            try:
+                _emit(submit_for_review(repo, args.run_id, verification=verification))
+            except IllegalTransitionError:
+                try:
+                    record_legacy_rejection(repo, args.run_id, "review_submission", verification)
+                except (RuntimeError, OSError, ValueError, KeyError) as shadow_error:
+                    print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
+                raise
         elif cmd == "record-oracle-mismatch":
             _emit(record_oracle_mismatch(
                 repo, args.run_id, args.shard, upstream_ref=args.upstream_ref, summary=args.summary,
