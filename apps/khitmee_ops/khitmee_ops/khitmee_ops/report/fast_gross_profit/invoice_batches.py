@@ -70,11 +70,12 @@ def _invoice_keys(filters, invoice_ids, *, count_rows=False):
 				cursor = rows[-1]
 
 
-def _render_invoice_batch(filters, phase, names):
+def _render_invoice_batch(filters, phase, names, *, export_scope=None):
 	row_limit = MAX_SINGLE_FAMILY_ROWS if len(names) == 1 else INVOICE_BATCH_ROWS
+	options = {} if export_scope is None else {"export_scope": export_scope}
 	try:
 		columns, data = fast.run_detail_gross_profit(
-			filters, invoice_ids=names, invoice_phase=phase, invoice_row_limit=row_limit
+			filters, invoice_ids=names, invoice_phase=phase, invoice_row_limit=row_limit, **options
 		)
 	except fast.InvoiceBatchTooLarge:
 		if len(names) == 1:
@@ -86,11 +87,11 @@ def _render_invoice_batch(filters, phase, names):
 		yield columns, data
 		return
 	middle = len(names) // 2
-	yield from _render_invoice_batch(filters, phase, names[:middle])
-	yield from _render_invoice_batch(filters, phase, names[middle:])
+	yield from _render_invoice_batch(filters, phase, names[:middle], export_scope=export_scope)
+	yield from _render_invoice_batch(filters, phase, names[middle:], export_scope=export_scope)
 
 
-def iter_invoice_detail_batches(filters, *, invoice_ids=None, page=None):
+def iter_invoice_detail_batches(filters, *, invoice_ids=None, page=None, export_scope=None):
 	"""Yield complete invoice trees in the report's two-phase ordering."""
 	filters = fast._copy_report_filters(filters)
 	fast.validate_date_range(filters)
@@ -98,19 +99,19 @@ def iter_invoice_detail_batches(filters, *, invoice_ids=None, page=None):
 	if page is not None:
 		yield from _read_invoice_page(filters, page, keys, invoice_ids)
 		return
-	yield from _render_selected_invoices(filters, keys)
+	yield from _render_selected_invoices(filters, keys, export_scope=export_scope)
 
 
-def _render_selected_invoices(filters, keys):
+def _render_selected_invoices(filters, keys, *, export_scope=None):
 	names, phase = [], 1
 	for next_phase, name, _ in keys:
 		if names and (next_phase != phase or len(names) >= INVOICE_KEY_BATCH_SIZE):
-			yield from _render_invoice_batch(filters, phase, names)
+			yield from _render_invoice_batch(filters, phase, names, export_scope=export_scope)
 			names = []
 		names.append(name)
 		phase = next_phase
 	if names:
-		yield from _render_invoice_batch(filters, phase, names)
+		yield from _render_invoice_batch(filters, phase, names, export_scope=export_scope)
 
 
 def _read_invoice_page(filters, page, keys, invoice_ids):
@@ -145,13 +146,20 @@ def _read_invoice_page(filters, page, keys, invoice_ids):
 	if remaining > 0 and skip == 0:
 		base_amount = buying_amount = 0
 		columns = None
+		incomplete_total = False
 		for batch_columns, rows in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids):
 			columns = batch_columns
 			for row in rows:
 				if row.get("indent") == 1:
-					base_amount += row.get("selling_amount") or 0.0
-					buying_amount += row.get("buying_amount") or 0.0
-		yield columns or invoice_detail_columns(filters), [fast.invoice_total_row(filters, base_amount, buying_amount)]
+					if row.get("restricted_adjustment"):
+						incomplete_total = True
+					else:
+						base_amount += row.get("selling_amount") or 0.0
+						buying_amount += row.get("buying_amount") or 0.0
+		total = fast.invoice_total_row(filters, base_amount, buying_amount)
+		if incomplete_total:
+			fast.flag_restricted_adjustment(total)
+		yield columns or invoice_detail_columns(filters), [total]
 
 
 def invoice_detail_columns(filters):

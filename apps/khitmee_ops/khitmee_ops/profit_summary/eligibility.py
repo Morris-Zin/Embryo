@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover
 ALLOWED_SUMMARY_FILTER_KEYS = frozenset(
 	{"company", "from_date", "to_date", "group_by", "warehouse", "include_returned_invoices", "currency"}
 )
+SALES_INVOICE_SCOPE_BATCH_SIZE = 256
 
 LINK_FILTER_DOCTYPES = {
 	"company": "Company",
@@ -226,6 +227,19 @@ def company_only_match_conditions(match_conditions: str | None, company: str) ->
 	return bool(match and match.group(2) == str(company))
 
 
+def sales_invoice_match_conditions(user: str | None = None) -> str:
+	user = user or _session_user()
+	if user == "Administrator":
+		return ""
+	return build_match_conditions("Sales Invoice", user=user) or ""
+
+
+def restricted_sales_invoice_match_conditions(company: str) -> str:
+	"""Return the session's Sales Invoice predicate beyond the report's company scope."""
+	conditions = sales_invoice_match_conditions()
+	return "" if company_only_match_conditions(conditions, company) else conditions
+
+
 def evaluate_summary_eligibility(filters: dict, user: str | None = None) -> dict:
 	"""Return the frozen eligibility dictionary without ever widening visibility."""
 	filters = filters or {}
@@ -255,7 +269,7 @@ def evaluate_summary_eligibility(filters: dict, user: str | None = None) -> dict
 
 	with _bound_user(user or _session_user()) as bound_user:
 		try:
-			match_conditions = build_match_conditions("Sales Invoice", user=bound_user)
+			match_conditions = sales_invoice_match_conditions(bound_user)
 		except Exception:
 			result.update({"eligible": False, "reason": "match_conditions_unproven"})
 			return result
