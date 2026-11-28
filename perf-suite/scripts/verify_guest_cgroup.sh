@@ -121,7 +121,7 @@ if parent_errors:
 
 try:
     id_output = subprocess.check_output(
-        ["docker", "ps", "-a", "--filter", f"name={project_name}", "--format", "{{.ID}}"],
+        ["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project_name}", "--format", "{{.ID}}"],
         text=True,
         stderr=subprocess.PIPE,
     )
