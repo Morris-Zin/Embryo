@@ -22,6 +22,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
+from perf_gp_result import GrossProfitResult, UnavailableGrossProfit, build_report_runner_source, classify_gross_profit_result
+
 PROJECT = "khitmee-perf"
 FORBIDDEN_PROJECT = "khitmee-erpnext"
 COMPANY = "Khit Me Distribution"
@@ -1007,20 +1009,25 @@ def company_for_warehouse(frappe, warehouse):
     return company
 
 
-def run_gross_profit(frappe, module_name, filters):
+def run_gross_profit(frappe, module_name, filters) -> tuple[GrossProfitResult, float]:
     if module_name == "fast":
         from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import execute
     else:
         from erpnext.accounts.report.gross_profit.gross_profit import execute
     start = time.monotonic()
-    columns, data = execute(frappe._dict(dict(filters)))
-    return columns, data, time.monotonic() - start
+    response = execute(frappe._dict(dict(filters)))
+    return classify_gross_profit_result(response), time.monotonic() - start
+
+
+def run_upstream_gross_profit(frappe, filters):
+    result, elapsed = run_gross_profit(frappe, "upstream", filters)
+    if isinstance(result, UnavailableGrossProfit):
+        raise ParityFailure(f"stock Gross Profit oracle unavailable: {result.reason}")
+    return result.columns, result.rows, elapsed
 
 
 def run_fast_gross_profit_capture_semijoin(frappe, filters):
     """Run the real report once while capturing the exact semi-join SQL it executes."""
-    from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import execute
-
     captured = []
     original_sql = frappe.db.sql
 
@@ -1035,17 +1042,12 @@ def run_fast_gross_profit_capture_semijoin(frappe, filters):
             captured.append((query, list(params or [])))
         return original_sql(query, *args, **kwargs)
 
-    start = time.monotonic()
+    frappe.db.sql = capturing_sql
     try:
-        frappe.db.sql = capturing_sql
-        try:
-            columns, data = execute(frappe._dict(dict(filters)))
-        finally:
-            frappe.db.sql = original_sql
+        result, elapsed = run_gross_profit(frappe, "fast", filters)
     finally:
-        if getattr(frappe.db, "sql", None) is capturing_sql:
-            frappe.db.sql = original_sql
-    return columns, data, time.monotonic() - start, captured
+        frappe.db.sql = original_sql
+    return result, elapsed, captured
 
 
 def semijoin_query_label(sql):
@@ -1294,7 +1296,7 @@ def run_upstream_gross_profit_piecewise_by_month(frappe, filters):
         (company, from_date, to_date, from_date, to_date),
     )
     if cross_month and int(cross_month[0][0] or 0) > 0:
-        return run_gross_profit(frappe, "upstream", filters)
+        return run_upstream_gross_profit(frappe, filters)
 
     currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
     float_precision = cint(frappe.db.get_default("float_precision")) or 2
@@ -1314,7 +1316,7 @@ def run_upstream_gross_profit_piecewise_by_month(frappe, filters):
         (company, from_date, to_date, float_precision),
     )
     if fractional and int(fractional[0][0] or 0) > 0:
-        return run_gross_profit(frappe, "upstream", filters)
+        return run_upstream_gross_profit(frappe, filters)
     currency = filters.get("currency") or frappe.get_cached_value("Company", company, "default_currency")
     columns = None
     group_field = "warehouse" if group_by == "Warehouse" else "monthly"
@@ -1739,7 +1741,11 @@ def run_gp_parity(frappe, args):
 
     executed_cases = 0
     failed_cases = 0
+    fixture_not_ready_cases = 0
+    gated_cases = 0
+    mismatch_cases = 0
     captured_semijoin = {}
+    unavailable_semijoins = set()
     oracle_cache = None
     oracle_db_fingerprint = None
     oracle_source_sha256 = None
@@ -1757,12 +1763,15 @@ def run_gp_parity(frappe, args):
     for label, filters in cases:
         capture_for_explain = label.startswith("30d-") and filters.get("group_by") == "Invoice" and filters.get("include_returned_invoices") == 1
         if capture_for_explain:
-            fast_columns, fast_data, fast_seconds, captured = run_fast_gross_profit_capture_semijoin(frappe, filters)
+            candidate, fast_seconds, captured = run_fast_gross_profit_capture_semijoin(frappe, filters)
             logical = "Shop 1" if "Shop_1" in label else "Dist Hub 1"
-            for sql, params in captured:
-                captured_semijoin.setdefault((logical, semijoin_query_label(sql)), (sql, params))
+            if isinstance(candidate, UnavailableGrossProfit):
+                unavailable_semijoins.add(logical)
+            else:
+                for sql, params in captured:
+                    captured_semijoin.setdefault((logical, semijoin_query_label(sql)), (sql, params))
         else:
-            fast_columns, fast_data, fast_seconds = run_gross_profit(frappe, "fast", filters)
+            candidate, fast_seconds = run_gross_profit(frappe, "fast", filters)
         oracle_cache_hit = False
         if oracle_cache is not None:
             cache_key = build_oracle_cache_key(
@@ -1788,33 +1797,53 @@ def run_gp_parity(frappe, args):
                 if label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
                     upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
                 else:
-                    upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
+                    upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit(frappe, filters)
                 oracle_cache.put(cache_key, upstream_columns, upstream_data)
         elif label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
             upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
         else:
-            upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
+            upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit(frappe, filters)
+        executed_cases += 1
+        case_event = {
+            "case": label,
+            "upstream_rows": len(upstream_data or []),
+            "fast_seconds": round(fast_seconds, 3),
+            "upstream_seconds": round(upstream_seconds, 3),
+        }
+        if oracle_cache is not None:
+            case_event["oracle_cache_hit"] = oracle_cache_hit
+        if isinstance(candidate, UnavailableGrossProfit):
+            failed_cases += 1
+            if candidate.status == "pending":
+                fixture_not_ready_cases += 1
+                failure_kind = "fixture_not_ready"
+            else:
+                gated_cases += 1
+                failure_kind = "gated"
+            emit("PARITY_GP_CASE", {
+                **case_event,
+                "status": "fail",
+                "failure_kind": failure_kind,
+                "reason": candidate.reason,
+                "fast_rows": 0,
+                "mismatches": 0,
+                "upstream_total": upstream_data[-1] if upstream_data else None,
+            })
+            continue
+
         case_mismatches = compare_live_gross_profit_reports(
-            fast_columns,
-            fast_data,
+            candidate.columns,
+            candidate.rows,
             upstream_columns,
             upstream_data,
             runtime_precision,
         )
-        executed_cases += 1
+        case_event.update(status="pass", fast_rows=len(candidate.rows), mismatches=len(case_mismatches))
         if case_mismatches:
             failed_cases += 1
+            mismatch_cases += 1
+            case_event.update(status="fail", failure_kind="mismatch")
         mismatches.extend({**mismatch, "case": label} for mismatch in case_mismatches)
-        case_event = {
-            "case": label,
-            "fast_rows": len(fast_data or []),
-            "upstream_rows": len(upstream_data or []),
-            "fast_seconds": round(fast_seconds, 3),
-            "upstream_seconds": round(upstream_seconds, 3),
-            "mismatches": len(case_mismatches),
-        }
-        if oracle_cache is not None:
-            case_event["oracle_cache_hit"] = oracle_cache_hit
         emit("PARITY_GP_CASE", case_event)
         for mismatch in case_mismatches[:10]:
             emit("PARITY_GP_MISMATCH", {"case": label, **mismatch})
@@ -1824,24 +1853,30 @@ def run_gp_parity(frappe, args):
     reconcile_start = time.monotonic()
     reconcile = reconcile_with_coverage(first_company, DATE_1Y_FROM, DATE_TO)
     drifts = list(reconcile["drifts"])
-    if reconcile["clean_days"] < reconcile["total_days"]:
-        # Zero drift over unbuilt days proves nothing: require full coverage.
-        drifts.append({
-            "field": "clean_day_coverage",
-            "stored": reconcile["clean_days"],
-            "ledger": reconcile["total_days"],
-        })
+    missing_clean_days = reconcile["total_days"] - reconcile["clean_days"]
     executed_cases += 1
-    if drifts:
-        failed_cases += 1
-        mismatches.extend({"kind": "summary_ledger_drift", "case": "1y-summary-ledger-reconcile", **drift} for drift in drifts)
-    emit("PARITY_GP_CASE", {
+    reconcile_event = {
         "case": "1y-summary-ledger-reconcile",
+        "status": "pass",
         "fast_seconds": round(time.monotonic() - reconcile_start, 3),
         "mismatches": len(drifts),
         "clean_days": reconcile["clean_days"],
         "total_days": reconcile["total_days"],
-    })
+    }
+    if drifts:
+        mismatch_cases += 1
+        mismatches.extend({"kind": "summary_ledger_drift", "case": "1y-summary-ledger-reconcile", **drift} for drift in drifts)
+        reconcile_event.update(status="fail", failure_kind="mismatch")
+    if missing_clean_days > 0:
+        # Zero drift over unbuilt days proves nothing: require full coverage.
+        fixture_not_ready_cases += 1
+        reconcile_event.update(
+            status="fail", failure_kind="fixture_not_ready",
+            reason=f"{missing_clean_days} clean summary days missing",
+        )
+    if reconcile_event["status"] == "fail":
+        failed_cases += 1
+    emit("PARITY_GP_CASE", reconcile_event)
     for drift in drifts[:10]:
         emit("PARITY_GP_MISMATCH", {"case": "1y-summary-ledger-reconcile", **drift})
 
@@ -1850,6 +1885,8 @@ def run_gp_parity(frappe, args):
     explain_offenses.extend({"query": "coverage", "kind": failure} for failure in coverage["failures"])
 
     for logical in WAREHOUSES:
+        if logical in unavailable_semijoins:
+            continue
         for query_label in ("invoice", "return"):
             captured = captured_semijoin.get((logical, query_label))
             if captured is None:
@@ -1878,10 +1915,16 @@ def run_gp_parity(frappe, args):
         "executed_cases": executed_cases,
         "skipped_cases": 0,
         "failed_cases": failed_cases + (1 if explain_offenses else 0),
+        "fixture_not_ready_cases": fixture_not_ready_cases,
+        "gated_cases": gated_cases,
+        "mismatch_cases": mismatch_cases,
     }
     emit("PARITY_GP_SUMMARY", {"mismatches": len(mismatches), "explain_offenses": len(explain_offenses), **stats})
-    if mismatches or explain_offenses:
-        raise ParityFailure(f"Fast Gross Profit parity failed: mismatches={len(mismatches)} explain_offenses={len(explain_offenses)}")
+    if stats["failed_cases"]:
+        raise ParityFailure(
+            f"Fast Gross Profit parity failed: fixture_not_ready_cases={fixture_not_ready_cases} "
+            f"gated_cases={gated_cases} mismatches={len(mismatches)} explain_offenses={len(explain_offenses)}"
+        )
     return stats
 
 
@@ -3056,19 +3099,8 @@ def _rewrite_cli_flag(argv, flag_name, new_value):
 
 
 def build_inner_python_source(parity_path=None):
-    """Build the stdin payload with fast_verify embedded for container execution."""
-    parity_file = Path(parity_path or __file__)
-    parity_source = parity_file.read_text(encoding="utf-8")
-    verifier_source = parity_file.with_name("fast_verify.py").read_text(encoding="utf-8")
-    bootstrap = (
-        "import sys as _khitmee_sys, types as _khitmee_types\n"
-        "_fast_verify_module = _khitmee_types.ModuleType('fast_verify')\n"
-        "_fast_verify_module.__file__ = '<embedded fast_verify.py>'\n"
-        "_fast_verify_source = " + repr(verifier_source) + "\n"
-        "exec(compile(_fast_verify_source, '<embedded fast_verify.py>', 'exec'), _fast_verify_module.__dict__)\n"
-        "_khitmee_sys.modules['fast_verify'] = _fast_verify_module\n"
-    )
-    return (bootstrap + "\n" + parity_source).encode("utf-8")
+    """Build the stdin payload with the classifier and comparator embedded."""
+    return build_report_runner_source(Path(parity_path or __file__), ("perf_gp_result", "fast_verify"))
 
 
 def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):

@@ -19,6 +19,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 import fast_verify as fv
 import perf_bench_inner as pbi
+from perf_gp_result import ComputedGrossProfit, UnavailableGrossProfit, classify_gross_profit_result
 
 
 WAREHOUSE_COLUMNS = [
@@ -452,22 +453,20 @@ class TestPerfBenchInnerHelpers(unittest.TestCase):
             pbi.build_transfer_payload(pool, 10, "Shop 1", "Shop 1")
 
     def test_gated_report_response_is_unavailable_not_successful_latency(self):
-        columns, rows, reason = pbi.split_query_report_result(
-            ([{"fieldname": "gross_profit"}], [], "Detail budget exceeded")
-        )
-        self.assertEqual(columns, [{"fieldname": "gross_profit"}])
-        self.assertEqual(rows, [])
-        self.assertEqual(reason, "Detail budget exceeded")
+        columns = [{"fieldname": "gross_profit"}]
+        result = classify_gross_profit_result((columns, [], "detail_input_rows_exceeds_sync_row_budget"))
+        self.assertEqual(result, UnavailableGrossProfit(columns, "gated", "detail_input_rows_exceeds_sync_row_budget"))
 
-        measurement = pbi.unavailable_report_measurement(reason, 100.0, 100.5)
+        measurement = pbi.unavailable_report_measurement(result.reason, 100.0, 100.5)
         self.assertTrue(measurement["unavailable"])
         self.assertIsNone(measurement["wall_ms"])
         self.assertIsNone(measurement["sql_count"])
-        self.assertEqual(measurement["reason"], reason)
+        self.assertEqual(measurement["reason"], result.reason)
         self.assertEqual(measurement["rss_delta_mib"], 0.5)
 
-        successful = pbi.split_query_report_result((columns, [{"gross_profit": 1.0}], "ignored when rows exist"))
-        self.assertEqual(successful[2], None)
+        rows = [{"gross_profit": 1.0}]
+        self.assertEqual(classify_gross_profit_result((columns, rows, "informational")), ComputedGrossProfit(columns, rows))
+        self.assertEqual(classify_gross_profit_result((columns, [])), ComputedGrossProfit(columns, []))
 
     def test_latency_stats_aggregation_and_empty_none(self):
         empty = pbi.compute_latency_stats([])

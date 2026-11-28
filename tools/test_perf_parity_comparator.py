@@ -2,10 +2,12 @@ import copy
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -13,6 +15,7 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 import perf_parity
+from perf_gp_result import UnavailableGrossProfit, build_report_runner_source
 
 
 WAREHOUSE_COLUMNS = [
@@ -185,11 +188,104 @@ class GrossProfitComparatorNegativeControlTests(unittest.TestCase):
                 {**precision, "rounding_method": "Commercial Rounding"},
             )
 
-    def test_inner_payload_embeds_fast_verify_and_compiles(self):
-        payload = perf_parity.build_inner_python_source()
-        self.assertIn(b"_fast_verify_module", payload[:5000])
-        self.assertIn(b"compare_financial_reports", payload)
-        compile(payload, "<embedded-parity-test>", "exec")
+    def test_stdin_runners_embed_shared_classifier_and_start(self):
+        payloads = {
+            "parity": perf_parity.build_inner_python_source(),
+            "benchmark": build_report_runner_source(TOOLS_DIR / "perf_bench_inner.py", ("perf_gp_result",)),
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for runner, payload in payloads.items():
+                with self.subTest(runner=runner):
+                    proc = subprocess.run(
+                        [sys.executable, "-B", "-", "--help"], input=payload, cwd=tmpdir,
+                        capture_output=True, check=False, timeout=10,
+                    )
+                    self.assertEqual(proc.returncode, 0, proc.stderr.decode(errors="replace"))
+                    self.assertIn(b"usage:", proc.stdout)
+
+    def test_gross_profit_gate_runs_the_stock_oracle_for_pending_gated_and_computed_results(self):
+        columns = [{"fieldname": "warehouse", "fieldtype": "Link"}, {"fieldname": "selling_amount", "fieldtype": "Currency"}]
+        rows = [["Total", 30.0]]
+        oracle_execute = mock.Mock(return_value=(columns, rows))
+        precision = {"currency_precision": 3, "float_precision": 2, "rounding_method": "Banker's Rounding (legacy)"}
+        frappe = SimpleNamespace(_dict=dict)
+        test_cases = (
+            (([], [], "too_many_dirty_or_missing_summary_days"), "fixture_not_ready", 0),
+            (([], [], "detail_input_rows_exceeds_sync_row_budget"), "gated", 0),
+            ((columns, rows), None, 0),
+            ((columns, [["Total", 30.001]]), "mismatch", 1),
+        )
+        for response, failure_kind, mismatch_count in test_cases:
+            with self.subTest(failure_kind=failure_kind):
+                def fast_execute(filters):
+                    if (filters["from_date"], filters["group_by"], filters["include_returned_invoices"]) == (
+                        perf_parity.DATE_30D_FROM, "Warehouse", 0
+                    ):
+                        return response
+                    return columns, rows
+
+                oracle_execute.reset_mock()
+                modules = {
+                    "khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit": SimpleNamespace(execute=fast_execute),
+                    "erpnext.accounts.report.gross_profit.gross_profit": SimpleNamespace(execute=oracle_execute),
+                    "khitmee_ops.profit_summary.reconcile": SimpleNamespace(
+                        reconcile_with_coverage=lambda *_: {"drifts": [], "clean_days": 365, "total_days": 365}
+                    ),
+                }
+                with (
+                    mock.patch.dict(sys.modules, modules),
+                    mock.patch.multiple(
+                        perf_parity, WAREHOUSES=(),
+                        resolve_warehouse=mock.Mock(return_value="Shop 1"),
+                        company_for_warehouse=mock.Mock(return_value="Company"),
+                        capture_precision_settings=mock.Mock(return_value=precision),
+                        audit_gp_coverage_rows=mock.Mock(return_value={"failures": []}),
+                        load_gp_coverage_invoice_rows=mock.Mock(return_value=[]),
+                        explain_query_offenses=mock.Mock(return_value=[]),
+                    ),
+                    mock.patch.object(perf_parity, "emit") as emit,
+                ):
+                    args = SimpleNamespace(gp_1y="none")
+                    if failure_kind:
+                        with self.assertRaises(perf_parity.ParityFailure):
+                            perf_parity.run_gp_parity(frappe, args)
+                    else:
+                        self.assertEqual(perf_parity.run_gp_parity(frappe, args)["failed_cases"], 0)
+
+                oracle_execute.assert_any_call({
+                    "company": "Company", "from_date": perf_parity.DATE_30D_FROM, "to_date": perf_parity.DATE_TO,
+                    "group_by": "Warehouse", "include_returned_invoices": 0,
+                })
+                self.assertEqual(oracle_execute.call_count, 9)
+                event = next(
+                    payload for (marker, payload), _ in emit.call_args_list
+                    if marker == "PARITY_GP_CASE" and payload["case"] == "30d-Warehouse-ret0"
+                )
+                self.assertEqual(event["status"], "fail" if failure_kind else "pass")
+                self.assertEqual(event.get("failure_kind"), failure_kind)
+                self.assertEqual(event["upstream_rows"], 1)
+                self.assertEqual(event["mismatches"], mismatch_count)
+                if failure_kind in ("fixture_not_ready", "gated"):
+                    self.assertEqual(event["reason"], response[2])
+                    self.assertEqual(event["upstream_total"], rows[-1])
+                summary = emit.call_args_list[-1].args[1]
+                self.assertEqual(emit.call_args_list[-1].args[0], "PARITY_GP_SUMMARY")
+                self.assertEqual(summary["fixture_not_ready_cases"], int(failure_kind == "fixture_not_ready"))
+                self.assertEqual(summary["gated_cases"], int(failure_kind == "gated"))
+                self.assertEqual(summary["mismatch_cases"], mismatch_count)
+
+    def test_semijoin_capture_accepts_gated_candidate_and_restores_sql(self):
+        execute = mock.Mock(return_value=([], [], "detail_input_rows_exceeds_sync_row_budget"))
+        module = "khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit"
+        sql = mock.Mock()
+        frappe = SimpleNamespace(_dict=dict, db=SimpleNamespace(sql=sql))
+        with mock.patch.dict(sys.modules, {module: SimpleNamespace(execute=execute)}):
+            result, elapsed, captured = perf_parity.run_fast_gross_profit_capture_semijoin(frappe, {})
+        self.assertIsInstance(result, UnavailableGrossProfit)
+        self.assertEqual(result.status, "gated")
+        self.assertEqual(captured, [])
+        self.assertGreaterEqual(elapsed, 0)
+        self.assertIs(frappe.db.sql, sql)
 
     def test_exact_warehouse_baseline_passes_at_oracle_tolerance(self):
         rows = warehouse_group_rows()
