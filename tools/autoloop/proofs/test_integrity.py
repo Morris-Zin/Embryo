@@ -31,11 +31,18 @@ def evaluate_text_files(
     candidate: dict[str, str],
     kinds: dict[str, str] | None = None,
     *,
+    expected_absent=(),
     criteria=(),
     waivers=(),
 ):
-    protected = kinds or {path: "test" for path in base}
-    manifest = trusted_manifest_for_files(base, protected, acceptance_criteria=criteria, waivers=waivers)
+    protected = {path: "test" for path in base} if kinds is None else kinds
+    manifest = trusted_manifest_for_files(
+        base,
+        protected,
+        expected_absent=expected_absent,
+        acceptance_criteria=criteria,
+        waivers=waivers,
+    )
     return evaluate_integrity(base, candidate, manifest, now=NOW)
 
 
@@ -80,6 +87,156 @@ class IntegrityGuardAcceptanceTest(unittest.TestCase):
         candidate = {"tests/example.k6.js": "import { test } from 'k6';\ntest.only('case', () => { assert(true); });\n"}
         report = evaluate_text_files(base, candidate)
         self.assertIn("added-skip-only-ignore", violation_rules(report))
+
+    def test_new_file_with_skip_is_flagged_when_expected_absent(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_new.py"] = (
+            "import unittest\n\nclass New(unittest.TestCase):\n    @unittest.skip('hidden')\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        report = evaluate_text_files(
+            base,
+            candidate,
+            {"tests/test_existing.py": "test", "tests/test_new.py": "test"},
+        )
+        self.assertIn("added-skip-only-ignore", violation_rules(report))
+        self.assertNotIn("unmanifested-protected-addition", violation_rules(report))
+
+    def test_new_file_with_real_assertions_passes_when_expected_absent(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_new.py"] = (
+            "import unittest\n\nclass New(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(2, 1 + 1)\n"
+        )
+        report = evaluate_text_files(base, candidate, expected_absent={"tests/test_new.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.PASS)
+        self.assertEqual(report.violations, ())
+
+    def test_expected_absent_glob_covers_new_test_file(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_new_alpha.py"] = (
+            "import unittest\n\nclass NewAlpha(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        report = evaluate_text_files(base, candidate, expected_absent={"tests/test_new_*.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.PASS)
+
+    def test_manifest_json_loads_expected_absent_paths(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        helper_manifest = trusted_manifest_for_files(base, {"tests/test_existing.py": "test"})
+        manifest = TrustedBaseManifest.from_dict(
+            {
+                "schema_version": 1,
+                "protected_paths": [{"path": "tests/test_existing.py", "kind": "test"}],
+                "expected_absent_paths": [{"path": "tests/test_new_*.py", "kind": "test"}],
+                "base_digests": [
+                    {"path": "tests/test_existing.py", "sha256": helper_manifest.base_digests[0].sha256}
+                ],
+            }
+        )
+        candidate = dict(base)
+        candidate["tests/test_new_alpha.py"] = (
+            "import unittest\n\nclass NewAlpha(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        report = evaluate_integrity(base, candidate, manifest, now=NOW)
+        self.assertEqual(report.verdict, IntegrityVerdict.PASS)
+
+    def test_unmanifested_protected_addition_fails_closed(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_new.py"] = (
+            "import unittest\n\nclass New(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        report = evaluate_text_files(base, candidate)
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("unmanifested-protected-addition", violation_rules(report))
+
+    def test_protected_glob_defines_scope_without_covering_addition(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_new.py"] = (
+            "import unittest\n\nclass New(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        report = evaluate_text_files(
+            base,
+            candidate,
+            {"tests/test_existing.py": "test", "tests/**/*.py": "test"},
+        )
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("unmanifested-protected-addition", violation_rules(report))
+        self.assertNotIn("invalid-trusted-manifest", violation_rules(report))
+
+    def test_protected_glob_freezes_matching_base_files(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        pass\n"
+        }
+        report = evaluate_text_files(base, candidate, {"tests/**/*.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("deleted-assertion", violation_rules(report))
+        self.assertNotIn("invalid-trusted-manifest", violation_rules(report))
+
+    def test_expected_absent_glob_can_freeze_base_matches_and_cover_additions(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        pass\n",
+            "tests/test_new.py": "import unittest\n\nclass New(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(2, 1 + 1)\n",
+        }
+        report = evaluate_text_files(base, candidate, {}, expected_absent={"tests/**/*.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("deleted-assertion", violation_rules(report))
+        self.assertNotIn("unmanifested-protected-addition", violation_rules(report))
+        self.assertNotIn("invalid-trusted-manifest", violation_rules(report))
+
+    def test_vacuous_new_test_file_is_flagged(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_vacuous.py"] = (
+            "import unittest\n\nclass Vacuous(unittest.TestCase):\n    def test_case(self):\n        pass\n"
+        )
+        report = evaluate_text_files(base, candidate, expected_absent={"tests/test_vacuous.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("vacuous-test", violation_rules(report))
+
+    def test_empty_new_test_file_is_flagged_as_vacuous(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        candidate = dict(base)
+        candidate["tests/test_empty.py"] = ""
+        report = evaluate_text_files(base, candidate, expected_absent={"tests/test_empty.py": "test"})
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("vacuous-test", violation_rules(report))
+
+    def test_protected_addition_is_recorded_in_diff_hash(self):
+        base = {
+            "tests/test_existing.py": "import unittest\n\nclass Existing(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        }
+        unchanged = evaluate_text_files(base, base)
+        candidate = dict(base)
+        candidate["tests/test_new.py"] = (
+            "import unittest\n\nclass New(unittest.TestCase):\n    def test_case(self):\n        self.assertTrue(True)\n"
+        )
+        changed = evaluate_text_files(base, candidate, expected_absent={"tests/test_new.py": "test"})
+        self.assertNotEqual(unchanged.diff_hash, changed.diff_hash)
 
     def test_omitted_case_is_flagged(self):
         base = {
@@ -162,6 +319,20 @@ class IntegrityGuardAcceptanceTest(unittest.TestCase):
         }
         report = evaluate_text_files(base, candidate, {"evaluator/runner.py": "evaluator"})
         self.assertIn("altered-command-or-exit-handling", violation_rules(report))
+
+    def test_command_handling_in_expected_absent_evaluator_addition_is_flagged(self):
+        candidate = {
+            "evaluator/new_runner.py": "import subprocess\n\n\ndef run():\n    return subprocess.run(['python', 'gate.py'], check=True).returncode\n"
+        }
+        report = evaluate_text_files(
+            {},
+            candidate,
+            {},
+            expected_absent={"evaluator/new_runner.py": "evaluator"},
+        )
+        self.assertEqual(report.verdict, IntegrityVerdict.FAIL)
+        self.assertIn("altered-command-or-exit-handling", violation_rules(report))
+        self.assertNotIn("unmanifested-protected-addition", violation_rules(report))
 
     def test_oracle_change_can_use_exact_expiring_owner_waiver(self):
         base = {
