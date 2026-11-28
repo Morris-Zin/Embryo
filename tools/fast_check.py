@@ -21,8 +21,8 @@ ALLOWED_WHITELISTED_METHOD_OVERRIDES = frozenset()
 ORACLE_REGISTRY = {
 	"khitmee_ops/report/fast_gross_profit/fast_gross_profit.py": "tests/test_fast_gross_profit_parity.py",
 	# Bounded Invoice pages/CSV traversal; paged rows must equal the unpaged report (live stock
-	# oracle comparison recorded by the report_paths shard, pages 1/30/75 + 3,708 CSV rows).
-	"khitmee_ops/report/fast_gross_profit/invoice_batches.py": "tests/test_profit_export_unit.py",
+	# oracle comparison recorded by the report_paths shard; offline TestInvoicePageOracleParity).
+	"khitmee_ops/report/fast_gross_profit/invoice_batches.py": "tests/test_fast_gross_profit_parity.py",
 	"profit_summary/budget.py": "tests/test_profit_summary_unit.py",
 	"profit_summary/eligibility.py": "tests/test_profit_summary_unit.py",
 	"profit_summary/query.py": "tests/test_profit_oracle_parity.py",
