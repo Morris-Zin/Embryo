@@ -302,10 +302,20 @@ def find_pairs_with_future_sle(pairs, posting_date, posting_time):
 def _should_skip_future_sle_update(
 	ctx, args, allow_zero_rate=False, allow_negative_stock=False, via_landed_cost_voucher=False
 ):
-	if ctx is None or not ctx.active or via_landed_cost_voucher or not args:
+	if ctx is None or not ctx.active or via_landed_cost_voucher or allow_negative_stock or not args:
 		return False
 	if cint(_field(args, "is_cancelled", 0)):
 		return False
+	if _field(args, "reserved_stock") or _field(args, "has_reserved_stock"):
+		return False
+	read_ctx = getattr(_THREAD_STATE, "read_cache", None)
+	if read_ctx is not None and read_ctx.active and read_ctx.sre_reserved_map is not None:
+		key = (
+			str(_field(args, "item_code", "") or "").strip(),
+			str(_field(args, "warehouse", "") or "").strip(),
+		)
+		if read_ctx.sre_reserved_map.get(key, 0.0) > 0:
+			return False
 	if _is_tracked_item_row(args):
 		return False
 	if str(_field(args, "voucher_type", "") or "") != ctx.voucher_type:
@@ -338,12 +348,16 @@ def _make_future_sle_dispatcher(original):
 	def _dispatch_update_qty_in_future_sle(*call_args, **call_kwargs):
 		ctx = getattr(_THREAD_STATE, "context", None)
 		sle_args = call_args[0] if call_args else call_kwargs.get("args")
+		allow_neg = bool(call_kwargs.get("allow_negative_stock", False))
+		if len(call_args) >= 2 and bool(call_args[1]):
+			allow_neg = True
 		via_lcv = bool(call_kwargs.get("via_landed_cost_voucher", False))
 		if len(call_args) >= 3 and bool(call_args[2]):
 			via_lcv = True
 		if _should_skip_future_sle_update(
 			ctx,
 			sle_args,
+			allow_negative_stock=allow_neg,
 			via_landed_cost_voucher=via_lcv,
 		):
 			return None

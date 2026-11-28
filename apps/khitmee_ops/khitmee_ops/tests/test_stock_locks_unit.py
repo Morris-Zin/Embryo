@@ -281,5 +281,19 @@ class TestStockLocks(unittest.TestCase):
 		self.assertEqual(result, {"items": [], "bins": [], "pairs": []})
 
 
+	def test_document_coordinates_include_packed_items_and_target_warehouse(self):
+		doc = SimpleNamespace(
+			set_warehouse="Shop 1 - KMD",
+			set_target_warehouse="Shop 2 - KMD",
+			items=[SimpleNamespace(item_code="BUNDLE-1", warehouse="Shop 1 - KMD", target_warehouse=None)],
+			packed_items=[SimpleNamespace(item_code="COMP-1", warehouse="Shop 1 - KMD")],
+		)
+		self.assertEqual(stock_locks.document_item_codes(doc), ["BUNDLE-1", "COMP-1"])
+		self.assertEqual(
+			stock_locks.document_bin_pairs(doc),
+			[("BUNDLE-1", "Shop 1 - KMD"), ("BUNDLE-1", "Shop 2 - KMD"), ("COMP-1", "Shop 1 - KMD"), ("COMP-1", "Shop 2 - KMD")],
+		)
+
+
 if __name__ == "__main__":
 	unittest.main()

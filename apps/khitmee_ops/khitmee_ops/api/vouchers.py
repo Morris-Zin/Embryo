@@ -74,8 +74,13 @@ def _item_permission_restrictions_active():
 		return True
 	if not isinstance(role_perms, dict):
 		return True
+	if not role_perms.get("read"):
+		return True
 	if_owner = role_perms.get("if_owner")
-	if isinstance(if_owner, dict) and if_owner.get("read"):
+	if isinstance(if_owner, dict):
+		if "read" in if_owner or any(if_owner.values()):
+			return True
+	elif if_owner:
 		return True
 
 	get_user_permissions = getattr(permissions_mod, "get_user_permissions", None)
