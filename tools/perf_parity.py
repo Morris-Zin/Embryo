@@ -7,12 +7,16 @@ Frappe is imported lazily only inside the perf backend container.
 import argparse
 import calendar
 import gc
+import hashlib
+import inspect
 import json
+import os
 import random
+import stat
 import subprocess
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -1349,6 +1353,291 @@ def run_upstream_gross_profit_piecewise_by_month(frappe, filters):
     return columns, output, time.monotonic() - start_wall
 
 
+ORACLE_CACHE_SCHEMA_VERSION = "perf-parity-oracle-cache-v1"
+ORACLE_CACHE_REQUIRED_FIELDS = (
+    "db_fingerprint",
+    "erpnext_source_sha256",
+    "report",
+    "filters",
+    "user",
+    "precision_settings",
+)
+
+
+class OracleCacheDriftError(ParityFailure):
+    """Raised when a hash-pinned oracle cache entry fails closed."""
+
+
+def canonical_oracle_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False, default=str)
+
+
+def canonical_oracle_sha256(value):
+    return hashlib.sha256(canonical_oracle_json(value).encode("utf-8")).hexdigest()
+
+
+def compute_file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_oracle_cache_key(
+    *,
+    db_fingerprint,
+    erpnext_source_sha256,
+    report,
+    filters,
+    user,
+    precision_settings,
+):
+    key = {
+        "db_fingerprint": db_fingerprint,
+        "erpnext_source_sha256": erpnext_source_sha256,
+        "report": report,
+        "filters": filters,
+        "user": user,
+        "precision_settings": precision_settings,
+    }
+    normalized = {}
+    for field in ORACLE_CACHE_REQUIRED_FIELDS:
+        val = key.get(field)
+        if field in ("filters", "precision_settings"):
+            if not isinstance(val, dict) or (field == "precision_settings" and not val):
+                raise OracleCacheDriftError(f"oracle cache key field {field!r} must be a non-empty dict")
+            normalized[field] = json.loads(canonical_oracle_json(val))
+        else:
+            if not isinstance(val, str) or not val.strip():
+                raise OracleCacheDriftError(f"oracle cache key field {field!r} must be a non-empty string")
+            normalized[field] = val.strip()
+    return normalized
+
+
+class ParityOracleCache:
+    """Self-contained hash-pinned stock-oracle cache for tools/perf_parity.py."""
+
+    def __init__(self, cache_dir, manifest_path=None):
+        self.cache_dir = Path(cache_dir)
+        if manifest_path is not None:
+            resolved_manifest = Path(manifest_path).resolve(strict=False)
+            resolved_cache = self.cache_dir.resolve(strict=False)
+            try:
+                inside = resolved_manifest.is_relative_to(resolved_cache)
+            except AttributeError:
+                inside = str(resolved_manifest).startswith(str(resolved_cache) + os.sep)
+            if inside:
+                raise OracleCacheDriftError(
+                    f"external oracle manifest must be rooted outside oracle cache dir: {manifest_path}"
+                )
+            self.manifest_path = Path(manifest_path)
+        else:
+            self.manifest_path = self.cache_dir / "manifest.json"
+
+    @staticmethod
+    def _entry_core(entry):
+        return {
+            "key_hash": entry["key_hash"],
+            "key": entry["key"],
+            "payload_path": entry["payload_path"],
+            "payload_sha256": entry["payload_sha256"],
+            "payload_bytes": entry["payload_bytes"],
+            "columns_sha256": entry["columns_sha256"],
+            "rows_sha256": entry["rows_sha256"],
+            "row_count": entry["row_count"],
+        }
+
+    @staticmethod
+    def _entries_root_sha256(entries):
+        return canonical_oracle_sha256(
+            [{"key_hash": kh, "entry_sha256": entries[kh]["entry_sha256"]} for kh in sorted(entries)]
+        )
+
+    def _load_manifest(self):
+        if not self.manifest_path.exists():
+            return None
+        if self.manifest_path.is_symlink() or not self.manifest_path.is_file():
+            raise OracleCacheDriftError(f"oracle cache manifest is not a regular file: {self.manifest_path}")
+        try:
+            manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise OracleCacheDriftError(f"corrupted oracle cache manifest: {exc}")
+        if not isinstance(manifest, dict) or manifest.get("schema_version") != ORACLE_CACHE_SCHEMA_VERSION:
+            raise OracleCacheDriftError("unsupported oracle cache manifest schema")
+        entries = manifest.get("entries")
+        if not isinstance(entries, dict):
+            raise OracleCacheDriftError("oracle cache manifest entries must be a dict")
+        for kh, entry in entries.items():
+            if not isinstance(entry, dict) or entry.get("key_hash") != kh:
+                raise OracleCacheDriftError(f"oracle cache entry key_hash mismatch for {kh}")
+            try:
+                expected = canonical_oracle_sha256(self._entry_core(entry))
+            except KeyError as exc:
+                raise OracleCacheDriftError(f"oracle cache entry {kh} missing field {exc}")
+            if entry.get("entry_sha256") != expected:
+                raise OracleCacheDriftError(f"oracle cache entry digest mismatch for {kh}")
+        if manifest.get("entries_root_sha256") != self._entries_root_sha256(entries):
+            raise OracleCacheDriftError("oracle cache manifest root hash mismatch (tampered)")
+        return manifest
+
+    def _write_manifest(self, entries):
+        manifest = {
+            "schema_version": ORACLE_CACHE_SCHEMA_VERSION,
+            "updated_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "entries": {kh: entries[kh] for kh in sorted(entries)},
+            "entries_root_sha256": self._entries_root_sha256(entries),
+        }
+        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.manifest_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        os.replace(tmp, self.manifest_path)
+
+    def put(self, key, columns, rows):
+        normalized_key = build_oracle_cache_key(**key)
+        key_hash = canonical_oracle_sha256(normalized_key)
+        # Round-trip through canonical JSON so cached types/values are exact JSON.
+        clean_columns = json.loads(canonical_oracle_json(columns or []))
+        clean_rows = json.loads(canonical_oracle_json(rows or []))
+        payload = {
+            "schema_version": ORACLE_CACHE_SCHEMA_VERSION,
+            "key_hash": key_hash,
+            "key": normalized_key,
+            "columns": clean_columns,
+            "rows": clean_rows,
+            "row_count": len(clean_rows),
+            "columns_sha256": canonical_oracle_sha256(clean_columns),
+            "rows_sha256": canonical_oracle_sha256(clean_rows),
+        }
+        payload_bytes = (canonical_oracle_json(payload) + "\n").encode("utf-8")
+        rel_path = f"entries/{key_hash}.json"
+        dst = self.cache_dir / rel_path
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_suffix(".tmp")
+        tmp.write_bytes(payload_bytes)
+        os.replace(tmp, dst)
+
+        entry = {
+            "key_hash": key_hash,
+            "key": normalized_key,
+            "payload_path": rel_path,
+            "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+            "payload_bytes": len(payload_bytes),
+            "columns_sha256": payload["columns_sha256"],
+            "rows_sha256": payload["rows_sha256"],
+            "row_count": len(clean_rows),
+        }
+        entry["entry_sha256"] = canonical_oracle_sha256(self._entry_core(entry))
+        manifest = self._load_manifest()
+        entries = dict(manifest["entries"]) if manifest is not None else {}
+        entries[key_hash] = entry
+        self._write_manifest(entries)
+        return entry
+
+    def get(self, key, *, expected_db_fingerprint=None, expected_source_sha256=None, expected_precision=None):
+        normalized_key = build_oracle_cache_key(**key)
+        if expected_db_fingerprint is not None and normalized_key["db_fingerprint"] != expected_db_fingerprint:
+            raise OracleCacheDriftError("oracle cache db_fingerprint mismatch")
+        if expected_source_sha256 is not None and normalized_key["erpnext_source_sha256"] != expected_source_sha256:
+            raise OracleCacheDriftError("oracle cache erpnext_source_sha256 mismatch")
+        if expected_precision is not None and canonical_oracle_json(normalized_key["precision_settings"]) != canonical_oracle_json(expected_precision):
+            raise OracleCacheDriftError("oracle cache precision_settings mismatch")
+
+        manifest = self._load_manifest()
+        if manifest is None:
+            return None
+        key_hash = canonical_oracle_sha256(normalized_key)
+        entry = manifest["entries"].get(key_hash)
+        if entry is None:
+            return None
+
+        rel_path = entry.get("payload_path")
+        if not isinstance(rel_path, str) or not rel_path or rel_path.startswith(("/", "\\")) or ".." in Path(rel_path).parts:
+            raise OracleCacheDriftError(f"unsafe oracle cache payload path: {rel_path!r}")
+        payload_file = self.cache_dir / rel_path
+        if payload_file.is_symlink() or not payload_file.is_file():
+            raise OracleCacheDriftError(f"oracle cache payload missing or symlink: {rel_path}")
+        if payload_file.stat().st_size != entry.get("payload_bytes"):
+            raise OracleCacheDriftError(f"oracle cache payload byte size mismatch: {rel_path}")
+        if compute_file_sha256(payload_file) != entry.get("payload_sha256"):
+            raise OracleCacheDriftError(f"oracle cache payload sha256 mismatch: {rel_path}")
+        try:
+            payload = json.loads(payload_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise OracleCacheDriftError(f"corrupted oracle cache payload {rel_path}: {exc}")
+        if payload.get("key_hash") != key_hash or canonical_oracle_json(payload.get("key")) != canonical_oracle_json(normalized_key):
+            raise OracleCacheDriftError(f"oracle cache payload key drift: {rel_path}")
+        columns = payload.get("columns")
+        rows = payload.get("rows")
+        if not isinstance(columns, list) or not isinstance(rows, list) or len(rows) != entry["row_count"]:
+            raise OracleCacheDriftError(f"oracle cache payload row count mismatch: {rel_path}")
+        if canonical_oracle_sha256(columns) != entry["columns_sha256"]:
+            raise OracleCacheDriftError(f"oracle cache payload columns_sha256 mismatch: {rel_path}")
+        if canonical_oracle_sha256(rows) != entry["rows_sha256"]:
+            raise OracleCacheDriftError(f"oracle cache payload rows_sha256 mismatch: {rel_path}")
+        return columns, rows
+
+
+FINGERPRINT_EXTRA_TABLES = (
+    "tabRepost Item Valuation",
+    "tabSales Invoice Item",
+    "tabDelivery Note",
+    "tabDelivery Note Item",
+    "tabPacked Item",
+    "tabProduct Bundle",
+    "tabItem",
+)
+
+
+def capture_db_fingerprint(frappe, site=None):
+    counts = persisted_table_counts(frappe)
+    si_meta = frappe.db.sql(
+        "SELECT COUNT(*), MAX(modified), MAX(posting_date) FROM `tabSales Invoice` WHERE docstatus = 1"
+    )[0]
+    sle_meta = frappe.db.sql(
+        "SELECT COUNT(*), MAX(modified), MAX(posting_date), MAX(creation), "
+        "SUM(stock_value_difference), SUM(actual_qty) "
+        "FROM `tabStock Ledger Entry` WHERE is_cancelled = 0"
+    )[0]
+    table_watermarks = {}
+    for table in FINGERPRINT_EXTRA_TABLES:
+        row = frappe.db.sql(f"SELECT COUNT(*), MAX(modified) FROM `{table}`")[0]
+        table_watermarks[table] = [str(x) if x is not None else None for x in row]
+    return canonical_oracle_sha256({
+        "site": site or getattr(getattr(frappe, "local", None), "site", None) or "",
+        "counts": counts,
+        "sales_invoice_meta": [str(x) if x is not None else None for x in si_meta],
+        "sle_meta": [str(x) if x is not None else None for x in sle_meta],
+        "table_watermarks": table_watermarks,
+    })
+
+
+def capture_erpnext_gp_source_sha256():
+    import erpnext.accounts.report.gross_profit.gross_profit as gp_mod
+
+    source_file = inspect.getsourcefile(gp_mod) or getattr(gp_mod, "__file__", None)
+    if not source_file or not Path(source_file).is_file():
+        raise OracleCacheDriftError("cannot locate upstream ERPNext gross_profit.py source for hash pinning")
+    return compute_file_sha256(source_file)
+
+
+def capture_precision_settings(frappe):
+    from frappe.utils import cint
+
+    return {
+        "currency_precision": cint(frappe.db.get_default("currency_precision")) or 3,
+        "float_precision": cint(frappe.db.get_default("float_precision")) or 2,
+        "rounding_method": str(frappe.db.get_default("rounding_method") or "Banker's Rounding (legacy)"),
+    }
+
+
+def format_section_timings(section_timings, total_seconds):
+    return {
+        "sections": {name: round(float(sec), 3) for name, sec in sorted(section_timings.items())},
+        "total_seconds": round(float(total_seconds), 3),
+    }
+
+
 def run_gp_parity(frappe, args):
     mismatches = []
     explain_offenses = []
@@ -1407,6 +1696,19 @@ def run_gp_parity(frappe, args):
     executed_cases = 0
     failed_cases = 0
     captured_semijoin = {}
+    oracle_cache = None
+    oracle_db_fingerprint = None
+    oracle_source_sha256 = None
+    oracle_precision = None
+    oracle_cache_dir = getattr(args, "oracle_cache_dir", None)
+    oracle_manifest = getattr(args, "oracle_manifest", None)
+    if oracle_manifest and not oracle_cache_dir:
+        raise OracleCacheDriftError("--oracle-manifest requires --oracle-cache-dir")
+    if oracle_cache_dir:
+        oracle_cache = ParityOracleCache(oracle_cache_dir, manifest_path=oracle_manifest)
+        oracle_db_fingerprint = capture_db_fingerprint(frappe, getattr(args, "site", None))
+        oracle_source_sha256 = capture_erpnext_gp_source_sha256()
+        oracle_precision = capture_precision_settings(frappe)
     for label, filters in cases:
         capture_for_explain = label.startswith("30d-") and filters.get("group_by") == "Invoice" and filters.get("include_returned_invoices") == 1
         if capture_for_explain:
@@ -1416,7 +1718,34 @@ def run_gp_parity(frappe, args):
                 captured_semijoin.setdefault((logical, semijoin_query_label(sql)), (sql, params))
         else:
             fast_columns, fast_data, fast_seconds = run_gross_profit(frappe, "fast", filters)
-        if label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
+        oracle_cache_hit = False
+        if oracle_cache is not None:
+            cache_key = build_oracle_cache_key(
+                db_fingerprint=oracle_db_fingerprint,
+                erpnext_source_sha256=oracle_source_sha256,
+                report="Gross Profit",
+                filters=filters,
+                user=str(getattr(getattr(frappe, "session", None), "user", None) or "Administrator"),
+                precision_settings=oracle_precision,
+            )
+            t_cache = time.monotonic()
+            cached = oracle_cache.get(
+                cache_key,
+                expected_db_fingerprint=oracle_db_fingerprint,
+                expected_source_sha256=oracle_source_sha256,
+                expected_precision=oracle_precision,
+            )
+            if cached is not None:
+                upstream_columns, upstream_data = cached
+                upstream_seconds = time.monotonic() - t_cache
+                oracle_cache_hit = True
+            else:
+                if label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
+                    upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
+                else:
+                    upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
+                oracle_cache.put(cache_key, upstream_columns, upstream_data)
+        elif label.startswith("1y-") and filters.get("group_by") in {"Warehouse", "Monthly"}:
             upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
         else:
             upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
@@ -1439,14 +1768,17 @@ def run_gp_parity(frappe, args):
         if case_mismatches:
             failed_cases += 1
         mismatches.extend({**mismatch, "case": label} for mismatch in case_mismatches)
-        emit("PARITY_GP_CASE", {
+        case_event = {
             "case": label,
             "fast_rows": len(fast_data or []),
             "upstream_rows": len(upstream_data or []),
             "fast_seconds": round(fast_seconds, 3),
             "upstream_seconds": round(upstream_seconds, 3),
             "mismatches": len(case_mismatches),
-        })
+        }
+        if oracle_cache is not None:
+            case_event["oracle_cache_hit"] = oracle_cache_hit
+        emit("PARITY_GP_CASE", case_event)
         for mismatch in case_mismatches[:10]:
             emit("PARITY_GP_MISMATCH", {"case": label, **mismatch})
 
@@ -1913,8 +2245,6 @@ def clear_document_cache(frappe):
 
 
 def capture_with_rollback(frappe, label, pairs, build_document, capture_document):
-    savepoint = "khitmee_perf_parity_case"
-    frappe.db.sql(f"SAVEPOINT {savepoint}")
     try:
         before = bin_rows(frappe, pairs)
         result = build_document()
@@ -1924,7 +2254,7 @@ def capture_with_rollback(frappe, label, pairs, build_document, capture_document
         snapshot = capture_document(frappe, name, before)
         return name, snapshot
     finally:
-        frappe.db.sql(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        frappe.db.rollback()
         clear_document_cache(frappe)
 
 
@@ -2164,7 +2494,6 @@ def run_voucher_parity(frappe, args):
 
         forced_key = idempotency_key("sale", "parity-forced-exception", user=frappe.session.user)
         idempotency_keys.append(forced_key)
-        frappe.db.sql("SAVEPOINT khitmee_perf_parity_lock")
         try:
             try:
                 vouchers._run_idempotent(
@@ -2181,7 +2510,7 @@ def run_voucher_parity(frappe, args):
                 raise ParityFailure("idempotency lock was not released after a forced exception")
             vouchers._release_lock(probe)
         finally:
-            frappe.db.sql("ROLLBACK TO SAVEPOINT khitmee_perf_parity_lock")
+            frappe.db.rollback()
         emit("PARITY_IDEMPOTENCY_LOCK", {"released_after_forced_exception": True})
 
         persisted_sales = count_names(frappe, "Sales Invoice", sale_names)
@@ -2292,18 +2621,29 @@ def run_inside_backend(args, fresh_connection_hook=None):
             assert_live_bench_db(frappe)
         sections = selected_sections(args.only)
         verification_stats = {"executed_cases": 0, "skipped_cases": 0, "failed_cases": 0}
+        section_timings = {}
+        run_start = time.monotonic()
         before_counts = persisted_table_counts(frappe)
         if "gp" in sections:
+            t0 = time.monotonic()
             merge_case_stats(verification_stats, run_gp_parity(frappe, args))
+            section_timings["gp"] = time.monotonic() - t0
         if "sb" in sections:
+            t0 = time.monotonic()
             run_sb_parity(frappe, args)
+            section_timings["sb"] = time.monotonic() - t0
             merge_case_stats(verification_stats, {"executed_cases": 1})
         if "search" in sections:
+            t0 = time.monotonic()
             run_search_parity(frappe, args)
+            section_timings["search"] = time.monotonic() - t0
             merge_case_stats(verification_stats, {"executed_cases": 1})
         if "voucher" in sections:
+            t0 = time.monotonic()
             run_voucher_parity(frappe, args)
+            section_timings["voucher"] = time.monotonic() - t0
             merge_case_stats(verification_stats, {"executed_cases": 1})
+        emit("PARITY_SECTION_TIMINGS", format_section_timings(section_timings, time.monotonic() - run_start))
 
         if require_db:
             require_db_ok = (
@@ -2387,7 +2727,159 @@ def _strip_host_only_args(argv):
     return stripped
 
 
-def build_sidecar_command(backend, image, network, memory, inner_argv, name, env=()):
+def _parse_container_uid_gid(user_spec, default_uid=1000, default_gid=1000):
+    text = str(user_spec or "").strip()
+    if not text:
+        return default_uid, default_gid
+    parts = text.split(":", 1)
+    try:
+        uid = int(parts[0])
+        gid = int(parts[1]) if len(parts) > 1 and parts[1] else uid
+        return uid, gid
+    except ValueError:
+        return default_uid, default_gid
+
+
+def prepare_sidecar_oracle_cache_dir(
+    host_cache,
+    target_uid=1000,
+    target_gid=1000,
+    *,
+    is_posix=None,
+    geteuid=None,
+    chown_fn=None,
+    chmod_fn=None,
+    access_fn=None,
+):
+    """Ensure host oracle cache dir (and entries/) is writable by the sidecar container UID."""
+    cache_path = Path(host_cache).resolve()
+    entries_path = cache_path / "entries"
+    cache_path.mkdir(parents=True, exist_ok=True)
+    entries_path.mkdir(parents=True, exist_ok=True)
+    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
+    if not posix:
+        return str(cache_path)
+
+    euid_fn = geteuid if geteuid is not None else getattr(os, "geteuid", lambda: target_uid)
+    chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
+    chmod = chmod_fn if chmod_fn is not None else os.chmod
+    access = access_fn if access_fn is not None else os.access
+
+    targets = [cache_path, entries_path]
+    manifest_file = cache_path / "manifest.json"
+    if manifest_file.is_file():
+        targets.append(manifest_file)
+
+    try:
+        caller_uid = euid_fn()
+        if caller_uid == 0 and chown is not None:
+            for item in targets:
+                chown(item, target_uid, target_gid)
+                chmod(item, 0o640 if item.is_file() else 0o750)
+        elif caller_uid != target_uid:
+            raise OracleCacheDriftError(
+                f"refusing to chmod world-writable oracle cache dir {cache_path} for sidecar UID {target_uid} "
+                f"(caller UID {caller_uid}); run as UID {target_uid} or root"
+            )
+    except OSError as exc:
+        raise OracleCacheDriftError(
+            f"failed to make oracle cache dir {cache_path} writable by UID {target_uid}: {exc}"
+        )
+
+    if not access(cache_path, os.W_OK) or not access(entries_path, os.W_OK):
+        raise OracleCacheDriftError(
+            f"oracle cache dir {cache_path} is not writable for sidecar UID {target_uid}"
+        )
+    return str(cache_path)
+
+
+SHARED_SYSTEM_DIRS = frozenset({"/", "/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"})
+
+
+def prepare_sidecar_oracle_manifest_dir(
+    manifest_path,
+    cache_dir,
+    target_uid=1000,
+    target_gid=1000,
+    *,
+    is_posix=None,
+    geteuid=None,
+    chown_fn=None,
+    chmod_fn=None,
+    stat_fn=None,
+):
+    """Validate and prepare a dedicated non-sticky parent dir for --oracle-manifest."""
+    mpath = Path(manifest_path).resolve(strict=False)
+    cpath = Path(cache_dir).resolve(strict=False)
+    try:
+        inside = mpath.is_relative_to(cpath)
+    except AttributeError:
+        inside = str(mpath).startswith(str(cpath) + os.sep)
+    if inside:
+        raise OracleCacheDriftError(
+            f"--oracle-manifest must be rooted outside --oracle-cache-dir ({mpath})"
+        )
+
+    manifest_dir = mpath.parent
+    raw_parent_posix = Path(manifest_path).parent.as_posix().rstrip("/") or "/"
+    resolved_parent_posix = manifest_dir.as_posix().rstrip("/") or "/"
+    if (
+        raw_parent_posix in SHARED_SYSTEM_DIRS
+        or resolved_parent_posix in SHARED_SYSTEM_DIRS
+        or manifest_dir == manifest_dir.parent
+    ):
+        raise OracleCacheDriftError(
+            f"refusing shared/system directory {manifest_dir} as --oracle-manifest parent; "
+            "use a dedicated subdirectory (e.g. /tmp/khitmee-oracle-manifest/manifest.json)"
+        )
+
+    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
+    if posix:
+        st_fn = stat_fn if stat_fn is not None else os.stat
+        if manifest_dir.exists() or stat_fn is not None:
+            try:
+                mode = st_fn(manifest_dir).st_mode
+            except OSError:
+                mode = 0
+            if mode & stat.S_ISVTX:
+                raise OracleCacheDriftError(
+                    f"refusing sticky directory {manifest_dir} as --oracle-manifest parent; "
+                    "use a dedicated subdirectory"
+                )
+
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    if posix:
+        euid_fn = geteuid if geteuid is not None else getattr(os, "geteuid", lambda: target_uid)
+        chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
+        chmod = chmod_fn if chmod_fn is not None else os.chmod
+        try:
+            caller_uid = euid_fn()
+            if caller_uid == 0 and chown is not None:
+                chown(manifest_dir, target_uid, target_gid)
+                chmod(manifest_dir, 0o750)
+            elif caller_uid != target_uid:
+                raise OracleCacheDriftError(
+                    f"refusing to chmod world-writable oracle manifest dir {manifest_dir} for sidecar UID {target_uid} "
+                    f"(caller UID {caller_uid}); run as UID {target_uid} or root"
+                )
+        except OSError as exc:
+            raise OracleCacheDriftError(
+                f"failed to prepare oracle manifest dir {manifest_dir}: {exc}"
+            )
+    return str(manifest_dir), mpath.name
+
+
+def build_sidecar_command(
+    backend,
+    image,
+    network,
+    memory,
+    inner_argv,
+    name,
+    env=(),
+    oracle_cache_mount=None,
+    oracle_manifest_mount=None,
+):
     """Ephemeral oracle runner sharing the backend's image, mounts and network.
 
     The stock ERPNext Gross Profit oracle caches full Stock Ledger history per
@@ -2404,12 +2896,20 @@ def build_sidecar_command(backend, image, network, memory, inner_argv, name, env
         if entry.split("=", 1)[0] in ("HOSTNAME", "HOME"):
             continue
         env_args += ["-e", entry]
+    mount_args = []
+    if oracle_cache_mount:
+        host_dir, container_dir = oracle_cache_mount
+        mount_args += ["-v", f"{host_dir}:{container_dir}"]
+    if oracle_manifest_mount:
+        host_mdir, container_mdir = oracle_manifest_mount
+        mount_args += ["-v", f"{host_mdir}:{container_mdir}"]
     return [
         "docker", "run", "--rm", "-i",
         "--name", name,
         "--label", SIDECAR_LABEL,
         "--network", network,
         "--volumes-from", backend,
+        *mount_args,
         "--memory", memory,
         "--memory-swap", memory,
         *env_args,
@@ -2429,7 +2929,36 @@ def _inspect_backend(backend, template):
     ).strip()
 
 
+def _rewrite_cli_flag(argv, flag_name, new_value):
+    rewritten = []
+    skip_next = False
+    for token in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == flag_name:
+            skip_next = True
+            continue
+        if token.startswith(flag_name + "="):
+            continue
+        rewritten.append(token)
+    rewritten.extend([flag_name, new_value])
+    return rewritten
+
+
 def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
+    parsed_host = build_parser().parse_args(argv)
+    if parsed_host.oracle_manifest and not parsed_host.oracle_cache_dir:
+        print("refusing parity run: --oracle-manifest requires --oracle-cache-dir", file=sys.stderr)
+        return 3
+    if parsed_host.oracle_cache_dir and runner == "exec":
+        print(
+            "refusing parity run: --oracle-cache-dir cannot be combined with --runner exec "
+            "(bind-mounting host oracle cache requires --runner sidecar)",
+            file=sys.stderr,
+        )
+        return 3
+
     backend = f"{PROJECT}-backend-1"
     try:
         project = _inspect_backend(backend, '{{ index .Config.Labels "com.docker.compose.project" }}')
@@ -2454,6 +2983,7 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
                 backend, "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
             ).split()
             env = json.loads(_inspect_backend(backend, "{{json .Config.Env}}") or "[]")
+            container_user = _inspect_backend(backend, "{{.Config.User}}")
         except (OSError, subprocess.CalledProcessError, ValueError):
             print(f"could not inspect {backend} image/network for the oracle sidecar", file=sys.stderr)
             return 3
@@ -2462,7 +2992,47 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
             print(f"refusing sidecar: unexpected image {image!r} or network {network!r}", file=sys.stderr)
             return 3
         name = f"{PROJECT}-parity-{int(time.time())}"
-        command = build_sidecar_command(backend, image, network, sidecar_memory, inner_argv, name, env=env)
+        oracle_cache_mount = None
+        oracle_manifest_mount = None
+        target_uid, target_gid = _parse_container_uid_gid(container_user)
+        if parsed_host.oracle_cache_dir:
+            try:
+                host_cache = prepare_sidecar_oracle_cache_dir(
+                    parsed_host.oracle_cache_dir,
+                    target_uid=target_uid,
+                    target_gid=target_gid,
+                )
+            except OracleCacheDriftError as exc:
+                print(str(exc), file=sys.stderr)
+                return 3
+            container_cache = "/tmp/khitmee-oracle-cache"
+            oracle_cache_mount = (host_cache, container_cache)
+            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-cache-dir", container_cache)
+        if parsed_host.oracle_manifest:
+            try:
+                manifest_dir_str, manifest_name = prepare_sidecar_oracle_manifest_dir(
+                    parsed_host.oracle_manifest,
+                    parsed_host.oracle_cache_dir,
+                    target_uid=target_uid,
+                    target_gid=target_gid,
+                )
+            except OracleCacheDriftError as exc:
+                print(f"refusing parity run: {exc}", file=sys.stderr)
+                return 3
+            container_mdir = "/tmp/khitmee-oracle-manifest"
+            oracle_manifest_mount = (manifest_dir_str, container_mdir)
+            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-manifest", f"{container_mdir}/{manifest_name}")
+        command = build_sidecar_command(
+            backend,
+            image,
+            network,
+            sidecar_memory,
+            inner_argv,
+            name,
+            env=env,
+            oracle_cache_mount=oracle_cache_mount,
+            oracle_manifest_mount=oracle_manifest_mount,
+        )
     return subprocess.run(command, input=source).returncode
 
 
@@ -2488,6 +3058,16 @@ def build_parser():
         choices=("warehouse", "all", "none"),
         default="warehouse",
         help="1y stock-oracle cases (~30 min each): warehouse (default, 2 cases), all (4, for nightly), none",
+    )
+    parser.add_argument(
+        "--oracle-cache-dir",
+        default=None,
+        help="optional hash-pinned stock-oracle cache directory (fails closed on DB/source/precision/manifest drift)",
+    )
+    parser.add_argument(
+        "--oracle-manifest",
+        default=None,
+        help="optional external trust-root manifest path rooted outside --oracle-cache-dir",
     )
     parser.add_argument("--inside-backend", action="store_true", help=argparse.SUPPRESS)
     return parser

@@ -1,0 +1,911 @@
+{
+  "allow_policy_paths": [
+    "tools/perf_parity.py",
+    "tools/fast_check.py"
+  ],
+  "allowed_paths": [],
+  "base_branch": "main",
+  "base_sha": "c7b1e0c592b7a4f97e1c6463de48e7cf839871b2",
+  "contract_revision": 2,
+  "contract_sha256": "4da5a57d4fb0dc7c98116b7b3d88c9404f9bda1476a4ab8c02a36672c74a1bd2",
+  "created_at": "2026-11-28T05:40:30Z",
+  "dead_ends": [],
+  "findings": {
+    "F01-future-sle-repeatable-read-corruption": {
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "fix_summary": "Prepared master lookups before rollback+lock, captured posting_date/posting_time after lock_stock_coordinates(), and attached re-entrant before_submit locks to all 6 stock doctypes in hooks.py.",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:49Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Master prep runs before rollback+lock, timestamps are captured strictly after lock_stock_coordinates(), and re-entrant before_submit locks cover all 6 stock doctypes in hooks.py.",
+        "why_not_static": null
+      },
+      "severity": "P0",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "proven_empty_future_sle_fastpath can read a stale REPEATABLE READ MVCC snapshot opened before lock_stock_coordinates() and capture posting_time before locking; native Desk stock doctypes also lack before_submit stock locks.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F02-voucher-fastpath-multithread-and-lazy-import-crash": {
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "fix_summary": "Replaced global teardown dicts with idempotent closure-bound dispatchers capturing original callables permanently per attribute, eliminating NoneType/RecursionError/lazy-import worker poisoning.",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:49Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Idempotent closure-bound dispatchers permanently capture original callables per attribute, making teardown races, NoneType crashes, RecursionError, and lazy-import poisoning structurally impossible.",
+        "why_not_static": null
+      },
+      "severity": "P0",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "voucher_fastpath.py global dicts cleared on release can poison lazily-imported modules or race with concurrent threads under Gunicorn --threads=12.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F03-perf-parity-oracle-cache-sidecar-permissions": {
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "fix_summary": "Failed closed when --oracle-cache-dir is combined with --runner exec and added prepare_sidecar_oracle_cache_dir() to ensure UID 1000 sidecar write permissions.",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/perf_parity.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "host_exec() fails closed when --oracle-cache-dir is combined with --runner exec and prepares UID-1000-writable cache permissions before launching the sidecar.",
+        "why_not_static": null
+      },
+      "severity": "P1",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "tools/perf_parity.py creates --oracle-cache-dir with host umask causing PermissionError in UID 1000 sidecar, and fails to reject --oracle-cache-dir with --runner exec.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F04-perf-parity-db-fingerprint-misses-valuation-mutations": {
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "fix_summary": "Extended capture_db_fingerprint() with Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, plus external --oracle-manifest trust root.",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/test_perf_parity_comparator.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify capture_db_fingerprint() covers Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata plus fail-closed external --oracle-manifest validation.",
+        "why_not_static": "Database fingerprint SQL coverage and external manifest digest verification depend on runtime SQL execution and JSON serialization semantics not modeled by repo static AST rules."
+      },
+      "severity": "P1",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "capture_db_fingerprint() omits Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, allowing stale oracle cache hits after valuation reposts.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F05-autopay-fastpath-loose-tolerance-and-loyalty": {
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "fix_summary": "Enforced <=1e-9 exact equality on paid_amount, payment_total, base_paid_amount, and base_payable_total plus loyalty_amount==0 guard before skipping 2nd calculate_taxes_and_totals().",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify _can_fast_sync_autopay_totals() enforces <=1e-9 exact parity on paid, payment, and base totals plus loyalty_amount == 0 before skipping recalculation.",
+        "why_not_static": "Floating-point tolerance and multi-field POS accounting invariants depend on runtime document values rather than static AST structure."
+      },
+      "severity": "P2",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "_can_fast_sync_autopay_totals() allows 0.005 tolerance (5 units at precision=3) and omits loyalty_amount == 0 and base_paid_amount parity checks.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F06-validate-items-permission-fastpath-gaps": {
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "fix_summary": "Added has_permission hook check, if_owner role permission fail-closed check, and applicable_for='Item' User Permission check to _item_permission_restrictions_active().",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify _item_permission_restrictions_active() fails closed on Item has_permission hooks, if_owner role permissions, and applicable_for='Item' User Permissions.",
+        "why_not_static": "Dynamic Frappe permission hooks, role permissions, and User Permissions are evaluated at runtime and cannot be verified statically."
+      },
+      "severity": "P2",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "_item_permission_restrictions_active() skips has_permission hooks for Item, if_owner role permissions, and User Permissions with applicable_for='Item'.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F07-perf-bench-inner-duplicate-sale-items": {
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "fix_summary": "Changed build_sale_payload() to use rng.sample() without replacement when pool_len >= line_count so 10/50/200-line benchmark sales have distinct item_codes.",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:51Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/test_fast_verify.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests assert build_sale_payload() samples without replacement so 10/50/200-line sales contain distinct item_codes.",
+        "why_not_static": "Random sampling uniqueness is a runtime payload invariant verified by executing build_sale_payload() on fixture pools."
+      },
+      "severity": "P2",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "build_sale_payload() samples items with replacement, creating duplicate item_codes on 50/200-line sales and silently disabling proven_empty_future_sle_fastpath during inner-loop benchmarks.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F08-happy-path-rollback-breaks-savepoints": {
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints",
+      "fix_summary": "Guarded _run_idempotent() rollback on transaction_writes == 0 (failing closed on fresh_snapshot=False otherwise) and switched capture_with_rollback()/_profile_rollback_action() to clean transaction rollback without SAVEPOINT 1305 errors.",
+      "opened_at": "2026-11-28T07:24:43Z",
+      "resolved_at": "2026-11-28T07:27:08Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:25Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "_run_idempotent() skips rollback and disables future-SLE fastpath whenever transaction_writes > 0, and rollback harnesses use clean transaction rollback instead of fragile SAVEPOINTs.",
+        "why_not_static": null
+      },
+      "severity": "P0",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "Unconditional frappe.db.rollback() in _run_idempotent() destroys MariaDB SAVEPOINTs in perf_parity/perf_bench_inner and can wipe outer uncommitted transaction writes.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    },
+    "F09-oracle-manifest-dir-chown-chmod-shared-tmp": {
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
+      "fix_summary": "Refused sticky/shared system directories (like /tmp, /var/tmp, /) as --oracle-manifest parent and prevented chown/chmod on sticky/shared directories.",
+      "opened_at": "2026-11-28T07:24:43Z",
+      "resolved_at": "2026-11-28T07:27:08Z",
+      "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/perf_parity.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:25Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "prepare_sidecar_oracle_manifest_dir() structurally rejects shared/system and sticky-bit parent directories before any ownership or permission call.",
+        "why_not_static": null
+      },
+      "severity": "P2",
+      "stage": "deep",
+      "status": "safeguarded",
+      "summary": "tools/perf_parity.py::host_exec() runs chown/chmod on manifest_path.parent which can mutate or strip the sticky bit on /tmp.",
+      "verified_at": "2026-11-28T07:29:23Z"
+    }
+  },
+  "goal": "Optimize Khitmee backend for full seasonal load on 2GiB RAM / 2 vCPU VPS while dramatically accelerating exact parity verification and dev inner-loop velocity",
+  "grill_summary": "Full-stack 3-shard swarm from origin/main (84667da): (1) fast_verify accelerates exact oracle parity and inner-loop rollback-safe profiling; (2) cashier_backend optimizes write-path CPU/SQL, deadlock-safe Bin/Item locking, search latency, and 2GiB/2vCPU runtime profile while keeping ERPNext core untouched and single global invoice naming series; (3) manager_parity productionizes PR #16 ordered invoice detail and full-year CSV export parity into khitmee_ops. Coordinator=Neon High, Workers=Neon Medium, Deep Reviewer=Neon High, merge_mode=human.",
+  "history": [
+    {
+      "at": "2026-11-28T05:40:30Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T05:40:31Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T05:40:31Z",
+      "contract_revision": 1,
+      "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
+      "event": "lock",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T06:55:57Z",
+      "event": "start-shard",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:55:59Z",
+      "code_tree_sha256": "a467cbc916b477d18ffe74876a73b9353ffa98d5c05c7c5fedbce9629b59513e",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:00Z",
+      "event": "start-shard",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:02Z",
+      "code_tree_sha256": "a6fb8580e9523244b76454e89af382c1192ea6a47af57d30b44372be429bc9ba",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:03Z",
+      "event": "start-shard",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:06Z",
+      "code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:12Z",
+      "code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:03:35Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:13:38Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:20:42Z",
+      "code_tree_sha256": "b6f0d7a1c3c1bfa77914f0fde5d38dfe6630204fd2dab40bf48914c9e1c7e364",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:45Z",
+      "code_tree_sha256": "122737a1bcb54dff37ffaebc158b1394b9966c56ed3cbded247ff561dc522ff9",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:48Z",
+      "code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:49Z",
+      "event": "resolve-finding",
+      "finding_id": "F01-future-sle-repeatable-read-corruption"
+    },
+    {
+      "at": "2026-11-28T07:20:49Z",
+      "event": "resolve-finding",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps"
+    },
+    {
+      "at": "2026-11-28T07:20:51Z",
+      "event": "resolve-finding",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items"
+    },
+    {
+      "at": "2026-11-28T07:20:56Z",
+      "code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:20:56Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:24:43Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:27:02Z",
+      "code_tree_sha256": "e6c3c42913df0489dfaa4c355fe188c5be51b88bd0532af559475ac1b33dce51",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:27:04Z",
+      "code_tree_sha256": "83f64412e578a215a6daa3340a624f5648215aab1ad7b8614d48db4676f7e76e",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:27:07Z",
+      "code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:27:08Z",
+      "event": "resolve-finding",
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints"
+    },
+    {
+      "at": "2026-11-28T07:27:08Z",
+      "event": "resolve-finding",
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp"
+    },
+    {
+      "at": "2026-11-28T07:27:12Z",
+      "code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:27:12Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "safeguard_pending",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:25Z",
+      "event": "record-safeguard",
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:25Z",
+      "event": "record-safeguard",
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
+      "layer": "layer_1_architecture",
+      "status": "ready_to_merge"
+    },
+    {
+      "at": "2026-11-28T07:36:03Z",
+      "code_tree_sha256": "2f234816aa059f19829ad4e8cfa18cdcecfad1170108280e75257aed6fb338ec",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:36:03Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:36:03Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T07:37:22Z",
+      "code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:37:22Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:37:23Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:36:22Z",
+      "code_tree_sha256": "ab7a8c904428ee72a389171ef8e628ab0f4f5f96bb79993dfdf36be2e5591e39",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:37:58Z",
+      "code_tree_sha256": "4d1269b7872fe87d2985d7fb027c414d4b2343d07c01f2f73564d1a16587e1d2",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:40:46Z",
+      "code_tree_sha256": "4e9db4265424490e49ca817e37d730958339ebbfd394d4db4747a0bd920e1341",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:40:51Z",
+      "code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "contract_revision": 2,
+      "event": "bind-pr",
+      "pr_number": 17,
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:42:04Z",
+      "code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:42:04Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T10:42:05Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:56:27Z",
+      "code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T11:07:49Z",
+      "base_sha": "c7b1e0c592b7a4f97e1c6463de48e7cf839871b2",
+      "event": "refresh-base",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T11:08:40Z",
+      "event": "start-shard",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:08:40Z",
+      "event": "start-shard",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:08:41Z",
+      "event": "start-shard",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:10:17Z",
+      "code_tree_sha256": "c072cdf0f1ffc2c00d4cef7847cd2d92f00d36655c6c67f8dc26cb24dcfcba70",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:10:19Z",
+      "code_tree_sha256": "dc587ccbe812f6b9b971f8e98f9473d3b4c5a1611bbcaa9f1b812c620da48bed",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:10:21Z",
+      "code_tree_sha256": "179e3530955168b9b1113fec70bab7da1eb971ad40fc815fe2bc8dbd8cf9304c",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:11:07Z",
+      "code_tree_sha256": "b77cc1f25a3161c05531c6ed2eba2e0cd025e467276e66d45986c99aeceeb2e5",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T11:11:07Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T11:11:07Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": "feat/backend-2gb-2vcpu-autoloop",
+  "last_integrated_detached": false,
+  "last_integrated_sha": "07643b0fb8daaa490bb10e4f68741337ed99d6a4",
+  "last_integrated_worktree": "E:\\khitmee-backend-2gb-autoloop",
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "human",
+  "models": {
+    "coordinator": "gemini-4-neon-high",
+    "reviewer": "gemini-4-neon-high",
+    "workers": "gemini-4-neon-medium"
+  },
+  "pending_contract_amendments": [],
+  "pr_number": 17,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": false,
+    "deep": true
+  },
+  "reviews": [
+    {
+      "at": "2026-11-28T07:13:38Z",
+      "code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:24:43Z",
+      "code_tree_sha256": "ff66d3d454ce828902fc70a53fc8cfc171427ba49c0d99537ba1eab5c4059a0c",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T07:36:03Z",
+      "code_tree_sha256": "2f234816aa059f19829ad4e8cfa18cdcecfad1170108280e75257aed6fb338ec",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T07:37:23Z",
+      "code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:42:05Z",
+      "code_tree_sha256": "e73f364630bba4802626f6181b25dac84f639cb765e674bd5b5bd508d87c4ee8",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:56:28Z",
+      "code_tree_sha256": "0e828ec072d036c1b579fd626d6258b873a960c8214b37555d79ec4d8f02d737",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T11:11:07Z",
+      "code_tree_sha256": "b77cc1f25a3161c05531c6ed2eba2e0cd025e467276e66d45986c99aeceeb2e5",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    }
+  ],
+  "run_id": "backend-2gb-2vcpu-20261128",
+  "safeguards": [
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Master prep runs before rollback+lock, timestamps are captured strictly after lock_stock_coordinates(), and re-entrant before_submit locks cover all 6 stock doctypes in hooks.py.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Idempotent closure-bound dispatchers permanently capture original callables per attribute, making teardown races, NoneType crashes, RecursionError, and lazy-import poisoning structurally impossible.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/perf_parity.py",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "host_exec() fails closed when --oracle-cache-dir is combined with --runner exec and prepares UID-1000-writable cache permissions before launching the sidecar.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/test_perf_parity_comparator.py",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify capture_db_fingerprint() covers Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata plus fail-closed external --oracle-manifest validation.",
+      "why_not_static": "Database fingerprint SQL coverage and external manifest digest verification depend on runtime SQL execution and JSON serialization semantics not modeled by repo static AST rules."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify _can_fast_sync_autopay_totals() enforces <=1e-9 exact parity on paid, payment, and base totals plus loyalty_amount == 0 before skipping recalculation.",
+      "why_not_static": "Floating-point tolerance and multi-field POS accounting invariants depend on runtime document values rather than static AST structure."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify _item_permission_restrictions_active() fails closed on Item has_permission hooks, if_owner role permissions, and applicable_for='Item' User Permissions.",
+      "why_not_static": "Dynamic Frappe permission hooks, role permissions, and User Permissions are evaluated at runtime and cannot be verified statically."
+    },
+    {
+      "artifact": "tools/test_fast_verify.py",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests assert build_sale_payload() samples without replacement so 10/50/200-line sales contain distinct item_codes.",
+      "why_not_static": "Random sampling uniqueness is a runtime payload invariant verified by executing build_sale_payload() on fixture pools."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:25Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "_run_idempotent() skips rollback and disables future-SLE fastpath whenever transaction_writes > 0, and rollback harnesses use clean transaction rollback instead of fragile SAVEPOINTs.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/perf_parity.py",
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:25Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "prepare_sidecar_oracle_manifest_dir() structurally rejects shared/system and sticky-bit parent directories before any ownership or permission call.",
+      "why_not_static": null
+    }
+  ],
+  "schema_version": 1,
+  "shards": {
+    "cashier_backend": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "apps/khitmee_ops/khitmee_ops/api/search.py",
+        "apps/khitmee_ops/khitmee_ops/api/stock_locks.py",
+        "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+        "apps/khitmee_ops/khitmee_ops/api/memory.py",
+        "apps/khitmee_ops/khitmee_ops/hooks.py",
+        "apps/khitmee_ops/khitmee_ops/setup/indexes.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_search_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_stock_locks_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_voucher_fastpath_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_indexes_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py",
+        "perf-suite/docker/profile-2gb.yaml",
+        "perf-suite/docker/nginx-2gb.conf",
+        "runtime-config/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_indexes_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_memory_hooks_unit.py"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "8140d11f12894d112966f2d80a90bce7aa0d4a3b",
+      "passed_code_tree_sha256": "b77cc1f25a3161c05531c6ed2eba2e0cd025e467276e66d45986c99aeceeb2e5",
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "worker_strikes": 0,
+      "worktree_path": "E:\\khitmee-backend-2gb-autoloop"
+    },
+    "fast_verify": {
+      "allowed_paths": [
+        "tools/fast_verify.py",
+        "tools/perf_bench_inner.py",
+        "tools/test_fast_verify.py",
+        "tools/perf_parity.py",
+        "tools/test_perf_parity_comparator.py",
+        "tools/fast_check.py",
+        "tools/test_fast_check_guardrails.py",
+        "perf-suite/lab/offload-followup/manager/**",
+        ".autoloop/experiments/backend-2gb-2vcpu-20261128-*.md"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest tools.test_fast_verify tools.test_perf_parity_comparator tools.test_fast_check_guardrails"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "bbcc783cb0721ea233f2c7ca49b3810dcff50d03",
+      "passed_code_tree_sha256": "b77cc1f25a3161c05531c6ed2eba2e0cd025e467276e66d45986c99aeceeb2e5",
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "worker_strikes": 0,
+      "worktree_path": "E:\\khitmee-backend-2gb-autoloop"
+    },
+    "manager_parity": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/khitmee_ops/report/fast_gross_profit/**",
+        "apps/khitmee_ops/khitmee_ops/profit_summary/**",
+        "apps/khitmee_ops/khitmee_ops/api/profit_export.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_fast_gross_profit_parity.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_export_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_oracle_parity.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_summary_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_reconcile_unit.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_fast_gross_profit_parity.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_export_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_summary_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_reconcile_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_oracle_parity.py"
+      ],
+      "goal": "",
+      "has_passed_individually": true,
+      "last_green_sha": "32185b02091bb8638c18675a9e0401e616b0ecc4",
+      "passed_code_tree_sha256": "b77cc1f25a3161c05531c6ed2eba2e0cd025e467276e66d45986c99aeceeb2e5",
+      "pending_dead_end_sig": null,
+      "retry_scope": null,
+      "status": "passed",
+      "worker_strikes": 0,
+      "worktree_path": "E:\\khitmee-backend-2gb-autoloop"
+    }
+  },
+  "status": "ready_to_merge",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T11:11:07Z"
+}

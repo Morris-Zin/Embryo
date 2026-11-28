@@ -270,17 +270,171 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 		self.assertEqual(doc.payments[0].amount, 100)
 		self.assertEqual(doc.paid_amount, 100)
+		self.assertEqual(doc.base_paid_amount, 100)
+		self.assertEqual(doc.outstanding_amount, 0.0)
+		self.assertEqual(doc.change_amount, 0.0)
+		self.assertEqual(doc.base_change_amount, 0.0)
 		self.assertEqual(doc.payments[0].account, "Cash - Cash")
 		self.assertEqual(
 			doc.events,
 			[
 				"set_paid_amount",
 				"set_account_for_mode_of_payment",
-				"calculate_taxes_and_totals",
 				"validate_pos",
 				"validate_pos_paid_amount",
 			],
 		)
+
+	def test_counter_autopay_falls_back_to_recalculate_for_multicurrency_or_advances(self):
+		for extra in (
+			{"conversion_rate": 1.25},
+			{"total_advance": 10},
+			{"write_off_amount": 1},
+			{"loyalty_amount": 5},
+			{"base_paid_amount": 99.99},
+		):
+			doc = FakeSalesInvoice(payable_total=100)
+			doc.is_pos = 1
+			doc.flags.khitmee_counter_autopay = True
+			doc.payments = [FakePayment("Cash", 0)]
+			for key, val in extra.items():
+				setattr(doc, key, val)
+
+			vouchers.sync_counter_autopay_payment(doc)
+
+			self.assertIn("calculate_taxes_and_totals", doc.events)
+
+	def test_counter_autopay_rejects_small_precision3_drift_and_falls_back(self):
+		doc = FakeSalesInvoice(payable_total=100.0)
+		doc.is_pos = 1
+		doc.flags.khitmee_counter_autopay = True
+		doc.payments = [FakePayment("Cash", 0)]
+		# 0.002 drift (< 0.005 old tolerance, > 1e-9 exact tolerance) must fall back!
+		doc.set_paid_amount = lambda: setattr(doc, "paid_amount", 99.998)
+
+		vouchers.sync_counter_autopay_payment(doc)
+
+		self.assertIn("calculate_taxes_and_totals", doc.events)
+
+	def test_posting_timestamp_is_captured_strictly_after_lock_acquisition(self):
+		events = []
+		doc = FakeSalesInvoice(payable_total=100)
+
+		def record_lock(pairs, item_codes=None):
+			events.append("lock")
+			return {"items": ["ITEM-1"], "bins": [], "pairs": list(pairs)}
+
+		def record_nowdate():
+			events.append("nowdate")
+			return "2026-11-28"
+
+		def record_nowtime():
+			events.append("nowtime")
+			return "12:00:00"
+
+		with (
+			patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
+			patch.object(vouchers, "_validate_sale_inputs", return_value=None),
+			patch.object(vouchers, "lock_stock_coordinates", side_effect=record_lock),
+			patch.object(vouchers, "nowdate", side_effect=record_nowdate),
+			patch.object(vouchers, "nowtime", side_effect=record_nowtime),
+			patch.object(vouchers.frappe, "get_doc", return_value=doc),
+		):
+			vouchers._create_sales_invoice(
+				"client-1",
+				"Main Warehouse",
+				"Customer",
+				"Standard Selling",
+				[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+				"Cash",
+				False,
+			)
+
+		self.assertEqual(events, ["lock", "nowdate", "nowtime"])
+
+	def test_run_idempotent_rolls_back_pre_lock_snapshot_before_reserving(self):
+		events = []
+		fresh_seen = []
+		lock = TestIdempotencyLockCleanup.Lock()
+		doc = FakeSalesInvoice(payable_total=100)
+
+		with (
+			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 0, create=True),
+			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback"), create=True),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
+			patch.object(vouchers, "_bind_reservation", return_value=None),
+			patch.object(vouchers, "_release_lock_after_transaction", return_value=None),
+		):
+			vouchers._run_idempotent(
+				"client-1",
+				"sale",
+				"Sales Invoice",
+				"fp",
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
+				prepare=lambda: events.append("prepare") or {"company": "C"},
+			)
+
+		self.assertEqual(events, ["lookup", "prepare", "rollback", "reserve", "create"])
+		self.assertEqual(fresh_seen, [True])
+
+	def test_run_idempotent_skips_rollback_and_fails_closed_when_outer_transaction_has_writes(self):
+		events = []
+		fresh_seen = []
+		lock = TestIdempotencyLockCleanup.Lock()
+		doc = FakeSalesInvoice(payable_total=100)
+
+		with (
+			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 2, create=True),
+			patch.object(vouchers.frappe.db, "rollback", side_effect=AssertionError("must not rollback outer writes"), create=True),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
+			patch.object(vouchers, "_bind_reservation", return_value=None),
+			patch.object(vouchers, "_release_lock_after_transaction", return_value=None),
+		):
+			vouchers._run_idempotent(
+				"client-1",
+				"sale",
+				"Sales Invoice",
+				"fp",
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
+				prepare=lambda: events.append("prepare") or {"company": "C"},
+			)
+
+		self.assertEqual(events, ["lookup", "prepare", "reserve", "create"])
+		self.assertEqual(fresh_seen, [False])
+
+	def test_create_sales_invoice_disables_future_sle_fastpath_when_fresh_snapshot_is_false(self):
+		doc = FakeSalesInvoice(payable_total=100)
+		seen_enabled = []
+
+		from contextlib import contextmanager
+
+		@contextmanager
+		def spy_fastpath(d, pairs, *, enabled=True):
+			seen_enabled.append(enabled)
+			yield None
+
+		with (
+			patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
+			patch.object(vouchers, "_validate_sale_inputs", return_value=None),
+			patch.object(vouchers, "proven_empty_future_sle_fastpath", side_effect=spy_fastpath),
+			patch.object(vouchers.frappe, "get_doc", return_value=doc),
+		):
+			vouchers._create_sales_invoice(
+				"client-1",
+				"Main Warehouse",
+				"Customer",
+				"Standard Selling",
+				[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+				"Cash",
+				False,
+				fresh_snapshot=False,
+			)
+
+		self.assertEqual(seen_enabled, [False])
 
 	def test_counter_autopay_validate_hook_leaves_credit_and_unflagged_invoices_untouched(self):
 		for is_pos, flagged in ((0, True), (1, False)):
@@ -311,6 +465,10 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 
 class TestIdempotencyLockCleanup(unittest.TestCase):
+	def setUp(self):
+		if not hasattr(vouchers.frappe.db, "rollback"):
+			vouchers.frappe.db.rollback = Mock()
+
 	class Lock:
 		def __init__(self):
 			self.release_calls = 0
@@ -382,6 +540,12 @@ class TestIdempotencyLockCleanup(unittest.TestCase):
 
 
 class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
+	def setUp(self):
+		if not hasattr(vouchers.frappe.db, "rollback"):
+			vouchers.frappe.db.rollback = Mock()
+		if not hasattr(vouchers.frappe.db, "exists"):
+			vouchers.frappe.db.exists = lambda *args, **kwargs: True
+
 	def test_load_idempotent_document_for_update_uses_locking_read_and_locked_get_doc(self):
 		existing = AttrDict(reference_doctype="Sales Invoice", reference_name="SI-LOCK-1")
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-LOCK-1")
@@ -448,7 +612,7 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 		rollback.assert_called_once_with()
 		sleep.assert_called_once_with(0.03)
 
-	def test_deadlock_retry_is_bounded_to_one_retry(self):
+	def test_deadlock_retry_is_bounded_to_three_retries_by_default(self):
 		calls = []
 
 		def always_deadlocked():
@@ -463,7 +627,7 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 			with self.assertRaises(vouchers.frappe.QueryDeadlockError):
 				vouchers._execute_with_deadlock_retry(always_deadlocked)
 
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(calls), 4)
 
 	def test_validation_errors_are_never_retried_as_deadlocks(self):
 		calls = []
@@ -516,7 +680,10 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 class TestPermissionDeduplication(unittest.TestCase):
 	def test_validate_items_checks_permissions_once_per_unique_item_code(self):
-		with patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission:
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=True),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
 			cleaned = vouchers._validate_items(
 				[
 					{"item_code": "ITEM-1", "qty": 1},
@@ -527,8 +694,97 @@ class TestPermissionDeduplication(unittest.TestCase):
 			)
 
 		self.assertEqual(len(cleaned), 4)
-		item_calls = [call.kwargs.get("doc") for call in has_permission.call_args_list if call.args[0] == "Item"]
+		item_calls = [
+			call.kwargs.get("doc")
+			for call in has_permission.call_args_list
+			if call.args[0] == "Item" and call.kwargs.get("doc") is not None
+		]
 		self.assertEqual(item_calls, ["ITEM-1", "ITEM-2"])
+
+	def test_validate_items_skips_per_item_permission_checks_when_unrestricted(self):
+		with (
+			patch.object(vouchers, "_item_permission_restrictions_active", return_value=False),
+			patch.object(vouchers.frappe, "has_permission", return_value=True) as has_permission,
+		):
+			cleaned = vouchers._validate_items(
+				[{"item_code": f"ITEM-{i}", "qty": 1} for i in range(10)]
+			)
+
+		self.assertEqual(len(cleaned), 10)
+		self.assertEqual(has_permission.call_count, 1)
+		self.assertEqual(has_permission.call_args.args, ("Item",))
+		self.assertIsNone(has_permission.call_args.kwargs.get("doc"))
+
+	def test_item_permission_restrictions_fail_closed_for_has_permission_if_owner_and_applicable_for(self):
+		orig_user = vouchers.frappe.session.user
+		try:
+			vouchers.frappe.session.user = "cashier@example.com"
+			clean_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
+				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": None}]},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", clean_perms, create=True),
+			):
+				self.assertFalse(vouchers._item_permission_restrictions_active())
+
+			# 1) has_permission hook for Item -> restricted
+			with (
+				patch.object(
+					vouchers.frappe,
+					"get_hooks",
+					side_effect=lambda name, default=None: {"Item": ["custom.check"]} if name == "has_permission" else {},
+					create=True,
+				),
+				patch.object(vouchers.frappe, "permissions", clean_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 2) if_owner=1 on Item read -> restricted
+			if_owner_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 1}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", if_owner_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 3) User Permission with applicable_for='Item' -> restricted
+			applicable_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
+				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": "Item"}]},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", applicable_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 4) Zero-valued if_owner['read'] = 0 (Frappe owner-only marker) or missing read -> restricted
+			zero_if_owner_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 0}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", zero_if_owner_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			no_read_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 0, "if_owner": {}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", no_read_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+		finally:
+			vouchers.frappe.session.user = orig_user
 
 	def test_voucher_read_permission_reuses_the_loaded_document_object(self):
 		doc = SimpleNamespace(doctype="Sales Invoice", name="SI-0001")

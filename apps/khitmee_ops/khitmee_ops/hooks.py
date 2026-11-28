@@ -15,6 +15,7 @@ _profit_stock_voucher_hook = "khitmee_ops.profit_summary.store.on_stock_voucher_
 doc_events = {
 	"Sales Invoice": {
 		"validate": "khitmee_ops.api.vouchers.sync_counter_autopay_payment",
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
 		"on_cancel": "khitmee_ops.profit_summary.store.on_sales_invoice_change",
 	},
@@ -31,22 +32,27 @@ doc_events = {
 		],
 	},
 	"Purchase Invoice": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_invoice_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Purchase Receipt": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_purchase_receipt_stock",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Stock Entry": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Stock Reconciliation": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},
 	"Delivery Note": {
+		"before_submit": "khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
 		"on_submit": _profit_stock_voucher_hook,
 		"on_cancel": _profit_stock_voucher_hook,
 	},

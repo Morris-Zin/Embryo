@@ -585,6 +585,48 @@ class TestPass3SearchOptimizations(unittest.TestCase):
 			with self.assertRaisesRegex(Exception, "invalid price list"):
 				search.search_items("", "W", "PL")
 
+	def test_cached_user_permissions_avoid_db_roundtrip_when_available(self):
+		search.frappe.session.user = "cashier@example.com"
+		search.frappe.get_hooks = lambda *args, **kwargs: {}
+		permissions_mod = SimpleNamespace(get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1"}]})
+		with (
+			patch.object(search.frappe, "permissions", permissions_mod, create=True),
+			patch.object(search.frappe.db, "sql", side_effect=AssertionError("must not query DB")),
+		):
+			self.assertFalse(search._item_permission_restrictions_active())
+
+		restricted_mod = SimpleNamespace(get_user_permissions=lambda user: {"Item Group": [{"doc": "Tools"}]})
+		with (
+			patch.object(search.frappe, "permissions", restricted_mod, create=True),
+			patch.object(search.frappe.db, "sql", side_effect=AssertionError("must not query DB")),
+		):
+			self.assertTrue(search._item_permission_restrictions_active())
+
+	def test_fetch_rates_and_quantities_uses_single_combined_sql_roundtrip(self):
+		queries = []
+		rows = [
+			AttrDict(item_code="ITEM-1", stock_uom="Nos"),
+			AttrDict(item_code="ITEM-2", stock_uom="Nos"),
+		]
+
+		def fake_sql(sql, params=None, **kwargs):
+			queries.append((sql, params))
+			return [
+				AttrDict(row_kind="price", item_code="ITEM-1", price_list_rate=25.0, uom="Nos", customer=""),
+				AttrDict(row_kind="bin", item_code="ITEM-1", actual_qty=12),
+				AttrDict(row_kind="bin", item_code="ITEM-2", actual_qty=4),
+			]
+
+		with patch.object(search.frappe.db, "sql", side_effect=fake_sql):
+			result = search._fetch_rates_and_quantities(rows, "WH-1", "Standard Selling")
+
+		self.assertEqual(len(queries), 1)
+		self.assertIn("UNION ALL", queries[0][0])
+		self.assertEqual(result[0].rate, 25.0)
+		self.assertEqual(result[0].actual_qty, 12)
+		self.assertEqual(result[1].rate, 0)
+		self.assertEqual(result[1].actual_qty, 4)
+
 
 if __name__ == "__main__":
 	unittest.main()
