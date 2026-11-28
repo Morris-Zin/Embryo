@@ -93,3 +93,6 @@ The native detail form no longer uses a flat field grid or overlapping header bu
 ## Server-validation defect currently under repair
 
 The new due-date validation harness caught real native/server-integration defects: ERP validation errors were not surfaced as validation UI, native validation text initially could not be generically extracted, and the browser clears `In Words` after the failed save while native state handling diverged. The current `invoice-detail-server-validation.json` remains failing and must not be counted as passed evidence. Repair is in progress; comprehensive server-side validation remains pending.
+## Server-validation milestone
+
+`evidence/journeys/invoice-detail-server-validation.json` now passes with zero differential failures for invalid Payment Due Date (`2026-11-01` before posting date). The verifier exposed and fixed two real defects: native dirty field state was reset from the stale field model after a failed save, and ERP validation errors were not surfaced in a validation dialog. Native now preserves the invalid user-entered value, shows the same `Due Date cannot be before Posting Date` validation message, and matches the browser's cleared `In Words` dependent-field state after the failed save. This is one server-validation case, not yet the full matrix.

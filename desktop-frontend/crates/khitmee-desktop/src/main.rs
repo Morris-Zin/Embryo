@@ -876,6 +876,15 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
             }
         }
     }
+    let display_value = if key == "update_stock" {
+        if normalized == "1" { "checked" } else { "unchecked" }.to_owned()
+    } else {
+        normalized.to_owned()
+    };
+    if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, label) {
+        field.value = display_value.into();
+    }
+    app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
     app.set_invoice_detail_validation_title("".into());
