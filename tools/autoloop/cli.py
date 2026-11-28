@@ -21,6 +21,7 @@ if __package__ in (None, ""):
 from autoloop import EXIT_ERROR, EXIT_OK
 from autoloop.check_tools import doctor, time_check_commands, verify_with_trusted_tooling, warn_slow_checks
 from autoloop.guard import (
+    CheckCommandError,
     GitHubAPIClient,
     GuardError,
     assert_safe_local_path,
@@ -48,6 +49,7 @@ from autoloop.state import (
     log_dead_end,
     publish_contract,
     record_all_shards_pass,
+    record_check_failure,
     record_check_timings,
     record_oracle_mismatch,
     record_review,
@@ -122,52 +124,64 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     if actual != requested:
         raise GuardError(f"refusing check: target checkout HEAD ({actual}) != --head-ref ({requested})")
     checked_contract = (run["contract_sha256"], run["base_sha"])
+    check_shards = sorted(shards) if args.all_shards else [args.shard]
+    commands = []
+    for shard_id in check_shards:
+        shard = shards.get(shard_id)
+        if shard is None:
+            raise IllegalTransitionError(f"unknown shard {shard_id!r}")
+        if shard["status"] not in ("in_progress", "retrying", "passed"):
+            raise IllegalTransitionError(
+                f"check requires shard {shard_id!r} to be started first (current status={shard['status']!r})"
+            )
+        if args.all_shards and len(shards) > 1:
+            if not shard.get("has_passed_individually"):
+                raise IllegalTransitionError(
+                    f"check --all-shards requires shard {shard_id!r} to pass individually first "
+                    f"(current status={shard['status']!r})"
+                )
+            green = shard.get("last_green_sha")
+            if green and not git_is_ancestor(worktree, green, requested):
+                raise GuardError(
+                    f"shard {shard_id!r} last_green_sha {green[:8]} is not an ancestor "
+                    f"of integration HEAD {requested[:8]}"
+                )
+        commands.extend((shard_id, cmd) for cmd in contract["shards"][shard_id]["checks"])
 
     with TemporaryDirectory(prefix="autoloop-tooling-") as temp:
         snapshot = Path(temp)
         tooling = materialize_tooling(repo, snapshot, run, contract, checking_shard=args.shard)
-        verified = verify_with_trusted_tooling(
-            snapshot, worktree, repo, args.run_id, shard_id=args.shard, base_ref=args.base_ref, head_sha=requested,
-        )
-        head = verified["head_sha"]
-        if args.all_shards and len(shards) > 1:
-            for shard_id, shard in sorted(shards.items()):
-                if shard.get("status") not in ("in_progress", "retrying", "passed"):
-                    raise IllegalTransitionError(
-                        f"check --all-shards requires shard {shard_id!r} to be started first "
-                        f"(current status={shard.get('status')!r})"
-                    )
-                if not shard.get("has_passed_individually"):
-                    raise IllegalTransitionError(
-                        f"check --all-shards requires shard {shard_id!r} to pass individually first "
-                        f"(current status={shard.get('status')!r})"
-                    )
-                green = shard.get("last_green_sha")
-                if green and not git_is_ancestor(worktree, green, head):
-                    raise GuardError(
-                        f"shard {shard_id!r} last_green_sha {green[:8]} is not an ancestor of integration HEAD {head[:8]}"
-                    )
-
-        check_shards = sorted(shards) if args.all_shards else [args.shard]
-        commands = [(sid, cmd) for sid in check_shards for cmd in contract["shards"][sid]["checks"]]
         steps: dict[str, float] = {}
         passed = False
+        stage = "verify-untampered"
         try:
+            verified = verify_with_trusted_tooling(
+                snapshot, worktree, repo, args.run_id, shard_id=args.shard, base_ref=args.base_ref, head_sha=requested,
+            )
+            head = verified["head_sha"]
+            stage = "check"
             tooling["fast_check_ran"] = time_check_commands(
                 snapshot, worktree, commands, steps, skip_fast_check=args.skip_fast_check,
             )
+            if git_rev_parse(worktree, "HEAD") != head:
+                raise GuardError("target checkout HEAD moved during check; run check again")
             passed = True
+        except (GuardError, OSError) as exc:
+            check_name, output = (exc.check_name, exc.output) if isinstance(exc, CheckCommandError) else (stage, str(exc))
+            record_check_failure(
+                repo, args.run_id, shard_id=args.shard, head_sha=requested, check_name=check_name,
+                output=output, checked_contract=checked_contract,
+            )
+            raise
         finally:
             if steps:
                 previous = record_check_timings(
                     repo, args.run_id, scope="all-shards" if args.all_shards else f"shard:{args.shard}",
-                    head_sha=head, steps=steps, passed=passed,
+                    head_sha=requested, steps=steps, passed=passed,
                 )
                 warn_slow_checks(steps, previous)
 
     code_hash = verified["code_tree_sha256"]
-    if git_rev_parse(worktree, "HEAD") != head:
-        raise GuardError("target checkout HEAD moved during check; run check again")
     evidence = {"head_sha": head, "code_tree_sha256": code_hash, "checked_contract": checked_contract, "tooling": tooling}
     if args.all_shards:
         state = record_all_shards_pass(

@@ -14,6 +14,17 @@ from threading import current_thread
 from time import monotonic
 from typing import Any
 
+def _run_check_command(
+    command: list[str] | str, cwd: Path, *, shell: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        command, cwd=cwd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        encoding="utf-8", errors="replace",
+    )
+    if result.stdout:
+        print(result.stdout, end="", file=sys.stderr)
+    return result
+
 
 def _adapter_args(action: str, tooling: Path, worktree: Path) -> list[str]:
     return [sys.executable, "-E", "-P", "-B", str(Path(__file__).resolve()), action, str(tooling), str(worktree)]
@@ -41,7 +52,7 @@ def verify_with_trusted_tooling(
 def time_check_commands(
     tooling: Path, worktree: Path, commands: list[tuple[str, str]], steps: dict[str, float], *, skip_fast_check: bool,
 ) -> bool:
-    from autoloop.guard import GuardError
+    from autoloop.guard import CheckCommandError, GuardError
 
     ran_fast_check = not skip_fast_check
     if ran_fast_check:
@@ -52,23 +63,26 @@ def time_check_commands(
             argv = [*_adapter_args("fast-check", tooling, worktree), str(timing_file)]
             started = monotonic()
             try:
-                proc = subprocess.run(argv, cwd=tooling)
+                proc = _run_check_command(argv, tooling)
             finally:
                 steps["fast_check.py"] = round(monotonic() - started, 3)
                 if timing_file.is_file():
                     steps.update(json.loads(timing_file.read_text(encoding="utf-8")))
         if proc.returncode:
-            raise GuardError(f"fast_check.py failed with exit {proc.returncode}")
+            raise CheckCommandError("fast_check.py", f"fast_check.py failed with exit {proc.returncode}", proc.stdout)
 
     for index, (shard_id, command) in enumerate(commands, 1):
         name = f"{shard_id} #{index}: {command}"
         started = monotonic()
         try:
-            proc = subprocess.run(command, shell=True, cwd=worktree)
+            proc = _run_check_command(command, worktree, shell=True)
         finally:
             steps[name] = round(monotonic() - started, 3)
         if proc.returncode:
-            raise GuardError(f"shard {shard_id!r} check {command!r} failed with exit {proc.returncode}")
+            raise CheckCommandError(
+                f"{shard_id}-check-{index}", f"shard {shard_id!r} check {command!r} failed with exit {proc.returncode}",
+                proc.stdout,
+            )
     return ran_fast_check
 
 

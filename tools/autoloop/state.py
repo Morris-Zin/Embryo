@@ -563,13 +563,15 @@ def bind_pr(
         return state
 
 
-def _reset_shard_gate(shard: dict[str, Any]) -> None:
-    shard.update(
-        status="locked", worker_strikes=0, passed_code_tree_sha256=None,
-        has_passed_individually=False, retry_scope=None,
-    )
+def _clear_shard_pass(shard: dict[str, Any]) -> None:
+    shard.update(passed_code_tree_sha256=None, has_passed_individually=False)
     shard.pop("passed_tooling", None)
     shard.pop("trusted_policy_pass_sha", None)
+
+
+def _reset_shard_gate(shard: dict[str, Any]) -> None:
+    _clear_shard_pass(shard)
+    shard.update(status="locked", worker_strikes=0, retry_scope=None)
 
 
 def _set_base(
@@ -659,6 +661,50 @@ def _require_checked_contract(
         raise IllegalTransitionError("contract or base changed during check; run check again")
 
 
+def _require_checked_tooling(state: dict[str, Any], tooling: dict[str, Any] | None) -> None:
+    for source, sha in (tooling or {}).get("policy_shas", {}).items():
+        shard = state["shards"].get(source, {})
+        if (shard.get("status"), shard.get("has_passed_individually"), shard.get("trusted_policy_pass_sha")) != (
+            "passed", True, sha,
+        ):
+            raise IllegalTransitionError(f"trusted tooling from shard {source!r} changed during check; run check again")
+
+
+def record_check_failure(
+    repo: Path, run_id: str, *, shard_id: str | None, head_sha: str, check_name: str, output: str,
+    checked_contract: tuple[str, str | None], lock_dir: Path | None = None,
+) -> None:
+    """Invalidate current gate evidence and retain the historical rollback target."""
+    with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
+        state = load_run(repo, run_id)
+        _require_checked_contract(state, checked_contract)
+        _require_status(
+            state,
+            ("in_progress", "retrying", "gate_passed", "awaiting_cloud_review", "awaiting_deep_review",
+             "safeguard_pending", "ready_to_merge"),
+            "record-check-failure",
+        )
+        signature = normalize_failure(check_name, output)
+        if shard_id is None and len(state["shards"]) == 1:
+            shard_id = next(iter(state["shards"]))
+        if shard_id is None:
+            # A shared integration failure leaves individual shard qualifications intact.
+            for shard in state["shards"].values():
+                shard["passed_code_tree_sha256"] = None
+                shard.pop("passed_tooling", None)
+        else:
+            shard = _require_shard(state, shard_id)
+            _clear_shard_pass(shard)
+            shard.update(status="in_progress", pending_dead_end_sig=signature)
+        state["status"] = "in_progress"
+        state["status"] = derive_run_status(state)
+        state["history"].append({
+            "at": utc_now(), "event": "check-failed", "shard": shard_id, "head_sha": head_sha,
+            "check_name": check_name, "signature": signature, "status": state["status"],
+        })
+        _save_run_unlocked(repo, run_id, state)
+
+
 def record_shard_pass(
     repo: Path,
     run_id: str,
@@ -673,6 +719,7 @@ def record_shard_pass(
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_checked_contract(state, checked_contract)
+        _require_checked_tooling(state, tooling)
         prev_status = state["status"]
         _require_status(
             state,
@@ -730,6 +777,7 @@ def record_all_shards_pass(
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_checked_contract(state, checked_contract)
+        _require_checked_tooling(state, tooling)
         prev_status = state["status"]
         _require_status(
             state,
@@ -843,6 +891,8 @@ def retry_shard(
         shard["worker_strikes"] = int(shard.get("worker_strikes") or 0) + 1
         shard["pending_dead_end_sig"] = sig
         shard["passed_code_tree_sha256"] = None
+        if not is_integrated_retry:
+            _clear_shard_pass(shard)
         state["total_attempts"] = int(state.get("total_attempts") or 0) + 1
 
         needs_rollback = (

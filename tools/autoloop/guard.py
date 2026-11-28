@@ -68,6 +68,13 @@ class GuardError(RuntimeError):
     exit_code = EXIT_POLICY_OR_INTEGRITY
 
 
+class CheckCommandError(GuardError):
+    def __init__(self, check_name: str, message: str, output: str):
+        super().__init__(message)
+        self.check_name = check_name
+        self.output = f"{output}\n{message}"
+
+
 class UnsafeRollbackError(GuardError):
     exit_code = EXIT_UNSAFE_ROLLBACK
 

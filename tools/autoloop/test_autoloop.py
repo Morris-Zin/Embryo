@@ -1386,10 +1386,9 @@ class TestScenario6AllSevenEmbryoCoreRules(unittest.TestCase):
 
 
 class TestBackendSafeguardRules(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.rules_dir = REPO_ROOT / ".autoloop/rules"
-        cls.rules = dict(load_rules_from_dir(cls.rules_dir))
+    def setUp(self) -> None:
+        self.rules_dir = REPO_ROOT / ".autoloop/rules"
+        self.rules = dict(load_rules_from_dir(self.rules_dir))
 
     def test_each_backend_rule_flags_its_bad_example(self) -> None:
         fixture_root = self.rules_dir / "fixtures"
@@ -3125,6 +3124,14 @@ class TestWorkflowMetadata(unittest.TestCase):
         self.assertIn("a #1: git status --porcelain", passed["steps"])
         self.assertIn("fast_check.py/probe", failed["steps"])
         self.assertEqual([passed["passed"], failed["passed"]], [True, False])
+        self.assertEqual(state["status"], "in_progress")
+        self.assertEqual(state["shards"]["a"]["status"], "in_progress")
+        self.assertEqual(state["total_attempts"], 0)
+        self.assertIsNone(state["shards"]["a"]["passed_code_tree_sha256"])
+        self.assertNotIn("passed_tooling", state["shards"]["a"])
+        self.assertEqual(state["shards"]["a"]["pending_dead_end_sig"],
+                         normalize_failure("fast_check.py", "fast_check.py failed with exit 7"))
+        self.assertEqual(state["history"][-1]["event"], "check-failed")
         for seconds in range(6):
             record_check_timings(self.repo, "timers", scope="shard:a", head_sha=self.base,
                                  steps={"probe": seconds}, passed=True)
@@ -3232,6 +3239,8 @@ class TestWorkflowMetadata(unittest.TestCase):
             self.repo / gate,
             "def check(root):\n"
             "    if 'always pass' in (root / 'tools/fast_check.py').read_text():\n        raise SystemExit(7)\n"
+            "    if 'reject policy' in (root / 'tools/fast_check.py').read_text():\n"
+            "        print('AssertionError tools/fast_check.py:42')\n        raise SystemExit(9)\n"
             "    if 'needs_tooling_patch' in (root / 'src/a.py').read_text():\n        raise SystemExit(7)\n",
         )
         _git(self.repo, "add", gate)
@@ -3273,6 +3282,33 @@ class TestWorkflowMetadata(unittest.TestCase):
         self.assertEqual(evidence, worker_pass["tooling"])
         self.assertEqual(evidence["policy_shas"], {"policy": policy_head})
         self.assertNotEqual(evidence["sha256"], policy_pass["tooling"]["sha256"])
+
+        gate_source = (policy / gate).read_text(encoding="utf-8")
+        _write_lf(policy / gate, gate_source + "# reject policy\n")
+        _git(policy, "commit", "-am", "break the previously passing policy shard")
+        failed_head = _git(policy, "rev-parse", "HEAD")
+        self.cli("check", *run, "--shard", "policy", expected=EXIT_POLICY_OR_INTEGRITY)
+        failed = load_run(self.repo, "trusted-tooling")["shards"]["policy"]
+        self.assertEqual((failed["status"], failed["last_green_sha"]), ("in_progress", policy_head))
+        self.assertEqual(_git(policy, "rev-parse", "HEAD"), failed_head)
+        self.assertFalse(failed["has_passed_individually"])
+        self.assertIsNone(failed["passed_code_tree_sha256"])
+        self.assertNotIn("passed_tooling", failed)
+        self.assertNotIn("trusted_policy_pass_sha", failed)
+        self.assertEqual(failed["pending_dead_end_sig"], normalize_failure(
+            "fast_check.py", "AssertionError tools/fast_check.py:42\nfast_check.py failed with exit 9",
+        ))
+        with self.assertRaisesRegex(IllegalTransitionError, "trusted tooling from shard 'policy' changed"):
+            record_shard_pass(self.repo, "trusted-tooling", "worker", tooling=evidence)
+        _, error = self.cli("check", *run, "--shard", "worker", expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("fast_check.py failed with exit 7", error)
+
+        _write_lf(policy / gate, gate_source)
+        _git(policy, "commit", "-am", "repair policy shard")
+        recovered = _git(policy, "rev-parse", "HEAD")
+        self.cli("check", *run, "--shard", "policy")
+        worker_pass, _ = self.cli("check", *run, "--shard", "worker")
+        self.assertEqual(worker_pass["tooling"]["policy_shas"], {"policy": recovered})
 
     def test_lease_common_dir_override_and_status(self) -> None:
         linked = self.root / "lease-worktree"
