@@ -137,16 +137,11 @@ def download_export(export_log_name: str) -> Response:
 		return _http_response("Forbidden", 403)
 
 	if int(export_service._doc_get(doc, "artifact_published", 0) or 0) == 1 and restricted:
-		published_digest = export_service._doc_get(doc, "exported_invoice_sha256")
-		if not published_digest:
-			return _http_response("Forbidden", 403)
 		try:
-			live_digest, _invoice_names, truncated = export_service.compute_exported_invoice_digest(
-				filters, user
-			)
+			scope_ok = export_service.exported_invoice_scope_is_current(doc, filters, user)
 		except Exception:
 			return _http_response("Forbidden", 403)
-		if truncated or live_digest != published_digest:
+		if not scope_ok:
 			return _http_response("Forbidden", 403)
 
 	expires_at = _parse_datetime(export_service._doc_get(doc, "expires_at"))
