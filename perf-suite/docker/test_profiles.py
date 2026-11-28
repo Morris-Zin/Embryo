@@ -481,6 +481,8 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertIn('bench --site "$SITE_NAME" migrate', up)
         self.assertIn("startup-migrations.log", up)
         self.assertIn("KHITMEE_OPS_SYNC_CHANGED", up)
+        self.assertIn("__khitmee_ops_migration_state", up)
+        self.assertIn("record_khitmee_ops_migrated_tree_hash", up)
         self.assertIn("python_services+=(cashier)", up)
         self.assertIn("wait_for_service_running cashier 180", up)
         self.assertIn("khitmee-ops-guest.yaml", up)
