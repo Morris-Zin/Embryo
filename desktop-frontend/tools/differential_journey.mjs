@@ -238,8 +238,9 @@ if(screen==='invoice-detail'){
   failures.push(...(businessOutcomeEvidence.mismatches||[]).map(d=>({step:'businessOutcome',op:'erp-readback',...d})));
   const positiveSubmit=sequence.some((a,index)=>{
    if(a.op!=='submit-click'&&a.op!=='f9')return false;
-   const before=steps[index]||{};
-   return (Number(before.web?.lineCount||0)>0||Number(before.native?.lineCount||0)>0)&&!/validation|permission/.test(scenario);
+   const sinceClear=sequence.slice(sequence.slice(0,index).map((x,i)=>x.op==='clear'?i:-1).filter(i=>i>=0).pop()+1||0,index);
+   const keyboardSelect=sinceClear.some((x,i)=>x.op==='key'&&x.key==='Enter'&&sinceClear.slice(0,i).some(prior=>prior.op==='search'));
+   return (sinceClear.some(x=>x.op==='scan'||x.op==='choose')||keyboardSelect)&&!/validation|permission/.test(scenario);
   });
   if((screen==='sales-voucher'||screen==='stock-transfer')&&(/submission|success|idempotency|transit-receive/.test(scenario)||positiveSubmit)&&!businessOutcomeEvidence.matched)failures.push({step:'businessOutcome',op:'erp-readback',field:'erp-confirmation',web:businessOutcomeEvidence.web||businessOutcomeEvidence.reason,native:businessOutcomeEvidence.native||businessOutcomeEvidence.nativeVoucher});
   await browser.close();
