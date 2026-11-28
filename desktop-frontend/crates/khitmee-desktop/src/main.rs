@@ -18,7 +18,6 @@ struct LineState {
 
 struct PilotState {
     catalog: CatalogIndex,
-    by_code: HashMap<String, CatalogItem>,
     catalog_size: usize,
     lines: Vec<LineState>,
     invoices: Vec<InvoiceSeed>,
@@ -473,16 +472,24 @@ fn fixture_invoice_suffix(index: usize) -> String {
     suffix
 }
 
-fn invoice_model(rows: &[InvoiceSeed], filter: &str) -> ModelRc<InvoiceRow> {
+fn filtered_invoice_rows<'a>(
+    rows: &'a [InvoiceSeed],
+    filter: &'a str,
+    limit: usize,
+) -> impl Iterator<Item = &'a InvoiceSeed> + 'a {
     let folded = filter.trim().to_lowercase();
-    let rows = rows
-        .iter()
-        .filter(|row| {
+    rows.iter()
+        .filter(move |row| {
             folded.is_empty()
                 || row.name.to_lowercase().contains(&folded)
                 || row.customer.to_lowercase().contains(&folded)
                 || row.status.to_lowercase().contains(&folded)
         })
+        .take(limit)
+}
+
+fn invoice_model(rows: &[InvoiceSeed], filter: &str, limit: usize) -> ModelRc<InvoiceRow> {
+    let rows = filtered_invoice_rows(rows, filter, limit)
         .map(|row| InvoiceRow {
             name: row.name.clone().into(),
             customer: row.customer.clone().into(),
@@ -1178,7 +1185,7 @@ fn edit_invoice_detail_item_code(app: &AppWindow, state: &mut PilotState, index:
         return;
     }
     let item_code = value.trim().to_owned();
-    let Some(catalog_item) = state.by_code.get(&item_code).cloned() else {
+    let Some(catalog_item) = state.catalog.get_by_item_code(&item_code).cloned() else {
         return;
     };
     let Some(doc) = state.invoice_detail_doc.as_mut() else {
@@ -1598,7 +1605,7 @@ fn invoice_error_text(error: &dyn std::error::Error) -> String {
 fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     let filter = state.invoice_filter.clone();
     let Some(config) = state.runtime_config.clone() else {
-        app.set_invoice_rows(invoice_model(&state.invoices, &filter));
+        app.set_invoice_rows(invoice_model(&state.invoices, &filter, state.invoice_limit));
         app.set_invoice_error_text("".into());
         return;
     };
@@ -1619,7 +1626,7 @@ fn refresh_invoice_rows(app: &AppWindow, state: &mut PilotState) {
     ) {
         Ok(payload) => {
             state.invoices = parse_invoice_rows(&payload);
-            app.set_invoice_rows(invoice_model(&state.invoices, ""));
+            app.set_invoice_rows(invoice_model(&state.invoices, "", state.invoice_limit));
             app.set_invoice_error_text("".into());
             if let Ok(count) = client.sales_invoice_count(&filter) {
                 let total = if count > 1000 {
@@ -1740,14 +1747,10 @@ fn refresh_context_catalog(
         Some(state.customer.as_str())
     };
     let rows = load_live_catalog_scoped(&config, &state.warehouse, customer)?;
-    state.by_code = rows
-        .iter()
-        .map(|row| (row.item_code.clone(), row.clone()))
-        .collect();
     state.catalog_size = rows.len();
     state.catalog = CatalogIndex::rebuild(rows);
     for line in &mut state.lines {
-        if let Some(current) = state.by_code.get(&line.item.item_code) {
+        if let Some(current) = state.catalog.get_by_item_code(&line.item.item_code) {
             line.item = current.clone();
         }
     }
@@ -1932,10 +1935,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let stored_rows = load_catalog(catalog_rows)
         .unwrap_or_else(|error| panic!("open the encrypted catalog store: {error}"));
-    let by_code = stored_rows
-        .iter()
-        .map(|row| (row.item_code.clone(), row.clone()))
-        .collect::<HashMap<_, _>>();
     let catalog = CatalogIndex::rebuild(stored_rows);
     let runtime_config = ErpRuntimeConfig::from_env();
     let (warehouses, customers, payment_modes, price_list, print_endpoint, print_token) =
@@ -1947,7 +1946,6 @@ fn main() -> Result<(), slint::PlatformError> {
     let state = Rc::new(RefCell::new(PilotState {
         catalog_size: catalog.len(),
         catalog,
-        by_code,
         lines: Vec::new(),
         invoices: fixture_invoices(invoice_rows),
         invoice_filter: String::new(),
@@ -2155,7 +2153,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             app.set_search_open(false);
-            if let Some(item) = state.by_code.get(code.as_str()).cloned() {
+            if let Some(item) = state.catalog.get_by_item_code(code.as_str()).cloned() {
                 add_item_to_draft(&mut state, item);
             } else {
                 app.set_status_text("Item no longer exists in the local catalog snapshot".into());
@@ -2587,7 +2585,18 @@ fn main() -> Result<(), slint::PlatformError> {
 
 #[cfg(test)]
 mod tests {
-    use super::edited_quantity;
+    use super::{edited_quantity, filtered_invoice_rows, InvoiceSeed};
+
+    fn invoice_seed(name: &str, customer: &str) -> InvoiceSeed {
+        InvoiceSeed {
+            name: name.to_string(),
+            customer: customer.to_string(),
+            posting_date: "2026-11-27".to_string(),
+            due_date: "2026-12-11".to_string(),
+            total: 10.0,
+            status: "Paid".to_string(),
+        }
+    }
 
     #[test]
     fn edited_quantity_rejects_nonnumeric_input() {
@@ -2602,5 +2611,31 @@ mod tests {
     #[test]
     fn edited_quantity_accepts_fractional_values() {
         assert_eq!(edited_quantity("2.5"), Some(2.5));
+    }
+
+    #[test]
+    fn invoice_filtering_applies_limit_before_row_materialization() {
+        let rows: Vec<InvoiceSeed> = (0..100)
+            .map(|index| invoice_seed(&format!("ACC-SINV-{index:05}"), "Khit Customer"))
+            .collect();
+        let visible: Vec<String> = filtered_invoice_rows(&rows, "", 20)
+            .map(|row| row.name.clone())
+            .collect();
+        assert_eq!(visible.len(), 20);
+        assert_eq!(visible[0], "ACC-SINV-00000");
+        assert_eq!(visible[19], "ACC-SINV-00019");
+    }
+
+    #[test]
+    fn invoice_filtering_preserves_first_match_order_for_load_more() {
+        let rows = vec![
+            invoice_seed("ACC-SINV-00001", "Alpha Store"),
+            invoice_seed("ACC-SINV-00002", "Beta Store"),
+            invoice_seed("ACC-SINV-00003", "Alpha Wholesale"),
+        ];
+        let visible: Vec<String> = filtered_invoice_rows(&rows, "alpha", 2)
+            .map(|row| row.name.clone())
+            .collect();
+        assert_eq!(visible, vec!["ACC-SINV-00001", "ACC-SINV-00003"]);
     }
 }

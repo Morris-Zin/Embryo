@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 compatibility for minimal verification runners.
+    tomllib = None
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,17 +27,41 @@ def iter_cargo_manifests():
     yield from sorted(ROOT.glob("crates/*/Cargo.toml"))
 
 
+def manifest_dependency_names(manifest: Path) -> set[str]:
+    text = manifest.read_text(encoding="utf-8")
+    if tomllib is not None:
+        parsed = tomllib.loads(text)
+        dependency_names = set()
+        for section in ("dependencies", "dev-dependencies", "build-dependencies", "workspace.dependencies"):
+            current = parsed
+            for part in section.split("."):
+                current = current.get(part, {})
+            dependency_names.update(current.keys())
+        for target in parsed.get("target", {}).values():
+            dependency_names.update(target.get("dependencies", {}).keys())
+        return dependency_names
+
+    dependency_names = set()
+    section = ""
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line.strip("[]").strip().strip("'\"")
+            continue
+        if "=" not in line:
+            continue
+        dependency = line.split("=", 1)[0].strip().strip("'\"")
+        if section in {"dependencies", "dev-dependencies", "build-dependencies"} or section.endswith(".dependencies"):
+            dependency_names.add(dependency)
+    return dependency_names
+
+
 def lint_dependencies() -> list[str]:
     errors = []
     for manifest in iter_cargo_manifests():
-        parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
-        sections = ["dependencies", "dev-dependencies", "build-dependencies"]
-        dependency_names = set()
-        for section in sections:
-            dependency_names.update(parsed.get(section, {}).keys())
-        for target in parsed.get("target", {}).values():
-            dependency_names.update(target.get("dependencies", {}).keys())
-        for dependency in dependency_names:
+        for dependency in manifest_dependency_names(manifest):
             lowered = dependency.lower()
             if any(part in lowered for part in FORBIDDEN_DEPENDENCY_PARTS):
                 errors.append(f"{manifest}: forbidden browser/loopback dependency '{dependency}'")

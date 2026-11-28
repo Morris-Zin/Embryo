@@ -1,4 +1,5 @@
 use crate::models::CatalogItem;
+use rayon::prelude::*;
 use rusqlite::{params, Connection};
 use std::error::Error;
 use std::path::Path;
@@ -117,11 +118,11 @@ impl EncryptedStore {
         let mut statement = connection
             .prepare("SELECT payload FROM catalog_rows WHERE scope = ?1 ORDER BY item_code")?;
         let rows = statement.query_map(params![scope], |row| row.get::<_, String>(0))?;
-        let mut items = Vec::new();
-        for row in rows {
-            items.push(serde_json::from_str::<CatalogItem>(&row?)?);
-        }
-        Ok(items)
+        let payloads = rows.collect::<Result<Vec<String>, rusqlite::Error>>()?;
+        payloads
+            .into_par_iter()
+            .map(|payload| serde_json::from_str::<CatalogItem>(&payload).map_err(Into::into))
+            .collect::<Result<Vec<CatalogItem>, Box<dyn Error + Send + Sync>>>()
     }
 }
 
