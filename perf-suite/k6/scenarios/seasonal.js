@@ -312,11 +312,14 @@ export function fullYearExportWorker() {
 
 export function setup() {
   logSeasonalEvent({ event: 'config', config: publicPlanConfig(plan) });
+  // The summary's HTTP counters include setup/discovery requests, so the
+  // attribution evidence window starts before them rather than only before
+  // the scheduled load. This keeps the k6 denominator and nginx log window aligned.
+  logSeasonalEvent({ event: 'measured_window_start' });
   const setupSession = authenticate(plan.actors.cashier.user, plan.actors.cashier.password);
   if (!performCashierDiscovery(setupSession, plan)) {
     throw new Error('cashier discovery failed against the real login/search path; refusing to start voucher mutation');
   }
-  logSeasonalEvent({ event: 'measured_window_start' });
   return { cashier_discovery: true };
 }
 

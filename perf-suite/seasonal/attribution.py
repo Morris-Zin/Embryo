@@ -367,6 +367,8 @@ def nginx_window_coverage(nginx_rows, measured_start, measured_end, tolerance_se
         return result
     first = min(times)
     last = max(times)
+    if (measured_start - first).total_seconds() > tolerance_seconds:
+        result["problems"].append("first nginx attribution timestamp predates the measured window start")
     if (first - measured_start).total_seconds() > tolerance_seconds:
         result["problems"].append("first nginx attribution timestamp is too late to cover the measured window start")
     if (measured_end - last).total_seconds() > tolerance_seconds:

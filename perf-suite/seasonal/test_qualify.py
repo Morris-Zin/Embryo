@@ -360,6 +360,10 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(window["last_nginx_at"], "2026-01-01T10:09:40Z")
             late_start = [row("search", True, "2026-01-01T10:01:00Z"), window_rows[1]]
             self.assertFalse(module.nginx_window_coverage(late_start, start, end)["passed"])
+            contaminated_start = [row("search", True, "2026-01-01T09:59:00Z"), window_rows[1]]
+            contaminating = module.nginx_window_coverage(contaminated_start, start, end)
+            self.assertFalse(contaminating["passed"])
+            self.assertIn("predates the measured window start", " ".join(contaminating["problems"]))
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
