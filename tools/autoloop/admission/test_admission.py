@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Barrier
 import unittest
 from unittest.mock import patch
 
@@ -49,14 +51,15 @@ class AdmissionTests(unittest.TestCase):
             "run", "campaign", run_limit, expires_at=NOW + 100, dag=dag or {"a": ()}, resources=resources, **limits,
         )
 
-    def reserve(self, shard="a", generation=1, bounds=BOUNDS):
+    def reserve(self, shard="a", generation=1, bounds=BOUNDS, *, role="worker"):
         return self.controller.reserve(
-            run="run", shard=shard, role="worker", generation=generation, request_id=f"{shard}-{generation}",
+            run="run", shard=shard, role=role, generation=generation,
+            request_id=f"{shard}-{generation}" if role == "worker" else f"{shard}-{role}-{generation}",
             bounds=bounds, expires_at=NOW + 60,
         )
 
-    def start(self, shard="a", generation=1):
-        reservation = self.reserve(shard, generation)
+    def start(self, shard="a", generation=1, *, role="worker"):
+        reservation = self.reserve(shard, generation, role=role)
         self.assertEqual(reservation.status, "reserved", reservation)
         rid = reservation.reservation_id
         self.assertEqual(self.controller.begin_dispatch(rid).status, "dispatching")
@@ -81,6 +84,83 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(len(entries), 5)
         self.assertEqual(sum(entry["strike"] for entry in entries), 1)
         self.assertEqual(sum(entry["charge"]["tokens"] for entry in entries), 11)
+
+    def test_reviewer_generations_start_at_one_after_implementation_passes(self) -> None:
+        self.configure(dag={"a": (), "b": ("a",)}, max_worker_strikes=2)
+        impl = self.start(role="implementation")
+        self.controller.settle(impl, outcome="accepted", actual=Usage(2, 2, 100))
+        review = self.start(role="review")
+        self.controller.settle(review, outcome="failed", actual=Usage(2, 2, 100))
+        retry = self.start(generation=2, role="review")
+        self.assertEqual(self.reserve(role="deep-review").reason, "strike_reserved")
+        self.controller.settle(retry, outcome="accepted", actual=Usage(2, 2, 100))
+        self.assertEqual(self.reserve(generation=3, role="review").reason, "role_passed")
+        self.assertEqual(self.reserve(generation=2, role="implementation").reason, "shard_passed")
+        self.assertEqual(self.reserve("b").status, "reserved")
+
+    def test_review_and_dependent_shards_wait_for_implementation_acceptance(self) -> None:
+        self.configure(dag={"a": (), "b": ("a",)})
+        self.assertEqual(self.reserve(role="reviewer").reason, "dependencies")
+        failed = self.start(role="implementer")
+        self.controller.settle(failed, outcome="failed", actual=Usage(2, 2, 100))
+        self.assertEqual(self.reserve(role="reviewer").reason, "dependencies")
+        self.assertEqual(self.reserve("b").reason, "dependencies")
+        impl = self.start(generation=2, role="implementer")
+        self.controller.settle(impl, outcome="accepted", actual=Usage(2, 2, 100))
+        self.assertEqual(self.reserve(role="reviewer").status, "reserved")
+        self.assertEqual(self.reserve("b").status, "reserved")
+
+    def test_settle_unsent_reservation_frees_budget_and_lease(self) -> None:
+        self.configure(resources={"a": ("host-timing",)}, campaign_limit=CAP)
+        rid = self.reserve().reservation_id
+        result = self.controller.settle(rid, outcome="not_run")
+        self.assertEqual(result.status, "settled")
+        self.assertEqual(self.controller.settle(rid, outcome="not_run"), result)
+        self.assertEqual(self.controller.begin_dispatch(rid).status, "denied")
+        record = self.controller.snapshot()["reservations"][rid]
+        self.assertEqual(record["dispatch"], "not_run")
+        self.assertEqual(record["settlement"]["outcome"], "not_run")
+        self.assertEqual(record["charge"], asdict(Usage(0, 0, 0)))
+        self.assertFalse(record["strike"])
+        self.assertIsNone(leases.read_lease("host-timing", lock_dir=self.root))
+        next_reservation = self.reserve(generation=2)
+        self.assertEqual(next_reservation.status, "reserved")
+        self.assertEqual(self.controller.begin_dispatch(next_reservation.reservation_id).status, "dispatching")
+        with self.assertRaisesRegex(AdmissionError, "requires evidence"):
+            self.controller.settle(next_reservation.reservation_id, outcome="not_run")
+        self.assertIsNotNone(leases.read_lease("host-timing", lock_dir=self.root))
+
+    def test_only_one_of_release_and_dispatch_can_win(self) -> None:
+        self.configure(campaign_limit=CAP)
+        rid = self.reserve().reservation_id
+        barrier = Barrier(2, timeout=5)
+
+        def release():
+            contender = Controller(REPO, _lock_dir=self.root)
+            barrier.wait()
+            try:
+                return contender.settle(rid, outcome="not_run").status
+            except AdmissionError as exc:
+                self.assertIn("requires evidence", str(exc))
+                return "denied"
+
+        def dispatch():
+            contender = Controller(REPO, _lock_dir=self.root)
+            barrier.wait()
+            return contender.begin_dispatch(rid).status
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            released = pool.submit(release)
+            dispatched = pool.submit(dispatch)
+        result = (released.result(), dispatched.result())
+        self.assertIn(result, {("settled", "denied"), ("denied", "dispatching")})
+        record = self.controller.snapshot()["reservations"][rid]
+        if result[0] == "settled":
+            self.assertEqual(record["dispatch"], "not_run")
+            self.assertEqual(record["charge"], asdict(Usage(0, 0, 0)))
+        else:
+            self.assertEqual(record["dispatch"], "dispatching")
+            self.assertIsNone(record["charge"])
 
     def test_two_processes_share_campaign_cap_across_runs(self) -> None:
         self.configure(campaign_limit=CAP)

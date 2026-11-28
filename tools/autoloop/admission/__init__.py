@@ -37,6 +37,10 @@ from ..leases import (
 from ..state import DEFAULT_MAX_REPLAN_COUNT, DEFAULT_MAX_TOTAL_ATTEMPTS, DEFAULT_MAX_WORKER_STRIKES
 
 
+# Receipts use "implementation"; the shadow scheduler also accepts worker labels.
+_IMPLEMENTATION_ROLES = {"implementation", "implementer", "worker"}
+
+
 class AdmissionError(LeaseError):
     """Invalid admission configuration or transition."""
 
@@ -279,7 +283,7 @@ class Controller:
         self, *, run: str, shard: str, role: str, generation: int, request_id: str,
         bounds: EnforcedBounds, expires_at: float,
     ) -> Decision:
-        """Hold budget and required leases, with one reservation per request and generation."""
+        """Hold budget and leases for one request and shard-role generation."""
         if not all(_identifier(value) for value in (run, shard, role, request_id)):
             raise AdmissionError("reservation bindings must be non-empty")
         if not isinstance(bounds, EnforcedBounds) or not bounds.known():
@@ -299,21 +303,35 @@ class Controller:
             if shard not in config["dag"]:
                 raise AdmissionError("unknown shard")
             entries = self._entries(data, "run", run)
-            previous = [entry for entry in entries if entry["shard"] == shard]
+            shard_entries = [entry for entry in entries if entry["shard"] == shard]
+            previous = [entry for entry in shard_entries if entry["role"] == role]
             if (type(generation) is not int or generation != len(previous) + 1
                     or request_id in data["requests"]):
                 return Decision("denied", "duplicate_or_out_of_order")
-            if any(entry["dispatch"] in {"reserved", "dispatching", "attached"} for entry in previous):
+            is_implementation = role in _IMPLEMENTATION_ROLES
+            active = [entry for entry in shard_entries if entry["dispatch"] in {"reserved", "dispatching", "attached"}]
+            if any(
+                entry["role"] == role or (is_implementation and entry["role"] in _IMPLEMENTATION_ROLES)
+                for entry in active
+            ):
                 return Decision("waiting", "pending_reservation")
-            passed = {entry["shard"] for entry in entries if entry.get("accepted")}
-            if shard in passed:
+            passed = {entry["shard"] for entry in entries
+                      if entry["role"] in _IMPLEMENTATION_ROLES and entry.get("accepted")}
+            if is_implementation and shard in passed:
                 return Decision("denied", "shard_passed")
-            if set(config["dag"][shard]) - passed:
+            if any(entry.get("accepted") for entry in previous):
+                return Decision("denied", "role_passed")
+            dependencies = set(config["dag"][shard])
+            if not is_implementation:
+                dependencies.add(shard)
+            if dependencies - passed:
                 return Decision("waiting", "dependencies")
             strike_epoch = record["strike_epochs"].get(shard, 0)
-            strikes = sum(entry.get("strike", False) for entry in previous if entry["replan"] == strike_epoch)
+            strikes = sum(entry.get("strike", False) for entry in shard_entries if entry["replan"] == strike_epoch)
             if strikes >= config["max_worker_strikes"]:
                 return Decision("denied", "strike_limit")
+            if strikes + len(active) >= config["max_worker_strikes"]:
+                return Decision("waiting", "strike_reserved")
             attempt_slots = sum(entry.get("strike", False) or entry["dispatch"] in {
                 "reserved", "dispatching", "attached",
             } for entry in entries)
@@ -411,10 +429,15 @@ class Controller:
         self, reservation_id: str, *, outcome: str, actual: Usage | None = None,
         no_dispatch_evidence_id: str | None = None,
     ) -> Decision:
-        """Record a final result. Missing final usage keeps the worst-case charge."""
+        """Record a final result, or release a reserved request with outcome not_run.
+
+        Once dispatch begins, a not_run settlement requires external evidence.
+        Missing usage for a started request keeps the worst-case charge.
+        """
         if outcome == "not_run":
-            if actual is not None or not _identifier(no_dispatch_evidence_id):
-                raise AdmissionError("an uncertain send requires evidence of no dispatch")
+            if actual is not None or (no_dispatch_evidence_id is not None
+                                      and not _identifier(no_dispatch_evidence_id)):
+                raise AdmissionError("invalid not_run settlement")
         elif outcome not in {"accepted", "failed", "cancelled"} or no_dispatch_evidence_id is not None:
             raise AdmissionError("invalid settlement outcome")
         settlement = {"outcome": outcome, "actual": asdict(actual) if actual is not None else None,
@@ -425,8 +448,17 @@ class Controller:
                 if entry["settlement"] != settlement:
                     raise AdmissionError("reservation already has a different settlement")
                 return Decision("settled", entry["terminal_reason"], reservation_id)
+            if outcome == "not_run" and entry["dispatch"] == "reserved":
+                reason = "cancelled_before_dispatch"
+                entry.update(
+                    dispatch="not_run", settled_at=now, settlement=settlement, charge=asdict(Usage(0, 0, 0)),
+                    terminal_reason=reason, accepted=False, strike=False,
+                )
+                return Decision("settled", reason, reservation_id)
             if entry["dispatch"] not in {"dispatching", "attached"}:
                 raise AdmissionError("settlement requires a dispatch attempt")
+            if outcome == "not_run" and no_dispatch_evidence_id is None:
+                raise AdmissionError("an uncertain send requires evidence of no dispatch")
             if outcome == "not_run" and (entry["task_id"] or any((entry["observed"] or {}).values())):
                 raise AdmissionError("confirmed work cannot settle as not_run")
             if outcome != "not_run" and entry["dispatch"] != "attached":
