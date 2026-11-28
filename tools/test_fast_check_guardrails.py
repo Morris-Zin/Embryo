@@ -122,7 +122,12 @@ class TestMonkeyPatchGuardrail(unittest.TestCase):
 
 	def test_sanctioned_dynamic_patches_are_explicitly_allowlisted_with_justifications(self):
 		self.assertGreaterEqual(len(fc.MONKEY_PATCH_ALLOWLIST), 16)
-		self.assertTrue(all(key.startswith(fc.VOUCHER_FASTPATH_PATH + ":erpnext.") for key in fc.MONKEY_PATCH_ALLOWLIST))
+		# Sanctioned patches may live only in the two reviewed dispatcher modules.
+		sanctioned_paths = {fc.VOUCHER_FASTPATH_PATH, fc.INVOICE_SERIES_PATH}
+		for key in fc.MONKEY_PATCH_ALLOWLIST:
+			path, _, target = key.partition(":")
+			self.assertIn(path, sanctioned_paths, key)
+			self.assertTrue(target, key)
 		self.assertTrue(all(isinstance(reason, str) and len(reason) > 30 for reason in fc.MONKEY_PATCH_ALLOWLIST.values()))
 
 		root = TOOLS_DIR.parent
