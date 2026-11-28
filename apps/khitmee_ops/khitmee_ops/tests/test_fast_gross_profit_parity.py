@@ -1732,6 +1732,113 @@ except Exception:
 	HAS_BENCH_DATABASE = False
 
 
+class TestInvoicePackedBundleLimits(unittest.TestCase):
+	def setUp(self):
+		self.connection = sqlite3.connect(":memory:")
+		self.addCleanup(self.connection.close)
+		self.connection.executescript("""
+			CREATE TABLE `tabPacked Item` (
+				parenttype, parent, parent_item, item_code, warehouse, qty, rate,
+				parent_detail_docname, serial_and_batch_bundle, docstatus
+			);
+			CREATE TABLE `tabDelivery Note Item` (
+				name, parent, item_code, stock_qty, si_detail, against_sales_invoice, docstatus
+			);
+		""")
+		self.packed_rows_read = []
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, db=types.SimpleNamespace(sql=self.sql, get_default=lambda field: 3)
+		)
+		self.enterContext(patch.object(fast_gross_profit, "frappe", frappe_stub))
+
+	def sql(self, query, params=None, as_dict=False):
+		cursor = self.connection.execute(query.replace("%s", "?"), params or ())
+		rows = cursor.fetchall()
+		if "(-1 * qty) AS total_qty" in query:
+			self.packed_rows_read.append((params[0], len(rows)))
+		if as_dict:
+			columns = [field[0] for field in cursor.description]
+			return [AttrDict(zip(columns, row, strict=True)) for row in rows]
+		return rows
+
+	def make_generator(self, *, direct=False):
+		class InvoiceRow(AttrDict):
+			__setattr__ = dict.__setitem__
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(group_by="Invoice")
+		generator._invoice_row_limit = invoice_batches.MAX_SINGLE_FAMILY_ROWS
+		generator._valuation_source_by_row_id = {}
+		generator.si_list = [InvoiceRow(
+			parenttype="Sales Invoice", parent="SI-1", item_row="SI-LINE", item_code="BUNDLE",
+			qty=2, base_net_amount=100, dn_detail="DN-LINE" if direct else None,
+			delivery_note="DN-1" if direct else None,
+		)]
+		generator.get_invoice_row = lambda row: InvoiceRow(indent=0, invoice_or_item=row.parent)
+		generator._preload_stock_ledger_data = lambda: None
+		generator.skip_row = lambda row: False
+		generator.is_not_invoice_row = lambda row: row.indent != 0
+		generator.update_return_invoices = lambda row, item_row: None
+		generator.get_buying_amount = lambda row, item_code: row["qty"] * {"PART-A": 4, "PART-B": 7}[item_code]
+		return generator
+
+	def test_one_invoice_line_on_delivery_with_5001_unrelated_packed_items_still_renders(self):
+		self.connection.executemany(
+			"INSERT INTO `tabPacked Item` VALUES (?, ?, ?, ?, 'W1', 1, 0, ?, NULL, 1)",
+			(("Delivery Note", "DN-1", "OTHER-BUNDLE", f"UNRELATED-{i:05}", "DN-OTHER") for i in range(5001)),
+		)
+		self.connection.executescript("""
+			INSERT INTO `tabPacked Item` VALUES
+				('Delivery Note', 'DN-1', 'BUNDLE', 'PART-A', 'W1', 2, 4, 'DN-LINE', NULL, 1),
+				('Delivery Note', 'DN-1', 'BUNDLE', 'PART-B', 'W1', 4, 7, 'DN-LINE', NULL, 1);
+			INSERT INTO `tabDelivery Note Item` VALUES
+				('DN-LINE', 'DN-1', 'BUNDLE', 2, 'SI-LINE', 'SI-1', 1),
+				('DN-OTHER', 'DN-1', 'OTHER-BUNDLE', 1, 'SI-HIDDEN-LINE', 'SI-1', 1);
+		""")
+		for direct in (True, False):
+			with self.subTest(direct=direct):
+				generator = self.make_generator(direct=direct)
+				self.packed_rows_read.clear()
+				generator.load_product_bundle()
+				generator.load_bundle_deliveries()
+				generator.group_items_by_invoice()
+				generator.process()
+				self.assertEqual(self.packed_rows_read, [("Sales Invoice", 0), ("Delivery Note", 2)])
+				self.assertEqual(
+					[(row.invoice_or_item, row.indent, row.base_amount, row.buying_amount) for row in generator.si_list],
+					[("SI-1", 0, 100, 36), ("BUNDLE", 1, 100, 36)],
+				)
+
+	def test_actual_invoice_bundle_components_exceeding_family_limit_are_rejected(self):
+		self.connection.executemany(
+			"INSERT INTO `tabPacked Item` VALUES ('Sales Invoice', 'SI-1', 'BUNDLE', ?, 'W1', 1, 0, 'SI-LINE', NULL, 1)",
+			((f"PART-{i:05}",) for i in range(5001)),
+		)
+		with self.assertRaises(fast_gross_profit.InvoiceBatchTooLarge):
+			self.make_generator().load_product_bundle()
+
+	def test_repeated_bundle_code_counts_its_full_group_under_each_invoice_line(self):
+		self.connection.executescript("""
+			INSERT INTO `tabPacked Item` VALUES
+				('Sales Invoice', 'SI-1', 'BUNDLE', 'PART-A', 'W1', 1, 4, 'SI-LINE', NULL, 1),
+				('Sales Invoice', 'SI-1', 'BUNDLE', 'PART-B', 'W1', 1, 7, 'SI-LINE-2', NULL, 1);
+		""")
+		generator = self.make_generator()
+		generator._invoice_row_limit = 6
+		generator.si_list.append(AttrDict(generator.si_list[0], item_row="SI-LINE-2"))
+		generator.load_product_bundle()
+		with self.assertRaises(fast_gross_profit.InvoiceBatchTooLarge):
+			generator.group_items_by_invoice()
+
+		generator._invoice_row_limit = 7
+		generator.get_bundle_item_row = lambda row, item: AttrDict(indent=2, invoice_or_item=item.item_code)
+		generator.group_items_by_invoice()
+		self.assertEqual(
+			[(row.indent, row.invoice_or_item) for row in generator.si_list],
+			[(0, "SI-1"), (1, "BUNDLE"), (2, "PART-A"), (2, "PART-B"), (1, "BUNDLE"), (2, "PART-A"), (2, "PART-B")],
+		)
+
+
 class TestInvoicePageOracleParity(unittest.TestCase):
 	def test_concatenated_pages_match_unpaged_stock_rows_for_each_actor_and_return_toggle(self):
 		# Stock emits main invoices first and then linked returns whose original is
