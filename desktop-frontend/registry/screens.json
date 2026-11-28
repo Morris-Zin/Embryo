@@ -1,0 +1,617 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-27T11:57:30Z",
+  "framework": "slint",
+  "design_tokens": {
+    "bg": "#f4f6f8",
+    "panel": "#ffffff",
+    "text": "#17202a",
+    "muted": "#667085",
+    "line": "#d8dee6",
+    "accent": "#146c43",
+    "accent-strong": "#0f5132",
+    "danger": "#b42318",
+    "focus": "#2e90fa",
+    "shadow": "0 12px 32px rgb(15 23 42 / 0.08)",
+    "target-size": "44px"
+  },
+  "screens": [
+    {
+      "id": "invoice-list",
+      "title": "Invoice List",
+      "source_route": "/app/sales-invoice",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "ERPNext Sales Invoice list"
+      ],
+      "controls": [
+        {
+          "control_type": "input",
+          "id": "invoice-filter",
+          "label": "Filter invoice number, customer, status",
+          "role": "searchbox",
+          "keyboard": [
+            "typing"
+          ]
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "frappe.desk.reportview.get(Sales Invoice)",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice read"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "frappe.desk.reportview.get_count(Sales Invoice)",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice read"
+          ],
+          "mutation": false
+        }
+      ],
+      "native_component": "InvoiceListPilot",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#invoice-list",
+      "evidence": [
+        "evidence/journeys/invoice-list-initial.json",
+        "evidence/journeys/invoice-list-filter.json",
+        "evidence/journeys/invoice-list-load-more.json",
+        "evidence/journeys/invoice-list-sort-asc.json",
+        "experiments/0006-invoice-list-qualification.md"
+      ],
+      "failures": [
+        "sort-field-selection/column-customization/bulk-action/open-invoice/keyboard/permission evidence pending",
+        "visual/video qualification pending",
+        "large-list scrolling and query latency performance evidence pending",
+        "synchronous pilot network reads need asynchronous hardening"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
+    },
+    {
+      "id": "item-search",
+      "title": "Item Search",
+      "source_route": "/khitmee_sales#item-search",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "catalog_bridge.js",
+        "counter_core.js",
+        "khitmee-catalog"
+      ],
+      "controls": [
+        {
+          "control_type": "input",
+          "id": "item-search",
+          "label": "Barcode / item search",
+          "role": "combobox",
+          "keyboard": [
+            "F2",
+            "ArrowUp",
+            "ArrowDown",
+            "Enter",
+            "Escape"
+          ]
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "khitmee_ops.api.search.search_items",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user",
+            "Item read"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.catalog.sync_catalog",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user",
+            "Item read",
+            "Warehouse read",
+            "Price List read"
+          ],
+          "mutation": false
+        }
+      ],
+      "native_component": "ItemSearchPilot",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#item-search",
+      "evidence": [
+        "evidence/journeys/item-search-results.json",
+        "evidence/journeys/item-search-keyboard.json",
+        "evidence/journeys/item-search-wrap-up.json",
+        "evidence/journeys/item-search-wrap-down.json",
+        "evidence/journeys/item-search-escape.json",
+        "evidence/journeys/item-search-click.json",
+        "evidence/journeys/item-search-repeat-scan.json",
+        "evidence/journeys/item-search-no-match.json",
+        "experiments/0005-item-search-qualification.md",
+        "evidence/journeys/item-search-warehouse.json",
+        "evidence/journeys/item-search-customer-price.json",
+        "evidence/journeys/item-search-zero-stock.json",
+        "evidence/journeys/item-search-burmese.json"
+      ],
+      "failures": [
+        "full-screen visual/video qualification pending",
+        "dedicated cold-cache performance evidence pending",
+        "warehouse/customer refresh is synchronous and needs asynchronous performance hardening"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
+    },
+    {
+      "id": "sales-voucher",
+      "title": "Sales Counter",
+      "source_route": "/khitmee_sales",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "catalog_bridge.js",
+        "counter_core.js",
+        "print_bridge.js",
+        "sales_counter.js"
+      ],
+      "controls": [
+        {
+          "control_type": "select",
+          "id": "warehouse",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "customer-search",
+          "label": "Filter customers\u00e2\u20ac\u00a6",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "select",
+          "id": "customer",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "button",
+          "id": "customer-more",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "select",
+          "id": "payment-mode",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "price-list",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "",
+          "label": "voucher",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "",
+          "label": "a4",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "item-search",
+          "label": "Scan barcode or type item name\u00e2\u20ac\u00a6",
+          "role": "combobox",
+          "keyboard": [
+            "F2"
+          ]
+        },
+        {
+          "control_type": "button",
+          "id": "clear-lines",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "button",
+          "id": "submit-print",
+          "label": "",
+          "role": "",
+          "keyboard": [
+            "F9"
+          ]
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "khitmee_ops.api.catalog.sync_catalog",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.get_counter_context",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.search_customers",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.search_items",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.vouchers.submit_sale",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user",
+            "ERPNext authoritative mutation permission"
+          ],
+          "mutation": true
+        }
+      ],
+      "native_component": "SalesVoucherPilot",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#sales-voucher",
+      "evidence": [
+        {
+          "kind": "static-source-scan",
+          "path": "apps/khitmee_ops/khitmee_ops/www/khitmee_sales.html",
+          "sha256": "f170afa939bbca455f12f89de8dc349e58adb671c49de99959b8a8a6037fcd88",
+          "note": "Deterministic source evidence; not visual parity evidence."
+        }
+      ],
+      "failures": [
+        "initial: visual comparison failed or inputs were incomparable",
+        "draft-line: visual comparison failed or inputs were incomparable",
+        "search-results: visual comparison failed or inputs were incomparable",
+        "business outcome evidence missing",
+        "performance evidence missing"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
+    },
+    {
+      "id": "stock-transfer",
+      "title": "Stock Transfer",
+      "source_route": "/khitmee_transfer",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "catalog_bridge.js",
+        "counter_core.js",
+        "print_bridge.js",
+        "stock_transfer.js"
+      ],
+      "controls": [
+        {
+          "control_type": "select",
+          "id": "warehouse",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "select",
+          "id": "target-warehouse",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "select",
+          "id": "transfer-mode",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "outgoing-stock-entry",
+          "label": "Required in receive mode",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "",
+          "label": "voucher",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "",
+          "label": "a4",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "input",
+          "id": "item-search",
+          "label": "Scan barcode or type item name\u00e2\u20ac\u00a6",
+          "role": "combobox",
+          "keyboard": [
+            "F2"
+          ]
+        },
+        {
+          "control_type": "button",
+          "id": "clear-lines",
+          "label": "",
+          "role": "",
+          "keyboard": []
+        },
+        {
+          "control_type": "button",
+          "id": "submit-print",
+          "label": "",
+          "role": "",
+          "keyboard": [
+            "F9"
+          ]
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "khitmee_ops.api.catalog.sync_catalog",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.get_counter_context",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.search_customers",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.search.search_items",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "khitmee_ops.api.vouchers.submit_transfer",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "authenticated-counter-user",
+            "ERPNext authoritative mutation permission"
+          ],
+          "mutation": true
+        }
+      ],
+      "native_component": "CounterScreen transfer mode",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#stock-transfer",
+      "evidence": [
+        "evidence/journeys/stock-transfer-initial.json",
+        "evidence/journeys/stock-transfer-validation.json",
+        "evidence/journeys/stock-transfer-same-warehouse.json",
+        "evidence/journeys/stock-transfer-interactions.json",
+        "evidence/journeys/stock-transfer-keyboard.json",
+        "evidence/journeys/stock-transfer-warehouse-search.json",
+        "evidence/journeys/stock-transfer-submission.json",
+        "evidence/journeys/stock-transfer-dispatch-validation.json",
+        "evidence/journeys/stock-transfer-dispatch-success.json",
+        "evidence/journeys/stock-transfer-receive-validation.json",
+        "evidence/journeys/stock-transfer-transit-receive.json",
+        "evidence/journeys/stock-transfer-permission-denied.json",
+        "evidence/journeys/stock-transfer-idempotency.json",
+        "evidence/benchmarks/stock-transfer-comparison.json",
+        "evidence/visual/stock-transfer-composite-initial.png",
+        "evidence/visual/stock-transfer-composite-scan.png",
+        "evidence/visual/stock-transfer-composite-submitted.png",
+        "evidence/visual/stock-transfer-visual-erp-outcomes.json",
+        "experiments/0007-stock-transfer-qualification.md"
+      ],
+      "failures": [
+        "cross-process memory/frame/network-byte performance evidence pending",
+        "real barcode scanner and printer hardware evidence pending"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
+    },
+    {
+      "id": "sales-invoice-detail",
+      "title": "Sales Invoice Detail",
+      "source_route": "/app/sales-invoice/<name>",
+      "status": "implemented-pilot",
+      "dependencies": [
+        "ERPNext Sales Invoice list"
+      ],
+      "controls": [
+        {
+          "control_type": "button",
+          "id": "invoice-row-open",
+          "label": "Sales Invoice row",
+          "role": "listitem",
+          "keyboard": []
+        },
+        {
+          "control_type": "text",
+          "id": "invoice-detail-status",
+          "label": "Status",
+          "role": "text",
+          "keyboard": []
+        },
+        {
+          "control_type": "table",
+          "id": "invoice-detail-items",
+          "label": "Items",
+          "role": "table",
+          "keyboard": []
+        },
+        {
+          "control_type": "button",
+          "id": "invoice-detail-back",
+          "label": "Back",
+          "role": "button",
+          "keyboard": []
+        }
+      ],
+      "api_contracts": [
+        {
+          "endpoint": "frappe.client.get",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice read"
+          ],
+          "mutation": false
+        },
+        {
+          "endpoint": "frappe.client.save",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice write"
+          ],
+          "mutation": true
+        },
+        {
+          "endpoint": "frappe.client.submit",
+          "authority": "ERPNext",
+          "required_permissions": [
+            "Sales Invoice submit"
+          ],
+          "mutation": true
+        }
+      ],
+      "native_component": "InvoiceDetailScreen",
+      "owner_scope": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#sales-invoice-detail",
+      "evidence": [
+        "evidence/journeys/invoice-detail-initial.json",
+        "evidence/journeys/invoice-detail-multi-item.json",
+        "evidence/journeys/invoice-detail-return.json",
+        "evidence/journeys/invoice-detail-draft.json",
+        "evidence/journeys/invoice-detail-editable-draft.json",
+        "evidence/journeys/invoice-detail-item-grid-edit.json",
+        "evidence/journeys/invoice-detail-permission-denied.json",
+        "evidence/journeys/invoice-detail-mandatory-validation.json",
+        "evidence/journeys/invoice-detail-overdue.json",
+        "evidence/journeys/invoice-detail-multi-row-edit.json",
+        "evidence/journeys/invoice-detail-zero-qty-validation.json",
+        "evidence/journeys/invoice-detail-row-add-delete.json",
+        "evidence/journeys/invoice-detail-item-code-add.json",
+        "evidence/journeys/invoice-detail-keyboard-edit.json",
+        "evidence/journeys/invoice-detail-cancel.json",
+        "evidence/journeys/invoice-detail-item-rate-edit.json",
+        "evidence/journeys/invoice-detail-paid.json",
+        "evidence/journeys/invoice-list-permission-denied.json",
+        "evidence/visual/invoice-detail-composite-list.png",
+        "evidence/visual/invoice-detail-composite-detail.png",
+        "experiments/0008-sales-invoice-detail-qualification.md",
+        "evidence/benchmarks/invoice-detail-comparison.json",
+        "evidence/journeys/invoice-detail-layout-regression.json",
+        "evidence/visual/invoice-detail-web-current.png",
+        "evidence/visual/invoice-detail-native-current.png",
+        "evidence/visual/invoice-detail-composite-current.png",
+        "evidence/journeys/invoice-detail-tabs.json",
+        "evidence/journeys/invoice-detail-server-validation.json",
+        "evidence/journeys/invoice-detail-negative-qty-validation.json",
+        "evidence/journeys/invoice-detail-missing-customer-validation.json",
+        "evidence/journeys/invoice-detail-negative-rate-validation.json",
+        "evidence/journeys/invoice-detail-empty-items-validation.json",
+        "evidence/journeys/invoice-detail-checkbox-fields.json",
+        "evidence/visual/invoice-detail-connections-fixed.png"
+      ],
+      "failures": [
+        "detail tabs and remaining document actions pending",
+        "form focus-order and comprehensive visual-state evidence pending",
+        "comprehensive performance evidence pending"
+      ],
+      "acceptance": {
+        "visual_max_failed_pixel_ratio": 0.0,
+        "require_text_parity": true,
+        "require_accessibility_parity": true,
+        "require_keyboard_parity": true,
+        "require_business_outcome_parity": true,
+        "max_startup_regression_ratio": 1.0,
+        "max_idle_memory_bytes": 268435456,
+        "max_p95_input_latency_ms": 50.0
+      }
+    }
+  ],
+  "shared_component_scopes": {
+    "design-tokens": "desktop-frontend/crates/khitmee-desktop/ui/app.slint#Design",
+    "catalog-search": "desktop-frontend/crates/khitmee-catalog",
+    "migration-registry": "desktop-frontend/crates/migration-core",
+    "verification-tools": "desktop-frontend/tools"
+  },
+  "experiments": [
+    "desktop-frontend/experiments/0001-framework-selection.md",
+    "desktop-frontend/experiments/0002-qualification-ledger.md"
+  ]
+}
