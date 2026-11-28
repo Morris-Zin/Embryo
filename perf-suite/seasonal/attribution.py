@@ -163,6 +163,12 @@ def parse_gunicorn_log(path):
         if request_id in ("-", ""):
             continue
         try:
+            # Gunicorn's %(p)s expansion is bracketed as <42>. Accept bare
+            # digits only for older hand-written fixtures; angle brackets are
+            # the authoritative runtime form.
+            pid_match = re.fullmatch(r"<(\d+)>|(\d+)", pid)
+            if not pid_match:
+                raise ValueError("unparseable gunicorn pid " + pid)
             rows[request_id] = {
                 "request_id": request_id,
                 "endpoint_class": endpoint_class,
@@ -171,7 +177,7 @@ def parse_gunicorn_log(path):
                 "query": query,
                 "status": int(status),
                 "service_ms": float(duration_usec) / 1000.0,
-                "pid": int(pid),
+                "pid": int(pid_match.group(1) or pid_match.group(2)),
             }
         except ValueError:
             continue
@@ -243,6 +249,13 @@ def delta_locks(before_text, after_text):
     }
 
 
+def collection_status(nginx_count, gunicorn_count):
+    problems = []
+    if nginx_count and not gunicorn_count:
+        problems.append("nginx upstream attribution rows exist but zero Gunicorn application records parsed")
+    return {"collection_passed": not problems, "collection_problems": problems}
+
+
 def cmd_start(args):
     artifact = pathlib.Path(args.artifact_dir)
     artifact.mkdir(parents=True, exist_ok=True)
@@ -257,8 +270,12 @@ def cmd_finish(args):
     (artifact / "attribution-end.json").write_text(json.dumps(end, indent=2, sort_keys=True) + "\n")
     frontend_log = run(["docker", "exec", f"{PROJECT}-frontend-1", "sh", "-c", "cat /var/log/nginx/seasonal-attribution.log 2>/dev/null || true"])
     backend_logs = run(["docker", "logs", f"{PROJECT}-backend-1"], timeout=30)
+    cashier_logs = run(["docker", "logs", f"{PROJECT}-cashier-1"], timeout=30)
     (artifact / "nginx-attribution.log").write_text(frontend_log["stdout"], errors="replace")
-    (artifact / "gunicorn.log").write_text(backend_logs["stdout"] + backend_logs["stderr"], errors="replace")
+    (artifact / "gunicorn.log").write_text(
+        backend_logs["stdout"] + backend_logs["stderr"] + cashier_logs["stdout"] + cashier_logs["stderr"],
+        errors="replace",
+    )
     try:
         start = json.loads((artifact / "attribution-start.json").read_text())
     except Exception:
@@ -271,8 +288,13 @@ def cmd_finish(args):
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(joined)
+    status = collection_status(len(nginx_rows), len(gunicorn_rows))
+    collection_passed = status["collection_passed"]
+    collection_problems = status["collection_problems"]
     summary = {
-        "schema_version": "seasonal-request-attribution-v1",
+        "schema_version": "seasonal-request-attribution-v2",
+        "collection_passed": collection_passed,
+        "collection_problems": collection_problems,
         "queue_time_semantics": "estimated_dispatch_to_entry_ms = nginx upstream_response_time minus Gunicorn service duration; includes transport/proxy dispatch and is not a true nginx upstream_queue_time",
         "nginx_rows": len(nginx_rows),
         "gunicorn_rows": len(gunicorn_rows),
@@ -286,7 +308,7 @@ def cmd_finish(args):
         "db_innodb_row_locks_delta": delta_locks((start.get("db_innodb_row_locks") or {}).get("stdout", ""), (end.get("db_innodb_row_locks") or {}).get("stdout", "")),
     }
     (artifact / "attribution-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    return 0
+    return 0 if collection_passed else 1
 
 
 def main():

@@ -1285,6 +1285,13 @@ def render_attribution(lines, attribution):
         "",
         "`estimated dispatch/entry` is nginx upstream response time minus Gunicorn service duration. It includes proxy dispatch/transport and worker admission wait; it is not a true nginx upstream_queue_time.",
         "",
+    ])
+    if attribution.get("collection_passed") is False:
+        lines.extend([
+            "**COLLECTION FAILED:** " + "; ".join(attribution.get("collection_problems") or ["attribution collection incomplete"]),
+            "",
+        ])
+    lines.extend([
         "| Endpoint class | Requests | Joined | nginx response p50/p95 ms | Gunicorn service p50/p95 ms | Est. dispatch/entry p50/p95 ms |",
         "|---|---:|---:|---:|---:|---:|",
     ])

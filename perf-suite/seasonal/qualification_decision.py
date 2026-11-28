@@ -113,7 +113,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_ok = guest_before.get('passed') is True and guest_after.get('passed') is True
     guest_stable = all(
         guest_before.get(key) == guest_after.get(key)
-        for key in ('cpuset_cpus_effective', 'cpu_max', 'memory_max_bytes', 'memory_swap_max')
+        for key in ('cpuset_cpus_effective', 'cpu_max', 'memory_max_bytes', 'memory_swap_max', 'online_cpu_count', 'nproc_count', 'guest_mem_total_bytes', 'guest_swap_total_bytes')
     ) if guest_before and guest_after else False
     guest_attestation_ok = guest_ok and guest_stable
 

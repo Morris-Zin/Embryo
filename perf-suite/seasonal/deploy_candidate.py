@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 
-SERVICES = ["backend", "queue", "scheduler", "websocket"]
+SERVICES = ["backend", "cashier", "queue", "scheduler", "websocket"]
 MANAGER_KEYS = [
     "SEASONAL_MANAGER_WAREHOUSE_USER",
     "SEASONAL_MANAGER_MONTHLY_USER",
@@ -119,7 +119,13 @@ def main():
 
         migrate_log = artifact / "candidate-migrate.log"
         migrate_started = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-        migrate = run(compose + ["exec", "-T", "backend", "bench", "--site", args.site, "migrate"], timeout=1800)
+        migration_overlay = pathlib.Path(args.docker_dir) / "khitmee-migration-transient.yaml"
+        if not migration_overlay.is_file():
+            raise RuntimeError(f"ADR migration overlay missing: {migration_overlay}")
+        migrate = run(
+            compose + ["-f", str(migration_overlay), "run", "--rm", "--no-deps", "-T", "backend", "bench", "--site", args.site, "migrate"],
+            timeout=1800,
+        )
         migrate_finished = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
         migrate_log.write_text(migrate.stdout + migrate.stderr)
         require_ok(migrate, "bench migrate for candidate tree")

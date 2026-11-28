@@ -15,7 +15,8 @@ DEFAULT_FIXTURE="/srv/khitmee-lab/operator/fixtures/${PINNED_FIXTURE_SHA}.tar.gz
 DEFAULT_ACTORS="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seasonal-actor-env.json"
 DEFAULT_MANIFEST="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seed_manifest.json"
 
-RUNTIME_PROFILE="gunicorn-1x12"
+RUNTIME_PROFILE="adr-2gb-guest"
+RUNTIME_PROFILE_EXPLICIT=0
 SEASONAL_PROFILE_VALUE="${SEASONAL_PROFILE:-smoke}"
 FIXTURE="$DEFAULT_FIXTURE"
 FIXTURE_SHA="$PINNED_FIXTURE_SHA"
@@ -27,7 +28,7 @@ APP_TREE="$REPO_ROOT"
 APP_REF=""
 PREFLIGHT_ONLY=0
 ORACLE_COMMAND=""
-CGROUP_PARENT="/sys/fs/cgroup/khitmee-2gb.slice"
+CGROUP_PARENT="/sys/fs/cgroup/khitmeeperf.slice"
 
 usage() {
   cat <<'EOF'
@@ -36,7 +37,6 @@ Usage: bash perf-suite/seasonal/qualify_2gb.sh [options]
 One-command isolated 2 GiB seasonal qualification on the KhitmeeERPNext WSL stack.
 
 Options:
-  --runtime-profile gunicorn-1x12|gunicorn-2x1  Backend runtime shape (default gunicorn-1x12)
   --seasonal-profile smoke|acceptance           Workload length (default smoke)
   --fixture PATH                                Pinned cold-volume fixture archive
   --fixture-sha SHA256                          Expected archive digest
@@ -48,14 +48,14 @@ Options:
   --app-ref REF                                 Commit/ref inside --app-tree to deploy (default HEAD)
   --preflight                                   Run one idle end-to-end request of each class, then stop before load
   --oracle-command CMD                          Paired stock-oracle command; must write oracle-evidence.json in the artifact dir
-  --cgroup-parent PATH                          ADR parent cgroup to attest (default /sys/fs/cgroup/khitmee-2gb.slice)
+  --cgroup-parent PATH                          ADR parent cgroup to attest (default /sys/fs/cgroup/khitmeeperf.slice)
 EOF
 }
 
 while (($#)); do
   case "$1" in
-    --runtime-profile) RUNTIME_PROFILE="${2:?}"; shift 2 ;;
-    --runtime-profile=*) RUNTIME_PROFILE="${1#*=}"; shift ;;
+    --runtime-profile) RUNTIME_PROFILE="${2:?}"; RUNTIME_PROFILE_EXPLICIT=1; shift 2 ;;
+    --runtime-profile=*) RUNTIME_PROFILE="${1#*=}"; RUNTIME_PROFILE_EXPLICIT=1; shift ;;
     --seasonal-profile) SEASONAL_PROFILE_VALUE="${2:?}"; shift 2 ;;
     --seasonal-profile=*) SEASONAL_PROFILE_VALUE="${1#*=}"; shift ;;
     --fixture) FIXTURE="${2:?}"; shift 2 ;;
@@ -84,7 +84,11 @@ while (($#)); do
   esac
 done
 
-case "$RUNTIME_PROFILE" in gunicorn-1x12|gunicorn-2x1) ;; *) echo "invalid runtime profile" >&2; exit 2 ;; esac
+if [[ "$RUNTIME_PROFILE_EXPLICIT" == "1" && "$RUNTIME_PROFILE" != "adr-2gb-guest" ]]; then
+  echo "--runtime-profile values gunicorn-1x12/gunicorn-2x1 are legacy topology overrides; ADR 0004 qualification fixes the 2gb-guest topology" >&2
+  exit 2
+fi
+case "$RUNTIME_PROFILE" in adr-2gb-guest) ;; *) echo "invalid runtime profile" >&2; exit 2 ;; esac
 case "$SEASONAL_PROFILE_VALUE" in smoke|acceptance) ;; *) echo "invalid seasonal profile" >&2; exit 2 ;; esac
 [[ -f "$FIXTURE" ]] || { echo "pinned fixture missing: $FIXTURE" >&2; exit 2; }
 if [[ -z "$FIXTURE_MANIFEST" ]]; then
@@ -259,74 +263,22 @@ python3 -B "$SCRIPT_DIR/fixture_restore.py" "$FIXTURE" \
   --output "$ARTIFACT_DIR/fixture-restore.json" | tee "$ARTIFACT_DIR/fixture-restore.stdout"
 
 echo "Starting isolated stack with khitmee_ops"
-run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb --with-khitmee-ops >"$ARTIFACT_DIR/up.log" 2>&1
+run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest --with-khitmee-ops >"$ARTIFACT_DIR/up.log" 2>&1
 
-OVERLAY="$SCRIPT_DIR/profiles/runtime-${RUNTIME_PROFILE}.yaml"
-[[ -f "$OVERLAY" ]] || { echo "missing runtime overlay $OVERLAY" >&2; exit 2; }
-compose() {
-  docker compose \
-    --project-name "$PROJECT" \
-    --project-directory "$DOCKER_DIR" \
-    --env-file "$DOCKER_DIR/.env" \
-    -f "$DOCKER_DIR/compose.base.yaml" \
-    -f "$DOCKER_DIR/profile-2gb.yaml" \
-    -f "$DOCKER_DIR/khitmee-ops-2gb.yaml" \
-    -f "$OVERLAY" \
-    -f "$SCRIPT_DIR/compose-observability.yaml" \
-    "$@"
-}
-
-echo "Applying runtime profile $RUNTIME_PROFILE"
-# Apply cgroup caps in place. Recreating the one-shot configurator with compose
-# can hit a Docker Engine race ("No such container") after it exits; cgroup
-# updates are the effective constraint being proven and avoid that race.
-if [[ "$RUNTIME_PROFILE" == "gunicorn-2x1" ]]; then
-  CPU_CAPS=$'db=0.60
-backend=0.75
-queue=0.25
-scheduler=0.05
-redis-cache=0.02
-redis-queue=0.02
-websocket=0.05
-frontend=0.06
-configurator=0.20'
-  MEMORY_CAPS=$'db=512m
-backend=544m
-queue=224m
-scheduler=96m
-redis-cache=64m
-redis-queue=32m
-websocket=72m
-frontend=24m
-configurator=64m'
-else
-  CPU_CAPS=$'db=0.70
-backend=0.75
-queue=0.15
-scheduler=0.05
-redis-cache=0.05
-redis-queue=0.05
-websocket=0.05
-frontend=0.15
-configurator=0.05'
-  MEMORY_CAPS=$'configurator=48m'
-fi
-while IFS='=' read -r service cpus; do
-  [[ -n "$service" ]] || continue
-  docker update --cpus="$cpus" "khitmee-perf-${service}-1" >/dev/null
-done <<<"$CPU_CAPS"
-while IFS='=' read -r service memory; do
-  [[ -n "$service" ]] || continue
-  docker update --memory="$memory" --memory-swap="$memory" "khitmee-perf-${service}-1" >/dev/null
-done <<<"$MEMORY_CAPS"
-if [[ "$RUNTIME_PROFILE" == "gunicorn-2x1" ]]; then
-  # Command/environment-bearing services must be recreated for the ADR shape;
-  # docker update above cannot change the MariaDB command, Gunicorn command, or
-  # websocket NODE_OPTIONS. Frontend is recreated too because nginx caches the
-  # backend container IP across backend replacement. --no-deps avoids the
-  # one-shot configurator race.
-  compose up -d --no-deps db backend websocket frontend >"$ARTIFACT_DIR/runtime-up.log" 2>&1
-fi
+SEASONAL_COMPOSE_FILES=(
+  "$DOCKER_DIR/compose.base.yaml"
+  "$DOCKER_DIR/profile-2gb-guest.yaml"
+  "$DOCKER_DIR/khitmee-ops-2gb.yaml"
+  "$DOCKER_DIR/khitmee-ops-guest.yaml"
+  "$SCRIPT_DIR/compose-observability.yaml"
+)
+for compose_file in "${SEASONAL_COMPOSE_FILES[@]}"; do
+  [[ -f "$compose_file" ]] || { echo "missing seasonal compose file $compose_file" >&2; exit 2; }
+done
+DEPLOY_COMPOSE_ARGS=()
+for compose_file in "${SEASONAL_COMPOSE_FILES[@]}"; do
+  DEPLOY_COMPOSE_ARGS+=(--compose-file "$compose_file")
+done
 
 SITE_NAME_VALUE="$(python3 - "$DOCKER_DIR/.env" <<'PY'
 import sys
@@ -346,11 +298,7 @@ python3 -B "$SCRIPT_DIR/deploy_candidate.py" \
   --artifact-dir "$ARTIFACT_DIR" \
   --site "$SITE_NAME_VALUE" \
   --compose-project "$PROJECT" \
-  --compose-file "$DOCKER_DIR/compose.base.yaml" \
-  --compose-file "$DOCKER_DIR/profile-2gb.yaml" \
-  --compose-file "$DOCKER_DIR/khitmee-ops-2gb.yaml" \
-  --compose-file "$OVERLAY" \
-  --compose-file "$SCRIPT_DIR/compose-observability.yaml" \
+  "${DEPLOY_COMPOSE_ARGS[@]}" \
   >"$ARTIFACT_DIR/candidate-deployment.stdout" 2>"$ARTIFACT_DIR/candidate-deployment.stderr" || {
     cat "$ARTIFACT_DIR/candidate-deployment.stderr" >&2
     exit 2
