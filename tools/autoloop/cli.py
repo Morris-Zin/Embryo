@@ -33,6 +33,8 @@ from autoloop.guard import (
     git_rev_parse,
     load_config,
     load_verified_local_contract,
+    read_verification_key,
+    verification_envelope,
     verify_pr_integrity,
     verify_untampered,
 )
@@ -55,6 +57,7 @@ from autoloop.state import (
     publish_contract,
     record_all_shards_pass,
     record_check_failure,
+    record_failed_check_verification,
     record_check_timings,
     record_oracle_mismatch,
     record_review,
@@ -84,6 +87,14 @@ def _default_repo() -> Path:
 def _emit(payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
+
+def _verification_options(args: argparse.Namespace) -> dict[str, Any]:
+    return {"mode": args.verification_mode, "evidence_path": args.verification_evidence}
+
+
+def _add_verification_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None)
+    parser.add_argument("--verification-evidence", type=Path, help="Signed coordinator evidence JSON")
 
 def _read_object(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -223,6 +234,7 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     if actual != requested:
         raise GuardError(f"refusing check: target checkout HEAD ({actual}) != --head-ref ({requested})")
     checked_contract = (run["contract_sha256"], run["base_sha"])
+    verification = {**_verification_options(args), "git_repo": worktree}
     check_shards = sorted(shards) if args.all_shards else [args.shard]
     commands = []
     for shard_id in check_shards:
@@ -251,6 +263,13 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     with TemporaryDirectory(prefix="autoloop-tooling-") as temp:
         snapshot = Path(temp)
         tooling = materialize_tooling(repo, snapshot, run, contract, checking_shard=args.shard)
+        if args.verification_evidence is not None:
+            from autoloop.verification import ToolingSource, tooling_sources_digest
+
+            verification["checked_tooling_digest"] = tooling_sources_digest(tuple(
+                ToolingSource(path.relative_to(snapshot).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+                for path in snapshot.rglob("*") if path.is_file()
+            ))
         steps: dict[str, float] = {}
         passed = False
         stage = "verify-untampered"
@@ -275,6 +294,10 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                 repo, args.run_id, shard_id=args.shard, head_sha=requested, check_name=check_name,
                 output=output, checked_contract=checked_contract,
             )
+            try:
+                record_failed_check_verification(repo, args.run_id, requested, args.shard, verification)
+            except (RuntimeError, OSError, ValueError) as shadow_error:
+                print(f"SHADOW-VERIFICATION recording failed: {shadow_error}", file=sys.stderr)
             raise
         finally:
             if steps:
@@ -285,7 +308,8 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                 warn_slow_checks(steps, previous)
 
     code_hash = verified["code_tree_sha256"]
-    evidence = {"head_sha": head, "code_tree_sha256": code_hash, "checked_contract": checked_contract, "tooling": tooling}
+    evidence = {"head_sha": head, "code_tree_sha256": code_hash, "checked_contract": checked_contract, "tooling": tooling,
+                "verification": verification}
     if args.all_shards:
         state = record_all_shards_pass(
             repo, args.run_id, worktree_path=str(worktree), branch_name=git_current_branch(worktree), **evidence,
@@ -488,6 +512,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lock.add_argument("--pr", type=int, default=None)
     p_lock.add_argument("--require-delegation-receipts", action="store_true",
                         help="Freeze the owner opt-in for delegation receipts")
+    p_lock.add_argument("--verification-key", type=Path, help="OpenSSH Ed25519 verification public key to freeze")
+    p_lock.add_argument("--verification-mode", choices=("shadow", "enforce"), default=None)
 
     # bind-pr
     p_bind = sub.add_parser("bind-pr", help="Bind PR number into FrozenContractV1 and bump contract_revision")
@@ -590,6 +616,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vpi.add_argument("--trusted-shard-results-b64", default=None)
     p_vpi.add_argument("--github-output", type=Path, default=None)
     p_vpi.add_argument("--offline", action="store_true")
+    p_vpi.add_argument("--shadow-verification", action="store_true", help="Print the advisory Phase 2 decision")
+    p_vpi.add_argument("--verification-evidence", type=Path, help="Offline signed coordinator evidence JSON")
 
     # lease
     p_lease = sub.add_parser("lease", help="Acquire, renew, or release a cross-platform resource lease")
@@ -619,6 +647,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("--head-ref", default="HEAD")
     p_check.add_argument("--worktree", type=Path, default=None)
     p_check.add_argument("--skip-fast-check", action="store_true")
+    _add_verification_options(p_check)
     sub.add_parser("doctor", help="Diagnose Python, dev tools, uv, Docker, and Windows WSL without installing")
 
     # log-dead-end
@@ -687,6 +716,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # submit-for-review
     p_sub = sub.add_parser("submit-for-review", help="Submit a gate_passed run for review (or direct zero-reviewer route)")
     p_sub.add_argument("--run-id", required=True)
+    _add_verification_options(p_sub)
 
     p_finding = sub.add_parser("record-finding", help="Register a confirmed finding from any source")
     for flag in ("run-id", "finding-id", "summary", "evidence"):
@@ -711,6 +741,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_rev.add_argument("--code-tree-sha256", default=None)
     p_rev.add_argument("--findings-json", default=None)
     p_rev.add_argument("--oracle-mismatch", action="append", default=[], help="Reviewed mismatch ID; repeatable")
+    _add_verification_options(p_rev)
 
     p_oracle = sub.add_parser("record-oracle-mismatch", help="Register a deliberate divergence from stock ERPNext/Frappe")
     for flag in ("run-id", "shard", "upstream-ref", "summary", "why-ours-is-correct", "test"):
@@ -729,6 +760,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sg.add_argument("--summary", required=True)
     p_sg.add_argument("--rule-id", help="Registered static rule ID (defaults to the finding ID)")
     p_sg.add_argument("--why-not-static", default=None)
+    _add_verification_options(p_sg)
 
     # resume
     p_resume = sub.add_parser("resume", help="Inspect current run state and next legal actions")
@@ -829,7 +861,9 @@ def main(argv: list[str] | None = None) -> int:
             _emit({**res, "lessons": lessons})
         elif cmd == "lock":
             _emit(lock_run(repo, args.run_id, base_sha=args.base_sha, pr_number=args.pr,
-                           require_delegation_receipts=args.require_delegation_receipts))
+                           require_delegation_receipts=args.require_delegation_receipts,
+                           verification_key=read_verification_key(args.verification_key) if args.verification_key else None,
+                           verification_mode=args.verification_mode))
         elif cmd == "bind-pr":
             _emit(bind_pr(repo, args.run_id, pr_number=args.pr))
         elif cmd == "refresh-base":
@@ -949,6 +983,8 @@ def main(argv: list[str] | None = None) -> int:
                 candidate_checks_result=args.candidate_checks_result,
                 trusted_shard_results=trusted_shard_results,
                 pr_body=str(pr_body or ""),
+                shadow_verification=args.shadow_verification,
+                shadow_envelope=verification_envelope(args.verification_evidence),
             )
             if args.github_output is not None:
                 shard_checks_list = result.get("shard_checks") or []
@@ -1079,7 +1115,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif cmd == "submit-for-review":
-            _emit(submit_for_review(repo, args.run_id))
+            _emit(submit_for_review(repo, args.run_id, verification=_verification_options(args)))
         elif cmd == "record-oracle-mismatch":
             _emit(record_oracle_mismatch(
                 repo, args.run_id, args.shard, upstream_ref=args.upstream_ref, summary=args.summary,
@@ -1105,6 +1141,7 @@ def main(argv: list[str] | None = None) -> int:
                     code_tree_sha256=code_hash,
                     findings=findings,
                     oracle_mismatch_ids=args.oracle_mismatch,
+                    verification=_verification_options(args),
                 )
             )
         elif cmd == "record-safeguard":
@@ -1118,6 +1155,7 @@ def main(argv: list[str] | None = None) -> int:
                     summary=args.summary,
                     rule_id=args.rule_id,
                     why_not_static=args.why_not_static,
+                    verification=_verification_options(args),
                 )
             )
         elif cmd == "resume":

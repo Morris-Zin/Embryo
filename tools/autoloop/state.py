@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
 from . import EXIT_ILLEGAL_TRANSITION, SCHEMA_VERSION
@@ -12,6 +13,7 @@ from .failures import normalize_failure
 from .guard import (
     RUN_ID_RE,
     _run_git,
+    GuardError,
     UnsafeRollbackError,
     assert_clean_worktree_for_rollback,
     assert_safe_local_path,
@@ -24,10 +26,13 @@ from .guard import (
     git_restore_to_commit,
     git_rev_parse,
     load_config,
+    load_verified_local_contract,
     matches_any_glob,
     open_oracle_mismatches,
     oracle_mismatch_id,
     validate_oracle_mismatch,
+    verification_envelope,
+    verify_phase2,
 )
 from .leases import acquire_mutex, atomic_write_json, default_lock_dir, resource_key_hash
 from .lessons import globs_overlap, record_lesson
@@ -186,6 +191,9 @@ def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
         contract["base_branch_bound"] = True
     if state.get("require_delegation_receipts"):
         contract["require_delegation_receipts"] = True
+    for key in ("verification_key", "verification_mode"):
+        if state.get(key):
+            contract[key] = state[key]
     return contract
 
 
@@ -401,6 +409,8 @@ def lock_run(
     base_sha: str | None = None,
     pr_number: int | None = None,
     require_delegation_receipts: bool = False,
+    verification_key: str | None = None,
+    verification_mode: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
@@ -412,6 +422,12 @@ def lock_run(
             state["pr_number"] = int(pr_number)
         if require_delegation_receipts:
             state["require_delegation_receipts"] = True
+        if verification_key:
+            state["verification_key"] = verification_key
+        if verification_mode == "enforce":
+            state["verification_mode"] = verification_mode
+        if state.get("verification_mode") == "enforce" and not state.get("verification_key"):
+            raise IllegalTransitionError("enforced verification requires a frozen signing key")
         state["contract_revision"] = max(1, int(state.get("contract_revision") or 0) + 1)
         contract = _build_frozen_contract(state)
         state["contract_sha256"] = contract_sha256(contract)
@@ -525,6 +541,83 @@ def _apply_post_pass_status(state: dict[str, Any], prev_status: str, eff_code_ha
         return
     state["status"] = "in_progress"
     state["status"] = derive_run_status(state)
+
+
+def _shadow_verification(
+    repo: Path, state: dict[str, Any], obligation: str, *, legacy_ok: bool, head: str | None,
+    git_repo: Path | None = None, shard_id: str | None = None, evidence_path: Path | None = None,
+    mode: str | None = None, checked_tooling_digest: str | None = None,
+) -> tuple[bool, bool]:
+    """Capture the advisory result under the same mutex as its legacy transition."""
+    enforce = mode == "enforce" or state.get("verification_mode") == "enforce"
+    try:
+        _, contract = load_verified_local_contract(repo, state["run_id"])
+        enforce = enforce or contract.get("verification_mode") == "enforce"
+        target_repo = git_repo or repo
+        base = state["base_sha"]
+        if enforce and (not head or git_rev_parse(target_repo, "HEAD") != head):
+            raise GuardError("verification target checkout has moved since the gate")
+        result = verify_phase2(
+            target_repo, state, contract, obligation=obligation, head=head or git_rev_parse(target_repo, "HEAD"),
+            base=base, shard_id=shard_id, envelope=verification_envelope(evidence_path), legacy_ok=legacy_ok,
+            checked_tooling_digest=checked_tooling_digest,
+        )
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+        result = {"ok": False, "obligation": obligation, "evidence_error": str(exc)}
+        result["digest"] = contract_sha256(result)
+        if legacy_ok:
+            print(f"SHADOW-DIVERGENCE {obligation}: verification unavailable: {exc}", file=sys.stderr)
+    state.setdefault("verification", {})[f"{obligation}:{shard_id}" if shard_id else obligation] = result
+    return result["ok"], enforce
+
+
+def _check_verification(
+    repo: Path, state: dict[str, Any], head: str | None, shard_id: str | None,
+    verification: dict[str, Any], *, legacy_ok: bool,
+) -> None:
+    obligation = "integrated" if shard_id is None else "shard"
+    ok, enforce = _shadow_verification(repo, state, obligation, legacy_ok=legacy_ok, head=head,
+                                       shard_id=shard_id, **verification)
+    if legacy_ok and enforce and not ok:
+        _save_run_unlocked(repo, state["run_id"], state)
+        raise GuardError(f"verification {obligation} refused missing, stale or failing evidence")
+
+
+def record_failed_check_verification(
+    repo: Path, run_id: str, head: str, shard_id: str | None, verification: dict[str, Any],
+) -> None:
+    with acquire_mutex(_state_mutex_path(repo, run_id)):
+        state = load_run(repo, run_id)
+        _check_verification(repo, state, head, shard_id, verification, legacy_ok=False)
+        _save_run_unlocked(repo, run_id, state)
+
+
+def _gated_worktree(repo: Path, state: dict[str, Any]) -> Path:
+    if worktree := state.get("last_integrated_worktree"):
+        return Path(worktree)
+    if len(state["shards"]) == 1:
+        shard = next(iter(state["shards"].values()))
+        if worktree := shard.get("worktree_path"):
+            return Path(worktree)
+    return repo
+
+
+def _verify_ready_to_merge(
+    repo: Path, state: dict[str, Any], options: dict[str, Any] | None = None,
+) -> None:
+    if state["status"] not in ("safeguard_pending", "ready_to_merge"):
+        return
+    ready = state["status"] == "ready_to_merge"
+    ok, enforce = _shadow_verification(
+        repo, state, "merge_eligibility", legacy_ok=ready, head=_gated_head(state),
+        **{"git_repo": _gated_worktree(repo, state), **(options or {})},
+    )
+    if ready and enforce and not ok:
+        # Keep the last actionable stage so the coordinator can retry with fresh evidence.
+        prior = load_run(repo, state["run_id"])
+        prior["verification"] = state["verification"]
+        _save_run_unlocked(repo, state["run_id"], prior)
+        raise GuardError("verification merge_eligibility refused missing, stale or failing evidence")
 
 
 def bind_pr(
@@ -723,6 +816,7 @@ def record_shard_pass(
     head_sha: str | None = None,
     checked_contract: tuple[str, str | None] | None = None,
     tooling: dict[str, Any] | None = None,
+    verification: dict[str, Any] | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
@@ -740,6 +834,8 @@ def record_shard_pass(
             raise IllegalTransitionError(
                 f"cannot pass shard {shard_id!r} from status {shard['status']!r}"
             )
+        if verification is not None:
+            _check_verification(repo, state, head_sha, shard_id, verification, legacy_ok=True)
         eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
         shard["status"] = "passed"
         shard["worker_strikes"] = 0
@@ -757,6 +853,7 @@ def record_shard_pass(
         else:
             shard.pop("passed_tooling", None)
         _apply_post_pass_status(state, prev_status, eff_code_hash)
+        _verify_ready_to_merge(repo, state, verification)
         state["history"].append(
             {
                 "at": utc_now(),
@@ -781,6 +878,7 @@ def record_all_shards_pass(
     branch_name: str | None = None,
     checked_contract: tuple[str, str | None] | None = None,
     tooling: dict[str, Any] | None = None,
+    verification: dict[str, Any] | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Atomically record the shared integration `code_tree_sha256` across all shards."""
@@ -799,6 +897,8 @@ def record_all_shards_pass(
                 raise IllegalTransitionError(
                     f"cannot integrate shard {sid!r} from status {sdata['status']!r}"
                 )
+        if verification is not None:
+            _check_verification(repo, state, head_sha, None, verification, legacy_ok=True)
         eff_code_hash = code_tree_sha256 or compute_code_tree_sha256(repo, head_sha or "HEAD", run_id=run_id)
         if head_sha:
             state["last_integrated_sha"] = head_sha
@@ -823,6 +923,7 @@ def record_all_shards_pass(
                 if head_sha:
                     sdata["last_green_sha"] = head_sha
         _apply_post_pass_status(state, prev_status, eff_code_hash)
+        _verify_ready_to_merge(repo, state, verification)
         state["history"].append(
             {
                 "at": utc_now(),
@@ -1333,7 +1434,8 @@ def _gated_head(state: dict[str, Any]) -> str | None:
     return state.get("last_integrated_sha")
 
 
-def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) -> dict[str, Any]:
+def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None,
+                      verification: dict[str, Any] | None = None) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("gate_passed",), "submit-for-review")
@@ -1363,6 +1465,14 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
                 if not gate_head or git_read_blob(repo, gate_head, record["test"]) is None:
                     raise IllegalTransitionError(f"oracle mismatch test {record['test']!r} is missing at the gated commit")
 
+        ok, enforce = _shadow_verification(
+            repo, state, "review_submission", legacy_ok=True, head=gate_head,
+            git_repo=_gated_worktree(repo, state), **(verification or {}),
+        )
+        if enforce and not ok:
+            _save_run_unlocked(repo, run_id, state)
+            raise GuardError("verification review_submission refused missing, stale or failing evidence")
+
         if cloud_enabled:
             state["status"] = "awaiting_cloud_review"
         elif deep_enabled or open_mismatches:
@@ -1376,6 +1486,7 @@ def submit_for_review(repo: Path, run_id: str, *, lock_dir: Path | None = None) 
                     fdata["verified_at"] = utc_now()
             state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
 
+        _verify_ready_to_merge(repo, state, verification)
         state["history"].append({"at": utc_now(), "event": "submit-for-review", "status": state["status"]})
         _save_run_unlocked(repo, run_id, state)
         return {**state, "open_oracle_mismatches": open_mismatches}
@@ -1505,6 +1616,7 @@ def record_review(
     findings: list[dict[str, Any]] | None = None,
     oracle_mismatch_ids: list[str] | None = None,
     lock_dir: Path | None = None,
+    verification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if stage not in ("cloud", "deep"):
         raise IllegalTransitionError(f"review stage must be 'cloud' or 'deep', got {stage!r}")
@@ -1591,6 +1703,7 @@ def record_review(
                     raise IllegalTransitionError(f"unreviewed oracle mismatches: {', '.join(sorted(outstanding))}")
                 state["status"] = "safeguard_pending" if _unsafeguarded_findings(state) else "ready_to_merge"
 
+        _verify_ready_to_merge(repo, state, verification)
         state["history"].append(
             {
                 "at": utc_now(),
@@ -1615,6 +1728,7 @@ def record_safeguard(
     rule_id: str | None = None,
     why_not_static: str | None = None,
     lock_dir: Path | None = None,
+    verification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if layer not in SAFEGUARD_LAYERS:
         raise IllegalTransitionError(
@@ -1678,6 +1792,7 @@ def record_safeguard(
         if not _unsafeguarded_findings(state) and not open_oracle_mismatches(state, current_code_hash):
             state["status"] = "ready_to_merge"
 
+        _verify_ready_to_merge(repo, state, verification)
         state["history"].append(
             {
                 "at": utc_now(),
