@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -26,11 +26,18 @@ class TestPathTranslation(unittest.TestCase):
         self.assertEqual(kg.windows_to_wsl_path("C:/Users/User/x y"), "/mnt/c/Users/User/x y")
         self.assertEqual(kg.windows_to_wsl_path("E:/"), "/mnt/e")
         self.assertEqual(kg.windows_to_wsl_path(r"\\?\E:\Khitmee-ERPNext"), "/mnt/e/Khitmee-ERPNext")
+        self.assertEqual(kg.windows_to_wsl_path("//?/E:/Khitmee-ERPNext"), "/mnt/e/Khitmee-ERPNext")
+        self.assertEqual(
+            kg.windows_to_wsl_path(PureWindowsPath(r"E:\Khitmee-ERPNext")),
+            "/mnt/e/Khitmee-ERPNext",
+        )
 
     def test_posix_paths_pass_through_and_unc_paths_fail_closed(self):
         self.assertEqual(kg.windows_to_wsl_path("/root/gate"), "/root/gate")
         with self.assertRaises(kg.GateError):
             kg.windows_to_wsl_path(r"\\server\share\repo")
+        with self.assertRaises(kg.GateError):
+            kg.windows_to_wsl_path("//server/share/repo")
 
     def test_gitbash_converted_root_is_interpreted_as_linux_absolute(self):
         with mock.patch.object(kg, "is_windows", return_value=True):
@@ -153,7 +160,11 @@ class TestCommandPlans(unittest.TestCase):
     def test_execute_wsl_script_writes_lf_script_and_invokes_wsl(self):
         with tempfile.TemporaryDirectory() as tmp:
             completed = mock.Mock(returncode=0)
-            with mock.patch.object(kg.subprocess, "run", return_value=completed) as run:
+            with (
+                mock.patch.object(kg, "is_windows", return_value=True),
+                mock.patch.object(kg, "windows_to_wsl_path", return_value="/mnt/c/tmp/plan.sh"),
+                mock.patch.object(kg.subprocess, "run", return_value=completed) as run,
+            ):
                 code = kg.execute_wsl_script("echo hi\r\n", "KhitmeeERPNext", Path(tmp), "plan.sh")
             self.assertEqual(code, 0)
             script = Path(tmp) / "plan.sh"
@@ -161,7 +172,7 @@ class TestCommandPlans(unittest.TestCase):
             argv = run.call_args.args[0]
             self.assertEqual(argv[:4], ["wsl.exe", "--distribution", "KhitmeeERPNext", "--exec"])
             self.assertEqual(argv[4], "/bin/bash")
-            self.assertTrue(argv[5].startswith("/mnt/"))
+            self.assertEqual(argv[5], "/mnt/c/tmp/plan.sh")
             self.assertNotIn("-c", argv)
 
     def test_make_job_translates_windows_inputs_for_linux_worker(self):
@@ -174,13 +185,14 @@ class TestCommandPlans(unittest.TestCase):
             shard=["verify_tooling", "docs"],
             cli=r"E:\khitmee-2gb-proof\tools\autoloop\cli.py",
         )
-        with tempfile.TemporaryDirectory() as tmp:
-            job = kg.make_job(args, "check", Path(tmp) / "result.json")
+        result_path = PureWindowsPath(r"C:\Temp\gate-result.json")
+        with mock.patch.object(kg, "is_windows", return_value=True):
+            job = kg.make_job(args, "check", result_path)
         self.assertEqual(job["windows_integration"], "/mnt/e/khitmee-2gb-proof")
         self.assertEqual(job["windows_repo"], "/mnt/e/Khitmee-ERPNext")
         self.assertEqual(job["cli"], "/mnt/e/khitmee-2gb-proof/tools/autoloop/cli.py")
         self.assertEqual(job["shards"], ["verify_tooling", "docs"])
-        self.assertTrue(job["result_path"].startswith("/mnt/"))
+        self.assertEqual(job["result_path"], "/mnt/c/Temp/gate-result.json")
 
 
 class TestRunStateHandling(unittest.TestCase):

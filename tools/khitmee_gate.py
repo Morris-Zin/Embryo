@@ -6,12 +6,12 @@ import argparse
 import json
 import os
 import posixpath
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path, PurePath, PureWindowsPath
 
 DEFAULT_DISTRO = "KhitmeeERPNext"
 DEFAULT_ROOT = "/root/gate"
@@ -36,16 +36,43 @@ def is_windows() -> bool:
     return os.name == "nt"
 
 
-def windows_to_wsl_path(path: str | Path) -> str:
+def strip_windows_extended_prefix(value: str) -> str:
+    text = value.replace("\\", "/")
+    if text.lower().startswith("//?/"):
+        return text[4:]
+    return text
+
+
+def is_windows_drive_path(path: str | PurePath) -> bool:
+    text = strip_windows_extended_prefix(str(path).strip())
+    return len(text) >= 2 and text[1] == ":" and text[0].isalpha()
+
+
+def is_windows_unc_path(path: str | PurePath) -> bool:
     text = str(path).strip()
-    if text.startswith("/"):
+    return text.startswith(("\\", "//"))
+
+
+def portable_input_path(path: str | PurePath) -> Path | PureWindowsPath:
+    if is_windows_drive_path(path) or is_windows_unc_path(path):
+        return PureWindowsPath(str(path))
+    input_path = Path(path)
+    return input_path.resolve() if is_windows() else input_path
+
+
+def windows_to_wsl_path(path: str | PurePath) -> str:
+    text = str(path).strip()
+    if text.startswith("/") and not text.startswith("//"):
         return text
-    text = text.replace("\\", "/")
-    if text.startswith("//?/"):
-        text = text[4:]
-    if len(text) >= 2 and text[1] == ":" and text[0].isalpha():
-        drive = text[0].lower()
-        rest = text[2:].lstrip("/")
+    windows_path = PureWindowsPath(strip_windows_extended_prefix(text))
+    if (
+        len(windows_path.drive) == 2
+        and windows_path.drive[1] == ":"
+        and windows_path.drive[0].isalpha()
+        and windows_path.root
+    ):
+        drive = windows_path.drive[0].lower()
+        rest = windows_path.as_posix()[2:].lstrip("/")
         return f"/mnt/{drive}" + (f"/{rest}" if rest else "")
     raise GateError(f"cannot translate Windows path to WSL: {path}")
 
@@ -224,6 +251,7 @@ def git_status(repo: Path) -> str:
 
 
 def discover_common_repo(repo: Path) -> Path:
+    repo = Path(str(repo))
     common = run_text(["git", "rev-parse", "--git-common-dir"], cwd=repo)
     common_path = Path(common)
     if not common_path.is_absolute():
@@ -232,7 +260,7 @@ def discover_common_repo(repo: Path) -> Path:
 
 
 def discover_branch(repo: Path) -> str:
-    branch = run_text(["git", "branch", "--show-current"], cwd=repo)
+    branch = run_text(["git", "branch", "--show-current"], cwd=Path(str(repo)))
     if not branch:
         raise GateError(f"integration worktree {repo} is detached; pass --integration-branch")
     return branch
@@ -548,15 +576,17 @@ def ensure_windows_integration_clean(path: Path) -> None:
 
 
 def normalize_linux_inputs(args: argparse.Namespace) -> tuple[str, str, str, str]:
-    integration = Path(args.windows_integration)
-    resolved = integration.resolve() if is_windows() else integration
-    windows_integration = windows_to_wsl_path(resolved) if is_windows() else str(resolved)
-    windows_repo = args.windows_repo or default_windows_repo(integration)
-    windows_repo_wsl = windows_to_wsl_path(windows_repo) if is_windows() else windows_repo
+    integration = portable_input_path(args.windows_integration)
+    windows_integration = windows_to_wsl_path(integration)
+    if args.windows_repo:
+        repo_input = portable_input_path(args.windows_repo)
+    else:
+        repo_input = default_windows_repo(integration)
+    windows_repo_wsl = windows_to_wsl_path(repo_input)
     branch = args.integration_branch
     if not branch and is_windows():
         branch = discover_branch(integration)
-    return str(resolved), windows_integration, windows_repo_wsl, branch or ""
+    return str(integration), windows_integration, windows_repo_wsl, branch or ""
 
 
 def execute_wsl_script(script: str, distro: str, tempdir: Path, name: str) -> int:
@@ -574,7 +604,7 @@ def run_windows_setup(args: argparse.Namespace) -> int:
         return execute_wsl_script(script, args.distro, Path(tmp), "gate-setup.sh")
 
 
-def make_job(args: argparse.Namespace, action: str, result_path: Path | None) -> dict:
+def make_job(args: argparse.Namespace, action: str, result_path: PurePath | None) -> dict:
     _, windows_integration, windows_repo, branch = normalize_linux_inputs(args)
     job = {
         "action": action,
@@ -584,12 +614,12 @@ def make_job(args: argparse.Namespace, action: str, result_path: Path | None) ->
         "integration_branch": branch,
     }
     if result_path is not None:
-        job["result_path"] = windows_to_wsl_path(result_path) if is_windows() else str(result_path)
+        job["result_path"] = windows_to_wsl_path(result_path)
     if action == "check":
         job["run_id"] = validate_run_id(args.run_id)
         job["shards"] = [validate_shard(shard) for shard in args.shard]
         if args.cli:
-            job["cli"] = windows_to_wsl_path(args.cli) if is_windows() else str(args.cli)
+            job["cli"] = windows_to_wsl_path(args.cli)
     return job
 
 
@@ -611,7 +641,7 @@ def run_windows_job(args: argparse.Namespace, action: str) -> tuple[int, dict]:
         return code, result
 
 
-def run_linux_direct(args: argparse.Namespace, action: str, result_path: Path | None = None) -> int:
+def run_linux_direct(args: argparse.Namespace, action: str, result_path: PurePath | None = None) -> int:
     job = make_job(args, action, result_path)
     if action == "check":
         return linux_check(job)
