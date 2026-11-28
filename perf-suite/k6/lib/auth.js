@@ -79,6 +79,17 @@ export function baseHeaders(extra = {}) {
   return headers;
 }
 
+
+function traceAuthEvent(payload) {
+  const event = Object.assign({ at: new Date().toISOString() }, payload);
+  try {
+    event.vu = typeof __VU === 'undefined' ? null : __VU;
+  } catch (_err) {}
+  try {
+    console.log(`KHITMEE_SEASONAL_EVENT ${JSON.stringify(event)}`);
+  } catch (_err) {}
+}
+
 function cookieValue(response, name) {
   const cookie = (response.cookies || {})[name];
   if (!cookie) {
@@ -126,6 +137,7 @@ function fetchCsrfToken(baseUrl, timeout) {
 
 export function login(baseUrl, user, password, options = {}) {
   const normalized = assertSafeTarget(baseUrl);
+  traceAuthEvent({ event: 'auth_login_begin', actor_user: user });
   if (!user) {
     throw new Error('PERF_USER (or FRAPPE_USER) is required for the benchmark login.');
   }
@@ -133,6 +145,7 @@ export function login(baseUrl, user, password, options = {}) {
     throw new Error('PERF_PASSWORD (or FRAPPE_PASSWORD) is required; no password is hard-coded or read from disk.');
   }
 
+  const loginHttpStart = Date.now();
   const response = http.post(
     `${normalized}/api/method/login`,
     { usr: user, pwd: password },
@@ -148,6 +161,7 @@ export function login(baseUrl, user, password, options = {}) {
     throw new Error(`Frappe login failed for ${user} with HTTP ${response.status}; credentials were not printed.`);
   }
 
+  const loginHttpMs = Math.max(0, Date.now() - loginHttpStart);
   const body = parseJson(response);
   const sid = cookieValue(response, 'sid');
   if (!sid || sid === 'Guest') {
@@ -156,11 +170,19 @@ export function login(baseUrl, user, password, options = {}) {
         'Refusing to continue with an anonymous or shared session.'
     );
   }
-  const csrfToken =
+  const directCsrfToken =
     cookieValue(response, 'csrf_token') ||
     (body.message && body.message.csrf_token) ||
     body.csrf_token ||
-    fetchCsrfToken(normalized, options.timeout);
+    '';
+  const bootstrapStart = Date.now();
+  const csrfToken = directCsrfToken || fetchCsrfToken(normalized, options.timeout);
+  traceAuthEvent({
+    event: 'auth_login_end', actor_user: user,
+    login_http_ms: loginHttpMs,
+    bootstrap_ms: directCsrfToken ? 0 : Math.max(0, Date.now() - bootstrapStart),
+    csrf_source: directCsrfToken ? 'login_response' : 'desk_boot',
+  });
 
   if (!csrfToken && !truthy(__ENV.ALLOW_MISSING_CSRF_TOKEN)) {
     throw new Error(
@@ -186,19 +208,29 @@ export function authHeaders(session, extra = {}) {
   return headers;
 }
 
-export function postMethod(session, method, payload = {}, options = {}) {
+export function postMethodRequest(session, method, payload = {}, options = {}) {
   const headers = authHeaders(session, options.headers || {});
   let body = payload;
   if (!options.asForm) {
     body = JSON.stringify(payload);
     headers['Content-Type'] = 'application/json';
   }
-  return http.post(`${session.baseUrl}/api/method/${method}`, body, {
-    headers,
-    redirects: 0,
-    timeout: options.timeout || '60s',
-    tags: options.tags || { name: method, endpoint: method },
-  });
+  return {
+    method: 'POST',
+    url: `${session.baseUrl}/api/method/${method}`,
+    body,
+    params: {
+      headers,
+      redirects: 0,
+      timeout: options.timeout || '60s',
+      tags: options.tags || { name: method, endpoint: method },
+    },
+  };
+}
+
+export function postMethod(session, method, payload = {}, options = {}) {
+  const request = postMethodRequest(session, method, payload, options);
+  return http.post(request.url, request.body, request.params);
 }
 
 export function getMethod(session, methodAndQuery, options = {}) {
@@ -208,4 +240,26 @@ export function getMethod(session, methodAndQuery, options = {}) {
     timeout: options.timeout || '60s',
     tags: options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] },
   });
+}
+
+export function getResourceRequest(session, doctype, options = {}) {
+  const name = options.name ? `/${encodeURIComponent(options.name)}` : '';
+  const query = Object.entries(options.query || {})
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return {
+    method: 'GET',
+    url: `${session.baseUrl}/api/resource/${encodeURIComponent(doctype)}${name}${query ? `?${query}` : ''}`,
+    params: {
+      headers: authHeaders(session, options.headers || {}),
+      redirects: 0,
+      timeout: options.timeout || '30s',
+      tags: options.tags || { name: `resource_${doctype}`, endpoint: 'frappe_resource' },
+    },
+  };
+}
+
+export function getResource(session, doctype, options = {}) {
+  const request = getResourceRequest(session, doctype, options);
+  return http.get(request.url, request.params);
 }

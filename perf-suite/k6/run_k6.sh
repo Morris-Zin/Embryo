@@ -59,11 +59,13 @@ fi
 
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$SCENARIO}"
 RUN_ID="${RUN_ID//[^A-Za-z0-9_.-]/-}"
+export RUN_ID
 K6_SUMMARY="$RESULT_DIR/${RUN_ID}-k6-summary.json"
 K6_LOG="$RESULT_DIR/${RUN_ID}-k6.log"
 STATS_CSV="$RESULT_DIR/${RUN_ID}-container-stats.csv"
 STATS_LOG="$RESULT_DIR/${RUN_ID}-stats-collector.log"
 SCORECARD="$RESULT_DIR/${RUN_ID}-scorecard.md"
+SEASONAL_VERIFICATION_JSON="$RESULT_DIR/${RUN_ID}-seasonal-verification.json"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-khitmee-perf}"
 MEMORY_BUDGET_GB="${MEMORY_BUDGET_GB:-}"
 STATS_COLLECTOR="${STATS_COLLECTOR:-$PERF_ROOT/scripts/stats-collector.sh}"
@@ -254,11 +256,24 @@ if [[ "$USE_DOCKER" == "1" ]]; then
     DOCKER_CMD+=( -e "SEED_MANIFEST_PATH=$CONTAINER_MANIFEST_PATH" )
   fi
   PASSTHROUGH_VARS=(
-    SITE_NAME MODE PERF_MODE SIMULATED_PING_MS DURATION SHOP_VUS MANAGER_VUS
+    SITE_NAME MODE PERF_MODE SIMULATED_PING_MS DURATION SHOP_VUS MANAGER_VUS RUN_ID
     VOUCHERS_PER_5MIN REPORT_INTERVAL_SECONDS REPORT_NAME REPORT_LOOKBACK_DAYS REPORT_FROM_DATE REPORT_TO_DATE REPORT_GROUP_BY
+    EXPORT_FROM_DATE
     PERF_USER PERF_PASSWORD FRAPPE_USER FRAPPE_PASSWORD WAREHOUSE_SEQUENCE PRICE_LIST CUSTOMER COMPANY
     PAYMENT_MODE PRINTER_TYPE TRANSFER_MODE HOT_SKU_POOL ZIPF_EXPONENT MIN_LINES MAX_LINES STOCK_LOOKUP_RATIO
     DIST_TRANSFER_RATIO RETAIL_SALE_RATIO RUN_DOC_METHOD_ENDPOINT CURRENCY
+    SEASONAL_PROFILE SEASONAL_SEED SEASONAL_BASELINE_DURATION SEASONAL_MARGIN_DURATION
+    SEASONAL_OVERLOAD_STEP_DURATION SEASONAL_RECOVERY_DURATION SEASONAL_OVERLOAD_MULTIPLIERS
+    SEASONAL_MAX_RETRIES SEASONAL_RETRY_BACKOFF_MS SEASONAL_DETAIL_TIMEOUT_SECONDS SEASONAL_DETAIL_PAGE_COUNT
+    SEASONAL_VOUCHER_PREALLOCATED_VUS SEASONAL_VOUCHER_MAX_VUS
+    SEASONAL_SEARCH_PREALLOCATED_VUS SEASONAL_SEARCH_MAX_VUS
+    SEASONAL_ENABLE_MANAGERS SEASONAL_ENABLE_EXPORT SEASONAL_EXPORT_TIMEOUT_SECONDS SEASONAL_EXPORT_POLL_SECONDS
+    SEASONAL_EXPORT_ENQUEUE_METHOD SEASONAL_EXPORT_DOWNLOAD_METHOD SEASONAL_SUMMARY_REPORT SEASONAL_DETAIL_REPORT
+    SEASONAL_REQUIRE_RETRY_EVIDENCE
+    SEASONAL_MANAGER_WAREHOUSE_USER SEASONAL_MANAGER_WAREHOUSE_PASSWORD
+    SEASONAL_MANAGER_MONTHLY_USER SEASONAL_MANAGER_MONTHLY_PASSWORD
+    SEASONAL_MANAGER_DETAIL_USER SEASONAL_MANAGER_DETAIL_PASSWORD
+    SEASONAL_MANAGER_EXPORT_USER SEASONAL_MANAGER_EXPORT_PASSWORD
   )
   for var_name in "${PASSTHROUGH_VARS[@]}"; do
     DOCKER_CMD+=( -e "$var_name" )
@@ -297,19 +312,52 @@ stop_stats_collector
 
 EVAL_STATUS=0
 if [[ -f "$K6_SUMMARY" ]]; then
-  EVAL_ARGS=(
-    "$SCRIPT_DIR/evaluate_run.py"
-    --k6-summary "$K6_SUMMARY"
-    --stats-csv "$STATS_CSV"
-    --output "$SCORECARD"
-    --run-label "$RUN_ID"
-    --strict
-  )
-  if [[ -n "$MEMORY_BUDGET_GB" ]]; then
-    EVAL_ARGS+=(--memory-budget-gb "$MEMORY_BUDGET_GB")
-  fi
-  if [[ "$SCENARIO" != "report_stress" ]]; then
-    EVAL_ARGS+=(--allow-scenario-skips)
+  if [[ "$SCENARIO" == "seasonal" ]]; then
+    rm -f "$SEASONAL_VERIFICATION_JSON"
+    if [[ "${SEASONAL_VERIFY:-1}" != "0" ]]; then
+      echo "Running independent seasonal database verifier"
+      set +e
+      "$PYTHON_BIN" "$PERF_ROOT/seasonal/verify_run.py" \
+        --k6-log "$K6_LOG" \
+        --output "$SEASONAL_VERIFICATION_JSON" \
+        --docker-dir "$PERF_ROOT/docker" \
+        --compose-project "$COMPOSE_PROJECT_NAME" \
+        --site-name "${SITE_NAME:-bench-loadtest.localhost}"
+      VERIFY_STATUS=$?
+      set -e
+      if [[ "$VERIFY_STATUS" != "0" && ! -f "$SEASONAL_VERIFICATION_JSON" ]]; then
+        printf '%s\n' '{"passed":false,"defects":[{"kind":"verifier_error","detail":"verify_run.py exited before writing JSON"}]}' > "$SEASONAL_VERIFICATION_JSON"
+      fi
+    else
+      printf '%s\n' '{"passed":false,"defects":[{"kind":"verifier_disabled","detail":"SEASONAL_VERIFY=0; independent database evidence intentionally missing"}]}' > "$SEASONAL_VERIFICATION_JSON"
+    fi
+    EVAL_ARGS=(
+      "$SCRIPT_DIR/evaluate_seasonal.py"
+      --k6-summary "$K6_SUMMARY"
+      --k6-log "$K6_LOG"
+      --stats-csv "$STATS_CSV"
+      --verification "$SEASONAL_VERIFICATION_JSON"
+      --output "$SCORECARD"
+      --run-label "$RUN_ID"
+    )
+    if [[ "${SEASONAL_ENABLE_MANAGERS:-1}" == "0" ]]; then
+      EVAL_ARGS+=(--cashier-only)
+    fi
+  else
+    EVAL_ARGS=(
+      "$SCRIPT_DIR/evaluate_run.py"
+      --k6-summary "$K6_SUMMARY"
+      --stats-csv "$STATS_CSV"
+      --output "$SCORECARD"
+      --run-label "$RUN_ID"
+      --strict
+    )
+    if [[ -n "$MEMORY_BUDGET_GB" ]]; then
+      EVAL_ARGS+=(--memory-budget-gb "$MEMORY_BUDGET_GB")
+    fi
+    if [[ "$SCENARIO" != "report_stress" ]]; then
+      EVAL_ARGS+=(--allow-scenario-skips)
+    fi
   fi
   set +e
   "$PYTHON_BIN" "${EVAL_ARGS[@]}"
@@ -323,6 +371,9 @@ fi
 echo "k6_exit=$K6_STATUS evaluate_exit=$EVAL_STATUS"
 echo "k6 log: $K6_LOG"
 echo "container stats: $STATS_CSV"
+if [[ -f "$SEASONAL_VERIFICATION_JSON" && "$SCENARIO" == "seasonal" ]]; then
+  echo "seasonal verification: $SEASONAL_VERIFICATION_JSON"
+fi
 if [[ -f "$SCORECARD" ]]; then
   echo "scorecard: $SCORECARD"
 fi

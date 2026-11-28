@@ -1,0 +1,137 @@
+{
+  "accepted_seed_anchor_sha256": "83498254083b5f59bc8266c5abb9646e3628e022287dd15d2d85653c2c3881ec",
+  "accounting": {
+    "changes": {
+      "GL Entry": 480,
+      "Khitmee Idempotency Log": 80,
+      "Sales Invoice": 80,
+      "Sales Invoice Item": 2200,
+      "Stock Ledger Entry": 2200
+    },
+    "committed_without_confirmation": 0,
+    "confirmed_missing_from_db": 0,
+    "gl_account_party_groups": 10,
+    "mismatch_count": 0,
+    "negative_controls": [
+      {
+        "expected_failure_detected": true,
+        "name": "posted price changed by one unit"
+      },
+      {
+        "expected_failure_detected": true,
+        "name": "stock deducted from different warehouse"
+      },
+      {
+        "expected_failure_detected": true,
+        "name": "unbalanced debit"
+      },
+      {
+        "expected_failure_detected": true,
+        "name": "duplicate confirmation"
+      }
+    ],
+    "stock_warehouse_item_groups": 970
+  },
+  "baseline_commit": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+  "cleanup": {
+    "released_volumes": [
+      "khitmee-arm-318ac364967c181b-db",
+      "khitmee-arm-318ac364967c181b-sites",
+      "khitmee-arm-318ac364967c181b-redis-queue"
+    ],
+    "stopped": true
+  },
+  "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+  "groups": {
+    "large": {
+      "confirmed_including_drain": 4,
+      "confirmed_within_minute": 4,
+      "offered": 4,
+      "p95_confirmed_ms": 7088,
+      "persisted": 4,
+      "started": 4,
+      "submitted": 4
+    },
+    "medium": {
+      "confirmed_including_drain": 16,
+      "confirmed_within_minute": 16,
+      "offered": 16,
+      "p95_confirmed_ms": 5459,
+      "persisted": 16,
+      "started": 16,
+      "submitted": 16
+    },
+    "small": {
+      "confirmed_including_drain": 60,
+      "confirmed_within_minute": 60,
+      "offered": 60,
+      "p95_confirmed_ms": 4598,
+      "persisted": 60,
+      "started": 60,
+      "submitted": 60
+    }
+  },
+  "harness_sha256": "b2dba813c8317b93406e4f34bae18f13c875f96d243b4bc7e3afcfd932e5bd7c",
+  "kind": "verified one-minute cashier baseline",
+  "lock_waits": {
+    "deadlocks_delta": 0,
+    "row_lock_time_ms_delta": 70337,
+    "row_lock_waits_delta": 61
+  },
+  "measured_metrics": {
+    "cpu_core_seconds": 64.92,
+    "io_bytes": 40658432,
+    "lock_wait_ms": 70337,
+    "peak_memory_bytes": 1349001216,
+    "sale_10_p95_ms": 4598,
+    "sale_200_p95_ms": 7088,
+    "sale_50_p95_ms": 5459,
+    "sale_p95_ms": 5459,
+    "sql_seconds": 82.807683966
+  },
+  "measurement_window_seconds": 62.20226709799999,
+  "qualified_for_seasonal": false,
+  "raw_artifacts": {
+    "adapter-harness-stdout.json": "a0cfa045cbc0405d2030c99a82d3a6637bba2b293facd128ffb09c4d76e31d0e",
+    "adapter.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cashier-controls.json": "88e9f0846ab3732c9a55ef60d15d1e58032751d10d87bc4caa164bf2917d8e4b",
+    "cashier-evidence.json.gz": "eff871f46e1aa2e3b0518044495a659789964a9984f8ffce59032175bbc6997a",
+    "cashier-finance-signature.json": "cb781ca88803c8e88a711846daa1bce155a3d228e8e377a6299d24cceb13cff7",
+    "cashier-profile.json": "f83688b05907bee182cdb3e1eb7172c9f33e044be364c05d006441f2fbbac3f5",
+    "cashier-workload.json": "7192f6b9ab8201151459efb8dbc55c4c337a1b12720de40bfb6268758c0b2fad",
+    "deployed.json": "e64f06cb601dcbe0ffaac493f769ec8cc87a454517c7ce0b80d7a499113c105b",
+    "driver-cleanup.json": "afa2a4fdb0430a949b3380ba0ee30b67cbb6a37b83a10efadc787d3c1a98099f",
+    "environment-preflight.json": "ff1f108e6b8379b02b8adac3032d07a4ac7beedfa1d0be4eda414dd7ebc4d08d",
+    "harness.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "provision-state.json": "6970da0d834714c7a701db344e366352407bb7721b04ab59bed07008b3f1d22f"
+  },
+  "raw_artifacts_dir": "/srv/khitmee-lab/operator/stores/cashier-screen-v3/runs/1795760583969794846/0-baseline",
+  "receipt_sha256": "742c1aa9dff36afba592886bea0d9a3077d717455a3c2534537c4f06f12cc071",
+  "release": "cashier-screen-v3",
+  "release_manifest_sha256": "66431d1aebeb58a7beb447a7f717e567861a612aae5071c22be7543912d42c58",
+  "run": "f41c7074d0b2",
+  "scope": "one-minute sale submissions only, one shared Administrator session; 50 ms simulated RTT",
+  "seed": 1,
+  "sql_statement_calls": 96762,
+  "submission_latency": "nearest-rank p95 from first submission through confirmed response; includes 50 ms simulated RTT per HTTP attempt and any retries",
+  "target": {
+    "boot_id": "76b5c633-db02-4e08-9095-832d6ce6d21f",
+    "hostname": "khitmee-lab",
+    "machine_id_sha256": "abb1c2847ef11e960a90b867ad514e2c4b8443e1d76852b029eb26bded3051c2",
+    "memory_bytes": 2063208448,
+    "root_source": "/dev/vda1",
+    "swap_bytes": 0,
+    "vcpus": 2,
+    "virtualization": "kvm"
+  },
+  "workload": "cashier-sales-minute-v1",
+  "workload_evidence": {
+    "arrival_seconds": 60,
+    "completed": 80,
+    "confirmed_retry_id": "SCS-f41c7074d0b2-small-0",
+    "ignored_k6_boundary_iterations": 2,
+    "last_confirmation_elapsed_ms": 59476,
+    "offered": 80,
+    "started": 80
+  }
+}

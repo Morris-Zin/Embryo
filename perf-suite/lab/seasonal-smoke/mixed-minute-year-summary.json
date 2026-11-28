@@ -1,0 +1,572 @@
+{
+  "accounting_notes": [
+    "The k6 arrival schedule was 100 vouchers across 89 workflow iterations. The generator also scheduled 80 searches and 14 manager operations. A linked purchase workflow can issue two vouchers.",
+    "The k6 dropped-iteration count spans all scenarios. Worker login/CSRF failures precede some voucher_start events. No 200-line sale reached voucher_start.",
+    "Each of the 47 confirmations matched its submitted basket and checked ledger and link records. The first purchase receipt and its retry both committed without a final client confirmation. The intended business event was one receipt. Its dependent invoice was rejected before submission.",
+    "Whole-run telemetry includes discovery, the one-minute arrival phase and drain. Neither the instrumented SQL sum nor overlapping request durations represent inference of one critical-path duration.",
+    "All 9 manager report requests timed out without an HTTP response (k6 status 0). Some other manager iterations failed during login. No manager-report HTTP 401/403, missing-route response, or completed data mismatch was observed. The read window was 2026-01-01 through 2026-11-25. The scheduled full-year export was disabled; one detail fallback export enqueue was attempted and timed out."
+  ],
+  "cgroup_oom_kills": {
+    "backend": 2,
+    "db": 0,
+    "frontend": 0,
+    "queue": 0,
+    "redis-cache": 0,
+    "redis-queue": 0,
+    "scheduler": 0,
+    "websocket": 0
+  },
+  "cleanup": {
+    "arm": {
+      "released_volumes": [
+        "khitmee-arm-25f3a8563dfc07e3-db",
+        "khitmee-arm-25f3a8563dfc07e3-sites",
+        "khitmee-arm-25f3a8563dfc07e3-redis-queue"
+      ],
+      "stopped": true
+    },
+    "refcheck": {
+      "containers_running": 8,
+      "http_ping": "pong",
+      "project": "khitmee-refcheck"
+    }
+  },
+  "confirmed_in_minute": 22,
+  "database": {
+    "committed_basket_ledger_link_passes": {
+      "purchase_invoice": 1,
+      "purchase_receipt": 1,
+      "sale": 41,
+      "transfer": 4
+    },
+    "committed_financial_failures": [],
+    "counts": {
+      "GL Entry": {
+        "after": 2974796,
+        "attributed_to_client_documents": 268,
+        "before": 2974528,
+        "delta": 268
+      },
+      "Khitmee Idempotency Log": {
+        "after": 45,
+        "attributed_to_client_documents": 45,
+        "before": 0,
+        "delta": 45
+      },
+      "Payment Ledger Entry": {
+        "after": 360118,
+        "attributed_to_client_documents": 83,
+        "before": 360035,
+        "delta": 83
+      },
+      "Purchase Invoice": {
+        "after": 1,
+        "attributed_to_client_documents": 1,
+        "before": 0,
+        "delta": 1
+      },
+      "Purchase Invoice Item": {
+        "after": 50,
+        "attributed_to_client_documents": 50,
+        "before": 0,
+        "delta": 50
+      },
+      "Purchase Receipt": {
+        "after": 3,
+        "attributed_to_client_documents": 3,
+        "before": 0,
+        "delta": 3
+      },
+      "Purchase Receipt Item": {
+        "after": 150,
+        "attributed_to_client_documents": 150,
+        "before": 0,
+        "delta": 150
+      },
+      "Sales Invoice": {
+        "after": 360076,
+        "attributed_to_client_documents": 41,
+        "before": 360035,
+        "delta": 41
+      },
+      "Sales Invoice Item": {
+        "after": 950805,
+        "attributed_to_client_documents": 770,
+        "before": 950035,
+        "delta": 770
+      },
+      "Sales Invoice Payment": {
+        "after": 41,
+        "attributed_to_client_documents": 41,
+        "before": 0,
+        "delta": 41
+      },
+      "Stock Entry": {
+        "after": 16527,
+        "attributed_to_client_documents": 4,
+        "before": 16523,
+        "delta": 4
+      },
+      "Stock Entry Detail": {
+        "after": 134647,
+        "attributed_to_client_documents": 200,
+        "before": 134447,
+        "delta": 200
+      },
+      "Stock Ledger Entry": {
+        "after": 1209232,
+        "attributed_to_client_documents": 1320,
+        "before": 1207912,
+        "delta": 1320
+      }
+    },
+    "independent_verifier": {
+      "by_type": {
+        "purchase_invoice": {
+          "confirmed": 1,
+          "duplicates": 0,
+          "found": 1,
+          "missing": 1,
+          "started": 2
+        },
+        "purchase_receipt": {
+          "confirmed": 1,
+          "duplicates": 1,
+          "found": 2,
+          "missing": 0,
+          "started": 2
+        },
+        "sale": {
+          "confirmed": 41,
+          "duplicates": 0,
+          "found": 41,
+          "missing": 0,
+          "started": 41
+        },
+        "transfer": {
+          "confirmed": 4,
+          "duplicates": 0,
+          "found": 4,
+          "missing": 0,
+          "started": 4
+        }
+      },
+      "completed": 47,
+      "defects": [
+        {
+          "client_voucher_id": "K6S-831c44f1d3-baseline-purchase_receipt-m0-s0",
+          "detail": "2 database documents share the client identity: ['MAT-PRE-2026-00001', 'MAT-PRE-2026-00002']",
+          "kind": "duplicate_document"
+        },
+        {
+          "client_voucher_id": "K6S-831c44f1d3-baseline-purchase_receipt-m0-s0",
+          "detail": "Purchase Receipt MAT-PRE-2026-00001 exists but no client confirmation was observed",
+          "kind": "unconfirmed_document"
+        }
+      ],
+      "lost_ack_observed": 2,
+      "passed": false,
+      "rejected": 2,
+      "retried_completed": 22,
+      "run_id": "mixed-year-minute-20261127",
+      "run_prefix": "K6S-831c44f1d3-",
+      "started": 49,
+      "verifier": "independent-direct-mariadb-readonly",
+      "warnings": []
+    },
+    "proven_retries": [
+      {
+        "id": "K6S-831c44f1d3-baseline-transfer-m0-s0",
+        "kind": "transfer",
+        "voucher": "MAT-STE-2026-08217"
+      }
+    ],
+    "unexplained_count_changes": {}
+  },
+  "dropped_iterations": 42,
+  "duplicate_purchase_receipt_db_rows": [
+    {
+      "client_marker": "Khitmee seasonal client_voucher_id=K6S-831c44f1d3-baseline-purchase_receipt-m0-s0",
+      "credit": "3355.92",
+      "currency": "USD",
+      "debit": "3355.92",
+      "docstatus": "1",
+      "gl_rows": 3,
+      "grand_total": "3355.920000000",
+      "received_units": "226",
+      "sle_rows": 50,
+      "stock_value_change": "3355.913171",
+      "voucher": "MAT-PRE-2026-00001"
+    },
+    {
+      "client_marker": "Khitmee seasonal client_voucher_id=K6S-831c44f1d3-baseline-purchase_receipt-m0-s0",
+      "credit": "3355.92",
+      "currency": "USD",
+      "debit": "3355.92",
+      "docstatus": "1",
+      "gl_rows": 2,
+      "grand_total": "3355.920000000",
+      "received_units": "226",
+      "sle_rows": 50,
+      "stock_value_change": "3355.92",
+      "voucher": "MAT-PRE-2026-00002"
+    }
+  ],
+  "duplicate_start_events": 0,
+  "duplicate_terminal_events": 0,
+  "errors": {},
+  "event_counts": {
+    "boundary_ignored": 1,
+    "cashier_discovery": 1,
+    "config": 1,
+    "detail_fallback_export_reject": 1,
+    "load_generator_finished": 1,
+    "manager_detail_reject": 1,
+    "manager_summary_reject": 8,
+    "minute_clock": 6,
+    "search_complete": 22,
+    "search_reject": 12,
+    "voucher_complete": 47,
+    "voucher_reject": 2,
+    "voucher_start": 49
+  },
+  "fixture_sha256": "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19",
+  "full_season_qualified": false,
+  "guest_memory_bytes": 2063212544,
+  "k6_exit": 0,
+  "k6_http_request_failures": {
+    "request timeout": 55,
+    "timeout_by_route": {
+      "GET /app": 2,
+      "GET /desk": 3,
+      "detail fallback enqueue": 1,
+      "frappe.desk.query_report.run": 9,
+      "khitmee_ops.api.search.search_items": 2,
+      "login": 38
+    }
+  },
+  "last_confirmation_s": 92.508,
+  "manager_observations": {
+    "detail_reader": [
+      {
+        "duration_ms": 30053,
+        "event": "manager_detail_reject",
+        "first_50_duration_ms": 30002,
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit"
+      }
+    ],
+    "summary_monthly": [
+      {
+        "duration_ms": 10008,
+        "event": "manager_summary_reject",
+        "group_by": "Monthly",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10005,
+        "event": "manager_summary_reject",
+        "group_by": "Monthly",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10002,
+        "event": "manager_summary_reject",
+        "group_by": "Monthly",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10010,
+        "event": "manager_summary_reject",
+        "group_by": "Monthly",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10002,
+        "event": "manager_summary_reject",
+        "group_by": "Monthly",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      }
+    ],
+    "summary_warehouse": [
+      {
+        "duration_ms": 10011,
+        "event": "manager_summary_reject",
+        "group_by": "Warehouse",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10001,
+        "event": "manager_summary_reject",
+        "group_by": "Warehouse",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      },
+      {
+        "duration_ms": 10002,
+        "event": "manager_summary_reject",
+        "group_by": "Warehouse",
+        "reason": "HTTP 0 or Frappe error",
+        "report_name": "Fast Gross Profit",
+        "row_count": 0
+      }
+    ]
+  },
+  "missing_terminals": [],
+  "observed_financial_documents": {
+    "confirmed": 47,
+    "distinct_committed": 49,
+    "unconfirmed": 2,
+    "unique_committed_client_ids": 48
+  },
+  "offered_manager_requests": {
+    "Monthly": 6,
+    "Warehouse": 6,
+    "detail": 2
+  },
+  "operator_artifacts": {
+    "folder": "/srv/khitmee-lab/operator/year-minute-arms/e1-s42/measured-v2",
+    "sha256": {
+      "arm-telemetry.json": "0d1e360188049efb7abdf2000440ff2443fd3b63450a0ca78d3e49b34ce42399",
+      "database-postings.json.gz": "dfaa25ab744cd797d5398807eb154e739ef422b04b005aafb9ddd0478e1f3aa9",
+      "k6-events.log": "2ce5893879c84c7d80f73276682ab6e354fdb941b20ec513bbbef7d3dabed795",
+      "k6-output.txt": "91cc4c75381a075f741fa4d31db55520da0d4010848b45a79e6c9649aff17bb3",
+      "k6-summary.json": "09883e8e25a6bc4c8b8f64391a999f9f0a3ea26de08a28aa4e66b6e325b5707b",
+      "mixed-events.json.gz": "981e0afd917359f1147976930ff655069da9b0897f5d55991a74b20949a5c663",
+      "mixed-provenance.json": "a010a21e8128c0e092f58e58228a9aaea75ab15b47572ab4e72bffe2babd8df7",
+      "mixed-summary.json": "6b6e62e1a525e666c0d08d9758beca02b58e5f9749dd3083cbe56219aec9fde3"
+    }
+  },
+  "portable_evidence": {
+    "bytes": 118766,
+    "file": "mixed-minute-year-2026-11-27.json.gz",
+    "sha256": "47149cb77ce3d0a9c257f8ce0f033195dc7cad71ecad07614d98cae1d247d852"
+  },
+  "protected_harness_manifest_sha256": "3b292112ba35d4d0aa9017d5749d7007c2d38ace0c6c6b90b556a3d473f60491",
+  "rejection_reasons": [
+    {
+      "count": 1,
+      "kind": "purchase_receipt",
+      "reason": "retry returned a different committed voucher",
+      "status": 200
+    },
+    {
+      "count": 1,
+      "kind": "purchase_invoice",
+      "reason": "linked purchase receipt was not confirmed: retry returned a different committed voucher",
+      "status": null
+    }
+  ],
+  "resource_window": {
+    "duration_seconds": 113.54056008400221,
+    "ended_at": "2026-11-27T07:14:53.414Z",
+    "interval_seconds": 4.0,
+    "started_at": "2026-11-27T07:13:00.754Z"
+  },
+  "retry_events": [
+    {
+      "attempts": 2,
+      "client_voucher_id": "K6S-831c44f1d3-baseline-transfer-m0-s0",
+      "event": "voucher_complete",
+      "first_committed_voucher": "MAT-STE-2026-08217",
+      "reason": null,
+      "type": "transfer",
+      "voucher_no": "MAT-STE-2026-08217"
+    },
+    {
+      "attempts": 3,
+      "client_voucher_id": "K6S-831c44f1d3-baseline-purchase_receipt-m0-s0",
+      "event": "voucher_reject",
+      "first_committed_voucher": "MAT-PRE-2026-00001",
+      "reason": "retry returned a different committed voucher",
+      "type": "purchase_receipt",
+      "voucher_no": null
+    }
+  ],
+  "routes": {
+    "manager_detail": {
+      "count": 0,
+      "p95_ms": null
+    },
+    "manager_detail_reject": {
+      "count": 1,
+      "p95_ms": 30053
+    },
+    "manager_summary": {
+      "count": 0,
+      "p95_ms": null
+    },
+    "manager_summary_reject": {
+      "count": 8,
+      "p95_ms": 10011
+    },
+    "search_complete": {
+      "count": 22,
+      "p95_ms": 7702
+    },
+    "search_reject": {
+      "count": 12,
+      "p95_ms": 60002
+    }
+  },
+  "run_id": "mixed-year-minute-20261127",
+  "scenario_start_spread_ms": 1,
+  "scheduled_searches": 80,
+  "scheduled_vouchers": 100,
+  "scope": "one diagnostic open-arrival minute plus drain, year fixture",
+  "seed": "42",
+  "start_ms": 1795763596492,
+  "started_unique": 49,
+  "telemetry": {
+    "artifact": "arm-telemetry.json",
+    "counters": {
+      "oom_kills": 2,
+      "restarts": 0
+    },
+    "metrics": {
+      "cpu_core_seconds": 117.24,
+      "io_bytes": 4545022464,
+      "lock_wait_ms": 24081,
+      "peak_memory_bytes": 1877962752,
+      "sql_seconds": 256.685789055
+    },
+    "sha256": "0d1e360188049efb7abdf2000440ff2443fd3b63450a0ca78d3e49b34ce42399"
+  },
+  "work": {
+    "purchase_invoice": {
+      "confirmed": 1,
+      "confirmed_in_first_60s": 0,
+      "confirmed_p95_ms": 2480,
+      "max_confirmed_ms": 2480,
+      "offered": 5,
+      "rejected": 1,
+      "request_elapsed_p95_ms": 2424,
+      "started": 2
+    },
+    "purchase_receipt": {
+      "confirmed": 1,
+      "confirmed_in_first_60s": 0,
+      "confirmed_p95_ms": 36684,
+      "max_confirmed_ms": 36684,
+      "offered": 5,
+      "rejected": 1,
+      "request_elapsed_p95_ms": 36220,
+      "started": 2
+    },
+    "sale": {
+      "confirmed": 41,
+      "confirmed_in_first_60s": 20,
+      "confirmed_p95_ms": 88621,
+      "max_confirmed_ms": 90327,
+      "offered": 80,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 71887.095857,
+      "started": 41
+    },
+    "sale_10": {
+      "confirmed": 32,
+      "confirmed_in_first_60s": 15,
+      "confirmed_p95_ms": 89449,
+      "max_confirmed_ms": 90327,
+      "offered": 60,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 78630,
+      "started": 32
+    },
+    "sale_200": {
+      "confirmed": 0,
+      "confirmed_in_first_60s": 0,
+      "confirmed_p95_ms": null,
+      "max_confirmed_ms": null,
+      "offered": 4,
+      "rejected": 0,
+      "request_elapsed_p95_ms": null,
+      "started": 0
+    },
+    "sale_50": {
+      "confirmed": 9,
+      "confirmed_in_first_60s": 5,
+      "confirmed_p95_ms": 57401,
+      "max_confirmed_ms": 57401,
+      "offered": 16,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 56538,
+      "started": 9
+    },
+    "transfer": {
+      "confirmed": 4,
+      "confirmed_in_first_60s": 2,
+      "confirmed_p95_ms": 90329,
+      "max_confirmed_ms": 90329,
+      "offered": 10,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 69004,
+      "started": 4
+    }
+  },
+  "worker_start_failures": [
+    {
+      "count": 1,
+      "reason": "login HTTP 0",
+      "worker": "invoice detail reader"
+    },
+    {
+      "count": 1,
+      "reason": "login HTTP 0",
+      "worker": "monthly summary reader"
+    },
+    {
+      "count": 17,
+      "reason": "login HTTP 0",
+      "worker": "seasonal search worker"
+    },
+    {
+      "count": 6,
+      "reason": "login HTTP 502",
+      "worker": "seasonal search worker"
+    },
+    {
+      "count": 2,
+      "reason": "login succeeded but no CSRF token from /app",
+      "worker": "seasonal search worker"
+    },
+    {
+      "count": 17,
+      "reason": "login HTTP 0",
+      "worker": "seasonal voucher worker"
+    },
+    {
+      "count": 13,
+      "reason": "login HTTP 502",
+      "worker": "seasonal voucher worker"
+    },
+    {
+      "count": 3,
+      "reason": "login succeeded but no CSRF token from /app",
+      "worker": "seasonal voucher worker"
+    },
+    {
+      "count": 2,
+      "reason": "login HTTP 0",
+      "worker": "warehouse summary reader"
+    },
+    {
+      "count": 1,
+      "reason": "login HTTP 502",
+      "worker": "warehouse summary reader"
+    }
+  ]
+}

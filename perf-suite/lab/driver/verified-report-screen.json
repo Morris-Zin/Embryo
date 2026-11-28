@@ -1,0 +1,34 @@
+{
+  "baseline_commit": "43cebec022eb7804bfec88924cdb3e68ff6673f8",
+  "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+  "kind": "verified read-only report baseline",
+  "measured_metrics": {
+    "cpu_core_seconds": 28.34,
+    "io_bytes": 13893632,
+    "lock_wait_ms": 0,
+    "peak_memory_bytes": 1286651904,
+    "sql_seconds": 0.145136,
+    "summary_p95_ms": 43.979173
+  },
+  "qualified_for_seasonal": false,
+  "raw_artifacts": {
+    "adapter-harness-stdout.json": "74cc3bedde8ab1713a9cf8a4c4936339fbef60c886929b1e03db6e85bb35430f",
+    "adapter.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deployed.json": "45ee5edda96cef7c98918fe390e257da7935e296396725b84b1d7ceb8c147486",
+    "driver-cleanup.json": "e0af971edd33e21503d21aa6f429ee532fde2ae026bc78947c1107ca16f1c196",
+    "environment-preflight.json": "b0e320303943f4e563671db4a73a5c77b0ec6eb22b0b493d711d8b0677ff4aa5",
+    "harness.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mutation-controls.json": "ef92dfd5da6398e8bfd47887c1c2ee2080e4f97a397492d9d98dad87d5ac8e6a",
+    "persistence.json": "1bbb663c187223034b8384b20e9b06816ad8986404e91bfca28dbaf81567f86e",
+    "provision-state.json": "accb2b1fb6f495f8f244c1ef6fbc2125f8efc553c87d395254e61cca1446e28a",
+    "report-parity.json": "f02c5ecf1d4567c110800b62f466889fc317a4ca7f330a8a6f8a1dc9395a42e2",
+    "report-raw.json": "9b8d083dc50a9d9720b15a843b9709e654c62765bde8674a2f5175be858d6536",
+    "screen-load.json": "c1b944bb8ad7c236ac6dc8004171d9723c65f959d4fea2eef069d5a43689c5b9",
+    "screen-telemetry.json": "75d5bc48f88ddd9eace9b2014a17cba53cb25fb2eb06aa9fc6ad2d714317d5c5"
+  },
+  "raw_artifacts_dir": "/srv/khitmee-lab/operator/stores/smoke-screen-v1/runs/1795758116204341023/0-baseline",
+  "receipt_sha256": "259ae2d5dbe5e8f3292f9c698280a8b116b46cd2eb0d2cd893d2f251e09a67db",
+  "report_latency_definition": "19th of 20 durations inside the module, excluding SSH, HTTP, authentication, Python startup and rendering",
+  "scope": "20 externally issued in-process Fast Gross Profit report invocations",
+  "workload": "smoke-gross-profit-shop1-last-seed-day-by-item-v1"
+}

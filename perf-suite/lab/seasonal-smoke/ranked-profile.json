@@ -1,0 +1,134 @@
+{
+  "schema": "khitmee.cashier-discovery/v1",
+  "status": "scoped",
+  "workload": "one-minute-sales-subgroup",
+  "seasonal_qualified": false,
+  "source_sha256": "0b9a061fb175dbbf18f1c5579c259e87608503d00e942e2f86ca40a2fd2c2114",
+  "fixture_sha256": "ccbecd846f6fe9bba96a83a6815859c3385bb795cf8a69f3e62135191ecfb61c",
+  "groups": {
+    "small": {
+      "offered": 60,
+      "started": 61,
+      "submitted": 61,
+      "confirmed_within_minute": 60,
+      "confirmed_including_drain": 61,
+      "persisted": 61,
+      "p95_confirmed_ms": 7025
+    },
+    "medium": {
+      "offered": 16,
+      "started": 17,
+      "submitted": 17,
+      "confirmed_within_minute": 16,
+      "confirmed_including_drain": 17,
+      "persisted": 17,
+      "p95_confirmed_ms": 7511
+    },
+    "large": {
+      "offered": 4,
+      "started": 4,
+      "submitted": 4,
+      "confirmed_within_minute": 4,
+      "confirmed_including_drain": 4,
+      "persisted": 4,
+      "p95_confirmed_ms": 8841
+    }
+  },
+  "scope": "one-minute sale submissions only, one shared Administrator session; 50 ms simulated RTT",
+  "db_changes": {
+    "Sales Invoice": 82,
+    "Sales Invoice Item": 2260,
+    "GL Entry": 492,
+    "Stock Ledger Entry": 2260,
+    "Khitmee Idempotency Log": 82
+  },
+  "lost_confirmations": 0,
+  "financial_mismatches": 0,
+  "rankings": [
+    {
+      "metric": "confirmation_p95_ms",
+      "unit": "ms",
+      "entries": [
+        {
+          "target": "large",
+          "value": 8841,
+          "samples": 4
+        },
+        {
+          "target": "medium",
+          "value": 7511,
+          "samples": 17
+        },
+        {
+          "target": "small",
+          "value": 7025,
+          "samples": 61
+        }
+      ]
+    },
+    {
+      "metric": "client_http_duration_p95_ms",
+      "unit": "ms",
+      "entries": [
+        {
+          "target": "large",
+          "value": 8789.367578,
+          "samples": 4
+        },
+        {
+          "target": "medium",
+          "value": 7459.72174,
+          "samples": 17
+        },
+        {
+          "target": "small",
+          "value": 6973.007054,
+          "samples": 61
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "measured": [
+      "submit-to-confirmation",
+      "HTTP request duration",
+      "database outcome"
+    ],
+    "missing": [
+      "HTTP waiting subphase",
+      "server-only latency",
+      "CPU",
+      "peak memory",
+      "SQL timings",
+      "block I/O",
+      "lock waits"
+    ]
+  },
+  "hypotheses": [
+    {
+      "confidence": "low",
+      "objective": "large_sale_p95_ms",
+      "statement": "Investigate the 200-line sale path under concurrent smaller arrivals.",
+      "evidence": [
+        {
+          "target": "large",
+          "value": 8841,
+          "samples": 4
+        },
+        {
+          "target": "medium",
+          "value": 7511,
+          "samples": 17
+        },
+        {
+          "target": "small",
+          "value": 7025,
+          "samples": 61
+        }
+      ],
+      "next_checks": [
+        "Capture per-voucher SQL, lock waits, backend CPU and queue time during the same arrival mix before selecting a code change."
+      ]
+    }
+  ]
+}
