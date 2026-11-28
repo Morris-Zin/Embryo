@@ -3,33 +3,36 @@
     "tools/perf_parity.py",
     "tools/fast_check.py",
     "tools/khitmee_dev.py",
-    "tools/perf_eval_ledger.py"
+    "tools/perf_eval_ledger.py",
+    "tools/autoloop/**",
+    ".autoloop/rules/**",
+    ".devin/skills/autoloop/**"
   ],
   "allowed_paths": [],
-  "base_branch": "feat/backend-2gb-2vcpu-autoloop",
-  "base_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+  "base_branch": "main",
+  "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
   "contract_revision": 1,
-  "contract_sha256": "d4c6f58553b4e74b4260a80a4d89fcd5726eaa2950c7daf00db8c1f142ffb3f3",
-  "created_at": "2026-11-28T11:06:41Z",
+  "contract_sha256": "895ad79ae3f388336a1d4088c0e6ae79dfe0f7498e10db4ff3e8f09019bc1ee7",
+  "created_at": "2026-11-28T11:25:07Z",
   "dead_ends": [],
   "findings": {},
-  "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle",
-  "grill_summary": "Stacked on PR17 (left untouched). Oracle: stock ERPNext/Frappe never edited; mismatches reported with root cause. Acceptance: 1h seasonal (100/125 vouchers/min + managers) on 2vCPU/2GiB capped guest, p95 budgets, no OOM, exact parity. Known first wall: naming-series lock hold (87.5% SQL time). Inherited PR17 review bugs fixed here. Rust allowed for proven Python hotspots. Architecture changes decided by GPT-6.2 Astra. Workers: SWE-2.1 standard speed / GPT-6.2 Sol. Review: deep (Astra) + cloud. Merge: auto.",
+  "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle. Integrates PR17 changes.",
+  "grill_summary": "Integrates PR17 (merged into branch; PR17 need not merge). Base main. Oracle: stock ERPNext/Frappe never edited; mismatches reported with root cause. Acceptance: 1h seasonal (100/125 vouchers/min + managers) on 2vCPU/2GiB capped guest, p95 budgets, no OOM, no duplicate postings, exact parity. Architecture per ADR 0002 (GPT-6.2 Astra): keep transactional getseries, shrink post-naming work. Rust only for measured CPU-bound pure batch steps. Workers: SWE-2.1 standard / GPT-6.2 Sol. Review: deep (Astra) + cloud. Merge: auto.",
   "history": [
     {
-      "at": "2026-11-28T11:06:41Z",
+      "at": "2026-11-28T11:25:07Z",
       "event": "init",
       "status": "draft"
     },
     {
-      "at": "2026-11-28T11:07:05Z",
+      "at": "2026-11-28T11:25:07Z",
       "event": "complete-grill",
       "status": "grilled"
     },
     {
-      "at": "2026-11-28T11:07:05Z",
+      "at": "2026-11-28T11:25:07Z",
       "contract_revision": 1,
-      "contract_sha256": "d4c6f58553b4e74b4260a80a4d89fcd5726eaa2950c7daf00db8c1f142ffb3f3",
+      "contract_sha256": "895ad79ae3f388336a1d4088c0e6ae79dfe0f7498e10db4ff3e8f09019bc1ee7",
       "event": "lock",
       "status": "locked"
     }
@@ -64,6 +67,27 @@
   "safeguards": [],
   "schema_version": 1,
   "shards": {
+    "autoloop_meta": {
+      "allowed_paths": [
+        "tools/autoloop/**",
+        ".autoloop/rules/**",
+        ".devin/skills/autoloop/**",
+        ".claude/skills/autoloop/**",
+        ".agents/skills/autoloop/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest tools/autoloop/test_autoloop.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
     "cashier_correctness": {
       "allowed_paths": [
         "apps/khitmee_ops/khitmee_ops/api/**",
@@ -87,7 +111,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -105,7 +129,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -123,7 +147,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -143,7 +167,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -163,7 +187,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -184,7 +208,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -202,7 +226,7 @@
       ],
       "goal": "",
       "has_passed_individually": false,
-      "last_green_sha": "3f41e3b2d362905f264de2d7e07d988ca260d9c6",
+      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "status": "locked",
@@ -212,5 +236,5 @@
   },
   "status": "locked",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T11:07:05Z"
+  "updated_at": "2026-11-28T11:25:07Z"
 }
