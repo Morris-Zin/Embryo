@@ -411,6 +411,7 @@
 				els.linesBody.appendChild(createLineRow(line, state.lines.length - 1));
 			}
 			els.search.value = "";
+			scannerUndoEntries.length = 0;
 			hideResults();
 			renderTotals();
 			els.search.focus();
@@ -604,6 +605,21 @@
 		});
 		let scannerBuffer = "";
 		let scannerFlushTimer = null;
+		let scannerInputEventActive = false;
+		const scannerUndoEntries = [];
+		function dispatchScannerInput(inputType, data) {
+			const inputEvent = new InputEvent("input", {
+				bubbles: true,
+				inputType: inputType,
+				data: data,
+			});
+			scannerInputEventActive = true;
+			try {
+				els.search.dispatchEvent(inputEvent);
+			} finally {
+				scannerInputEventActive = false;
+			}
+		}
 		function flushScannerInput() {
 			if (scannerFlushTimer !== null) {
 				window.clearTimeout(scannerFlushTimer);
@@ -615,22 +631,45 @@
 			const oldValue = els.search.value;
 			const start = els.search.selectionStart ?? oldValue.length;
 			const end = els.search.selectionEnd ?? oldValue.length;
+			scannerUndoEntries.push({
+				start: start,
+				end: end,
+				before: oldValue.slice(start, end),
+				inserted: inserted,
+			});
+			if (scannerUndoEntries.length > 32) scannerUndoEntries.shift();
 			els.search.value = oldValue.slice(0, start) + inserted + oldValue.slice(end);
 			const caret = start + inserted.length;
 			if (start !== end || end !== oldValue.length || inserted.length !== 1) {
 				els.search.setSelectionRange(caret, caret);
 			}
-			els.search.dispatchEvent(new InputEvent("input", {
-				bubbles: true,
-				inputType: "insertText",
-				data: inserted,
-			}));
+			dispatchScannerInput("insertText", inserted);
+		}
+		function undoScannerInput() {
+			const entry = scannerUndoEntries.pop();
+			if (!entry) return false;
+			const value = els.search.value;
+			const insertedEnd = entry.start + entry.inserted.length;
+			if (value.slice(entry.start, insertedEnd) !== entry.inserted) {
+				scannerUndoEntries.length = 0;
+				return false;
+			}
+			els.search.value = value.slice(0, entry.start) + entry.before + value.slice(insertedEnd);
+			const caret = entry.start + entry.before.length;
+			els.search.setSelectionRange(caret, caret);
+			dispatchScannerInput("deleteContentBackward", null);
+			return true;
 		}
 		els.search.addEventListener("keydown", function (event) {
 			// Scanner output is normally uppercase alphanumeric plus separators. Preventing
 			// those keydowns keeps Chromium from constructing editor undo commands per scan;
 			// lowercase/manual typing keeps the browser's normal editing path. Buffering to
 			// a 16 ms boundary avoids one input-element mutation for every scanner key.
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "z") {
+				flushScannerInput();
+				if (undoScannerInput()) event.preventDefault();
+				return;
+			}
 			if (event.ctrlKey || event.metaKey || event.altKey || !/^[A-Z0-9-]$/.test(event.key)) {
 				flushScannerInput();
 				return;
@@ -640,6 +679,7 @@
 			if (scannerFlushTimer === null) scannerFlushTimer = window.setTimeout(flushScannerInput, 16);
 		});
 		function handleSearchInput() {
+			if (!scannerInputEventActive) scannerUndoEntries.length = 0;
 			// Any typed change invalidates the currently displayed results immediately;
 			// a fresh debounced search repopulates them.
 			state.searchKey = "";
