@@ -17,33 +17,6 @@
   "check_timings": {
     "all-shards": [
       {
-        "at": "2026-11-28T13:41:35Z",
-        "head_sha": "c981471d2937ceeca7112076c0e019093afcd3ef",
-        "passed": true,
-        "steps": {
-          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.09,
-          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.138,
-          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.072,
-          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.079,
-          "cashier_correctness #5: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.112,
-          "docs #6: python -B tools/autoloop/cli.py lint": 1.218,
-          "fast_check.py": 4.103,
-          "fast_check.py/autoloop_lint": 3.444,
-          "fast_check.py/bash": 0.168,
-          "fast_check.py/compose": 0.189,
-          "fast_check.py/guardrails": 2.739,
-          "fast_check.py/javascript": 0.064,
-          "fast_check.py/knip": 1.112,
-          "fast_check.py/python": 4.019,
-          "fast_check.py/ruff_and_dev_deps": 0.039,
-          "fast_check.py/zizmor_workflows": 0.264,
-          "report_paths #7: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.43,
-          "runtime_profile #8: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.043,
-          "seasonal_harness #9: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.251,
-          "verify_tooling #10: python -B -m unittest discover -s tools -p test_*.py": 10.826
-        }
-      },
-      {
         "at": "2026-11-28T16:00:19Z",
         "head_sha": "ea0534b3d3fc7c0399f26f771724475b772026c6",
         "passed": true,
@@ -149,6 +122,33 @@
           "runtime_profile #8: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.134,
           "seasonal_harness #9: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.294,
           "verify_tooling #10: python -B -m unittest discover -s tools -p test_*.py": 11.35
+        }
+      },
+      {
+        "at": "2026-11-28T18:04:22Z",
+        "head_sha": "fa1c157d5b88770d2e4953eadde1dd84eb67429a",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 11.375,
+          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.142,
+          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.068,
+          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.081,
+          "cashier_correctness #5: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.11,
+          "docs #6: python -B tools/autoloop/cli.py lint": 1.25,
+          "fast_check.py": 4.645,
+          "fast_check.py/autoloop_lint": 3.44,
+          "fast_check.py/bash": 0.146,
+          "fast_check.py/compose": 0.177,
+          "fast_check.py/guardrails": 3.649,
+          "fast_check.py/javascript": 0.053,
+          "fast_check.py/knip": 1.2,
+          "fast_check.py/python": 4.557,
+          "fast_check.py/ruff_and_dev_deps": 0.069,
+          "fast_check.py/zizmor_workflows": 0.309,
+          "report_paths #7: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.489,
+          "runtime_profile #8: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.136,
+          "seasonal_harness #9: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.282,
+          "verify_tooling #10: python -B -m unittest discover -s tools -p test_*.py": 12.462
         }
       }
     ],
@@ -3718,12 +3718,23 @@
       "at": "2026-11-28T18:03:43Z",
       "event": "resolve-finding",
       "finding_id": "window-parser-misses-k6-console-records"
+    },
+    {
+      "at": "2026-11-28T18:04:22Z",
+      "code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T18:04:32Z",
+      "event": "submit-for-review",
+      "status": "awaiting_cloud_review"
     }
   ],
   "issue_number": null,
   "last_integrated_branch": "feat/backend-2gb-proof",
   "last_integrated_detached": false,
-  "last_integrated_sha": "a060cac373355200fce9423ff66e04ce49d91f73",
+  "last_integrated_sha": "fa1c157d5b88770d2e4953eadde1dd84eb67429a",
   "last_integrated_worktree": "/root/gate/Embryo",
   "limits": {
     "max_replan_count": 1,
@@ -3833,17 +3844,16 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-      "passed_code_tree_sha256": "8cc1881634d2fad3478a4d834a2441ec40eeb23c6d4a22265099d36d26394e3f",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
+          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
           "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
         },
-        "sha256": "96c8ab78510e934e66810bc5ac145a57e03d3cfeda5cf8efac4a5484329d3b69",
+        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
           "head_counts": {},
           "warning_count": 0
         }
@@ -3879,7 +3889,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
-      "passed_code_tree_sha256": "98295c750cdbfcee1459cda0b2dddaa2d12ef6318e364d97eb722d42c44d7f3f",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3889,19 +3899,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 9
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -3923,7 +3922,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
-      "passed_code_tree_sha256": "2b0d2c32d9d23e4bffbcb9728c263d01112e764938a9664e32a23f9cd7681953",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3933,20 +3932,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -3970,7 +3957,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "1a6bb9e79ca28e3641f507fbf3717526c64a80b6",
-      "passed_code_tree_sha256": "32d916884e2105614807ec214658cce142ed5996f84c61d7d845d19e59e09d75",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -3980,20 +3967,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -4017,7 +3992,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
-      "passed_code_tree_sha256": "1f93cacf6c73283fdb2fa40759b26f9d121c5f7efa7b119e893af1f2ba900e71",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -4027,20 +4002,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -4065,7 +4028,7 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "d9641312707a4116fd5ea6eeb1a17db874accaf7",
-      "passed_code_tree_sha256": "57badec9c887dfea795fdc227d925dc0d85836c66c6bc7887dafa732372f5aca",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -4075,20 +4038,8 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {
-            "bench-results-typed-gated": 1,
-            "fastpath-must-keep-upstream-validation": 1,
-            "no-chmod-on-operator-paths": 2,
-            "wsl-scripts-lf": 6
-          },
-          "warning_count": 10
+          "head_counts": {},
+          "warning_count": 0
         }
       },
       "pending_dead_end_sig": null,
@@ -4110,15 +4061,16 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
-      "passed_code_tree_sha256": "95449f8965e1a5ab5702aee285e5e85ee7e9736128abe73bac57aff2e617fbd8",
+      "passed_code_tree_sha256": "70d386d8c37631744b70c1719acfe9d979f0a2c419ab6348c04d4650daba2a21",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
-        "policy_shas": {},
-        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
+        "policy_shas": {
+          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
+          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
+        },
+        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
           "head_counts": {},
           "warning_count": 0
         }
@@ -4131,7 +4083,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "in_progress",
+  "status": "awaiting_cloud_review",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T18:03:43Z"
+  "updated_at": "2026-11-28T18:04:32Z"
 }
