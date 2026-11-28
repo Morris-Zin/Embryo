@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import atexit
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import itertools
 import json
 import os
@@ -28,6 +30,7 @@ from autoloop import (
     EXIT_UNSAFE_ROLLBACK,
 )
 from autoloop.cli import cmd_bootstrap_repo, cmd_sync_skill, main as cli_main
+from autoloop.check_tools import doctor
 from autoloop.failures import normalize_failure
 from autoloop.guard import (
     _GIT_BIN,
@@ -42,6 +45,7 @@ from autoloop.guard import (
     check_governed_lf_and_bom,
     check_tree_modes,
     compute_code_tree_sha256,
+    contract_sha256,
     detect_case_collisions,
     format_contract_comment,
     git_read_tree_blobs,
@@ -59,14 +63,19 @@ from autoloop.leases import (
     WIN_WAIT_TIMEOUT,
     acquire_lease,
     acquire_mutex,
+    default_lock_dir,
     is_pid_alive,
     read_lease,
     release_lease,
     renew_lease,
     resource_key_hash,
+    resource_lock_dir,
 )
+from autoloop.lessons import globs_overlap
+from autoloop.routing import attempt_log_path
 from autoloop.state import (
     IllegalTransitionError,
+    _build_frozen_contract,
     apply_replan,
     bind_pr,
     complete_grill,
@@ -77,6 +86,7 @@ from autoloop.state import (
     log_dead_end,
     publish_contract,
     record_all_shards_pass,
+    record_check_timings,
     record_review,
     record_safeguard,
     record_shard_pass,
@@ -200,6 +210,8 @@ def _get_template_repo() -> Path:
     shutil.copy2(REPO_ROOT / ".autoloop/config.json", _ensure_parent(repo / ".autoloop/config.json"))
     shutil.copy2(REPO_ROOT / ".autoloop/rules/embryo_core.py", _ensure_parent(repo / ".autoloop/rules/embryo_core.py"))
     shutil.copy2(REPO_ROOT / "tools/autoloop/skill/SKILL.md", _ensure_parent(repo / "tools/autoloop/skill/SKILL.md"))
+    for name in ("__init__.py", "guard.py", "static_rules.py"):
+        shutil.copy2(REPO_ROOT / "tools/autoloop" / name, repo / "tools/autoloop" / name)
     shutil.copy2(REPO_ROOT / ".devin/skills/autoloop/SKILL.md", _ensure_parent(repo / ".devin/skills/autoloop/SKILL.md"))
     _write_lf(repo / "README.md", "# Demo Repo\n")
     _write_lf(repo / "docs/guide.md", "initial guide\n")
@@ -1007,7 +1019,7 @@ class TestScenario5WindowsSafetyLeasesAndRollback(unittest.TestCase):
         # Dirty human edit INSIDE allowed_paths (`src/a.py`) must refuse rollback with exit 4!
         _write_lf(repo / "src/a.py", "# precious human edit inside allowed_paths\n")
         with self.assertRaises(UnsafeRollbackError) as ctx:
-            retry_shard(repo, run_id, "s1", check_name="t", error_output="AssertionError", lock_dir=lock_dir)
+            retry_shard(repo, run_id, "s1", check_name="t", error_output="AssertionError", rollback=True, lock_dir=lock_dir)
         self.assertEqual(ctx.exception.exit_code, EXIT_UNSAFE_ROLLBACK)
         with self.assertRaises(UnsafeRollbackError):
             assert_clean_worktree_for_rollback(repo)
@@ -1015,11 +1027,12 @@ class TestScenario5WindowsSafetyLeasesAndRollback(unittest.TestCase):
     def test_sync_skill_dry_run_default_and_install(self) -> None:
         fake_home = self.tmp_path / "home"
         fake_home.mkdir()
-        dry = cmd_sync_skill(REPO_ROOT, install=False, home=fake_home)
+        repo = _create_temp_repo(self.tmp_path)
+        dry = cmd_sync_skill(repo, install=False, home=fake_home)
         self.assertEqual(dry["mode"], "dry-run")
         self.assertFalse((fake_home / ".claude/skills/autoloop/SKILL.md").exists())
 
-        installed = cmd_sync_skill(REPO_ROOT, install=True, home=fake_home)
+        installed = cmd_sync_skill(repo, install=True, home=fake_home)
         self.assertEqual(installed["mode"], "install")
         src_bytes = (REPO_ROOT / "tools/autoloop/skill/SKILL.md").read_bytes()
         for rel in (
@@ -1029,6 +1042,9 @@ class TestScenario5WindowsSafetyLeasesAndRollback(unittest.TestCase):
             ".agents/skills/autoloop/SKILL.md",
         ):
             self.assertEqual((fake_home / rel).read_bytes(), src_bytes)
+        for rel in (".devin", ".claude", ".agents"):
+            self.assertEqual((repo / rel / "skills/autoloop/SKILL.md").read_bytes(), src_bytes)
+            self.assertEqual((REPO_ROOT / rel / "skills/autoloop/SKILL.md").read_bytes(), src_bytes)
 
 
 class TestScenario6AllSevenEmbryoCoreRules(unittest.TestCase):
@@ -1607,7 +1623,8 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             _git(wt_a, "commit", "-m", "bad fix in a")
             for attempt in range(3):
                 st_r = retry_shard(
-                    self.repo, run_id, "shard_a", check_name="pytest", error_output=f"fail {attempt}", lock_dir=self.lock_dir,
+                    self.repo, run_id, "shard_a", check_name="pytest", error_output=f"fail {attempt}",
+                    rollback=True, lock_dir=self.lock_dir,
                 )
             self.assertEqual(st_r["status"], "needs_replan")
             self.assertEqual((wt_a / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 11\n")
@@ -1710,7 +1727,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
         _git(rb_repo, "add", "src/a.py", "src/extra_temp.py")
         _git(rb_repo, "commit", "-m", "broken commit")
         for _ in range(3):
-            st_rb = retry_shard(rb_repo, run2, "s1", check_name="t", error_output="AssertionError", lock_dir=self.lock_dir)
+            st_rb = retry_shard(rb_repo, run2, "s1", check_name="t", error_output="AssertionError", rollback=True, lock_dir=self.lock_dir)
         self.assertEqual(st_rb["status"], "needs_replan")
         self.assertEqual((rb_repo / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 1\n")
         self.assertFalse((rb_repo / "src/extra_temp.py").exists())
@@ -2474,7 +2491,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             # Explicit --integrated before any integrated pass MUST fail closed
             with self.assertRaises(IllegalTransitionError):
                 retry_shard(
-                    int_repo, run_int, "a", check_name="c", error_output="e", integrated=True, lock_dir=self.lock_dir
+                    int_repo, run_int, "a", check_name="c", error_output="e", integrated=True, rollback=True, lock_dir=self.lock_dir
                 )
 
             _write_lf(wt_a / "src/a.py", "def a():\n    return 11\n")
@@ -2508,7 +2525,8 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             _git(wt_int, "commit", "-m", "broken safeguard commit")
             for idx in range(3):
                 st_rb = retry_shard(
-                    int_repo, run_int, "a", check_name="fast_check", error_output=f"err {idx}", lock_dir=self.lock_dir,
+                    int_repo, run_int, "a", check_name="fast_check", error_output=f"err {idx}",
+                    rollback=True, lock_dir=self.lock_dir,
                 )
             self.assertEqual(st_rb["status"], "needs_replan")
             # Linked integration worktree rolled back cleanly; coordinator `main` untouched!
@@ -2542,7 +2560,7 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             retry_shard(int_repo, run_int, "a", check_name="c", error_output="e1", integrated=True, lock_dir=self.lock_dir)
             retry_shard(int_repo, run_int, "a", check_name="c", error_output="e2", integrated=True, lock_dir=self.lock_dir)
             with self.assertRaises(UnsafeRollbackError):
-                retry_shard(int_repo, run_int, "a", check_name="c", error_output="e3", integrated=True, lock_dir=self.lock_dir)
+                retry_shard(int_repo, run_int, "a", check_name="c", error_output="e3", integrated=True, rollback=True, lock_dir=self.lock_dir)
             self.assertEqual((wt_int / "src/a.py").read_text(encoding="utf-8"), "def a():\n    return 777\n")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(wt_a)], cwd=int_repo, capture_output=True)
@@ -2739,6 +2757,387 @@ class TestScenario7ReviewFixRegressions(unittest.TestCase):
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "lint"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "sync-skill", "--dry-run"]), 0)
             self.assertEqual(cli_main(["--repo", str(REPO_ROOT), "bootstrap-repo", "--dry-run"]), 0)
+
+
+class TestWorkflowMetadata(unittest.TestCase):
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.repo = _create_temp_repo(self.root)
+        self.base = _template_main_sha()
+
+    def cli(self, *args: str, expected: int = 0) -> tuple[dict, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli_main(["--repo", str(self.repo), *args])
+        self.assertEqual(code, expected, f"{stdout.getvalue()}\n{stderr.getvalue()}")
+        return json.loads(stdout.getvalue() or "{}"), stderr.getvalue()
+
+    def create_run(
+        self, run_id: str, *extra: str, shard: str = "a=src/a.py", check: str | None = None,
+    ) -> None:
+        self.cli("init", "--run-id", run_id, "--goal", "Example", *extra)
+        checks = ("--shard-check", f"a={check}") if check else ()
+        self.cli("complete-grill", "--run-id", run_id, "--summary", "Agreed", "--shard", shard, *checks)
+        self.cli("lock", "--run-id", run_id)
+
+    def test_lessons_overlap_and_interview_drafts(self) -> None:
+        for left, right in [
+            ("src/**/test_*.py", "src/[a-z]*/test_?.py"),
+            ("src/**/**", "src"),
+            ("src/[!a-c].py", "src/[b-d].py"),
+        ]:
+            self.assertTrue(globs_overlap(left, right), (left, right))
+            self.assertTrue(globs_overlap(right, left))
+        for left, right in [
+            ("src/*.py", "src/sub/*.py"),
+            ("src/*a.py", "src/*b.py"),
+            ("Src/**", "src/**"),
+            ("src/[a-c].py", "src/[d-f].py"),
+        ]:
+            self.assertFalse(globs_overlap(left, right), (left, right))
+        self.create_run("earlier", "--no-cloud-review", "--no-deep-review")
+        self.cli("start-shard", "--run-id", "earlier", "--shard", "a")
+        self.cli("log-dead-end", "--run-id", "earlier", "--shard", "a", "--signature", "check:error:src/a.py",
+                 "--hypothesis", "Used stale data", "--outcome", "Wrong result")
+        record_shard_pass(self.repo, "earlier", "a", head_sha=self.base)
+        state = load_run(self.repo, "earlier")
+        state["findings"]["rule"] = {"status": "fixed_pending_review", "summary": "Document the guard"}
+        _write_lf(self.repo / ".autoloop/runs/earlier.json", json.dumps(state) + "\n")
+        self.cli("submit-for-review", "--run-id", "earlier")
+        self.cli("record-safeguard", "--run-id", "earlier", "--finding-id", "rule", "--layer", "layer_1_architecture",
+                 "--artifact", "src/a.py", "--summary", "Use the shared implementation")
+        self.assertEqual(_git(self.repo, "status", "--porcelain", "--untracked-files=all"), "?? .autoloop/runs/earlier.json")
+        lesson, _ = self.cli("record-lesson", "--run-id", "earlier", "--kind", "process", "--summary", "Study the guide",
+                             "--evidence", "docs/guide.md", "--applies-to", "docs/[a-z]*.md")
+        self.assertEqual((self.repo / lesson["file"]).parent, self.repo / ".autoloop/lessons")
+        init, _ = self.cli("init", "--run-id", "later", "--goal", "Learn", "--paths", "docs/**")
+        self.assertEqual([item["kind"] for item in init["lessons"]], ["process"])
+        grill, _ = self.cli("complete-grill", "--run-id", "later", "--summary", "Agreed", "--shard", "a=src/*.py")
+        self.assertEqual({item["kind"] for item in grill["lessons"]}, {"dead_end", "safeguard"})
+        self.assertTrue(all(item["draft"] for item in grill["lessons"]))
+        empty, _ = self.cli("lessons", "--paths", "elsewhere/**")
+        self.assertEqual(empty["lessons"], [])
+
+    def test_attempt_log_and_route_statistics(self) -> None:
+        log = self.root / "attempts.jsonl"
+
+        def attempt(task_id, n, model, *extra):
+            return self.cli(
+                "record-attempt", "--log", str(log), "--task-id", task_id, "--attempt", str(n),
+                "--model", model, "--task-class", "implementation", "--provider", "codex", *extra,
+            )[0]["record"]
+
+        accepted = ("--disposition", "accepted", "--checks-passed", "true")
+        first = attempt("a", 1, "Sol", *accepted, "--elapsed-to-acceptance-minutes", "6", "--cost", "1.25")
+        self.assertIsNone(first["review_minutes"])
+        self.assertTrue(first["checks_passed"])
+        self.assertEqual(attempt("a", 1, "Sol", *accepted, "--elapsed-to-acceptance-minutes", "6", "--cost", "1.25"), first)
+        attempt("b", 1, "Sol", "--disposition", "rejected", "--cost", "0.75")
+        attempt("b", 2, "Astra", *accepted, "--elapsed-to-acceptance-minutes", "10", "--cost", "3")
+        attempt("c", 1, "Sol", "--disposition", "rejected")
+        self.assertEqual(len(log.read_text(encoding="utf-8").splitlines()), 4)
+        report, _ = self.cli("routing-report", "--log", str(log))
+        routes = {route["model"]: route for route in report["routes"]}
+        self.assertAlmostEqual(routes["Sol"]["first_attempt_acceptance"], 1 / 3)
+        self.assertAlmostEqual(routes["Sol"]["eventual_acceptance"], 2 / 3)
+        self.assertEqual(routes["Sol"]["median_elapsed_to_acceptance_minutes"], 8)
+        self.assertEqual(routes["Sol"]["spend"], 2)
+        self.assertTrue(routes["Sol"]["too_few_samples"])
+        self.assertIsNone(routes["Astra"]["first_attempt_acceptance"])
+        self.assertEqual(routes["Astra"]["spend"], 3)
+        self.cli("record-attempt", "--log", str(self.repo / "apps/log.jsonl"), "--task-id", "a", "--attempt", "1",
+                 expected=EXIT_POLICY_OR_INTEGRITY)
+        other = self.root / "other-worktree"
+        _write_lf(other / ".git", "gitdir: fake\n")
+        with self.assertRaises(GuardError):
+            attempt_log_path(self.repo, other / "attempts.jsonl")
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.root), "XDG_STATE_HOME": str(self.root)}):
+            subdir = "KhitmeePerf" if os.name == "nt" else "khitmee-perf"
+            self.assertEqual(attempt_log_path(self.repo, None), self.root / subdir / "agent-attempts.jsonl")
+
+    def test_approve_new_shard_with_frozen_checks(self) -> None:
+        run_id = "amendment"
+        self.create_run(run_id, shard="a=src/[a-m].py")
+        self.cli("request-contract-change", "--run-id", run_id, "--shard", "new", "--reason", "Add evidence",
+                 "--proposed-path", "docs/**")
+        resolve = ("resolve-contract-change", "--run-id", run_id)
+        self.cli(*resolve, "--decision", "approve", "--add-shard-paths", "new=src/a*.py",
+                 expected=EXIT_ILLEGAL_TRANSITION)
+        self.cli(*resolve, "--decision", "approve", "--add-shard-paths", "unrequested=docs/**",
+                 expected=EXIT_ILLEGAL_TRANSITION)
+        self.assertEqual(load_run(self.repo, run_id)["contract_revision"], 1)
+        rejected, _ = self.cli(*resolve, "--decision", "reject")
+        self.assertNotIn("new", rejected["shards"])
+        self.cli("request-contract-change", "--run-id", run_id, "--shard", "new", "--reason", "Add evidence")
+        approved, _ = self.cli(*resolve, "--decision", "approve", "--add-shard-paths", "new=docs/**",
+                               "--shard-check", "new=git status --porcelain")
+        self.assertEqual(approved["contract_revision"], 2)
+        self.assertEqual(approved["shards"]["new"]["status"], "locked")
+        frozen = verify_untampered(self.repo, run_id, shard_id="new")["contract_shards"]["new"]
+        self.assertEqual(frozen, {"allowed_paths": ["docs/**"], "checks": ["git status --porcelain"]})
+        approved["shards"]["new"]["checks"] = []
+        _write_lf(self.repo / f".autoloop/runs/{run_id}.json", json.dumps(approved) + "\n")
+        with self.assertRaisesRegex(GuardError, "checks tampered"):
+            verify_untampered(self.repo, run_id, shard_id="new")
+
+    def test_preintegrated_base_hint_and_retarget(self) -> None:
+        _git(self.repo, "checkout", "-b", "parent")
+        _write_lf(self.repo / "docs/guide.md", "unmerged dependency\n")
+        _git(self.repo, "commit", "-am", "unmerged dependency")
+        stacked_sha = _git(self.repo, "rev-parse", "HEAD")
+        _git(self.repo, "checkout", "-b", "child", "main")
+        _git(self.repo, "merge", "--no-ff", "parent", "-m", "integrate dependency")
+        integration_sha = _git(self.repo, "rev-parse", "HEAD")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 7\n")
+        _git(self.repo, "commit", "-am", "shard change")
+        run_id = "stacked"
+        self.create_run(run_id, "--base-branch", "main")
+        self.cli("start-shard", "--run-id", run_id, "--shard", "a")
+        check = ("check", "--run-id", run_id, "--shard", "a", "--skip-fast-check")
+        _, error = self.cli(*check, expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("--base-ref <integration-commit>", error)
+        self.cli(*check, "--base-sha", integration_sha)
+        change, _ = self.cli("refresh-base", "--run-id", run_id, "--new-base-sha", stacked_sha,
+                             "--new-base-branch", "parent")
+        self.assertEqual((change["base_branch"], change["base_sha"], change["contract_revision"]), ("parent", stacked_sha, 2))
+        self.assertFalse(change["shards"]["a"]["has_passed_individually"])
+        published, _ = self.cli("publish-contract", "--run-id", run_id)
+        contract = json.loads(Path(published["trusted_contract_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(contract["base_branch"], "parent")
+        self.assertTrue(contract["base_branch_bound"])
+        self.cli("request-contract-change", "--run-id", run_id, "--shard", "a", "--reason", "Retarget to main")
+        change, _ = self.cli("resolve-contract-change", "--run-id", run_id, "--decision", "approve",
+                             "--new-base-sha", self.base, "--new-base-branch", "main")
+        self.assertEqual((change["base_branch"], change["base_sha"], change["contract_revision"]), ("main", self.base, 3))
+
+    def test_check_timings_capture_jobs_and_failed_attempt(self) -> None:
+        _write_lf(_ensure_parent(self.repo / "tools/fast_check.py"),
+                  "from concurrent.futures import ThreadPoolExecutor\nimport os\n"
+                  "def probe():\n    return True\n"
+                  "def check(root):\n"
+                  "    with ThreadPoolExecutor() as pool:\n        assert pool.submit(probe).result()\n"
+                  "    if os.environ.get('AUTOLOOP_TEST_FAIL_GATE'):\n        raise SystemExit(7)\n")
+        _git(self.repo, "add", "tools/fast_check.py")
+        _git(self.repo, "commit", "-m", "fixture offline gate")
+        self.create_run("timers", check="git status --porcelain")
+        self.cli("start-shard", "--run-id", "timers", "--shard", "a")
+        check = ("check", "--run-id", "timers", "--shard", "a")
+        with mock.patch("autoloop.check_tools.monotonic", side_effect=[0, 12, 20, 21]):
+            self.cli(*check)
+        with mock.patch.dict(os.environ, {"AUTOLOOP_TEST_FAIL_GATE": "1"}):
+            with mock.patch("autoloop.check_tools.monotonic", side_effect=[0, 67]):
+                _, error = self.cli(*check, expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("regressed from 12.0s to 67.0s", error)
+        state = load_run(self.repo, "timers")
+        passed, failed = state["check_timings"]["shard:a"]
+        self.assertIn("a #1: git status --porcelain", passed["steps"])
+        self.assertIn("fast_check.py/probe", failed["steps"])
+        self.assertEqual([passed["passed"], failed["passed"]], [True, False])
+        for seconds in range(6):
+            record_check_timings(self.repo, "timers", scope="shard:a", head_sha=self.base,
+                                 steps={"probe": seconds}, passed=True)
+        self.assertEqual([item["steps"]["probe"] for item in load_run(self.repo, "timers")["check_timings"]["shard:a"]],
+                         [1, 2, 3, 4, 5])
+
+    def test_record_failures_without_rollback_at_strike_limit(self) -> None:
+        self.create_run("failures")
+        self.cli("start-shard", "--run-id", "failures", "--shard", "a")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 13\n")
+        _git(self.repo, "commit", "-am", "worker change")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        for _ in range(3):
+            state, _ = self.cli("retry-shard", "--run-id", "failures", "--shard", "a", "--check-name", "pytest",
+                                "--error-output", "AssertionError src/a.py:17")
+        self.assertEqual(state["status"], "needs_replan")
+        self.assertEqual(state["shards"]["a"]["pending_dead_end_sig"],
+                         normalize_failure("pytest", "AssertionError src/a.py:17"))
+        self.assertNotIn("rolled_back_to", state["history"][-1])
+        self.assertEqual(_git(self.repo, "rev-parse", "HEAD"), head)
+
+    def test_oracle_register_requires_review_and_authentication(self) -> None:
+        run_id = "oracle"
+        self.create_run(run_id, "--no-cloud-review", "--no-deep-review", "--pr", "123", shard="a=src/**")
+        self.cli("start-shard", "--run-id", run_id, "--shard", "a")
+        args = ("record-oracle-mismatch", "--run-id", run_id, "--shard", "a", "--summary", "Stock rounds early",
+                "--why-ours-is-correct", "Totals must reconcile", "--upstream-ref")
+        self.cli(*args, "bad-ref", "--test", "src/test_parity.py", expected=EXIT_POLICY_OR_INTEGRITY)
+        registered, _ = self.cli(*args, "erpnext/report.py:18@v16", "--test", "src/test_parity.py")
+        mismatch_id = registered["oracle_mismatch_id"]
+        second, _ = self.cli(*args, "erpnext/report.py:18@v16", "--test", "src/test_parity.py")
+        self.assertEqual(second["contract_revision"], registered["contract_revision"])
+        check = ("check", "--run-id", run_id, "--shard", "a", "--skip-fast-check")
+        submit = ("submit-for-review", "--run-id", run_id)
+        self.cli(*check)
+        self.cli(*submit, expected=EXIT_ILLEGAL_TRANSITION)
+        _write_lf(self.repo / "src/test_parity.py", "def test_reconciliation():\n    assert 1 + 2 == 3\n")
+        _git(self.repo, "add", "src/test_parity.py")
+        _git(self.repo, "commit", "-m", "regression test")
+        gated, _ = self.cli(*check)
+        submitted, _ = self.cli(*submit)
+        self.assertEqual(submitted["status"], "awaiting_deep_review")
+        self.assertEqual(list(submitted["open_oracle_mismatches"]), [mismatch_id])
+        review = ("record-review", "--run-id", run_id, "--stage", "deep", "--verdict", "pass", "--reviewer", "reviewer")
+        self.cli(*review, expected=EXIT_ILLEGAL_TRANSITION)
+        state, _ = self.cli(*review, "--oracle-mismatch", mismatch_id)
+        self.assertEqual(state["status"], "ready_to_merge")
+        pub, _ = self.cli("publish-contract", "--run-id", run_id)
+        checkpoint = f".autoloop/runs/{run_id}.json"
+        _git(self.repo, "add", checkpoint)
+        _git(self.repo, "commit", "-m", "reviewed oracle register")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        client = FakeGitHubClient(
+            comments_by_number={123: [{"author": "Morris-Zin", "body": pub["comment_markdown"]}]},
+            pr_reviews=[{"user": "reviewer", "state": "APPROVED", "commit_id": head}],
+        )
+        code_hash = gated["code_tree_sha256"]
+        def ci(head_sha: str):
+            return verify_pr_integrity(
+                self.repo, base_sha=self.base, head_sha=head_sha, pr_number=123, pr_author="worker",
+                pr_labels=["autoloop"], github_client=client, candidate_checks_result="success",
+                trusted_shard_results={"a": code_hash},
+            )
+        self.assertEqual(ci(head)["verdict"], "enrolled-pass")
+        state["reviews"][-1]["oracle_mismatch_ids"] = []
+        _write_lf(self.repo / checkpoint, json.dumps(state) + "\n")
+        _git(self.repo, "commit", "-am", "stale mismatch review")
+        with self.assertRaisesRegex(GuardError, "unreviewed oracle mismatches"):
+            ci(_git(self.repo, "rev-parse", "HEAD"))
+        del state["oracle_mismatches"]
+        _write_lf(self.repo / checkpoint, json.dumps(state) + "\n")
+        with self.assertRaisesRegex(GuardError, "oracle mismatches do not match FrozenContractV1"):
+            verify_untampered(self.repo, run_id)
+
+    def test_doctor_runs_windows_docker_separately(self) -> None:
+        wsl_docker = ["wsl.exe", "-d", "KhitmeeERPNext", "--", "docker", "info"]
+        with mock.patch("autoloop.check_tools._reachable", side_effect=lambda cmd: cmd != wsl_docker) as probe:
+            with mock.patch("fast_check.missing_dev_tools", return_value=["ruff"]):
+                result = doctor(windows=True)
+        probe.assert_any_call(wsl_docker)
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["checks"]["KhitmeeERPNext"]["ok"])
+        self.assertFalse(result["checks"]["docker_in_KhitmeeERPNext"]["ok"])
+        self.assertIn("--group apps/khitmee_ops/pyproject.toml:dev", result["checks"]["dev_group"]["fix"])
+
+    def test_active_and_older_checkpoints_verify_with_original_contract_digest(self) -> None:
+        for run_id in ("backend-2gb-proof-20261128", "backend-2gb-2vcpu-20261128", "devprod-verification-20261127"):
+            source = REPO_ROOT / ".autoloop/runs" / f"{run_id}.json"
+            with self.subTest(run_id=run_id):
+                target = _ensure_parent(self.repo / ".autoloop/runs" / source.name)
+                shutil.copyfile(source, target)
+                state = load_run(self.repo, run_id)
+                frozen = _build_frozen_contract(state)
+                self.assertEqual(contract_sha256(frozen), state["contract_sha256"])
+                trusted = _ensure_parent(self.repo / ".autoloop/trusted-contracts" / f"{run_id}.json")
+                _write_lf(trusted, json.dumps(frozen) + "\n")
+                result = verify_untampered(self.repo, run_id, base_ref=self.base, head_ref=self.base)
+                self.assertTrue(result["ok"])
+                self.assertEqual(target.read_bytes(), source.read_bytes())
+
+    def test_shards_run_trusted_tools_and_only_promote_individual_passes(self) -> None:
+        gate = "tools/fast_check.py"
+        rule = ".autoloop/rules/embryo_core.py"
+        _write_lf(
+            self.repo / gate,
+            "def check(root):\n"
+            "    if 'always pass' in (root / 'tools/fast_check.py').read_text():\n        raise SystemExit(7)\n"
+            "    if 'needs_tooling_patch' in (root / 'src/a.py').read_text():\n        raise SystemExit(7)\n",
+        )
+        _git(self.repo, "add", gate)
+        _git(self.repo, "commit", "-m", "trusted gate")
+        base = _git(self.repo, "rev-parse", "HEAD")
+        policy, worker = self.root / "policy", self.root / "worker"
+        _git(self.repo, "worktree", "add", "-b", "policy", str(policy), base)
+        _git(self.repo, "worktree", "add", "-b", "worker", str(worker), base)
+        run = ("--run-id", "trusted-tooling")
+        self.cli("init", *run, "--goal", "Gate workers")
+        self.cli("complete-grill", *run, "--summary", "Agreed",
+                 "--shard", f"policy={gate},{rule}", "--shard", "worker=src/a.py",
+                 "--allow-policy-path", gate, "--allow-policy-path", rule)
+        self.cli("lock", *run)
+        self.cli("start-shard", *run, "--shard", "policy", "--worktree", str(policy))
+        self.cli("start-shard", *run, "--shard", "worker", "--worktree", str(worker))
+        _write_lf(policy / gate, "def check(root):\n    pass  # always pass\n")
+        _write_lf(policy / rule, "raise RuntimeError('candidate rule code must never execute')\n")
+        _git(policy, "commit", "-am", "attempt to bypass the gate")
+        _, error = self.cli("check", *run, "--shard", "policy", expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("fast_check.py failed with exit 7", error)
+        self.cli("check", *run, "--shard", "policy", "--skip-fast-check")
+        state = load_run(self.repo, "trusted-tooling")
+        self.assertNotIn("trusted_policy_pass_sha", state["shards"]["policy"])
+        _write_lf(worker / "src/a.py", "def a():\n    return 1  # needs_tooling_patch\n")
+        _git(worker, "commit", "-am", "worker source")
+        _, error = self.cli("check", *run, "--shard", "worker", expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("fast_check.py failed with exit 7", error)
+        self.assertEqual(_git(worker, "show", f"HEAD:{gate}"), _git(self.repo, "show", f"{base}:{gate}"))
+
+        _git(policy, "checkout", base, "--", rule)
+        _write_lf(policy / gate, "def check(root):\n    assert (root / 'src/a.py').is_file()\n")
+        _git(policy, "commit", "-am", "fix the gate")
+        policy_head = _git(policy, "rev-parse", "HEAD")
+        policy_pass, _ = self.cli("check", *run, "--shard", "policy")
+        self.assertEqual(policy_pass["tooling"]["policy_shas"], {})
+        worker_pass, _ = self.cli("check", *run, "--shard", "worker")
+        evidence = load_run(self.repo, "trusted-tooling")["shards"]["worker"]["passed_tooling"]
+        self.assertEqual(evidence, worker_pass["tooling"])
+        self.assertEqual(evidence["policy_shas"], {"policy": policy_head})
+        self.assertNotEqual(evidence["sha256"], policy_pass["tooling"]["sha256"])
+
+    def test_lease_common_dir_override_and_status(self) -> None:
+        linked = self.root / "lease-worktree"
+        _git(self.repo, "worktree", "add", "-b", "lease-shard", str(linked), self.base)
+        with mock.patch.dict(os.environ):
+            os.environ.pop("AUTOLOOP_LOCK_DIR", None)
+            os.environ.pop("AUTOLOOP_SHARED_LOCK_DIR", None)
+            self.assertEqual(default_lock_dir(self.repo), self.repo / ".git/autoloop-locks")
+            self.assertEqual(default_lock_dir(self.repo), default_lock_dir(linked))
+            override = self.root / "shared-locks"
+            os.environ["AUTOLOOP_LOCK_DIR"] = str(override)
+            self.assertEqual(default_lock_dir(linked), override)
+            def lease(action, *extra, expected=0):
+                return self.cli("lease", action, "--resource", "khitmee-perf", *extra, expected=expected)[0]
+
+            first = lease("acquire", "--owner", "worker")
+            status = lease("status")
+            self.assertTrue(status["active"])
+            self.assertEqual(status["holder"]["owner"], "worker")
+            self.assertNotIn("token", status["holder"])
+            self.assertTrue(lease("release", "--owner", "worker", "--token", first["token"])["released"])
+            self.assertEqual(lease("status"), {"resource": "khitmee-perf", "active": False, "holder": None})
+
+    def test_windows_backed_wsl_fails_closed_before_creating_lock(self) -> None:
+        override = self.root / "must-not-create"
+        with mock.patch.dict(os.environ, {"AUTOLOOP_LOCK_DIR": str(override)}):
+            with mock.patch("autoloop.leases._is_wsl", return_value=True):
+                with mock.patch("autoloop.leases._on_windows_drive", return_value=True):
+                    _, error = self.cli("lease", "acquire", "--resource", "khitmee-perf", "--owner", "wsl", expected=1)
+                    self.assertIn("python.exe tools/autoloop/cli.py lease", error)
+                    self.assertFalse(override.exists())
+                with mock.patch("autoloop.leases._on_windows_drive", return_value=False):
+                    self.assertEqual(resource_lock_dir(self.repo), override)
+
+    def test_foreign_pid_lease_survives_until_ttl(self) -> None:
+        lock_dir = self.root / "foreign-locks"
+        resource = "khitmee-perf"
+        first = acquire_lease(resource, "foreign", ttl_s=30, lock_dir=lock_dir)
+        path = lock_dir / f"{resource_key_hash(resource)}.lease.json"
+        first.update(pid=123, pid_namespace="foreign")
+        _write_lf(path, json.dumps(first) + "\n")
+        with mock.patch("autoloop.leases.is_pid_alive", return_value=False) as liveness:
+            with self.assertRaises(LeaseConflictError):
+                acquire_lease(resource, "local", lock_dir=lock_dir)
+            liveness.assert_not_called()
+        first["expires_at"] = 0
+        _write_lf(path, json.dumps(first) + "\n")
+        self.assertTrue(acquire_lease(resource, "local", lock_dir=lock_dir)["reclaimed_previous"])
+
+    def test_shell_scripts_use_lf_in_windows_worktrees(self) -> None:
+        attrs = REPO_ROOT / ".gitattributes"
+        shutil.copyfile(attrs, self.repo / attrs.name)
+        paths = ("perf-suite/probe.sh", "perf-suite/probe.bash", "tools/cli.sh")
+        output = _git(self.repo, "check-attr", "eol", "--", *paths)
+        self.assertEqual(output.splitlines(), [f"{path}: eol: lf" for path in paths])
 
 
 if __name__ == "__main__":

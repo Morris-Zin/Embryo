@@ -30,11 +30,14 @@ GOVERNED_LF_GLOBS = (
     "tools/autoloop/**",
     ".autoloop/**",
     ".devin/skills/autoloop/**",
+    ".claude/skills/autoloop/**",
+    ".agents/skills/autoloop/**",
     ".github/workflows/**",
     ".github/CODEOWNERS",
     "AGENTS.md",
     "tools/**/*.sh",
 )
+EXTRA_SKILL_POLICY_GLOBS = (".claude/skills/autoloop/**", ".agents/skills/autoloop/**")
 
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
@@ -414,8 +417,8 @@ def git_diff_tree_entries(repo: Path, base_rev: str, head_rev: str) -> list[Diff
     return entries
 
 
-def git_ls_tree(repo: Path, tree_ish: str) -> list[TreeEntry]:
-    proc = _run_git(repo, ["ls-tree", "-r", "-l", "-z", tree_ish])
+def git_ls_tree(repo: Path, tree_ish: str, paths: Iterable[str] = ()) -> list[TreeEntry]:
+    proc = _run_git(repo, ["ls-tree", "-r", "-l", "-z", tree_ish, "--", *paths])
     entries: list[TreeEntry] = []
     for record in proc.stdout.split(b"\0"):
         if not record:
@@ -720,6 +723,57 @@ def canonical_json_bytes(obj: Any) -> bytes:
 
 def contract_sha256(contract: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(contract)).hexdigest()
+
+
+def oracle_mismatch_id(record: dict[str, Any]) -> str:
+    fields = ("shard", "upstream_ref", "summary", "why_ours_is_correct", "test")
+    return "oracle-" + contract_sha256({key: record.get(key) for key in fields})[:16]
+
+
+def validate_oracle_mismatch(record: dict[str, Any], shards: dict[str, Any]) -> None:
+    if not isinstance(record, dict):
+        raise GuardError("invalid oracle mismatch record")
+    upstream_ref = record.get("upstream_ref", "")
+    if not isinstance(upstream_ref, str) or not re.fullmatch(r"[^:@\s]+:[1-9]\d*@[^\s@]+", upstream_ref):
+        raise GuardError("oracle mismatch requires --upstream-ref file:line@version")
+    if record.get("shard") not in shards:
+        raise GuardError("oracle mismatch references an unknown shard")
+    for field in ("summary", "why_ours_is_correct", "test"):
+        if not isinstance(record.get(field), str) or not record[field].strip():
+            raise GuardError(f"oracle mismatch requires a non-empty {field}")
+    path = record["test"]
+    leaf = path.rsplit("/", 1)[-1].lower()
+    if (any(part in ("", ".", "..") for part in path.split("/"))
+            or any(ch in path for ch in "\\:\x00")
+            or path.startswith((".autoloop/runs/", ".autoloop/experiments/"))
+            or not leaf.endswith(_EXECUTABLE_TEST_EXTS)
+            or not ("test" in leaf or "/tests/" in f"/{path}" or "/test/" in f"/{path}"
+                    or path.startswith("perf-suite/k6/scenarios/"))):
+        raise GuardError("oracle mismatch --test must be a repo-relative executable test path")
+
+
+def open_oracle_mismatches(state: dict[str, Any], code_hash: str | None) -> dict[str, Any]:
+    register = state.get("oracle_mismatches", {})
+    if not isinstance(register, dict):
+        raise GuardError("invalid oracle mismatch register")
+    if not register:
+        return {}
+    reviewed = {
+        mismatch_id
+        for review in state.get("reviews", [])
+        if code_hash and review.get("code_tree_sha256") == code_hash
+        and review.get("contract_revision") == state.get("contract_revision")
+        and review.get("base_sha") == state.get("base_sha")
+        and review.get("stage") in ("cloud", "deep")
+        and review.get("verdict") == "pass"
+        and str(review.get("reviewer") or "").strip()
+        for mismatch_id in review.get("oracle_mismatch_ids", [])
+    }
+    for mismatch_id, record in register.items():
+        validate_oracle_mismatch(record, state.get("shards", {}))
+        if mismatch_id != oracle_mismatch_id(record):
+            raise GuardError(f"oracle mismatch {mismatch_id!r} does not match its record")
+    return {key: record for key, record in register.items() if key not in reviewed}
 
 
 def format_contract_comment(contract: dict[str, Any]) -> str:
@@ -1400,19 +1454,9 @@ def _verify_safeguard_artifact(
             )
 
 
-def verify_untampered(
-    repo: Path,
-    run_id: str,
-    *,
-    shard_id: str | None = None,
-    base_ref: str | None = None,
-    head_ref: str = "HEAD",
-    main_ref: str = "origin/main",
-    trusted_contracts_dir: Path | None = None,
-    git_repo: Path | None = None,
-) -> dict[str, Any]:
-    """Local pre-PR integrity verification against FrozenContractV1 and Git boundary rules."""
-    config = load_config(repo)
+def load_verified_local_contract(
+    repo: Path, run_id: str, *, trusted_contracts_dir: Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     run_path = repo / ".autoloop/runs" / f"{run_id}.json"
     assert_safe_local_path(repo, run_path, allow_missing_leaf=False)
     if not run_path.is_file():
@@ -1439,6 +1483,10 @@ def verify_untampered(
         raise GuardError("local FrozenContractV1 revision mismatch")
     if run_data.get("contract_sha256") != contract_sha256(contract):
         raise GuardError("run checkpoint contract_sha256 does not match FrozenContractV1")
+    if run_data.get("base_branch", "main") != contract.get("base_branch", "main"):
+        raise GuardError("run checkpoint base_branch does not match FrozenContractV1")
+    if run_data.get("oracle_mismatches", {}) != contract.get("oracle_mismatches", {}):
+        raise GuardError("run checkpoint oracle mismatches do not match FrozenContractV1")
 
     # Verify mutable run checkpoint shard checks and allowed_paths match authenticated FrozenContractV1
     contract_shards_map = contract.get("shards") or {}
@@ -1451,7 +1499,24 @@ def verify_untampered(
             raise GuardError(f"run checkpoint shard {sid_k!r} allowed_paths tampered vs FrozenContractV1")
         if list(cshard_k.get("checks") or []) != list(rshard_k.get("checks") or []):
             raise GuardError(f"run checkpoint shard {sid_k!r} checks tampered vs FrozenContractV1")
+    return run_data, contract
 
+
+def verify_untampered(
+    repo: Path,
+    run_id: str,
+    *,
+    shard_id: str | None = None,
+    base_ref: str | None = None,
+    head_ref: str = "HEAD",
+    main_ref: str = "origin/main",
+    trusted_contracts_dir: Path | None = None,
+    git_repo: Path | None = None,
+) -> dict[str, Any]:
+    """Local pre-PR integrity verification against FrozenContractV1 and Git boundary rules."""
+    config = load_config(repo)
+    run_data, contract = load_verified_local_contract(repo, run_id, trusted_contracts_dir=trusted_contracts_dir)
+    contract_shards_map = contract["shards"]
     target_repo = git_repo or repo
     eff_base = base_ref or run_data.get("base_sha") or contract.get("base_branch") or main_ref
     base_sha = git_rev_parse(target_repo, eff_base)
@@ -1482,7 +1547,7 @@ def verify_untampered(
         for sdata in shards.values():
             allowed_paths.extend(sdata.get("allowed_paths") or [])
 
-    policy_globs = config.get("critical_policy_globs") or []
+    policy_globs = [*(config.get("critical_policy_globs") or []), *EXTRA_SKILL_POLICY_GLOBS]
     outside: list[str] = []
     policy_touched: list[str] = []
     for entry in target_diff:
@@ -1493,7 +1558,12 @@ def verify_untampered(
         if not matches_any_glob(entry.path, allowed_paths):
             outside.append(entry.path)
     if outside:
-        raise GuardError(f"changes outside allowed_paths: {', '.join(outside[:10])}")
+        raise GuardError(
+            f"changes outside allowed_paths: {', '.join(outside[:10])}. "
+            "For an already-integrated, out-of-scope dependency PR, use "
+            "--base-ref <integration-commit> (check also accepts --base-sha) for the local check. "
+            "Use an authorized scope amendment for shard-owned changes."
+        )
     if policy_touched:
         allow_policy = contract.get("allow_policy_paths")
         if isinstance(allow_policy, list):
@@ -1563,7 +1633,7 @@ def verify_pr_integrity(
 
     config = load_config(repo)
     trusted_owners = set(config.get("trusted_owners") or [])
-    policy_globs = list(config.get("critical_policy_globs") or [])
+    policy_globs = [*(config.get("critical_policy_globs") or []), *EXTRA_SKILL_POLICY_GLOBS]
     max_prose_lines = int((config.get("limits") or {}).get("max_safeguard_prose_lines", 15))
 
     rev_out = _run_git(repo, ["rev-parse", f"{base_sha}^{{commit}}", f"{head_sha}^{{commit}}", f"{main_ref}^{{commit}}"])
@@ -1858,6 +1928,14 @@ def verify_pr_integrity(
         raise GuardError(
             f"base_sha moved or retargeted: evidence bound to {run_base_sha!r}, PR base is {resolved_base!r}"
         )
+    # Legacy contracts used main as a default even when the PR targeted a stacked branch.
+    frozen_base_branch = contract.get("base_branch", "main")
+    if run_data.get("base_branch", "main") != frozen_base_branch or (
+        contract.get("base_branch_bound") and base_branch is not None and base_branch != frozen_base_branch
+    ):
+        raise GuardError("base_branch moved or retargeted: publish the updated FrozenContractV1")
+    if run_data.get("oracle_mismatches", {}) != contract.get("oracle_mismatches", {}):
+        raise GuardError("run checkpoint oracle mismatches do not match FrozenContractV1")
 
     # Verify FrozenContractV1 fields match run record
     contract_shards = contract.get("shards") or {}
@@ -1935,6 +2013,12 @@ def verify_pr_integrity(
     # Verify terminal state & findings safeguarded
     if run_data.get("status") != "ready_to_merge":
         raise GuardError(f"enrolled PR run status must be 'ready_to_merge', got {run_data.get('status')!r}")
+    open_mismatches = open_oracle_mismatches(run_data, actual_code_hash)
+    if open_mismatches:
+        raise GuardError(f"unreviewed oracle mismatches: {', '.join(sorted(open_mismatches))}")
+    for mismatch in run_data.get("oracle_mismatches", {}).values():
+        if mismatch["test"] not in merge_file_map:
+            raise GuardError(f"oracle mismatch test {mismatch['test']!r} is missing from the candidate tree")
 
     # On the default branch (`main`), native GitHub Ruleset (`required_review_thread_resolution: true`) enforces
     # conversation resolution without deadlocking CI on thread-resolution events. On non-default/stacked target
@@ -1991,7 +2075,7 @@ def verify_pr_integrity(
     reviewers_cfg = contract.get("reviewers") or {}
     cloud_enabled = bool(reviewers_cfg.get("cloud", True))
     deep_enabled = bool(reviewers_cfg.get("deep", True))
-    if cloud_enabled or deep_enabled:
+    if cloud_enabled or deep_enabled or run_data.get("oracle_mismatches"):
         committers = {pr_author}
         for c in pr_commits_api:
             if c.get("author_login"):

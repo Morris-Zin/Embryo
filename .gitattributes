@@ -6,6 +6,10 @@ tools/autoloop/** text eol=lf
 .github/CODEOWNERS text eol=lf
 AGENTS.md text eol=lf
 
+# Shell scripts are also executed in WSL from Windows-backed worktrees.
+*.sh text eol=lf
+*.bash text eol=lf
+
 # Machine-generated migration fixtures and the Rust lockfile are inputs to
 # reproducible verification, not hand-reviewed source. Marking them generated keeps
 # Devin Review focused on the implementation.
