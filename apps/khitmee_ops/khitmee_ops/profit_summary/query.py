@@ -599,6 +599,29 @@ def _batch_metadata(batches):
 
 
 def _run_detail(filters, eligibility, message=None) -> QueryProfitResult:
+	if filters.get("group_by") == "Invoice" and filters.get("invoice_page") not in (None, ""):
+		from khitmee_ops.khitmee_ops.report.fast_gross_profit.invoice_batches import (
+			MAX_SINGLE_FAMILY_ROWS,
+			invoice_detail_columns,
+			iter_invoice_detail_batches,
+			read_invoice_page_number,
+		)
+
+		page = read_invoice_page_number(filters["invoice_page"])
+		columns, data = [], []
+		for batch_columns, rows in iter_invoice_detail_batches(filters, page=page):
+			if len(data) + len(rows) > MAX_SINGLE_FAMILY_ROWS:
+				raise frappe.ValidationError("Invoice page exceeds the row budget. Narrow the date range.")
+			columns = batch_columns
+			data.extend(rows)
+		return _result(
+			"detail",
+			columns=columns or invoice_detail_columns(filters),
+			data=data,
+			eligibility=eligibility,
+			meta={"budget_outcome": "ok", "page": page, "page_rows": len(data)},
+		)
+
 	detail_input_rows = preflight_detail_input_rows(filters)
 	counts = _empty_budget_counts("detail")
 	counts["detail_input_rows"] = detail_input_rows
@@ -801,6 +824,8 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 def query_profit(filters: dict, user: str | None = None) -> QueryProfitResult:
 	"""Canonical profit entrypoint enforcing auth, freshness, budget, and parity order."""
 	filters = dict(filters or {})
+	if filters.get("group_by") != "Invoice":
+		filters.pop("invoice_page", None)
 	for date_key in ("from_date", "to_date"):
 		if filters.get(date_key):
 			filters[date_key] = _as_date_string(filters[date_key])

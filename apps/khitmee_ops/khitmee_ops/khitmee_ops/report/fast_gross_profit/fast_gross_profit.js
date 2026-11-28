@@ -40,6 +40,13 @@ frappe.query_reports["Fast Gross Profit"] = {
 			default: "Invoice",
 		},
 		{
+			fieldname: "invoice_page",
+			label: __("Invoice Page"),
+			fieldtype: "Int",
+			default: 1,
+			depends_on: "eval:doc.group_by == 'Invoice'",
+		},
+		{
 			fieldname: "item_group",
 			label: __("Item Group"),
 			fieldtype: "Link",

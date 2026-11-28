@@ -1214,7 +1214,7 @@ class TestPr12ReviewFixes(unittest.TestCase):
 			export_service, "run_detail_gross_profit", side_effect=AssertionError("must not extract")
 		):
 			with self.assertRaises(export_service.frappe.ValidationError):
-				export_service.write_profit_csv({"company": "C", "group_by": "Invoice"}, "unused.csv")
+				export_service.write_profit_csv({"company": "C", "group_by": "Warehouse"}, "unused.csv")
 
 	def test_precision_beyond_storage_scale_is_not_additive_safe(self):
 		# Codex P2: decimal(18, 6) columns would silently round 7+ decimal values.
