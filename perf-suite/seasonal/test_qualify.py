@@ -311,7 +311,7 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "within_budget": True,
                 "budget_problems": [],
                 "workload_memory_limit_total_mib": 1728,
-                "services": [{"service": "backend", "id": "abc123", "restart_count": restart, "oom_killed": oom}],
+                "services": [{"service": "backend", "id": "abc123", "restart_count": restart, "oom_killed": oom, "started_at": "2026-01-01T00:00:00.000000001Z", "pid": 100}],
             }
         for name, value in {
             "resource-proof-before.json": proof(),
@@ -464,15 +464,15 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("restart count changed", " ".join(result["resource_window_problems"]))
         comparison = module.resource_window_comparison(
-            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
-            {"services": [{"service": "db", "id": "two", "restart_count": 0, "oom_killed": True}]},
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 10}]},
+            {"services": [{"service": "db", "id": "two", "restart_count": 0, "oom_killed": True, "started_at": "t0", "pid": 10}]},
         )
         self.assertFalse(comparison["passed"])
         self.assertIn("container identity changed", " ".join(comparison["problems"]))
         self.assertIn("OOM state changed", " ".join(comparison["problems"]))
         incomplete = module.resource_window_comparison(
-            {"services": [{"service": "db", "id": "one", "oom_killed": False}]},
-            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
+            {"services": [{"service": "db", "id": "one", "oom_killed": False, "started_at": "t0", "pid": 10}]},
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 10}]},
         )
         self.assertFalse(incomplete["passed"])
         self.assertIn("restart counter evidence missing", " ".join(incomplete["problems"]))
@@ -496,6 +496,45 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("not the pinned acceptance fixture", " ".join(result["qualification_evidence_problems"]))
             self.assertEqual(result["pinned_acceptance_fixture_sha256"], "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd")
+
+    def test_manual_container_restart_is_detected_without_restart_count(self):
+        module = self.decision_module()
+        before = {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 100}]}
+        after = {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "started_at": "t1", "pid": 140}]}
+        # The old identity tuple (same container id and zero RestartCount)
+        # would have treated this manual stop/start as unchanged.
+        self.assertEqual(before["services"][0]["id"], after["services"][0]["id"])
+        self.assertEqual(before["services"][0]["restart_count"], after["services"][0]["restart_count"])
+        comparison = module.resource_window_comparison(before, after)
+        self.assertFalse(comparison["passed"])
+        self.assertIn("start timestamp changed", " ".join(comparison["problems"]))
+        self.assertIn("process id changed", " ".join(comparison["problems"]))
+
+        missing = module.resource_window_comparison(
+            before,
+            {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "pid": 100}]},
+        )
+        self.assertFalse(missing["passed"])
+        self.assertIn("start timestamp evidence missing", " ".join(missing["problems"]))
+
+        resource = self.resource_module()
+        proof = self.collect_fake_resource_proof(resource, 0)
+        backend = next(row for row in proof["services"] if row["service"] == "backend")
+        self.assertEqual(backend["started_at"], "2026-01-01T00:00:00.000000001Z")
+        self.assertEqual(backend["pid"], 100)
+
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            before_proof = json.loads((Path(td) / "resource-proof-before.json").read_text())
+            after_proof = json.loads((Path(td) / "resource-proof-after.json").read_text())
+            before_proof["services"][0]["pid"] = 100
+            after_proof["services"][0]["pid"] = 140
+            after_proof["services"][0]["started_at"] = "2026-01-01T00:00:01Z"
+            (Path(td) / "resource-proof-before.json").write_text(json.dumps(before_proof))
+            (Path(td) / "resource-proof-after.json").write_text(json.dumps(after_proof))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["resource_window_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):
         module = self.decision_module()
@@ -532,7 +571,7 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "CpuShares": module.EXPECTED_CPU_SHARES[service],
                 "CgroupParent": module.EXPECTED_CGROUP_PARENT,
             },
-            "State": {"Running": service != "configurator", "Pid": 100 if service != "configurator" else 0, "OOMKilled": False},
+            "State": {"Running": service != "configurator", "Pid": 100 if service != "configurator" else 0, "StartedAt": "2026-01-01T00:00:00.000000001Z", "OOMKilled": False},
         }
         if include_restart:
             info["RestartCount"] = restart_count

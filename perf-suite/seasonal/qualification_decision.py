@@ -59,6 +59,21 @@ def resource_window_comparison(before, after):
                 problems.append(f'{service}: restart counter evidence is not numeric')
             if restart_changed:
                 problems.append(f'{service}: restart count changed {old_restart} -> {new_restart}')
+        for key, label in (('started_at', 'start timestamp'), ('pid', 'process id')):
+            old_value = old.get(key)
+            new_value = new.get(key)
+            if old_value in (None, '') or new_value in (None, ''):
+                problems.append(f'{service}: {label} evidence missing in one resource proof')
+            elif key == 'pid':
+                try:
+                    changed = int(old_value) != int(new_value)
+                except (TypeError, ValueError):
+                    changed = True
+                    problems.append(f'{service}: process id evidence is not numeric')
+                if changed:
+                    problems.append(f'{service}: process id changed {old_value} -> {new_value}')
+            elif old_value != new_value:
+                problems.append(f'{service}: start timestamp changed {old_value} -> {new_value}')
         if bool(old.get('oom_killed')) != bool(new.get('oom_killed')):
             problems.append(f'{service}: OOM state changed {old.get("oom_killed")} -> {new.get("oom_killed")}')
     return {'passed': not problems, 'problems': problems}
