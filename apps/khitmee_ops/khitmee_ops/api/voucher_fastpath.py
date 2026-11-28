@@ -14,6 +14,7 @@
    `doc.insert()` eliminating repeated identical lookups inside one voucher:
    - `get_accounting_dimensions` (155x-600x -> 1x)
    - `is_product_bundle` (50x-200x -> 1 bulk query)
+   - Empty `get_product_bundle_items` lookups reuse the same bulk result
    - `get_sre_reserved_qty_for_item_and_warehouse` (100x-400x -> 1 bulk query)
    - `get_pos_profile` (50x-200x -> 1x)
 
@@ -459,17 +460,18 @@ def _prefetch_product_bundles(item_codes):
 	bundles = set()
 	try:
 		for chunk in batched(ordered, READ_CACHE_BATCH_SIZE):
-			placeholders = ", ".join(["%s"] * len(chunk))
+			requested_codes = " UNION ALL ".join(["SELECT %s AS item_code"] * len(chunk))
 			rows = frappe.db.sql(
 				f"""
-				SELECT new_item_code
-				FROM `tabProduct Bundle`
-				WHERE disabled = 0 AND new_item_code IN ({placeholders})
+				SELECT requested.item_code
+				FROM ({requested_codes}) AS requested
+				JOIN `tabProduct Bundle` AS bundle
+					ON bundle.new_item_code = requested.item_code AND bundle.disabled = 0
 				""",
 				tuple(chunk),
 			)
 			for row in rows or ():
-				code = row.get("new_item_code") if hasattr(row, "get") else row[0]
+				code = row.get("item_code") if hasattr(row, "get") else row[0]
 				if code:
 					bundles.add(str(code))
 	except Exception:
@@ -578,6 +580,23 @@ def _make_product_bundle_dispatcher(original):
 	return _dispatch_is_product_bundle
 
 
+def _make_bundle_items_dispatcher(original):
+	def _dispatch_get_product_bundle_items(item_code):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is not None and ctx.active and isinstance(item_code, str):
+			# Both upstream lookups filter enabled bundles by new_item_code.
+			# Only a proven absence determines the component lookup result.
+			if item_code in ctx.prefetched_items and item_code not in ctx.product_bundles:
+				ctx.hits += 1
+				return []
+			ctx.misses += 1
+		return original(item_code)
+
+	_dispatch_get_product_bundle_items._khitmee_dispatcher = True
+	_dispatch_get_product_bundle_items._khitmee_original = original
+	return _dispatch_get_product_bundle_items
+
+
 def _make_sre_reserved_qty_dispatcher(original):
 	def _dispatch_get_sre_reserved_qty(*args, **kwargs):
 		ctx = getattr(_READ_CACHE_STATE, "context", None)
@@ -648,6 +667,12 @@ _READ_CACHE_TARGETS = (
 		_make_product_bundle_dispatcher,
 	),
 	(
+		"get_product_bundle_items",
+		_PRODUCT_BUNDLE_MODULE,
+		(_PRODUCT_BUNDLE_MODULE,),
+		_make_bundle_items_dispatcher,
+	),
+	(
 		"get_sre_reserved_qty_for_item_and_warehouse",
 		_SRE_MODULE,
 		_SRE_CALLERS,
@@ -686,7 +711,7 @@ def _ensure_read_cache_dispatchers_installed():
 
 
 @contextmanager
-def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=None, enabled=True):
+def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=None, enabled=True, fresh_snapshot=True):
 	"""Thread-local single-transaction read-metadata cache around voucher `doc.insert()`."""
 	if not enabled:
 		yield VoucherReadCacheContext(active=False)
@@ -695,7 +720,7 @@ def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=No
 	doctype = str(_field(doc, "doctype", "") or "") if doc is not None else ""
 	prefetched_items, product_bundles = (
 		_prefetch_product_bundles(item_codes)
-		if (item_codes and doctype != "Stock Entry")
+		if (fresh_snapshot and item_codes and doctype != "Stock Entry")
 		else (frozenset(), frozenset())
 	)
 	prefetched_sre_pairs, sre_reserved_qty = (

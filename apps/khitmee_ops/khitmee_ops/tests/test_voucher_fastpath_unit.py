@@ -141,6 +141,8 @@ def _ensure_stubs():
 	)
 	if not hasattr(packed_item, "is_product_bundle"):
 		packed_item.is_product_bundle = lambda item_code: False
+	if not hasattr(packed_item, "get_product_bundle_items"):
+		packed_item.get_product_bundle_items = lambda item_code: []
 
 	sre = sys.modules.setdefault(
 		"erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry",
@@ -399,6 +401,7 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 	def setUp(self):
 		self.dim_calls = 0
 		self.bundle_calls = []
+		self.bundle_item_calls = []
 		self.sre_calls = []
 		self.pos_calls = 0
 
@@ -410,6 +413,10 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 			self.bundle_calls.append(item_code)
 			return item_code == "BUNDLE-EXTRA"
 
+		def orig_bundle_items(item_code):
+			self.bundle_item_calls.append(item_code)
+			return [{"item_code": "COMPONENT-1"}]
+
 		def orig_sre(item_code, warehouse=None):
 			self.sre_calls.append((item_code, warehouse))
 			return 5.0
@@ -420,17 +427,20 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 
 		self.orig_dims = strict_get_accounting_dimensions
 		self.orig_bundle = orig_bundle
+		self.orig_bundle_items = orig_bundle_items
 		self.orig_sre = orig_sre
 		self.orig_pos = orig_pos
 
 		ACC_DIM_MOD.get_accounting_dimensions = self.orig_dims
 		PACKED_ITEM_MOD.is_product_bundle = self.orig_bundle
+		PACKED_ITEM_MOD.get_product_bundle_items = self.orig_bundle_items
 		SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse = self.orig_sre
 		GET_ITEM_DETAILS_MOD.get_pos_profile = self.orig_pos
 
 	def tearDown(self):
 		ACC_DIM_MOD.get_accounting_dimensions = self.orig_dims
 		PACKED_ITEM_MOD.is_product_bundle = self.orig_bundle
+		PACKED_ITEM_MOD.get_product_bundle_items = self.orig_bundle_items
 		SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse = self.orig_sre
 		GET_ITEM_DETAILS_MOD.get_pos_profile = self.orig_pos
 		self.assertIsNone(getattr(voucher_fastpath._READ_CACHE_STATE, "context", None))
@@ -466,6 +476,14 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 				self.assertTrue(PACKED_ITEM_MOD.is_product_bundle("BUNDLE-EXTRA"))
 				self.assertEqual(self.bundle_calls, ["BUNDLE-EXTRA"])
 
+				empty_bundle = PACKED_ITEM_MOD.get_product_bundle_items("ITEM-1")
+				empty_bundle.append("mutated")
+				self.assertEqual(PACKED_ITEM_MOD.get_product_bundle_items(item_code="ITEM-1"), [])
+				self.assertEqual(
+					PACKED_ITEM_MOD.get_product_bundle_items("ITEM-BUNDLE"), [{"item_code": "COMPONENT-1"}]
+				)
+				self.assertEqual(self.bundle_item_calls, ["ITEM-BUNDLE"])
+
 				# SRE reserved qty: bulk prefetched (0 upstream calls) + fallback for unlocked pair
 				self.assertEqual(SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse("ITEM-1", "WH-1"), 3.5)
 				self.assertEqual(SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse("ITEM-BUNDLE", "WH-1"), 0.0)
@@ -485,6 +503,8 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		before_dims = self.dim_calls
 		self.assertEqual(ACC_DIM_MOD.get_accounting_dimensions(), ["shop"])
 		self.assertEqual(self.dim_calls, before_dims + 1)
+		PACKED_ITEM_MOD.get_product_bundle_items("ITEM-1")
+		self.assertEqual(self.bundle_item_calls, ["ITEM-BUNDLE", "ITEM-1"])
 
 	def test_lazy_import_during_context_never_poisons_worker_after_exit(self):
 		# Simulate a caller module lazily binding get_accounting_dimensions INSIDE the context

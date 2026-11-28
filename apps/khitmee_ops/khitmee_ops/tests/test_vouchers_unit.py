@@ -13,8 +13,8 @@ if str(APP_ROOT) not in sys.path:
 
 def _install_frappe_and_erpnext_stubs():
 	try:
-		import frappe  # noqa: F401
-		import erpnext  # noqa: F401
+		import frappe
+		import erpnext
 		return
 	except ImportError:
 		pass
@@ -678,6 +678,54 @@ class TestPass3IdempotencyAndDeadlockCorrectness(unittest.TestCase):
 
 		self.assertEqual(len(calls), 1)
 		rollback.assert_not_called()
+
+	def test_failure_after_naming_rolls_back_voucher_and_reuses_next_stock_serial(self):
+		committed_series = 41
+		pending = {}
+		lock = TestIdempotencyLockCleanup.Lock()
+
+		def stock_allocate():
+			pending["series"] = pending.get("series", committed_series) + 1
+			return f"ACC-SINV-2026-{pending['series']:05d}"
+
+		def create_invoice():
+			name = stock_allocate()
+			pending["invoice"] = name
+			pending["stock_ledger"] = name
+			pending["general_ledger"] = name
+			return SimpleNamespace(doctype="Sales Invoice", name=name)
+
+		def reserve(key, fingerprint):
+			pending["idempotency"] = key
+			return True
+
+		def fail_after_naming(key, doctype, name):
+			self.assertEqual(name, stock_name)
+			self.assertEqual(set(pending), {"series", "invoice", "stock_ledger", "general_ledger", "idempotency"})
+			raise RuntimeError("injected after naming")
+
+		with (
+			patch.object(vouchers.frappe.db, "commit", side_effect=AssertionError("request owns commit"), create=True) as commit,
+			patch.object(vouchers.frappe.db, "rollback", side_effect=pending.clear),
+			patch.object(vouchers, "_lookup_idempotency", return_value=None),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=reserve),
+			patch.object(vouchers, "_bind_reservation", side_effect=fail_after_naming),
+		):
+			stock_name = stock_allocate()
+			vouchers.frappe.db.rollback()
+			with self.assertRaisesRegex(RuntimeError, "injected after naming"):
+				try:
+					vouchers._run_idempotent("client-1", "sale", "Sales Invoice", "fingerprint", create_invoice)
+				except RuntimeError:
+					# Model the surrounding Frappe request's exception rollback.
+					vouchers.frappe.db.rollback()
+					raise
+
+			self.assertEqual(pending, {})
+			self.assertEqual(stock_allocate(), stock_name)
+			commit.assert_not_called()
+			self.assertEqual(lock.release_calls, 1)
 
 	def test_submit_sale_runs_voucher_creation_through_deadlock_retry_helper(self):
 		with (
