@@ -540,6 +540,19 @@ def enable_item_search_index(rebuild=True):
 	return True
 
 
+def ensure_catalog_tombstone_table():
+	"""DDL for Item delete/rename markers used by incremental catalog sync."""
+	frappe.db.sql(
+		"""
+		CREATE TABLE IF NOT EXISTS `tabKhitmee Catalog Tombstone` (
+			`item_code` varchar(140) NOT NULL PRIMARY KEY,
+			`modified` datetime(6) NOT NULL,
+			KEY `khitmee_catalog_tombstone_modified` (`modified`)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		"""
+	)
+
+
 def ensure_daily_stock_closing_table():
 	"""DDL for the daily closing table; must run before any DML in the transaction."""
 	frappe.db.sql(
@@ -645,6 +658,7 @@ def setup_database_objects(rebuild_item_search=False, stock_closing_date=None, c
 	repost_triggers_installed = install_repost_item_valuation_triggers()
 	dropped = drop_obsolete_indexes()
 	created = create_composite_indexes()
+	ensure_catalog_tombstone_table()
 	if stock_closing_date:
 		ensure_daily_stock_closing_table()
 
