@@ -128,7 +128,10 @@ fn qty(value: f64) -> String {
     if (value.fract()).abs() < f64::EPSILON {
         format!("{value:.0}")
     } else {
-        format!("{value:.2}")
+        format!("{value:.3}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
