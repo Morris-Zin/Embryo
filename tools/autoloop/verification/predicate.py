@@ -70,8 +70,12 @@ def verify(target: Target | Obligation | str, frozen_contract: FrozenContract, e
         elif obligation is Obligation.INTEGRATED:
             _validate_integrated_obligation(evidence_snapshot, failures)
         elif obligation is Obligation.REVIEW_SUBMISSION:
-            _validate_review_obligation(frozen_contract, evidence_snapshot, failures)
+            # ADR 0005: a run qualifies for review before any review exists. Submission
+            # needs only the integrated gate evidence (plus its required checks below);
+            # exact-tree review evidence is an obligation of merge eligibility.
+            pass
         elif obligation is Obligation.MERGE_ELIGIBILITY:
+            _validate_review_obligation(frozen_contract, evidence_snapshot, failures)
             _validate_merge_obligation(frozen_contract, evidence_snapshot, failures)
         elif obligation is Obligation.POLICY_ACTIVATION:
             _validate_policy_obligation(frozen_contract, evidence_snapshot, failures)
@@ -336,18 +340,18 @@ def _validate_review_obligation(
 ) -> None:
     if frozen_contract.review_required and not snapshot.reviews:
         failures.append(
-            VerificationFailure(Obligation.REVIEW_SUBMISSION, "missing-review-evidence", "the contract requires a review of the exact tree")
+            VerificationFailure(Obligation.MERGE_ELIGIBILITY, "missing-review-evidence", "the contract requires a review of the exact tree")
         )
     expected_findings = {finding.artifact_digest for finding in snapshot.findings}
     covered_findings: set[str] = set()
     for review in snapshot.reviews:
         failures.extend(
-            _validate_meta(review.meta, snapshot, snapshot.generations.review, Obligation.REVIEW_SUBMISSION, "review evidence")
+            _validate_meta(review.meta, snapshot, snapshot.generations.review, Obligation.MERGE_ELIGIBILITY, "review evidence")
         )
         if review.reviewed_tree != snapshot.integration_tree_digest:
             failures.append(
                 VerificationFailure(
-                    Obligation.REVIEW_SUBMISSION,
+                    Obligation.MERGE_ELIGIBILITY,
                     "stale-reviewed-tree",
                     f"review covers tree {review.reviewed_tree!r}, not current integrated tree {snapshot.integration_tree_digest!r}",
                     review.meta.evidence_id,
@@ -356,7 +360,7 @@ def _validate_review_obligation(
         if not review.review_digest:
             failures.append(
                 VerificationFailure(
-                    Obligation.REVIEW_SUBMISSION,
+                    Obligation.MERGE_ELIGIBILITY,
                     "missing-review-digest",
                     "review evidence has no canonical review digest",
                     review.meta.evidence_id,
@@ -367,7 +371,7 @@ def _validate_review_obligation(
         if unknown:
             failures.append(
                 VerificationFailure(
-                    Obligation.REVIEW_SUBMISSION,
+                    Obligation.MERGE_ELIGIBILITY,
                     "contradictory-findings-binding",
                     f"review references unknown finding artifact digests {sorted(unknown)!r}",
                     review.meta.evidence_id,
@@ -379,7 +383,7 @@ def _validate_review_obligation(
     if uncovered:
         failures.append(
             VerificationFailure(
-                Obligation.REVIEW_SUBMISSION,
+                Obligation.MERGE_ELIGIBILITY,
                 "unbound-finding-artifact",
                 f"finding artifact digests are not covered by any exact-tree review: {sorted(uncovered)!r}",
             )
@@ -387,9 +391,9 @@ def _validate_review_obligation(
 
     for finding in snapshot.findings:
         failures.extend(
-            _validate_meta(finding.meta, snapshot, snapshot.generations.review, Obligation.REVIEW_SUBMISSION, "finding evidence")
+            _validate_meta(finding.meta, snapshot, snapshot.generations.review, Obligation.MERGE_ELIGIBILITY, "finding evidence")
         )
-        _validate_finding_binding(finding, snapshot, Obligation.REVIEW_SUBMISSION, failures)
+        _validate_finding_binding(finding, snapshot, Obligation.MERGE_ELIGIBILITY, failures)
 
 
 def _validate_finding_binding(

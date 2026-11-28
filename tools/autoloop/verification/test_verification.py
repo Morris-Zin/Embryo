@@ -311,10 +311,30 @@ class VerificationPredicateTests(unittest.TestCase):
         self.assertTrue(integrated.ok, integrated.failures)
         self.assertEqual((Obligation.SHARD, Obligation.INTEGRATED), integrated.obligations_met)
 
+        # ADR 0005: a run qualifies for review submission before any review exists.
         review = verify(target(Obligation.REVIEW_SUBMISSION), self.contract, without_review)
-        self.assertFalse(review.ok)
-        self.assertEqual((Obligation.SHARD, Obligation.INTEGRATED), review.obligations_met)
-        self.assertIn("missing-review-evidence", {failure.reason for failure in review.failures})
+        self.assertTrue(review.ok, review.failures)
+        self.assertEqual(
+            (Obligation.SHARD, Obligation.INTEGRATED, Obligation.REVIEW_SUBMISSION), review.obligations_met
+        )
+
+        # The exact-tree review is required additively at merge eligibility.
+        merge = verify(target(Obligation.MERGE_ELIGIBILITY), self.contract, without_review)
+        self.assertFalse(merge.ok)
+        self.assertEqual(
+            (Obligation.SHARD, Obligation.INTEGRATED, Obligation.REVIEW_SUBMISSION), merge.obligations_met
+        )
+        self.assertIn("missing-review-evidence", {failure.reason for failure in merge.failures})
+        self.assertTrue(
+            all(failure.obligation is Obligation.MERGE_ELIGIBILITY for failure in merge.failures), merge.failures
+        )
+
+        stale_review = replace_item(self.snapshot, "reviews", 0, reviewed_tree="0" * 64)
+        stale_submission = verify(target(Obligation.REVIEW_SUBMISSION), self.contract, stale_review)
+        self.assertTrue(stale_submission.ok, stale_submission.failures)
+        stale_merge = verify(target(Obligation.MERGE_ELIGIBILITY), self.contract, stale_review)
+        self.assertFalse(stale_merge.ok)
+        self.assertIn("stale-reviewed-tree", {failure.reason for failure in stale_merge.failures})
 
         no_shard = replace(self.snapshot, shard_results=())
         shard_blocked = verify(target(Obligation.INTEGRATED), self.contract, no_shard)
