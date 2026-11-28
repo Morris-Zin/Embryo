@@ -853,6 +853,7 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     }
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
+    app.set_invoice_detail_validation_title("".into());
     app.set_invoice_detail_validation_text("".into());
     app.set_status_text(format!("Edited {label}; save before submitting.").into());
 }
@@ -907,10 +908,6 @@ fn edit_invoice_detail_item_qty(app: &AppWindow, state: &mut PilotState, index: 
     let Ok(new_qty) = value.trim().parse::<f64>() else {
         return;
     };
-    if new_qty <= 0.0 {
-        app.set_status_text("Quantity must be greater than zero.".into());
-        return;
-    }
     let Some(doc) = state.invoice_detail_doc.as_mut() else {
         return;
     };
@@ -1031,11 +1028,37 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
         return;
     };
     let name = detail_string(&doc, "name");
+    if let Some((row_index, row)) =
+        doc.get("items")
+            .and_then(|rows| rows.as_array())
+            .and_then(|rows| {
+                rows.iter()
+                    .enumerate()
+                    .find(|(_, row)| detail_number(row, "qty") == 0.0)
+            })
+    {
+        let item_code = detail_string(row, "item_code");
+        let message = format!(
+            "Row #{}: Quantity for Item {item_code} cannot be zero.",
+            row_index + 1
+        );
+        state.invoice_detail_editing_index = -1;
+        app.set_invoice_detail_editing_index(-1);
+        app.set_invoice_detail_validation_title("Invalid Quantity".into());
+        app.set_invoice_detail_validation_text(message.into());
+        app.set_status_text(
+            format!("Sales Invoice {name} validation failed: zero quantity").into(),
+        );
+        return;
+    }
     if detail_string(&doc, "due_date").trim().is_empty() {
         let message = "Please fill the following mandatory fields before saving:
 
 Payment Due Date is required.
 In Payment Schedule, Due Date is required in every row.";
+        state.invoice_detail_editing_index = -1;
+        app.set_invoice_detail_editing_index(-1);
+        app.set_invoice_detail_validation_title("Missing Fields".into());
         app.set_invoice_detail_validation_text(message.into());
         app.set_status_text(
             format!("Sales Invoice {name} validation failed: missing Payment Due Date").into(),
@@ -1057,6 +1080,7 @@ In Payment Schedule, Due Date is required in every row.";
     };
     match result {
         Ok(_) => {
+            app.set_invoice_detail_validation_title("".into());
             app.set_invoice_detail_validation_text("".into());
             state.invoice_detail_dirty = false;
             app.set_invoice_detail_dirty(false);
@@ -1899,6 +1923,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let app = app.as_weak();
         move || {
             let app = app.unwrap();
+            app.set_invoice_detail_validation_title("".into());
             app.set_invoice_detail_validation_text("".into());
         }
     });
