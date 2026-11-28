@@ -711,13 +711,7 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                     3,
                     false,
                 ),
-                (
-                    "Scan Barcode",
-                    String::new(),
-                    0,
-                    0,
-                    false,
-                ),
+                ("Scan Barcode", String::new(), 0, 0, false),
                 (
                     "Source Warehouse",
                     detail_string(&doc, "set_warehouse"),
@@ -916,7 +910,12 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     };
     let checkbox_key = matches!(
         key,
-        "update_stock" | "set_posting_time" | "is_pos" | "is_return" | "is_debit_note" | "apply_tds"
+        "update_stock"
+            | "set_posting_time"
+            | "is_pos"
+            | "is_return"
+            | "is_debit_note"
+            | "apply_tds"
     );
     let normalized = if checkbox_key {
         if value.eq_ignore_ascii_case("yes") || value == "1" {
@@ -931,7 +930,9 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
         if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, label) {
             field.value = normalized.into();
         }
-        app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
+        app.set_invoice_detail_fields(
+            Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into(),
+        );
         return;
     }
     if checkbox_key {
@@ -964,7 +965,12 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
         app.set_invoice_detail_show_currency(true);
     }
     let display_value = if checkbox_key {
-        if normalized == "1" { "checked" } else { "unchecked" }.to_owned()
+        if normalized == "1" {
+            "checked"
+        } else {
+            "unchecked"
+        }
+        .to_owned()
     } else {
         normalized.to_owned()
     };
@@ -977,7 +983,9 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     if key == "is_return" {
         app.set_invoice_detail_is_return(normalized == "1");
     }
-    app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
+    app.set_invoice_detail_fields(
+        Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into(),
+    );
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
     app.set_invoice_detail_validation_title("".into());
@@ -1444,7 +1452,8 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
         app.set_invoice_detail_validation_text(
             "Please fill the following mandatory fields before saving:
 
-Customer is required.".into(),
+Customer is required."
+                .into(),
         );
         app.set_status_text(
             format!("Sales Invoice {name} validation failed: missing Customer").into(),
@@ -1463,7 +1472,8 @@ Customer is required.".into(),
         app.set_invoice_detail_validation_text(
             "Please fill the following mandatory fields before saving:
 
-Items is required.".into(),
+Items is required."
+                .into(),
         );
         app.set_status_text(
             format!("Sales Invoice {name} validation failed: missing Items").into(),
@@ -1543,7 +1553,9 @@ In Payment Schedule, Due Date is required in every row.";
             if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
                 field.value = "".into();
             }
-            app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
+            app.set_invoice_detail_fields(
+                Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into(),
+            );
             app.set_invoice_detail_validation_title("Validation Error".into());
             app.set_invoice_detail_validation_text(message.clone().into());
             app.set_status_text(
