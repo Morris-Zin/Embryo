@@ -403,6 +403,89 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         self.assertEqual(detail.status, "FAIL", detail)
         self.assertIn("pagination", detail.detail)
 
+    def manager_core_events(self):
+        events = []
+        for phase in ("baseline", "margin", "recovery"):
+            for group_by in ("Warehouse", "Monthly"):
+                events.append({
+                    "event": "manager_summary",
+                    "phase": phase,
+                    "group_by": group_by,
+                    "warm": True,
+                    "duration_ms": 100,
+                })
+            events.append({
+                "event": "manager_detail",
+                "phase": phase,
+                "pagination_honored": True,
+                "first_50_duration_ms": 100,
+            })
+        return events
+
+    def test_manager_rejects_fail_despite_one_fast_success(self):
+        for endpoint in ("detail", "summary"):
+            with self.subTest(endpoint=endpoint):
+                events = self.manager_core_events()
+                if endpoint == "detail":
+                    events.extend({
+                        "event": "manager_detail_reject",
+                        "phase": "baseline",
+                        "reason": "synthetic timeout",
+                    } for _ in range(100))
+                    gate = evaluate_seasonal.detail_gate(events_bundle(events), True)
+                else:
+                    events.extend({
+                        "event": "manager_summary_reject",
+                        "phase": "baseline",
+                        "group_by": "Warehouse",
+                        "reason": "synthetic timeout",
+                    } for _ in range(100))
+                    gate = evaluate_seasonal.summary_gate(events_bundle(events), True)
+                self.assertEqual(gate.status, "FAIL", gate)
+                self.assertIn("reject", gate.detail + gate.observed)
+                self.assertIn("100", gate.detail + gate.observed)
+
+    def test_normal_manager_core_phases_pass_reliability_and_latency(self):
+        bundle = events_bundle(self.manager_core_events())
+        self.assertEqual(evaluate_seasonal.summary_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.detail_gate(bundle, True).status, "PASS")
+
+    def test_intended_overload_rejections_are_not_core_manager_failures(self):
+        events = self.manager_core_events()
+        events.extend([
+            {"event": "voucher_reject", "client_voucher_id": "overload-sale", "phase": "overload", "reason": "admission control 429"},
+            {"event": "search_reject", "phase": "overload", "reason": "admission control 429"},
+            {"event": "manager_detail_reject", "phase": "overload", "reason": "overload timeout outside scored core phases"},
+            {"event": "export_complete", "phase": "baseline", "row_count": 10, "body_bytes": 100, "sha256": "a" * 64},
+            {"event": "export_reject", "phase": "overload", "reason": "overload timeout outside scored core phases"},
+        ])
+        bundle = events_bundle(events)
+        overload = evaluate_seasonal.overload_failure_gate(bundle)
+        self.assertEqual(overload.status, "PASS", overload)
+        self.assertEqual(evaluate_seasonal.detail_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.summary_gate(bundle, True).status, "PASS")
+        self.assertEqual(evaluate_seasonal.export_gate(bundle, True).status, "PASS")
+
+    def test_export_success_cannot_mask_export_rejection(self):
+        events = [
+            {"event": "export_complete", "phase": "baseline", "row_count": 10, "body_bytes": 100, "sha256": "a" * 64},
+            {"event": "export_reject", "phase": "margin", "reason": "export worker timeout"},
+        ]
+        gate = evaluate_seasonal.export_gate(events_bundle(events), True)
+        self.assertEqual(gate.status, "FAIL", gate)
+        self.assertIn("zero export rejections", gate.threshold)
+        self.assertIn("export worker timeout", gate.detail)
+
+    def test_manager_iteration_exceptions_become_endpoint_reject_evidence(self):
+        scenario = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
+        self.assertIn("noteManagerIterationError", scenario)
+        self.assertIn("'manager_summary_reject'", scenario)
+        self.assertIn("'manager_detail_reject'", scenario)
+        self.assertIn("'export_reject'", scenario)
+        self.assertIn("attempted-request denominator", scenario)
+        self.assertIn("errors{endpoint_class:${endpointClass},phase:${phase}}", scenario)
+        self.assertIn("endpoint_class: 'manager_summary'", (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8"))
+
     def test_offered_counts_detect_missing_completion_accounting(self):
         segment = schedule_test_segment()
         starts = scheduled_test_starts(segment, 88, 1)

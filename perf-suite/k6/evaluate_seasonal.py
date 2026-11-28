@@ -26,6 +26,13 @@ SUMMARY_P95_MS = 500.0
 DETAIL_FIRST_ROWS_P95_MS = 2000.0
 CORE_PHASES = ("baseline", "margin", "recovery")
 VOUCHER_TYPES = ("sale", "transfer", "purchase_receipt", "purchase_invoice")
+# Baseline, margin and recovery are non-overload phases: no manager rejection is an
+# intended outcome there. The overload phase is deliberately excluded because the
+# cashier 2x burst/admission-429 evidence is a designed overload outcome. Manager
+# iteration exceptions are folded into endpoint-specific reject events by the k6
+# scenario, so this event criterion also covers errors that never reach a success path.
+MANAGER_CORE_REJECT_RATE_LIMIT = 0.0
+MANAGER_CORE_MIN_SUCCESSES = 1
 
 
 @dataclass
@@ -623,6 +630,70 @@ def correctness_gate(verification):
     )
 
 
+def manager_core_reliability(events, endpoint_label, success_kind, reject_kind, *, require_success_each_phase=True):
+    """Evaluate unexpected manager terminal failures independently of latency.
+
+    The unit of account is a terminal manager operation in baseline/margin/recovery.
+    A zero reject-rate limit is intentional: those phases have no designed manager
+    admission rejection. Overload rejections are not counted here because overload
+    intentionally proves cashier admission/backpressure behavior instead.
+    """
+    rows = []
+    failures = []
+    reasons = []
+    for phase in CORE_PHASES:
+        successes = [
+            event for event in events["events"]
+            if event.get("event") == success_kind and event.get("phase") == phase
+        ]
+        rejects = [
+            event for event in events["events"]
+            if event.get("event") == reject_kind and event.get("phase") == phase
+        ]
+        success_count = len(successes)
+        reject_count = len(rejects)
+        attempts = success_count + reject_count
+        reject_rate = (reject_count / attempts) if attempts else None
+        minimum = MANAGER_CORE_MIN_SUCCESSES if require_success_each_phase else (MANAGER_CORE_MIN_SUCCESSES if attempts else 0)
+        if attempts:
+            passed = success_count >= minimum and reject_rate <= MANAGER_CORE_REJECT_RATE_LIMIT
+        else:
+            passed = not require_success_each_phase
+        row = {
+            "endpoint": endpoint_label,
+            "phase": phase,
+            "attempts": attempts,
+            "successes": success_count,
+            "rejects": reject_count,
+            "reject_rate": reject_rate,
+            "minimum_successes": minimum,
+            "passed": passed,
+        }
+        rows.append(row)
+        if not passed:
+            failures.append(f"{endpoint_label}/{phase}")
+        reasons.extend(str(event.get("reason") or "manager operation failed") for event in rejects)
+    return {"rows": rows, "failures": failures, "reasons": sorted(set(reasons))}
+
+
+def merge_manager_reliability(gate, reliability):
+    parts = []
+    for row in reliability["rows"]:
+        rate = "no attempts" if row["reject_rate"] is None else f"{row['reject_rate'] * 100:.1f}% rejects"
+        parts.append(
+            f"{row['phase']}: {row['successes']}/{row['attempts']} successful, {rate}"
+        )
+    gate.observed = (gate.observed + "; core reliability " if gate.observed else "core reliability ") + "; ".join(parts)
+    gate.threshold += f"; core reject rate <= {MANAGER_CORE_REJECT_RATE_LIMIT * 100:.0f}% and >= {MANAGER_CORE_MIN_SUCCESSES} successful attempt(s) per phase"
+    if reliability["failures"]:
+        gate.status = "FAIL"
+        detail = "manager core-phase failure criterion failed: " + ", ".join(reliability["failures"])
+        if reliability["reasons"]:
+            detail += "; rejection evidence: " + "; ".join(reliability["reasons"][:4])
+        gate.detail = (gate.detail + "; " if gate.detail else "") + detail
+    return gate
+
+
 def summary_gate(events, enabled):
     if not enabled:
         return Gate("Manager warm summary p95", "SKIP", "managers disabled", "p95 < 500 ms")
@@ -636,14 +707,15 @@ def summary_gate(events, enabled):
                 if event.get("phase") == phase and event.get("group_by") == group_by and event.get("warm")
             ]
             rows.append({"phase": phase, "group": group_by, "count": len(durations), "p95": percentile(durations, 0.95)})
-    return latency_gate("Manager warm summary p95", rows, SUMMARY_P95_MS)
+    gate = latency_gate("Manager warm summary p95", rows, SUMMARY_P95_MS)
+    reliability = manager_core_reliability(events, "summary", "manager_summary", "manager_summary_reject")
+    return merge_manager_reliability(gate, reliability)
 
 
 def detail_gate(events, enabled):
     if not enabled:
         return Gate("Issue #2 detail pagination", "SKIP", "managers disabled", "pages honored; first 50 p95 < 2000 ms")
     successes = successful_events(events, "manager_detail")
-    rejects = successful_events(events, "manager_detail_reject")
     rows = []
     for phase in CORE_PHASES:
         durations = [
@@ -653,17 +725,38 @@ def detail_gate(events, enabled):
         ]
         rows.append({"phase": phase, "group": "first-50", "count": len(durations), "p95": percentile(durations, 0.95)})
     gate = latency_gate("Issue #2 detail pagination", rows, DETAIL_FIRST_ROWS_P95_MS)
-    if gate.status != "PASS" and rejects:
-        reasons = sorted({str(event.get("reason") or "detail failed") for event in rejects})
-        gate.detail = (gate.detail + "; " if gate.detail else "") + "rejection evidence: " + "; ".join(reasons[:4])
-        gate.status = "FAIL"
-    return gate
+    reliability = manager_core_reliability(events, "detail", "manager_detail", "manager_detail_reject")
+    return merge_manager_reliability(gate, reliability)
 
 
 def export_gate(events, enabled):
     if not enabled:
         return Gate("Issue #2 full-year export", "SKIP", "export disabled", "at least one verified CSV export")
     completes = successful_events(events, "export_complete")
+    all_rejects = successful_events(events, "export_reject")
+    rejects = [event for event in all_rejects if event.get("phase") in CORE_PHASES]
+    # Export cycles are long-running and can straddle a short recovery phase, so
+    # the per-phase success floor is applied to recurrent summary/detail reads.
+    # Core-phase export rejects have zero tolerance. Overload-phase terminal
+    # failures are excluded here just like other manager overload failures; the
+    # overload scorecard intentionally proves cashier 2x/admission-429 behavior,
+    # while export acceptance still requires separate verified success evidence.
+    reliability = manager_core_reliability(
+        events, "export", "export_complete", "export_reject", require_success_each_phase=False
+    )
+    if rejects or reliability["failures"]:
+        reasons = sorted({str(event.get("reason") or "export failed") for event in rejects})
+        core_parts = [
+            f"{row['phase']}: {row['successes']}/{row['attempts']} successful"
+            for row in reliability["rows"] if row["attempts"]
+        ]
+        return Gate(
+            "Issue #2 full-year export",
+            "FAIL",
+            f"{len(rejects)} rejection(s)" + ("; core attempts " + "; ".join(core_parts) if core_parts else ""),
+            "zero export rejections and at least one verified CSV export",
+            "; ".join(reasons[:4]),
+        )
     valid = [
         event for event in completes
         if int(event.get("row_count") or 0) > 0
@@ -686,10 +779,6 @@ def export_gate(events, enabled):
             f"{len(completes)} completion event(s) lacked positive row/byte evidence or a 64-hex body hash",
             "at least one verified non-empty CSV export with a body hash",
         )
-    rejects = successful_events(events, "export_reject")
-    if rejects:
-        reasons = sorted({str(event.get("reason") or "export failed") for event in rejects})
-        return Gate("Issue #2 full-year export", "FAIL", f"{len(rejects)} rejection(s)", "at least one verified CSV export", "; ".join(reasons[:4]))
     return Gate("Issue #2 full-year export", "NO DATA", "no export events", "at least one verified non-empty CSV export with a body hash")
 
 

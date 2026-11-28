@@ -1230,8 +1230,8 @@ export function performSummaryReport(session, plan, phase, groupBy, iterationInd
     reportDuration.add(measured.durationMs, tags);
     reportServerDuration.add(measured.serverDurationMs, tags);
   } else {
-    errors.add(1);
-    errorRate.add(1);
+    errors.add(1, managerTags(phase.phase, { endpoint_class: 'manager_summary' }));
+    errorRate.add(1, managerTags(phase.phase, { endpoint_class: 'manager_summary' }));
   }
   logSeasonalEvent({
     event: validation.ok ? 'manager_summary' : 'manager_summary_reject',
@@ -1331,8 +1331,8 @@ export function performDetailReport(session, plan, phase) {
   const ok = pagesRead === settings.detailPageCount && firstValidation && firstValidation.ok && paginationHonored;
   const durationMs = Math.max(0, Date.now() - started);
   if (!ok) {
-    errors.add(1);
-    errorRate.add(1);
+    errors.add(1, managerTags(phase.phase, { endpoint_class: 'manager_detail' }));
+    errorRate.add(1, managerTags(phase.phase, { endpoint_class: 'manager_detail' }));
     enqueueExplicitExport(session, plan, phase, failureReason || 'detail page failed');
   }
   logSeasonalEvent({
@@ -1442,8 +1442,8 @@ export function performExportCycle(session, plan, phase) {
   });
   function reject(reason, extra = {}) {
     const durationMs = Math.max(0, Date.now() - started);
-    errors.add(1);
-    errorRate.add(1);
+    errors.add(1, managerTags(phase.phase, { endpoint_class: 'manager_export' }));
+    errorRate.add(1, managerTags(phase.phase, { endpoint_class: 'manager_export' }));
     logSeasonalEvent(Object.assign({
       event: 'export_reject',
       phase: phase.phase,

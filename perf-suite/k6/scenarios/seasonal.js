@@ -133,6 +133,12 @@ function phaseThresholds() {
     thresholds[`submit_duration{phase:${phase},voucher_type:sale,line_count:200}`] = ['p(95)<1500'];
     if (settings.enableManagers) {
       thresholds[`seasonal_detail_first_rows_duration{phase:${phase}}`] = ['p(95)<2000'];
+      // Manager errors are tagged by endpoint class and phase. Core phases have
+      // no designed manager rejection; the overload phase is deliberately absent
+      // because cashier admission/backpressure failures are the designed result there.
+      ['manager_summary', 'manager_detail', 'manager_export'].forEach((endpointClass) => {
+        thresholds[`errors{endpoint_class:${endpointClass},phase:${phase}}`] = ['count==0'];
+      });
     }
   });
   return thresholds;
@@ -172,10 +178,38 @@ function ensureState() {
   return session;
 }
 
-function noteIterationError(label, err) {
-  errors.add(1);
-  errorRate.add(1);
+function noteIterationError(label, err, tags = {}) {
+  errors.add(1, tags);
+  errorRate.add(1, tags);
   console.error(`${label}: ${err && err.message ? err.message : err}`);
+}
+
+function phaseEvidenceFallback() {
+  try {
+    return currentPhase();
+  } catch (_err) {
+    return { phase: 'unknown', name: 'unknown' };
+  }
+}
+
+function noteManagerIterationError(label, rejectEvent, err, extra = {}) {
+  // Fold iterator exceptions into the same endpoint-specific terminal failure
+  // evidence used by the evaluator. Otherwise a login/report exception would
+  // increment the opaque errors counter without contributing to that endpoint's
+  // attempted-request denominator.
+  const phase = phaseEvidenceFallback();
+  const endpointClass = {
+    manager_summary_reject: 'manager_summary',
+    manager_detail_reject: 'manager_detail',
+    export_reject: 'manager_export',
+  }[rejectEvent] || 'manager_unknown';
+  noteIterationError(label, err, { phase: phase.phase, endpoint_class: endpointClass });
+  logSeasonalEvent(Object.assign({
+    event: rejectEvent,
+    phase: phase.phase,
+    segment: phase.name,
+    reason: `${label}: ${err && err.message ? err.message : err}`,
+  }, extra));
 }
 
 function exactIteration() {
@@ -281,7 +315,7 @@ export function summaryWarehouseReader() {
   try {
     performSummaryReport(ensureState(), plan, currentPhase(), 'Warehouse', exactIteration());
   } catch (err) {
-    noteIterationError('warehouse summary reader', err);
+    noteManagerIterationError('warehouse summary reader', 'manager_summary_reject', err, { group_by: 'Warehouse', actor: 'summary_warehouse' });
   }
 }
 
@@ -289,7 +323,7 @@ export function summaryMonthlyReader() {
   try {
     performSummaryReport(ensureState(), plan, currentPhase(), 'Monthly', exactIteration());
   } catch (err) {
-    noteIterationError('monthly summary reader', err);
+    noteManagerIterationError('monthly summary reader', 'manager_summary_reject', err, { group_by: 'Monthly', actor: 'summary_monthly' });
   }
 }
 
@@ -297,7 +331,7 @@ export function invoiceDetailReader() {
   try {
     performDetailReport(ensureState(), plan, currentPhase(), exactIteration());
   } catch (err) {
-    noteIterationError('invoice detail reader', err);
+    noteManagerIterationError('invoice detail reader', 'manager_detail_reject', err, { actor: 'detail_reader' });
   }
 }
 
@@ -305,7 +339,7 @@ export function fullYearExportWorker() {
   try {
     performExportCycle(ensureState(), plan, currentPhase());
   } catch (err) {
-    noteIterationError('full-year export worker', err);
+    noteManagerIterationError('full-year export worker', 'export_reject', err, { actor: 'export_requester' });
     sleep(5);
   }
 }
