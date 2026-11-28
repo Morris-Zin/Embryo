@@ -16,6 +16,7 @@ PROJECT = "khitmee-perf"
 LABEL = 'index .Config.Labels "com.docker.compose.project"'
 HELP = """khitmee-dev commands (WSL Bash or tools/khitmee-dev.ps1)
   fast-check                         local Python, JS, knip, Bash and Compose gate
+  gate setup|check|sync-back         Linux WSL gate host for autoloop shard checks
   browser-perf-check                 Playwright cashier frontend performance regression gate
   status                             containers, live fingerprint, report flags
   sql|explain|analyze 'SELECT ...'    one statement, up to 40 output rows
@@ -150,6 +151,9 @@ def main(args):
     elif cmd == "fast-check" and not args:
         from fast_check import check
         check(ROOT)
+    elif cmd == "gate":
+        import khitmee_gate
+        sys.exit(khitmee_gate.main(args))
     elif cmd == "parity":
         import perf_parity
         sys.exit(perf_parity.main(args))
