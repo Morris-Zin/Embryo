@@ -11,9 +11,9 @@ const ITEM_GROUP: usize = 3;
 const BRAND: usize = 4;
 const BARCODE: usize = 5;
 const BARCODE_TEXT: usize = 6;
-const INLINE_ORIGINAL_FIELD_COUNT: usize = 4;
+const SHORT_ORIGINAL_FIELD_COUNT: usize = 3;
 const SEARCH_FIELD_COUNT: usize = 5;
-const INLINE_SEARCH_FIELD_COUNT: usize = 3;
+const SHORT_SEARCH_FIELD_COUNT: usize = 2;
 const MISSING_INTERNED_FIELD: u32 = u32::MAX;
 
 fn fold(value: &str) -> String {
@@ -106,10 +106,12 @@ struct PreparedBarcodeEntry {
 #[derive(Clone, Debug)]
 struct PreparedItem {
     original_text: String,
-    original_lengths: [u16; INLINE_ORIGINAL_FIELD_COUNT],
+    original_lengths: [u16; SHORT_ORIGINAL_FIELD_COUNT],
+    original_barcode_text_len: u32,
     present_fields: u8,
     search_text: String,
-    search_lengths: [u16; INLINE_SEARCH_FIELD_COUNT],
+    search_lengths: [u16; SHORT_SEARCH_FIELD_COUNT],
+    search_barcode_text_len: u32,
     stock_uom: Option<String>,
     item_group: Option<String>,
     brand: Option<String>,
@@ -157,7 +159,8 @@ impl PreparedItem {
         if brand.is_some() {
             present_fields |= 1 << BRAND;
         }
-        let mut original_lengths = [0u16; INLINE_ORIGINAL_FIELD_COUNT];
+        let mut original_lengths = [0u16; SHORT_ORIGINAL_FIELD_COUNT];
+        let mut original_barcode_text_len = 0u32;
         let original_len: usize = original_fields
             .iter()
             .map(|(_, field, _)| field.len())
@@ -167,7 +170,11 @@ impl PreparedItem {
             if *present {
                 present_fields |= 1 << field_bit;
             }
-            original_lengths[index] = as_u16(field.len());
+            if index < SHORT_ORIGINAL_FIELD_COUNT {
+                original_lengths[index] = as_u16(field.len());
+            } else {
+                original_barcode_text_len = as_u32(field.len());
+            }
             original_text.push_str(field);
         }
 
@@ -178,9 +185,14 @@ impl PreparedItem {
         ];
         let search_len = folded_fields.iter().map(|field| field.len()).sum::<usize>();
         let mut search_text = String::with_capacity(search_len);
-        let mut search_lengths = [0u16; INLINE_SEARCH_FIELD_COUNT];
+        let mut search_lengths = [0u16; SHORT_SEARCH_FIELD_COUNT];
+        let mut search_barcode_text_len = 0u32;
         for (index, field) in folded_fields.iter().enumerate() {
-            search_lengths[index] = as_u16(field.len());
+            if index < SHORT_SEARCH_FIELD_COUNT {
+                search_lengths[index] = as_u16(field.len());
+            } else {
+                search_barcode_text_len = as_u32(field.len());
+            }
             search_text.push_str(field);
         }
 
@@ -216,9 +228,11 @@ impl PreparedItem {
         Self {
             original_text,
             original_lengths,
+            original_barcode_text_len,
             present_fields,
             search_text,
             search_lengths,
+            search_barcode_text_len,
             stock_uom,
             item_group,
             brand,
@@ -232,10 +246,12 @@ impl PreparedItem {
 #[derive(Clone, Copy, Debug)]
 struct IndexedItem {
     original_start: u32,
-    original_lengths: [u16; INLINE_ORIGINAL_FIELD_COUNT],
+    original_lengths: [u16; SHORT_ORIGINAL_FIELD_COUNT],
+    original_barcode_text_len: u32,
     present_fields: u8,
     search_start: u32,
-    search_lengths: [u16; INLINE_SEARCH_FIELD_COUNT],
+    search_lengths: [u16; SHORT_SEARCH_FIELD_COUNT],
+    search_barcode_text_len: u32,
     stock_uom_id: u32,
     item_group_id: u32,
     brand_id: u32,
@@ -252,6 +268,8 @@ struct BarcodeEntry {
     end: u32,
 }
 
+/// Derived searchable catalog representation. Returned rows preserve cashier-facing fields but
+/// intentionally omit `modified`; that sync metadata remains in encrypted storage.
 #[derive(Default)]
 pub struct CatalogIndex {
     items: Vec<IndexedItem>,
@@ -333,9 +351,11 @@ impl CatalogIndexBuilder {
             self.index.items.push(IndexedItem {
                 original_start,
                 original_lengths: item.original_lengths,
+                original_barcode_text_len: item.original_barcode_text_len,
                 present_fields: item.present_fields,
                 search_start,
                 search_lengths: item.search_lengths,
+                search_barcode_text_len: item.search_barcode_text_len,
                 stock_uom_id,
                 item_group_id,
                 brand_id,
@@ -358,6 +378,7 @@ impl CatalogIndexBuilder {
                 .then_with(|| left.start.cmp(&right.start))
                 .then_with(|| left.end.cmp(&right.end))
         });
+        self.index.interned_fields.lookup = HashMap::new();
         self.index.exact_barcode.shrink_to_fit();
         self.index.items.shrink_to_fit();
         self.index.original_text.shrink_to_fit();
@@ -399,14 +420,21 @@ impl CatalogIndex {
         }
     }
 
+    fn original_length(item: &IndexedItem, field: usize) -> usize {
+        if field == SHORT_ORIGINAL_FIELD_COUNT {
+            item.original_barcode_text_len as usize
+        } else {
+            item.original_lengths[field] as usize
+        }
+    }
+
     fn original_range(item: &IndexedItem, field: usize) -> Range<usize> {
         let field = Self::inline_original_index(field);
-        let start = item.original_start as usize
-            + item.original_lengths[..field]
-                .iter()
-                .map(|length| *length as usize)
-                .sum::<usize>();
-        start..start + item.original_lengths[field] as usize
+        let mut start = item.original_start as usize;
+        for index in 0..field {
+            start += Self::original_length(item, index);
+        }
+        start..start + Self::original_length(item, field)
     }
 
     fn original_field(&self, item: &IndexedItem, field: usize) -> Option<&str> {
@@ -434,13 +462,21 @@ impl CatalogIndex {
         }
     }
 
+    fn search_length(item: &IndexedItem, field: usize) -> usize {
+        if field == SHORT_SEARCH_FIELD_COUNT {
+            item.search_barcode_text_len as usize
+        } else {
+            item.search_lengths[field] as usize
+        }
+    }
+
     fn search_range(item: &IndexedItem, field: usize) -> Range<usize> {
         let field = Self::inline_search_index(field);
         let mut start = item.search_start as usize;
-        for length in &item.search_lengths[..field] {
-            start += *length as usize;
+        for index in 0..field {
+            start += Self::search_length(item, index);
         }
-        start..start + item.search_lengths[field] as usize
+        start..start + Self::search_length(item, field)
     }
 
     fn search_field(&self, item: &IndexedItem, field: usize) -> &str {
@@ -664,6 +700,21 @@ mod tests {
         assert_eq!(first.stock_uom.as_deref(), Some("Box"));
         assert_eq!(first.item_group.as_deref(), Some("Tools"));
         assert_eq!(first.brand.as_deref(), Some("House"));
+    }
+
+    #[test]
+    fn long_barcode_text_indexes_without_truncation() {
+        let token = "98765432101234";
+        let barcode_text = format!("{} {}", "x".repeat(66_000), token);
+        let mut long = row("LONG-BARCODE", "Long barcode list", "111");
+        long.barcode = None;
+        long.barcode_text = Some(barcode_text.clone());
+
+        let index = CatalogIndex::rebuild(vec![long]);
+        let hits = index.search(token, 10);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].item_code, "LONG-BARCODE");
+        assert_eq!(hits[0].barcode_text.as_deref(), Some(barcode_text.as_str()));
     }
 
     #[test]
