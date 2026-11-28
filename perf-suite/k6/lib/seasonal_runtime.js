@@ -1283,7 +1283,7 @@ function firstRowIdentity(row) {
   if (!row || typeof row !== 'object') {
     return JSON.stringify(row);
   }
-  return JSON.stringify([row.name, row.invoice, row.posting_date, row.warehouse, row.item_code, row.qty]);
+  return JSON.stringify([row.sales_invoice, row.parent_invoice, row.indent, row.posting_date, row.warehouse, row.item_code, row.qty]);
 }
 
 export function performDetailReport(session, plan, phase) {

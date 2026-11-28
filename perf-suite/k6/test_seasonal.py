@@ -1125,6 +1125,39 @@ class SeasonalStaticContractTests(unittest.TestCase):
         for canonical in ("timeUnit", "startTime", "gracefulStop"):
             self.assertIn(canonical, seasonal)
 
+    def test_detail_first_row_identity_uses_real_same_day_invoice_identifiers(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        start = runtime.index("function firstRowIdentity")
+        end = runtime.index("export function performDetailReport", start)
+        function_source = runtime[start:end]
+        script = function_source + r"""
+const displayed = {
+  parent_invoice: '',
+  indent: 0,
+  posting_date: '2026-06-15',
+  warehouse: 'Shop 1',
+  item_code: 'ITEM-001',
+  qty: 10,
+};
+const first = Object.assign({ sales_invoice: 'ACC-SINV-2026-0001' }, displayed);
+const second = Object.assign({ sales_invoice: 'ACC-SINV-2026-0002' }, displayed);
+const child = Object.assign({ sales_invoice: 'ITEM-001', parent_invoice: 'ACC-SINV-2026-0001', indent: 1 }, displayed);
+console.log(JSON.stringify({
+  sameDayInvoicesDiffer: firstRowIdentity(first) !== firstRowIdentity(second),
+  childDiffersFromParent: firstRowIdentity(child) !== firstRowIdentity(first),
+  firstIdentity: firstRowIdentity(first),
+}));
+"""
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["sameDayInvoicesDiffer"])
+        self.assertTrue(payload["childDiffersFromParent"])
+        self.assertIn("ACC-SINV-2026-0001", payload["firstIdentity"])
+
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
         self.assertIn("iterationInTest", source)
