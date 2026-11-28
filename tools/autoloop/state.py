@@ -1235,6 +1235,14 @@ def resolve_contract_change(
                         _reset_shard_gate(shard)
                     else:
                         shards[sid] = _new_shard(extra, [], state.get("base_sha"))
+                    for dropped in state.get("dropped_shards", []):
+                        restored = [
+                            path for path in extra
+                            if any(globs_overlap(path, former) for former in dropped["allowed_paths"])
+                        ]
+                        if restored:
+                            readded = dropped.setdefault("readded", {})
+                            readded[sid] = list(dict.fromkeys([*readded.get(sid, []), *restored]))
             for sid in sorted(requested_new):
                 for other, other_shard in shards.items():
                     if other != sid and any(

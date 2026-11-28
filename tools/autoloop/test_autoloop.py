@@ -3195,6 +3195,25 @@ class TestWorkflowMetadata(unittest.TestCase):
         state, _ = self.cli(*resolve)
         self.assertEqual(set(state["shards"]), {"keep"})
 
+    def test_dropped_paths_require_explicit_reassignment_even_with_overlapping_scope(self) -> None:
+        run_id = "drop-overlap"
+        run = ("--run-id", run_id)
+        self.cli("init", *run, "--goal", "Release an unused scope")
+        self.cli("complete-grill", *run, "--summary", "Independent and provisional work",
+                 "--shard", "keep=src/**", "--shard", "unused=src/b.py")
+        self.cli("lock", *run)
+        resolve = ("resolve-contract-change", *run, "--decision", "approve")
+        self.cli("request-contract-change", *run, "--shard", "unused", "--drop", "--reason", "Unused")
+        self.cli(*resolve)
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 7\n")
+        _git(self.repo, "commit", "-am", "Change an unassigned path")
+        with self.assertRaisesRegex(GuardError, "dropped shard scope.*src/b.py"):
+            verify_untampered(self.repo, run_id, shard_id="keep")
+        self.cli("request-contract-change", *run, "--shard", "keep", "--reason", "Explicitly reclaim the path")
+        approved, _ = self.cli(*resolve, "--add-shard-paths", "keep=src/b.py")
+        self.assertEqual(approved["dropped_shards"][0]["readded"], {"keep": ["src/b.py"]})
+        self.assertTrue(verify_untampered(self.repo, run_id, shard_id="keep")["ok"])
+
     def test_drop_rejects_worktrees_findings_and_the_only_shard(self) -> None:
         run = ("--run-id", "drop-protected")
         self.cli("init", *run, "--goal", "Respect active work")

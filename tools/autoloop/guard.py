@@ -1516,13 +1516,26 @@ def load_verified_local_contract(
     return run_data, contract
 
 
-def _dropped_scope_changes(diff, contract, active_paths, run_id):
-    dropped_paths = [glob for entry in contract.get("dropped_shards", []) for glob in entry["allowed_paths"]]
+def _dropped_scope_changes(diff, contract, run_id, *, shard_id=None):
+    scopes = contract["shards"]
+    former_scopes = [
+        (
+            drop["allowed_paths"],
+            [
+                path for sid, paths in drop.get("readded", {}).items()
+                if sid in scopes and (shard_id is None or shard_id == sid)
+                for path in paths if path in scopes[sid]["allowed_paths"]
+            ],
+        )
+        for drop in contract.get("dropped_shards", [])
+    ]
     return [
         entry.path for entry in diff
         if not is_framework_metadata_path(entry.path, run_id)
-        and matches_any_glob(entry.path, dropped_paths)
-        and not matches_any_glob(entry.path, active_paths)
+        and any(
+            matches_any_glob(entry.path, dropped) and not matches_any_glob(entry.path, readded)
+            for dropped, readded in former_scopes
+        )
     ]
 
 
@@ -1577,7 +1590,7 @@ def verify_untampered(
         if base_ref and run_data.get("base_sha") != base_sha:
             scope_base = git_merge_base(target_repo, run_data["base_sha"], head_sha)
             scope_diff = git_diff_tree_entries(target_repo, scope_base, head_sha)
-        dropped = _dropped_scope_changes(scope_diff, contract, active_paths, run_id)
+        dropped = _dropped_scope_changes(scope_diff, contract, run_id, shard_id=shard_id)
         if dropped:
             raise GuardError(f"changes outside allowed_paths (dropped shard scope): {', '.join(dropped[:10])}")
 
@@ -1989,7 +2002,7 @@ def verify_pr_integrity(
         shard_checks_payload.append({"shard_id": sid, "checks": list(cshard.get("checks") or [])})
 
     # Check PR-introduced scope (mb_target..head_sha) against allowed_paths + strict metadata
-    dropped = _dropped_scope_changes(target_diff, contract, active_paths, run_id)
+    dropped = _dropped_scope_changes(target_diff, contract, run_id)
     if dropped:
         raise GuardError(f"PR modifies paths outside FrozenContractV1 allowed_paths (dropped shard scope): {', '.join(dropped[:10])}")
     all_allowed_paths = [*(contract.get("allowed_paths") or []), *active_paths]
