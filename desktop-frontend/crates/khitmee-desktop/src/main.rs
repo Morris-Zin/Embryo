@@ -649,30 +649,67 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
             app.set_invoice_detail_name(detail_string(&doc, "name").into());
             app.set_invoice_detail_customer_title(customer_name.clone().into());
             app.set_invoice_detail_show_currency(!customer.trim().is_empty());
+            app.set_invoice_detail_is_pos(detail_check(&doc, "is_pos") == "checked");
+            app.set_invoice_detail_is_return(detail_check(&doc, "is_return") == "checked");
             app.set_invoice_detail_status(detail_string(&doc, "status").into());
             let fields = [
                 ("Customer", customer, 0, 0, true),
-                ("Customer Name", customer_name, 1, 0, true),
+                ("Customer Name", customer_name, 0, 1, true),
                 (
                     "Posting Date",
                     detail_string(&doc, "posting_date"),
-                    2,
+                    1,
                     0,
                     true,
                 ),
                 (
                     "Posting Time",
                     detail_time(&doc, "posting_time"),
-                    0,
                     1,
+                    1,
+                    false,
+                ),
+                (
+                    "Edit Posting Date and Time",
+                    detail_check(&doc, "set_posting_time"),
+                    1,
+                    2,
                     false,
                 ),
                 (
                     "Payment Due Date",
                     detail_string(&doc, "due_date"),
                     1,
-                    1,
+                    3,
                     true,
+                ),
+                (
+                    "Include Payment (POS)",
+                    detail_check(&doc, "is_pos"),
+                    2,
+                    0,
+                    false,
+                ),
+                (
+                    "Is Return (Credit Note)",
+                    detail_check(&doc, "is_return"),
+                    2,
+                    1,
+                    false,
+                ),
+                (
+                    "Is Rate Adjustment Entry (Debit Note)",
+                    detail_check(&doc, "is_debit_note"),
+                    2,
+                    2,
+                    false,
+                ),
+                (
+                    "Consider for Tax Withholding",
+                    detail_check(&doc, "apply_tds"),
+                    2,
+                    3,
+                    false,
                 ),
                 (
                     "Scan Barcode",
@@ -691,8 +728,8 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                 (
                     "Update Stock",
                     detail_check(&doc, "update_stock"),
-                    2,
                     0,
+                    1,
                     false,
                 ),
                 (
@@ -764,10 +801,28 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                     0
                 },
                 emphasized,
+                checkbox: matches!(
+                    label,
+                    "Edit Posting Date and Time"
+                        | "Include Payment (POS)"
+                        | "Is Return (Credit Note)"
+                        | "Is Rate Adjustment Entry (Debit Note)"
+                        | "Consider for Tax Withholding"
+                        | "Update Stock"
+                ),
                 editable: detail_number(&doc, "docstatus") == 0.0
                     && matches!(
                         label,
-                        "Customer" | "Payment Due Date" | "Update Stock" | "Source Warehouse"
+                        "Customer"
+                            | "Payment Due Date"
+                            | "Scan Barcode"
+                            | "Update Stock"
+                            | "Source Warehouse"
+                            | "Edit Posting Date and Time"
+                            | "Include Payment (POS)"
+                            | "Is Return (Credit Note)"
+                            | "Is Rate Adjustment Entry (Debit Note)"
+                            | "Consider for Tax Withholding"
                     ),
             })
             .collect::<Vec<_>>();
@@ -837,7 +892,13 @@ fn invoice_detail_field_key(label: &str) -> Option<&'static str> {
         "Customer" => Some("customer"),
         "Payment Due Date" => Some("due_date"),
         "Update Stock" => Some("update_stock"),
+        "Scan Barcode" => Some("scan_barcode"),
         "Source Warehouse" => Some("set_warehouse"),
+        "Edit Posting Date and Time" => Some("set_posting_time"),
+        "Include Payment (POS)" => Some("is_pos"),
+        "Is Return (Credit Note)" => Some("is_return"),
+        "Is Rate Adjustment Entry (Debit Note)" => Some("is_debit_note"),
+        "Consider for Tax Withholding" => Some("apply_tds"),
         _ => None,
     }
 }
@@ -853,7 +914,11 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     let Some(doc) = state.invoice_detail_doc.as_mut() else {
         return;
     };
-    let normalized = if key == "update_stock" {
+    let checkbox_key = matches!(
+        key,
+        "update_stock" | "set_posting_time" | "is_pos" | "is_return" | "is_debit_note" | "apply_tds"
+    );
+    let normalized = if checkbox_key {
         if value.eq_ignore_ascii_case("yes") || value == "1" {
             "1"
         } else {
@@ -862,7 +927,14 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     } else {
         value
     };
-    if key == "update_stock" {
+    if key == "scan_barcode" {
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, label) {
+            field.value = normalized.into();
+        }
+        app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
+        return;
+    }
+    if checkbox_key {
         doc[key] = serde_json::json!(normalized.parse::<i64>().unwrap_or(0));
     } else {
         doc[key] = serde_json::json!(normalized);
@@ -891,13 +963,19 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     } else if key == "customer" {
         app.set_invoice_detail_show_currency(true);
     }
-    let display_value = if key == "update_stock" {
+    let display_value = if checkbox_key {
         if normalized == "1" { "checked" } else { "unchecked" }.to_owned()
     } else {
         normalized.to_owned()
     };
     if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, label) {
         field.value = display_value.into();
+    }
+    if key == "is_pos" {
+        app.set_invoice_detail_is_pos(normalized == "1");
+    }
+    if key == "is_return" {
+        app.set_invoice_detail_is_return(normalized == "1");
     }
     app.set_invoice_detail_fields(Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into());
     state.invoice_detail_dirty = true;

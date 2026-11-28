@@ -36,6 +36,7 @@ export struct DetailField {
     row: int,
     section: int,
     emphasized: bool,
+    checkbox: bool,
     editable: bool,
 }
 
@@ -1195,25 +1196,26 @@ component DetailFieldBox inherits Rectangle {
 
     Text {
         x: 0px; y: 0px; width: parent.width; height: 16px;
-        text: field.label; color: Design.muted; font-size: 11px; overflow: elide;
+        text: field.label; visible: !field.checkbox; color: Design.muted; font-size: 11px; overflow: elide;
     }
     Rectangle {
         x: 0px; y: 19px; width: parent.width; height: 28px;
-        background: field.label == "Update Stock" ? transparent : #f8fafc; border-color: #e4e7ec; border-width: field.label == "Update Stock" ? 0px : 1px; border-radius: 6px;
-        if !field.editable && field.label != "Update Stock": Text {
+        background: field.checkbox ? transparent : #f8fafc; border-color: #e4e7ec; border-width: field.checkbox ? 0px : 1px; border-radius: 6px;
+        if !field.editable && !field.checkbox: Text {
             x: 9px; width: parent.width - 18px; height: parent.height;
             text: field.value; color: Design.text; font-size: 12px;
             font-weight: field.emphasized ? 750 : 500;
             vertical-alignment: center; overflow: elide;
         }
-        if field.label == "Update Stock": CheckBox {
-            x: 9px; y: 2px; width: parent.width - 18px; height: 24px;
+        if field.checkbox: CheckBox {
+            x: 0px; y: 2px; width: parent.width; height: 24px;
+            text: field.label;
             checked: field.value == "checked";
             enabled: field.editable;
             accessible-label: field.label;
             toggled => { root.edited(field.label, self.checked ? "1" : "0"); }
         }
-        if field.editable && field.label != "Update Stock": LineEdit {
+        if field.editable && !field.checkbox: LineEdit {
             x: 3px; y: 1px; width: parent.width - 6px; height: parent.height - 2px;
             text: field.value;
             accessible-role: text-input;
@@ -1269,15 +1271,17 @@ component InvoiceDetailScreen inherits Rectangle {
     in property <int> detail-editing-index: -1;
     in property <bool> detail-item-selected: false;
     in property <bool> detail-show-currency: true;
+    in property <bool> detail-is-pos: false;
+    in property <bool> detail-is-return: false;
     in-out property <int> detail-active-tab: 0;
     background: #f4f5f7;
 
     property <length> content-x: 240px;
     property <length> content-width: root.width - root.content-x;
     property <length> column-width: (root.content-width - 88px) / 3;
-    property <length> items-top: 150px;
+    property <length> items-top: 274px;
     property <length> scan-top: root.items-top + 34px;
-    property <length> grid-header-top: root.scan-top + 48px;
+    property <length> grid-header-top: root.scan-top + 96px;
     property <length> row-top: root.grid-header-top + 34px;
     property <length> row-extra: root.detail-editing-index >= 0 ? 48px : 0px;
     property <length> actions-top: root.row-top + root.detail-items.length * 38px + root.row-extra + 2px;
@@ -1363,6 +1367,7 @@ component InvoiceDetailScreen inherits Rectangle {
         Rectangle { x: 0px; y: 0px; width: root.content-width; height: root.detail-content-height; background: #ffffff; }
 
         for field in root.detail-fields: DetailFieldBox {
+            visible: (field.label != "Edit Posting Date and Time" || root.detail-status == "Draft") && (!root.detail-is-pos || (field.label != "Payment Due Date" && field.label != "In Words" && field.label != "Total Advance (USD)")) && (!root.detail-is-return || field.label != "Is Rate Adjustment Entry (Debit Note)");
             field: field;
             column-width: root.column-width;
             x: 20px + field.column * (root.column-width + 12px);
@@ -1370,7 +1375,7 @@ component InvoiceDetailScreen inherits Rectangle {
             edited(label, value) => { root.detail-field-edited(label, value); }
         }
 
-        Text { x: 20px; y: 124px; width: 240px; height: 24px; text: "Currency and Price List  ›"; visible: root.detail-show-currency; color: Design.text; font-size: 13px; font-weight: 650; vertical-alignment: center; accessible-label: "Currency and Price List"; }
+        Text { x: 20px; y: 240px; width: 240px; height: 24px; text: "Currency and Price List  ›"; visible: root.detail-show-currency; color: Design.text; font-size: 13px; font-weight: 650; vertical-alignment: center; accessible-label: "Currency and Price List"; }
         Text { x: 20px; y: root.items-top; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
         Rectangle { x: 20px; y: root.grid-header-top; width: root.content-width - 40px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
         Text { x: 28px; y: root.grid-header-top; width: 34px; height: 34px; text: "No."; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
@@ -1487,6 +1492,8 @@ export component AppWindow inherits Window {
     in property <bool> invoice-detail-dirty: false;
     in property <bool> invoice-detail-item-selected: false;
     in property <bool> invoice-detail-show-currency: true;
+    in property <bool> invoice-detail-is-pos: false;
+    in property <bool> invoice-detail-is-return: false;
     in property <string> invoice-detail-error-text: "";
     in property <string> invoice-detail-validation-text: "";
     in property <string> invoice-detail-validation-title: "";
@@ -1646,6 +1653,8 @@ export component AppWindow inherits Window {
         detail-editing-index: root.invoice-detail-editing-index;
         detail-item-selected: root.invoice-detail-item-selected;
         detail-show-currency: root.invoice-detail-show-currency;
+        detail-is-pos: root.invoice-detail-is-pos;
+        detail-is-return: root.invoice-detail-is-return;
         back-to-list => { current-screen = 2; }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
         detail-save => { root.invoice-detail-save(); }

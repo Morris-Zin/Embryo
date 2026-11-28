@@ -579,10 +579,14 @@
         "evidence/visual/invoice-detail-native-current.png",
         "evidence/visual/invoice-detail-composite-current.png",
         "evidence/journeys/invoice-detail-tabs.json",
-        "evidence/journeys/invoice-detail-server-validation.json"
+        "evidence/journeys/invoice-detail-server-validation.json",
+        "evidence/journeys/invoice-detail-negative-qty-validation.json",
+        "evidence/journeys/invoice-detail-missing-customer-validation.json",
+        "evidence/journeys/invoice-detail-negative-rate-validation.json",
+        "evidence/journeys/invoice-detail-empty-items-validation.json",
+        "evidence/journeys/invoice-detail-checkbox-fields.json"
       ],
       "failures": [
-        "comprehensive server-side validation matrix pending",
         "detail tabs and remaining document actions pending",
         "form focus-order and comprehensive visual-state evidence pending",
         "comprehensive performance evidence pending"

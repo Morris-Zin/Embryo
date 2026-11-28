@@ -96,3 +96,10 @@ The new due-date validation harness caught real native/server-integration defect
 ## Server-validation milestone
 
 `evidence/journeys/invoice-detail-server-validation.json` now passes with zero differential failures for invalid Payment Due Date (`2026-11-01` before posting date). The verifier exposed and fixed two real defects: native dirty field state was reset from the stale field model after a failed save, and ERP validation errors were not surfaced in a validation dialog. Native now preserves the invalid user-entered value, shows the same `Due Date cannot be before Posting Date` validation message, and matches the browser's cleared `In Words` dependent-field state after the failed save. This is one server-validation case, not yet the full matrix.
+
+## Browser-like form-state milestone (2026-11-28)
+
+- Reworked the detail header into the browser-like three-column layout with visible posting-time, POS, return, debit-note and tax-withholding checkbox controls instead of omitting them or rendering checkboxes as text.
+- Added real checkbox controls, browser-dependent visibility for POS/return/posting-edit fields, editable scan barcode input, and scroll-aware native extraction so off-screen Flickable content is compared against browser document content fairly.
+- `invoice-detail-checkbox-fields.json` now passes with zero differential failures after catching and fixing POS/return dependent-field mismatches.
+- The editable draft save/submit regression still passes with zero differential failures under the expanded field comparison.
