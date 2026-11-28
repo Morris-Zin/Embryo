@@ -8,25 +8,18 @@ DEFAULT_PROFILE="2gb"
 
 usage() {
   cat <<'EOF_USAGE'
-Usage: bash perf-suite/scripts/up.sh [--profile 2gb|2gb-adr|2gb-guest|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
+Usage: bash perf-suite/scripts/up.sh [--profile 2gb|4gb] [--with-khitmee-ops] [--with-optimus] [--with-binlog]
 
 Starts the disposable khitmee-perf benchmark stack on http://127.0.0.1:18086
 (or PERF_HTTP_PORT from the env file).
 The script never targets the live khitmee-erpnext project.
 
 Options:
-  --profile PROFILE   Memory profile: 2gb, 2gb-adr, 2gb-guest, or 4gb (default: 2gb)
+  --profile 2gb|4gb   Memory profile to use (default: 2gb)
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
   --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
-  --skip-asset-precompress  Skip optional static gzip precompression for API-only benchmark runs
   -h, --help          Show this help
-
-MARIADB_IMAGE may be exported or set in the local .env to a digest-pinned image
-for an opt-in database A/B run. The default mariadb:11.8 image is unchanged.
-For --profile 2gb-guest, CASHIER_GUNICORN_WORKERS/CASHIER_GUNICORN_THREADS
-and GENERAL_GUNICORN_WORKERS may be exported or set in .env; ADR defaults are
-1x3 gthread cashier workers/threads and one sync general worker.
 EOF_USAGE
 }
 
@@ -34,7 +27,6 @@ PROFILE="$DEFAULT_PROFILE"
 WITH_KHITMEE_OPS=0
 WITH_OPTIMUS=0
 WITH_BINLOG=0
-SKIP_ASSET_PRECOMPRESS=0
 
 while (($#)); do
   case "$1" in
@@ -59,10 +51,6 @@ while (($#)); do
       WITH_BINLOG=1
       shift
       ;;
-    --skip-asset-precompress)
-      SKIP_ASSET_PRECOMPRESS=1
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -76,9 +64,9 @@ while (($#)); do
 done
 
 case "$PROFILE" in
-  2gb|2gb-adr|2gb-guest|4gb) ;;
+  2gb|4gb) ;;
   *)
-    echo "Invalid --profile '$PROFILE'; expected 2gb, 2gb-adr, 2gb-guest, or 4gb" >&2
+    echo "Invalid --profile '$PROFILE'; expected 2gb or 4gb" >&2
     exit 2
     ;;
 esac
@@ -126,8 +114,6 @@ CUSTOM_TAG=v16.60.0
 SITE_NAME=bench-loadtest.localhost
 DB_PASSWORD=$db_password
 ADMIN_PASSWORD=$admin_password
-# Optional digest-pinned A/B override, for example:
-# MARIADB_IMAGE=mariadb:11.8.10@sha256:73c35e8483b56390cc98f8d6d9840244bd03c929aea7109490641b9389a18088
 EOF_ENV
   )
   chmod 600 "$ENV_FILE" 2>/dev/null || true
@@ -168,16 +154,8 @@ COMPOSE_FILE_ARGS=(
   -f "$DOCKER_DIR/profile-$PROFILE.yaml"
 )
 
-OPS_OVERLAY_PROFILE="$PROFILE"
-if [[ "$PROFILE" == 2gb* ]]; then
-  OPS_OVERLAY_PROFILE="2gb"
-fi
-
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
-  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$OPS_OVERLAY_PROFILE.yaml" )
-  if [[ "$PROFILE" == "2gb-guest" ]]; then
-    COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-guest.yaml" )
-  fi
+  COMPOSE_FILE_ARGS+=( -f "$DOCKER_DIR/khitmee-ops-$PROFILE.yaml" )
 fi
 
 if [[ "$WITH_BINLOG" == "1" ]]; then
@@ -193,16 +171,6 @@ compose() {
     --project-directory "$DOCKER_DIR" \
     --env-file "$ENV_FILE" \
     "${COMPOSE_FILE_ARGS[@]}" \
-    "$@"
-}
-
-compose_transient() {
-  docker compose \
-    --project-name "$PROJECT_NAME" \
-    --project-directory "$DOCKER_DIR" \
-    --env-file "$ENV_FILE" \
-    "${COMPOSE_FILE_ARGS[@]}" \
-    -f "$DOCKER_DIR/khitmee-migration-transient.yaml" \
     "$@"
 }
 
@@ -242,7 +210,6 @@ sync_khitmee_ops() {
     KHITMEE_OPS_SYNC_CHANGED=0
   fi
   rsync "${rsync_args[@]}" "$source_dir/" "$target_dir/"
-  KHITMEE_OPS_TREE_HASH="$(find "$target_dir" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
   if [[ "$(id -u)" == "0" ]]; then
     chown -R 1000:0 "$target_dir"
   fi
@@ -277,93 +244,11 @@ site_has_app() {
   compose exec -T backend bench --site "$SITE_NAME" list-apps --format text < /dev/null 2>/dev/null | awk -v app="$app" '$1 == app { found=1 } END { exit !found }'
 }
 
-read_khitmee_ops_migrated_tree_hash() {
-  compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY' 2>/dev/null
-import sys
-
-import frappe
-
-frappe.init(site=sys.argv[1], sites_path="/home/frappe/frappe-bench/sites")
-frappe.connect()
-try:
-    try:
-        rows = frappe.db.sql("SELECT tree_hash FROM `__khitmee_ops_migration_state` WHERE name='state'")
-    except Exception:
-        rows = []
-    print(rows[0][0] if rows else "")
-finally:
-    frappe.destroy()
-PY
-}
-
-record_khitmee_ops_migrated_tree_hash() {
-  local tree_hash="$1"
-  compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" "$tree_hash" <<'PY'
-import sys
-
-import frappe
-
-frappe.init(site=sys.argv[1], sites_path="/home/frappe/frappe-bench/sites")
-frappe.connect()
-try:
-    frappe.db.sql("""
-        CREATE TABLE IF NOT EXISTS `__khitmee_ops_migration_state` (
-          `name` varchar(32) NOT NULL PRIMARY KEY,
-          `tree_hash` varchar(64) NOT NULL,
-          `migrated_at` datetime(6) NOT NULL
-        ) ENGINE=InnoDB
-    """)
-    frappe.db.sql(
-        """
-        INSERT INTO `__khitmee_ops_migration_state` (`name`, `tree_hash`, `migrated_at`)
-        VALUES ('state', %(tree_hash)s, UTC_TIMESTAMP(6))
-        ON DUPLICATE KEY UPDATE `tree_hash`=VALUES(`tree_hash`), `migrated_at`=VALUES(`migrated_at`)
-        """,
-        {"tree_hash": sys.argv[2]},
-    )
-    frappe.db.commit()
-finally:
-    frappe.destroy()
-PY
-}
-
-run_khitmee_ops_migration_if_needed() {
-  [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
-
-  local evidence_file="/srv/khitmee-perf/startup-migrations.log"
-  local occurred_at status tree_hash migrated_hash
-  tree_hash="${KHITMEE_OPS_TREE_HASH:-unknown}"
-  migrated_hash="$(read_khitmee_ops_migrated_tree_hash | tail -n 1 | tr -d '\r')"
-  if [[ -n "$tree_hash" && "$tree_hash" != "unknown" && "$migrated_hash" == "$tree_hash" ]]; then
-    echo "khitmee_ops migrations already match deployed tree hash $tree_hash."
-    return 0
-  fi
-
-  occurred_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  mkdir -p "$(dirname "$evidence_file")"
-
-  echo "khitmee_ops deployed tree differs from the fixture migration state; running bench migrate outside the measured window..."
-  status=success
-  if ! compose_transient run --rm --no-deps -T backend bench --site "$SITE_NAME" migrate < /dev/null; then
-    status=migrate_failed
-  elif [[ "$tree_hash" != "unknown" ]] && ! record_khitmee_ops_migrated_tree_hash "$tree_hash" < /dev/null; then
-    status=marker_failed
-  fi
-  printf '{"at":"%s","site":"%s","profile":"%s","tree_sha256":"%s","prior_tree_sha256":"%s","reason":"fixture migration state mismatch","status":"%s"}\n' \
-    "$occurred_at" "$SITE_NAME" "$PROFILE" "$tree_hash" "$migrated_hash" "$status" >> "$evidence_file"
-
-  if [[ "$status" != "success" ]]; then
-    echo "bench migrate or migration-state recording failed after khitmee_ops changed; see $evidence_file" >&2
-    return 1
-  fi
-  echo "Recorded startup migration in $evidence_file"
-}
-
 ensure_khitmee_ops_database_objects() {
   [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
 
   echo "Ensuring khitmee_ops composite indexes and fast report settings..."
-  if ! compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
+  if ! compose exec -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
 import sys
 
 import frappe
@@ -414,19 +299,9 @@ wait_for_innodb_buffer_pool_preload() {
   local last_status="__unset__"
   local printable_status
 
-  local auth_user="root"
-  local auth_password="$DB_PASSWORD"
-  local site_auth=""
-  if ! compose exec -T -e MYSQL_PWD="$DB_PASSWORD" db mariadb -uroot -N -B -e "SELECT 1" >/dev/null 2>&1; then
-    if site_auth="$(compose exec -T backend python -c "import json; c=json.load(open('/home/frappe/frappe-bench/sites/$SITE_NAME/site_config.json')); print(str(c.get('db_name') or c.get('db_user') or '')+' '+str(c.get('db_password') or ''))" 2>/dev/null | tr -d '\r' | head -n 1)"; then
-      auth_user="${site_auth%% *}"
-      auth_password="${site_auth#* }"
-    fi
-  fi
-
   echo "Waiting up to ${timeout_seconds}s for InnoDB buffer pool preload..."
   while (( elapsed < timeout_seconds )); do
-    if [[ -n "$auth_user" && -n "$auth_password" ]] && status="$(compose exec -T -e MYSQL_PWD="$auth_password" db mariadb -u"$auth_user" -N -B -e "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_load_status'" 2>/dev/null | tr -d '\r' | cut -f2- | head -n 1)"; then
+    if status="$(compose exec -T -e MYSQL_PWD="$DB_PASSWORD" db mariadb -uroot -N -B -e "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_load_status'" 2>/dev/null | tr -d '\r' | cut -f2- | head -n 1)"; then
       printable_status="${status:-no load in progress}"
       if [[ "$printable_status" != "$last_status" ]]; then
         echo "InnoDB buffer pool load status: $printable_status"
@@ -497,26 +372,15 @@ warmup_read_only_http() {
 sync_khitmee_ops
 
 python_services=(backend scheduler)
-if [[ "$PROFILE" == "2gb-guest" ]]; then
-  python_services+=(cashier)
-fi
-if [[ "$PROFILE" == 2gb* ]]; then
+if [[ "$PROFILE" == "2gb" ]]; then
   python_services+=(queue)
 else
   python_services+=(queue-short queue-long)
 fi
 
-if [[ "$PROFILE" == "2gb-guest" ]]; then
-  echo "Ensuring whole-guest parent cgroup before container creation..."
-  bash "$SCRIPT_DIR/guest_cgroup_setup.sh"
-fi
-
 echo "Starting $PROJECT_NAME with profile $PROFILE..."
 compose up -d --remove-orphans
 wait_for_service_running backend 180
-if [[ "$PROFILE" == "2gb-guest" ]]; then
-  wait_for_service_running cashier 180
-fi
 
 if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   if [[ "${KHITMEE_OPS_SYNC_CHANGED:-0}" == "1" ]]; then
@@ -553,7 +417,6 @@ if [[ "$WITH_KHITMEE_OPS" == "1" ]]; then
   else
     echo "khitmee_ops is already installed on $SITE_NAME."
   fi
-  run_khitmee_ops_migration_if_needed
   ensure_khitmee_ops_database_objects
 fi
 
@@ -594,12 +457,8 @@ compose exec -T backend bench --site "$SITE_NAME" execute frappe.db.set_single_v
 compose exec -T backend bench --site "$SITE_NAME" scheduler enable < /dev/null
 compose exec -T backend bench --site "$SITE_NAME" scheduler resume < /dev/null
 
-if [[ "$SKIP_ASSET_PRECOMPRESS" == "1" ]]; then
-  echo "Skipping optional static asset precompression for this API-only benchmark run."
-else
-  echo "Precompressing changed static assets for gzip_static..."
-  compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
-fi
+echo "Precompressing changed static assets for gzip_static..."
+compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
 
 health_url="http://127.0.0.1:${PERF_HTTP_PORT}/api/method/ping"
 echo "Waiting for $health_url ..."
@@ -615,10 +474,5 @@ if ! wait_for_innodb_buffer_pool_preload; then
 fi
 
 warmup_read_only_http
-
-if [[ "$PROFILE" == "2gb-guest" ]]; then
-  echo "Verifying whole-guest cgroup limits and container process membership..."
-  bash "$SCRIPT_DIR/verify_guest_cgroup.sh"
-fi
 
 echo "$PROJECT_NAME is healthy at http://127.0.0.1:${PERF_HTTP_PORT} (site: $SITE_NAME, profile: $PROFILE)."

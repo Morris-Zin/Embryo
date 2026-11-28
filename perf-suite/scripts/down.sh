@@ -50,7 +50,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PERF_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 DOCKER_DIR="$PERF_DIR/docker"
 
-# Profile files are included so every possible perf service is present in
+# Both profile files are included so every possible perf service is present in
 # the Compose model. This command never starts containers; down-only dummy
 # values avoid reading the secret-bearing local .env file.
 compose() {
@@ -62,7 +62,6 @@ compose() {
       --env-file /dev/null \
       -f "$DOCKER_DIR/compose.base.yaml" \
       -f "$DOCKER_DIR/profile-2gb.yaml" \
-      -f "$DOCKER_DIR/profile-2gb-guest.yaml" \
       -f "$DOCKER_DIR/profile-4gb.yaml" \
       "$@"
 }

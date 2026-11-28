@@ -51,7 +51,7 @@ services:
       - perf-sites:/home/frappe/frappe-bench/sites
 
   db:
-    image: ${MARIADB_IMAGE:-mariadb:11.8}
+    image: mariadb:11.8
     pull_policy: ${PULL_POLICY:-missing}
     restart: ${RESTART_POLICY:-unless-stopped}
     platform: linux/amd64

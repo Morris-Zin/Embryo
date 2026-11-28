@@ -1,6 +1,0 @@
-# Transient startup/migration helper containers may need more headroom than the
-# steady-state 224 MiB general Gunicorn service. They still run inside the
-# whole-guest parent cgroup and are removed before measurement.
-services:
-  backend:
-    mem_limit: 384m
