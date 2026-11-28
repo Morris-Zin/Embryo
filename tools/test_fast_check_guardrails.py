@@ -1,3 +1,4 @@
+import re
 import sys
 import tempfile
 import unittest
@@ -309,17 +310,20 @@ class TestDevToolGate(unittest.TestCase):
 			which=lambda name: None,
 			find_spec=lambda name: None,
 			runner=failing_runner,
+			script_finder=lambda name, which=None: None,
 		)
 
-		self.assertEqual(missing, ["ruff", "hypothesis"])
+		self.assertEqual(missing, ["ruff", "hypothesis", "unittest-parallel", "zizmor"])
 
 	def test_missing_dev_tool_diagnostic_contains_exact_bootstrap_command(self):
-		with mock.patch.object(fc, "missing_dev_tools", return_value=["ruff", "hypothesis"]):
+		with mock.patch.object(fc, "missing_dev_tools", return_value=["ruff", "hypothesis", "unittest-parallel", "zizmor"]):
 			with self.assertRaises(RuntimeError) as raised:
 				fc.assert_dev_tools_available()
 
 		self.assertIn("ruff", str(raised.exception))
 		self.assertIn("hypothesis", str(raised.exception))
+		self.assertIn("unittest-parallel", str(raised.exception))
+		self.assertIn("zizmor", str(raised.exception))
 		self.assertIn(fc.DEV_BOOTSTRAP_COMMAND, str(raised.exception))
 		self.assertIn("bootstrap with exactly:", str(raised.exception))
 
@@ -331,9 +335,72 @@ class TestDevToolGate(unittest.TestCase):
 			which=lambda name: None,
 			find_spec=lambda name: object(),
 			runner=lambda *args, **kwargs: Result(),
+			script_finder=lambda name, which=None: "/venv/bin/zizmor",
 		)
 
 		self.assertEqual(missing, [])
+
+
+class TestZizmorGate(unittest.TestCase):
+	def test_zizmor_gate_is_explicitly_offline(self):
+		with (
+			mock.patch.object(fc, "assert_dev_tools_available"),
+			mock.patch.object(fc, "installed_script", return_value="/venv/bin/zizmor"),
+			mock.patch.object(fc, "run", return_value="") as run_mock,
+		):
+			fc.zizmor_workflows(Path("/repo"))
+
+		argv = run_mock.call_args.args[0]
+		self.assertEqual(argv[0], "/venv/bin/zizmor")
+		self.assertIn("--offline", argv)
+		self.assertIn("--collect=workflows", argv)
+
+
+class TestParallelUnittestSelection(unittest.TestCase):
+	def test_tools_suite_uses_measured_class_parallelism(self):
+		command = fc.unittest_parallel_command(Path("/repo"))
+
+		self.assertIn("--level", command)
+		self.assertEqual(command[command.index("--level") + 1], "class")
+		self.assertEqual(command[command.index("-j") + 1], "4")
+		self.assertEqual(command[command.index("-s") + 1], "/repo/tools")
+
+	def test_financial_and_seeder_suites_keep_sequential_discovery(self):
+		self.assertEqual(fc.PYTHON_TEST_SERIAL_SUITES, (
+			"apps/khitmee_ops/khitmee_ops/tests",
+			"perf-suite/seeder",
+			"perf-suite/k6",
+			"perf-suite/offload",
+		))
+
+
+class TestVerificationEvidenceSafeguards(unittest.TestCase):
+	def test_uv_bootstrap_pin_stays_in_dependency_manifest_for_cache_key_rotation(self):
+		root = TOOLS_DIR.parent
+		manifest = (root / "apps/khitmee_ops/pyproject.toml").read_text(encoding="utf-8")
+		dev_match = re.search(r"(?ms)^dev = \[(.*?)^\]", manifest)
+		self.assertIsNotNone(dev_match)
+		uv_deps = re.findall(r'["\'](uv==[^"\']+)["\']', dev_match.group(1))
+		self.assertEqual(len(uv_deps), 1)
+
+		expected = {
+			"ci.yml": (1, ["apps/khitmee_ops/pyproject.toml"]),
+			"autoloop-gate.yml": (2, ["apps/khitmee_ops/pyproject.toml", "candidate-repo/apps/khitmee_ops/pyproject.toml"]),
+		}
+		for workflow, (job_count, dependency_paths) in expected.items():
+			text = (root / ".github/workflows" / workflow).read_text(encoding="utf-8")
+			bootstrap_pins = re.findall(r"python -m pip install (uv==[^\s]+)", text)
+			self.assertEqual(bootstrap_pins, [uv_deps[0]] * job_count)
+			self.assertEqual(text.count('UV_CACHE_DIR="$HOME/.cache/pip/uv"'), job_count)
+			for dependency_path in dependency_paths:
+				self.assertIn(f"cache-dependency-path: {dependency_path}", text)
+
+	def test_benchmark_evidence_reports_exact_test_count_change(self):
+		text = (TOOLS_DIR.parent / ".autoloop/experiments/devprod-verification-20261127-benchmarks.md").read_text(encoding="utf-8")
+
+		self.assertIn("472 total; tools suite 149", text)
+		self.assertIn("477 total; tools suite 154", text)
+		self.assertIn("no baseline tests removed; 5 regression/guardrail tests added", text)
 
 
 if __name__ == "__main__":
