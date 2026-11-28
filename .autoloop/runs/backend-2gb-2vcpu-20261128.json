@@ -30,6 +30,45 @@
       "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
       "event": "lock",
       "status": "locked"
+    },
+    {
+      "at": "2026-11-28T06:55:57Z",
+      "event": "start-shard",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:55:59Z",
+      "code_tree_sha256": "a467cbc916b477d18ffe74876a73b9353ffa98d5c05c7c5fedbce9629b59513e",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:00Z",
+      "event": "start-shard",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:02Z",
+      "code_tree_sha256": "a6fb8580e9523244b76454e89af382c1192ea6a47af57d30b44372be429bc9ba",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:03Z",
+      "event": "start-shard",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T06:56:06Z",
+      "code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -89,13 +128,14 @@
         "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_memory_hooks_unit.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "1686cd3a29cee152841eab52cb28051e67cb85d4",
+      "passed_code_tree_sha256": "a6fb8580e9523244b76454e89af382c1192ea6a47af57d30b44372be429bc9ba",
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "E:\\khitmee-wt-cashier-backend"
     },
     "fast_verify": {
       "allowed_paths": [
@@ -114,13 +154,14 @@
         "python -B -m unittest tools.test_fast_verify tools.test_perf_parity_comparator tools.test_fast_check_guardrails"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "7239f15f52f75dcaf4aa39f98d9c0a918c6e92c0",
+      "passed_code_tree_sha256": "a467cbc916b477d18ffe74876a73b9353ffa98d5c05c7c5fedbce9629b59513e",
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "E:\\khitmee-wt-fast-verify"
     },
     "manager_parity": {
       "allowed_paths": [
@@ -142,16 +183,17 @@
         "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_oracle_parity.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "526f053d3bb796008ac31ad179dcf163769087f3",
+      "passed_code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "E:\\khitmee-wt-manager-parity"
     }
   },
-  "status": "locked",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T05:40:31Z"
+  "updated_at": "2026-11-28T06:56:06Z"
 }
