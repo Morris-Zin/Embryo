@@ -1,4 +1,4 @@
-"""Host-wide delegation receipts for the autoloop shadow broker."""
+"""Host-wide delegation and check receipts for the autoloop shadow broker."""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ from ..leases import (
     atomic_write_json,
     resource_lock_dir,
 )
+
+_OUTCOME_FIELDS = ("evidence_id", "evidence_digest", "output_digest", "exit_code", "completed_at")
 
 
 class ReceiptError(LeaseError):
@@ -114,8 +116,11 @@ class Broker:
         return data
 
     @staticmethod
-    def _slot_key(run: str, shard: str, role: str) -> str:
-        return _digest([run, shard, role])
+    def _slot_parts(run: str, shard: str, role: str, cache_key_digest: str | None) -> list[str]:
+        parts = [run, shard, role]
+        if cache_key_digest is not None:
+            parts.append(cache_key_digest)
+        return parts
 
     @staticmethod
     def _entry(data: dict[str, Any], reservation_id: str) -> dict[str, Any]:
@@ -125,20 +130,23 @@ class Broker:
             raise ReceiptError("unknown reservation") from exc
 
     def _slot(self, data: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
-        return data["slots"][self._slot_key(record["run"], record["shard"], record["role"])]
+        parts = self._slot_parts(record["run"], record["shard"], record["role"], record.get("cache_key_digest"))
+        return data["slots"][_digest(parts)]
 
     def reserve(
         self, *, run: str, shard: str, role: str, generation: int, request_id: str,
         request_digest: str, brief_digest: str, task_class: str, difficulty: str,
         contract_revision: int, contract_hash: str, policy: str, epoch: str,
         git: dict[str, str], provider: str, model: str, settings: dict[str, Any],
-        limits: dict[str, Any], expires_at: float,
+        limits: dict[str, Any], expires_at: float, cache_key_digest: str | None = None,
     ) -> dict[str, Any]:
-        """Commit one dispatch reservation. Duplicate keys always lose the race."""
+        """Commit one delegation or local check reservation before execution."""
         required = (run, shard, role, request_id, request_digest, brief_digest, task_class,
                     difficulty, contract_hash, policy, epoch, provider, model)
         if not all(isinstance(value, str) and value.strip() for value in required):
             raise ReceiptError("reservation identity and binding fields must be non-empty strings")
+        if cache_key_digest is not None and (not isinstance(cache_key_digest, str) or not cache_key_digest.strip()):
+            raise ReceiptError("a local execution requires a cache key digest")
         if any(type(value) is not int or value < 1 for value in (generation, contract_revision)):
             raise ReceiptError("generation and contract revision must be positive integers")
         if not isinstance(settings, dict) or not isinstance(limits, dict):
@@ -146,7 +154,8 @@ class Broker:
         _number(expires_at, "expiry")
         with acquire_mutex(self._mutex):
             data = self._load()
-            key = self._slot_key(run, shard, role)
+            parts = self._slot_parts(run, shard, role, cache_key_digest)
+            key = _digest(parts)
             slot = data["slots"].get(key, {"generation": 0, "publication": None})
             if generation != slot["generation"] + 1 or request_id in data["requests"]:
                 raise ReceiptError("generation or request ID already used, or generation out of sequence")
@@ -157,7 +166,7 @@ class Broker:
             now = time.time()
             if expires_at <= now:
                 raise ReceiptError("reservation has already expired")
-            reservation_id = _digest([self.repo_id, run, shard, role, generation])
+            reservation_id = _digest([self.repo_id, *parts, generation])
             record = {
                 "reservation_id": reservation_id, "repo": self.repo_id, "run": run, "shard": shard,
                 "role": role, "generation": generation, "request_id": request_id,
@@ -169,9 +178,11 @@ class Broker:
                 "expires_at": expires_at, "reserved_at": now,
                 "expected_publication": slot["publication"],
             }
+            if cache_key_digest is not None:
+                record["cache_key_digest"] = cache_key_digest
             record = json.loads(_canonical(record))
             data["reservations"][reservation_id] = {
-                "record": record, "dispatch": "reserved", "task_id": None,
+                "record": record, "dispatch": "local" if cache_key_digest is not None else "reserved", "task_id": None,
                 "revocation": None, "receipt_id": None,
             }
             data["requests"][request_id] = reservation_id
@@ -230,24 +241,32 @@ class Broker:
                 entry["revocation"] = {"reason": reason, "at": time.time()}
                 atomic_write_json(self.path, data)
 
+    @staticmethod
+    def _inactive_reason(slot: dict[str, Any], entry: dict[str, Any], now: float) -> str | None:
+        record = entry["record"]
+        if slot["reservation_id"] != record["reservation_id"]:
+            return "superseded"
+        if entry["revocation"]:
+            return "revoked"
+        if record["expires_at"] <= now:
+            return "expired"
+        return None
+
     def _seal(self, data: dict[str, Any], entry: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
         record = entry["record"]
         slot = self._slot(data, record)
         now = time.time()
         publication = "not_requested"
         if result["publish"]:
-            if slot["reservation_id"] != record["reservation_id"]:
-                publication = "superseded"
-            elif entry["revocation"]:
-                publication = "revoked"
-            elif record["expires_at"] <= now:
-                publication = "expired"
-            elif (slot["publication"] != record["expected_publication"] or
-                  result["git_before"] != record["git"] or
-                  result["git_after"]["base"] != record["git"]["base"]):
-                publication = "stale"
-            else:
-                publication = "published"
+            publication = self._inactive_reason(slot, entry, now)
+            if publication is None:
+                stale = (
+                    slot["publication"] != record["expected_publication"]
+                    or result["git_before"] != record["git"]
+                    or result["git_after"]["base"] != record["git"]["base"]
+                    or ("cache_key_digest" in record and result["git_after"] != record["git"])
+                )
+                publication = "stale" if stale else "published"
         payload = {
             **result, "reservation_id": record["reservation_id"], "task_id": entry["task_id"],
             "publication": publication, "settled_at": now,
@@ -309,14 +328,52 @@ class Broker:
         with acquire_mutex(self._mutex):
             data = self._load()
             entry = self._entry(data, reservation_id)
-            if entry["receipt_id"] is not None:
-                existing = data["receipts"][entry["receipt_id"]]
-                if _canonical({key: existing[key] for key in result}) != _canonical(result):
-                    raise ReceiptError("reservation already has a different settlement")
-                return existing
-            if entry["dispatch"] != "attached":
+            if entry["dispatch"] == "local":
+                raise ReceiptError("use settle_execution for a local check")
+            if entry["dispatch"] != "attached" and entry["receipt_id"] is None:
                 raise ReceiptError("attach a confirmed task before settling")
-            return self._seal(data, entry, result)
+            return self._settle_once(data, entry, result)
+
+    def _settle_once(self, data: dict[str, Any], entry: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        if entry["receipt_id"] is not None:
+            existing = data["receipts"][entry["receipt_id"]]
+            if _canonical({key: existing[key] for key in result}) != _canonical(result):
+                raise ReceiptError("reservation already has a different settlement")
+            return existing
+        return self._seal(data, entry, result)
+
+    def settle_execution(
+        self, reservation_id: str, *, exit_code: int, output_digest: str, evidence_id: str,
+        evidence_digest: str, completed_at: int, duration_s: float,
+        git_before: dict[str, str], git_after: dict[str, str],
+    ) -> dict[str, Any]:
+        """Attest a coordinator-run check, including a completed check that exited nonzero."""
+        if type(exit_code) is not int or type(completed_at) is not int or completed_at < 0:
+            raise ReceiptError("a check outcome requires an integer exit code and completion timestamp")
+        if not all(isinstance(value, str) and value.strip() for value in (output_digest, evidence_id, evidence_digest)):
+            raise ReceiptError("a check outcome requires an evidence ID, evidence digest, and output digest")
+        _number(duration_s, "duration")
+        outcome = {
+            "evidence_id": evidence_id, "evidence_digest": evidence_digest, "output_digest": output_digest,
+            "exit_code": exit_code, "completed_at": completed_at,
+        }
+        # Match the verification cache's canonical UTF-8 outcome bytes. Ledger IDs retain their existing encoding.
+        canonical = json.dumps(outcome, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+        result = {
+            **outcome, "outcome_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            "status": "completed", "disposition": "executed", "duration_s": duration_s,
+            "usage": {"source": "not_observed", "cost": None, "reason": "local check"},
+            "git_before": _fingerprint(git_before), "git_after": _fingerprint(git_after),
+            "changed_paths": [], "evidence_ids": [evidence_id], "reason": None,
+            "started_at": None, "ended_at": completed_at, "worker": None, "publish": True,
+        }
+        with acquire_mutex(self._mutex):
+            data = self._load()
+            entry = self._entry(data, reservation_id)
+            if entry["dispatch"] != "local":
+                raise ReceiptError("local settlement requires a cache-key reservation")
+            result["cache_key_digest"] = entry["record"]["cache_key_digest"]
+            return self._settle_once(data, entry, result)
 
     def reconcile(self, reservation_id: str, *, no_dispatch_evidence_id: str | None = None) -> str:
         """Recover interrupted work after the owner stops sending for this reservation."""
@@ -328,7 +385,7 @@ class Broker:
             data = self._load()
             entry = self._entry(data, reservation_id)
             dispatch = entry["dispatch"]
-            if dispatch == "attached" or entry["receipt_id"] is not None:
+            if dispatch in {"attached", "local"} or entry["receipt_id"] is not None:
                 return dispatch
             if dispatch == "reserved" or no_dispatch_evidence_id is not None:
                 entry["dispatch"] = "not_run"
@@ -347,19 +404,43 @@ class Broker:
                 atomic_write_json(self.path, data)
             return entry["dispatch"]
 
-    def current_publication(self, run: str, shard: str, role: str) -> dict[str, Any] | None:
+    def _current_receipt(self, data: dict[str, Any], slot: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not slot or not slot["publication"]:
+            return None
+        receipt = data["receipts"][slot["publication"]]
+        entry = self._entry(data, receipt["reservation_id"])
+        if self._inactive_reason(slot, entry, time.time()) is not None:
+            return None
+        return receipt
+
+    def current_publication(
+        self, run: str, shard: str, role: str, *, cache_key_digest: str | None = None,
+    ) -> dict[str, Any] | None:
         """Return the currently fenced-in publication, if any."""
         if not self.path.exists():
             return None
         with acquire_mutex(self._mutex):
             data = self._load()
-            slot = data["slots"].get(self._slot_key(run, shard, role))
-            if slot and slot["publication"]:
-                receipt = data["receipts"][slot["publication"]]
-                entry = self._entry(data, slot["reservation_id"])
-                if receipt["reservation_id"] == slot["reservation_id"] and not entry["revocation"]:
-                    return receipt
-            return None
+            parts = self._slot_parts(run, shard, role, cache_key_digest)
+            return self._current_receipt(data, data["slots"].get(_digest(parts)))
+
+    def validate_execution_receipt(self, receipt_id: str, attestation: Any) -> bool:
+        """Implement the verification cache's structural receipt validator."""
+        if not self.path.exists():
+            return False
+        with acquire_mutex(self._mutex):
+            data = self._load()
+            receipt = data["receipts"].get(receipt_id)
+            if receipt is None or "cache_key_digest" not in receipt:
+                return False
+            entry = self._entry(data, receipt["reservation_id"])
+            current = self._current_receipt(data, self._slot(data, entry["record"]))
+            if current is None or current["receipt_id"] != receipt_id:
+                return False
+            return all(
+                type(value := getattr(attestation, name, None)) is type(receipt[name]) and value == receipt[name]
+                for name in ("cache_key_digest", "outcome_digest", *_OUTCOME_FIELDS)
+            )
 
     def settled(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
         """Read reservation/receipt pairs in one consistent snapshot, including late spend."""

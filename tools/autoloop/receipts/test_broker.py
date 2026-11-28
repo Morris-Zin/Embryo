@@ -12,6 +12,7 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from autoloop.receipts import Broker, ReceiptError, authority_dir, checkout_repo_id
@@ -235,6 +236,73 @@ class BrokerTests(unittest.TestCase):
         self.assertIsNone(self.broker.current_publication("run", "shard", "implementation"))
         self.assertEqual(sum(receipt["usage"]["cost"] for _, receipt in self.broker.settled()), 9)
 
+    def test_publication_reads_expiry_after_successful_settlement(self):
+        expires = time.time() + 120
+        rid = self.attached(expires_at=expires)
+        receipt = self.broker.settle(rid, **result(2))
+        self.assertEqual(self.broker.current_publication("run", "shard", "implementation"), receipt)
+        with patch("autoloop.receipts.time.time", return_value=expires):
+            self.assertIsNone(self.broker.current_publication("run", "shard", "implementation"))
+        self.assertEqual(self.broker.settled()[0][1], receipt)
+
+    def local_execution(self, key, generation=1, **changes):
+        record = self.broker.reserve(**reservation(
+            generation, role="check-execution", request_id=f"{key}-{generation}", cache_key_digest=key, **changes,
+        ))
+        started = time.monotonic()
+        check = subprocess.run([sys.executable, "-B", "-c", "print('check output'); raise SystemExit(1)"],
+                               capture_output=True, check=False)
+        outcome = {
+            "exit_code": check.returncode, "output_digest": hashlib.sha256(check.stdout).hexdigest(),
+            "evidence_id": "gate-\u00e9",
+            "evidence_digest": "evidence-sha", "completed_at": int(time.time()),
+        }
+        rid = record["reservation_id"]
+        receipt = self.broker.settle_execution(
+            rid, duration_s=time.monotonic() - started, git_before=BEFORE, git_after=BEFORE, **outcome,
+        )
+        digest = hashlib.sha256(json.dumps(
+            outcome, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode("utf-8")).hexdigest()
+        return rid, receipt, dict(cache_key_digest=key, outcome_digest=digest, **outcome)
+
+    def test_local_execution_without_t3_attests_exact_outcome(self):
+        rid, receipt, fields = self.local_execution("key-a")
+        receipt_id = receipt["receipt_id"]
+        self.assertIsNone(receipt["task_id"])
+        self.assertEqual(receipt["outcome_digest"], fields["outcome_digest"])
+        self.assertTrue(self.broker.validate_execution_receipt(receipt_id, SimpleNamespace(**fields)))
+        for field, mismatch in {
+            "exit_code": 0, "output_digest": "other", "cache_key_digest": "key-b", "outcome_digest": "wrong",
+            "evidence_id": "other", "evidence_digest": "wrong", "completed_at": fields["completed_at"] - 1,
+        }.items():
+            with self.subTest(field=field):
+                attestation = SimpleNamespace(**{**fields, field: mismatch})
+                self.assertFalse(self.broker.validate_execution_receipt(receipt_id, attestation))
+        self.assertFalse(self.broker.validate_execution_receipt("missing", SimpleNamespace(**fields)))
+        self.broker.revoke(rid, "evidence withdrawn")
+        self.assertFalse(self.broker.validate_execution_receipt(receipt_id, SimpleNamespace(**fields)))
+        self.assertIsNone(self.broker.current_publication("run", "shard", "check-execution", cache_key_digest="key-a"))
+
+    def test_local_check_keys_have_independent_generations_and_expiry(self):
+        expires = time.time() + 120
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            first = workers.submit(self.local_execution, "key-a", expires_at=expires)
+            second = workers.submit(self.local_execution, "key-b", expires_at=expires + 120)
+            _, old, old_fields = first.result()
+            _, other, other_fields = second.result()
+        self.assertTrue(self.broker.validate_execution_receipt(old["receipt_id"], SimpleNamespace(**old_fields)))
+        self.assertTrue(self.broker.validate_execution_receipt(other["receipt_id"], SimpleNamespace(**other_fields)))
+        _, fresh, fresh_fields = self.local_execution("key-a", generation=2, expires_at=expires)
+        self.assertFalse(self.broker.validate_execution_receipt(old["receipt_id"], SimpleNamespace(**old_fields)))
+        self.assertTrue(self.broker.validate_execution_receipt(fresh["receipt_id"], SimpleNamespace(**fresh_fields)))
+        with patch("autoloop.receipts.time.time", return_value=expires):
+            self.assertFalse(self.broker.validate_execution_receipt(fresh["receipt_id"], SimpleNamespace(**fresh_fields)))
+            self.assertTrue(self.broker.validate_execution_receipt(other["receipt_id"], SimpleNamespace(**other_fields)))
+            self.assertIsNone(self.broker.current_publication(
+                "run", "shard", "check-execution", cache_key_digest="key-a",
+            ))
+
     def test_routing_reads_receipts_with_or_without_the_legacy_log(self):
         old = self.attached()
         current = self.attached(2, model="retry")
@@ -242,6 +310,7 @@ class BrokerTests(unittest.TestCase):
         self.broker.settle(current, **result(3.5))
         estimate = self.attached(run="other", request_id="estimate")
         self.broker.settle(estimate, **result(0, usage={"source": "estimated", "cost": 4}))
+        self.local_execution("check-key")
         log = self.root / "attempts.jsonl"
         with (patch("autoloop.routing.authority_dir", return_value=self.authority),
               patch("autoloop.routing._is_wsl", return_value=False)):
