@@ -144,24 +144,6 @@
     ],
     "shard:autoloop_meta": [
       {
-        "at": "2026-11-28T13:06:34Z",
-        "head_sha": "d83324382da8c3f964d06d14cdd5aa186da1bc75",
-        "passed": true,
-        "steps": {
-          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.485,
-          "fast_check.py": 4.098,
-          "fast_check.py/autoloop_lint": 1.295,
-          "fast_check.py/bash": 0.118,
-          "fast_check.py/compose": 0.188,
-          "fast_check.py/guardrails": 2.42,
-          "fast_check.py/javascript": 0.06,
-          "fast_check.py/knip": 1.303,
-          "fast_check.py/python": 4.014,
-          "fast_check.py/ruff_and_dev_deps": 0.045,
-          "fast_check.py/zizmor_workflows": 0.314
-        }
-      },
-      {
         "at": "2026-11-28T13:08:09Z",
         "head_sha": "0230837e7b1038c9c1dbe199548212b0f72eba38",
         "passed": true,
@@ -232,64 +214,27 @@
           "fast_check.py/ruff_and_dev_deps": 0.095,
           "fast_check.py/zizmor_workflows": 0.301
         }
+      },
+      {
+        "at": "2026-11-28T16:47:07Z",
+        "head_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.379,
+          "fast_check.py": 6.694,
+          "fast_check.py/autoloop_lint": 1.489,
+          "fast_check.py/bash": 0.745,
+          "fast_check.py/compose": 0.435,
+          "fast_check.py/guardrails": 1.135,
+          "fast_check.py/javascript": 0.052,
+          "fast_check.py/knip": 0.892,
+          "fast_check.py/python": 6.609,
+          "fast_check.py/ruff_and_dev_deps": 0.029,
+          "fast_check.py/zizmor_workflows": 0.28
+        }
       }
     ],
     "shard:cashier_correctness": [
-      {
-        "at": "2026-11-28T12:23:50Z",
-        "head_sha": "f1a7f8886d9b33586c8162f9d607998e30f9b059",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 1.918,
-          "fast_check.py/autoloop_lint": 1.51,
-          "fast_check.py/bash": 0.158,
-          "fast_check.py/compose": 0.187,
-          "fast_check.py/guardrails": 1.841,
-          "fast_check.py/javascript": 0.049,
-          "fast_check.py/knip": 1.033,
-          "fast_check.py/python": 1.708,
-          "fast_check.py/ruff_and_dev_deps": 0.064,
-          "fast_check.py/zizmor_workflows": 0.268
-        }
-      },
-      {
-        "at": "2026-11-28T12:24:18Z",
-        "head_sha": "f1a7f8886d9b33586c8162f9d607998e30f9b059",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 2.032,
-          "fast_check.py/autoloop_lint": 1.413,
-          "fast_check.py/bash": 0.136,
-          "fast_check.py/compose": 0.236,
-          "fast_check.py/guardrails": 1.946,
-          "fast_check.py/javascript": 0.041,
-          "fast_check.py/knip": 1.123,
-          "fast_check.py/python": 1.946,
-          "fast_check.py/ruff_and_dev_deps": 0.06,
-          "fast_check.py/zizmor_workflows": 0.31
-        }
-      },
-      {
-        "at": "2026-11-28T12:25:12Z",
-        "head_sha": "f1a7f8886d9b33586c8162f9d607998e30f9b059",
-        "passed": true,
-        "steps": {
-          "cashier_correctness #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.092,
-          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.071,
-          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.082,
-          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.133,
-          "fast_check.py": 2.124,
-          "fast_check.py/autoloop_lint": 1.448,
-          "fast_check.py/bash": 0.23,
-          "fast_check.py/compose": 0.207,
-          "fast_check.py/guardrails": 2.011,
-          "fast_check.py/javascript": 0.046,
-          "fast_check.py/knip": 1.089,
-          "fast_check.py/python": 2.038,
-          "fast_check.py/ruff_and_dev_deps": 0.046,
-          "fast_check.py/zizmor_workflows": 0.297
-        }
-      },
       {
         "at": "2026-11-28T13:35:19Z",
         "head_sha": "904e6c4246380c27eb16ddf8d99e9e1fcba2070d",
@@ -330,6 +275,65 @@
           "fast_check.py/python": 2.304,
           "fast_check.py/ruff_and_dev_deps": 0.066,
           "fast_check.py/zizmor_workflows": 0.312
+        }
+      },
+      {
+        "at": "2026-11-28T16:47:13Z",
+        "head_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 3.47,
+          "fast_check.py/autoloop_lint": 2.311,
+          "fast_check.py/bash": 0.448,
+          "fast_check.py/compose": 0.472,
+          "fast_check.py/guardrails": 1.039,
+          "fast_check.py/javascript": 0.053,
+          "fast_check.py/knip": 0.878,
+          "fast_check.py/python": 3.381,
+          "fast_check.py/ruff_and_dev_deps": 0.044,
+          "fast_check.py/zizmor_workflows": 0.247
+        }
+      },
+      {
+        "at": "2026-11-28T16:48:23Z",
+        "head_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
+        "passed": true,
+        "steps": {
+          "cashier_correctness #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.122,
+          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.073,
+          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.076,
+          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.117,
+          "fast_check.py": 2.788,
+          "fast_check.py/autoloop_lint": 2.449,
+          "fast_check.py/bash": 0.141,
+          "fast_check.py/compose": 0.207,
+          "fast_check.py/guardrails": 2.69,
+          "fast_check.py/javascript": 0.041,
+          "fast_check.py/knip": 1.131,
+          "fast_check.py/python": 1.797,
+          "fast_check.py/ruff_and_dev_deps": 0.04,
+          "fast_check.py/zizmor_workflows": 0.303
+        }
+      },
+      {
+        "at": "2026-11-28T16:48:35Z",
+        "head_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
+        "passed": true,
+        "steps": {
+          "cashier_correctness #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.117,
+          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.069,
+          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.075,
+          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.111,
+          "fast_check.py": 2.828,
+          "fast_check.py/autoloop_lint": 2.512,
+          "fast_check.py/bash": 0.114,
+          "fast_check.py/compose": 0.21,
+          "fast_check.py/guardrails": 2.74,
+          "fast_check.py/javascript": 0.047,
+          "fast_check.py/knip": 1.163,
+          "fast_check.py/python": 1.917,
+          "fast_check.py/ruff_and_dev_deps": 0.029,
+          "fast_check.py/zizmor_workflows": 0.278
         }
       }
     ],
@@ -405,45 +409,27 @@
           "fast_check.py/ruff_and_dev_deps": 0.05,
           "fast_check.py/zizmor_workflows": 0.294
         }
+      },
+      {
+        "at": "2026-11-28T16:47:19Z",
+        "head_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
+        "passed": true,
+        "steps": {
+          "docs #1: python -B tools/autoloop/cli.py lint": 0.285,
+          "fast_check.py": 3.364,
+          "fast_check.py/autoloop_lint": 2.113,
+          "fast_check.py/bash": 0.488,
+          "fast_check.py/compose": 0.488,
+          "fast_check.py/guardrails": 1.117,
+          "fast_check.py/javascript": 0.052,
+          "fast_check.py/knip": 0.912,
+          "fast_check.py/python": 3.278,
+          "fast_check.py/ruff_and_dev_deps": 0.035,
+          "fast_check.py/zizmor_workflows": 0.252
+        }
       }
     ],
     "shard:report_paths": [
-      {
-        "at": "2026-11-28T13:48:55Z",
-        "head_sha": "0a676beb6b5d543b081707eeb12ba17b6a3cdd9e",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.736,
-          "fast_check.py/autoloop_lint": 2.599,
-          "fast_check.py/bash": 0.11,
-          "fast_check.py/compose": 0.195,
-          "fast_check.py/guardrails": 2.651,
-          "fast_check.py/javascript": 0.176,
-          "fast_check.py/knip": 1.897,
-          "fast_check.py/python": 1.908,
-          "fast_check.py/ruff_and_dev_deps": 0.155,
-          "fast_check.py/zizmor_workflows": 0.348,
-          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.479
-        }
-      },
-      {
-        "at": "2026-11-28T13:58:10Z",
-        "head_sha": "91f95bbf5792009ca43714378f451da194684e02",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.834,
-          "fast_check.py/autoloop_lint": 2.617,
-          "fast_check.py/bash": 0.122,
-          "fast_check.py/compose": 0.208,
-          "fast_check.py/guardrails": 2.747,
-          "fast_check.py/javascript": 0.045,
-          "fast_check.py/knip": 1.229,
-          "fast_check.py/python": 2.027,
-          "fast_check.py/ruff_and_dev_deps": 0.031,
-          "fast_check.py/zizmor_workflows": 0.294,
-          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.397
-        }
-      },
       {
         "at": "2026-11-28T14:05:31Z",
         "head_sha": "b8d0a3fb36e602d58ad3abc0104fe4c372bdaabf",
@@ -497,27 +483,45 @@
           "fast_check.py/zizmor_workflows": 0.316,
           "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.426
         }
+      },
+      {
+        "at": "2026-11-28T16:57:18Z",
+        "head_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.279,
+          "fast_check.py/autoloop_lint": 2.931,
+          "fast_check.py/bash": 0.18,
+          "fast_check.py/compose": 0.196,
+          "fast_check.py/guardrails": 3.171,
+          "fast_check.py/javascript": 0.054,
+          "fast_check.py/knip": 1.243,
+          "fast_check.py/python": 2.035,
+          "fast_check.py/ruff_and_dev_deps": 0.083,
+          "fast_check.py/zizmor_workflows": 0.326,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.528
+        }
+      },
+      {
+        "at": "2026-11-28T17:00:50Z",
+        "head_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.03,
+          "fast_check.py/autoloop_lint": 2.794,
+          "fast_check.py/bash": 0.135,
+          "fast_check.py/compose": 0.186,
+          "fast_check.py/guardrails": 2.946,
+          "fast_check.py/javascript": 0.041,
+          "fast_check.py/knip": 1.336,
+          "fast_check.py/python": 2.018,
+          "fast_check.py/ruff_and_dev_deps": 0.048,
+          "fast_check.py/zizmor_workflows": 0.274,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.513
+        }
       }
     ],
     "shard:runtime_profile": [
-      {
-        "at": "2026-11-28T12:17:40Z",
-        "head_sha": "81616b3033dc38720f16879ae8d5684b6c7ae11b",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 3.775,
-          "fast_check.py/autoloop_lint": 1.136,
-          "fast_check.py/bash": 0.195,
-          "fast_check.py/compose": 0.297,
-          "fast_check.py/guardrails": 2.722,
-          "fast_check.py/javascript": 0.419,
-          "fast_check.py/knip": 3.673,
-          "fast_check.py/python": 3.5,
-          "fast_check.py/ruff_and_dev_deps": 0.236,
-          "fast_check.py/zizmor_workflows": 0.833,
-          "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.054
-        }
-      },
       {
         "at": "2026-11-28T12:34:15Z",
         "head_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
@@ -571,27 +575,45 @@
           "fast_check.py/zizmor_workflows": 0.389,
           "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.079
         }
+      },
+      {
+        "at": "2026-11-28T16:46:19Z",
+        "head_sha": "5d225df26d55df232e9e00dc029b9e356b850dd0",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 3.357,
+          "fast_check.py/autoloop_lint": 1.377,
+          "fast_check.py/bash": 0.756,
+          "fast_check.py/compose": 0.473,
+          "fast_check.py/guardrails": 1.016,
+          "fast_check.py/javascript": 0.047,
+          "fast_check.py/knip": 0.866,
+          "fast_check.py/python": 3.277,
+          "fast_check.py/ruff_and_dev_deps": 0.029,
+          "fast_check.py/zizmor_workflows": 0.255,
+          "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 120.236
+        }
+      },
+      {
+        "at": "2026-11-28T16:46:37Z",
+        "head_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.463,
+          "fast_check.py/autoloop_lint": 1.553,
+          "fast_check.py/bash": 0.721,
+          "fast_check.py/compose": 0.54,
+          "fast_check.py/guardrails": 1.197,
+          "fast_check.py/javascript": 0.057,
+          "fast_check.py/knip": 0.944,
+          "fast_check.py/python": 3.361,
+          "fast_check.py/ruff_and_dev_deps": 0.046,
+          "fast_check.py/zizmor_workflows": 0.29,
+          "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.169
+        }
       }
     ],
     "shard:seasonal_harness": [
-      {
-        "at": "2026-11-28T13:35:06Z",
-        "head_sha": "0e932a72dfe09fa99d011b7c4ecbb21025fdc2dc",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.861,
-          "fast_check.py/autoloop_lint": 2.619,
-          "fast_check.py/bash": 0.171,
-          "fast_check.py/compose": 0.195,
-          "fast_check.py/guardrails": 2.75,
-          "fast_check.py/javascript": 0.051,
-          "fast_check.py/knip": 1.506,
-          "fast_check.py/python": 2.091,
-          "fast_check.py/ruff_and_dev_deps": 0.039,
-          "fast_check.py/zizmor_workflows": 0.302,
-          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.213
-        }
-      },
       {
         "at": "2026-11-28T13:41:01Z",
         "head_sha": "896106a859080a280159bfb6ea8d0b7b8a42a8ba",
@@ -663,26 +685,27 @@
           "fast_check.py/zizmor_workflows": 0.361,
           "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.252
         }
+      },
+      {
+        "at": "2026-11-28T17:00:32Z",
+        "head_sha": "2160506c02c592fca87cfa36cd035009e4339df0",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.858,
+          "fast_check.py/autoloop_lint": 2.639,
+          "fast_check.py/bash": 0.149,
+          "fast_check.py/compose": 0.194,
+          "fast_check.py/guardrails": 2.773,
+          "fast_check.py/javascript": 0.064,
+          "fast_check.py/knip": 1.064,
+          "fast_check.py/python": 2.067,
+          "fast_check.py/ruff_and_dev_deps": 0.055,
+          "fast_check.py/zizmor_workflows": 0.311,
+          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.272
+        }
       }
     ],
     "shard:verify_tooling": [
-      {
-        "at": "2026-11-28T12:36:36Z",
-        "head_sha": "8bad8a96e622fb1ba0d1f67bbb3d0541f4e8e0ec",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 4.677,
-          "fast_check.py/autoloop_lint": 1.66,
-          "fast_check.py/bash": 0.527,
-          "fast_check.py/compose": 0.566,
-          "fast_check.py/guardrails": 1.248,
-          "fast_check.py/javascript": 0.05,
-          "fast_check.py/knip": 1.052,
-          "fast_check.py/python": 4.564,
-          "fast_check.py/ruff_and_dev_deps": 0.057,
-          "fast_check.py/zizmor_workflows": 0.305
-        }
-      },
       {
         "at": "2026-11-28T12:52:02Z",
         "head_sha": "d44e42902fabf7031ccab38cba4f6808e8de4550",
@@ -753,6 +776,24 @@
           "fast_check.py/zizmor_workflows": 0.266,
           "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.388
         }
+      },
+      {
+        "at": "2026-11-28T16:47:30Z",
+        "head_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.473,
+          "fast_check.py/autoloop_lint": 2.308,
+          "fast_check.py/bash": 0.494,
+          "fast_check.py/compose": 0.517,
+          "fast_check.py/guardrails": 1.101,
+          "fast_check.py/javascript": 0.05,
+          "fast_check.py/knip": 0.874,
+          "fast_check.py/python": 3.391,
+          "fast_check.py/ruff_and_dev_deps": 0.026,
+          "fast_check.py/zizmor_workflows": 0.273,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.874
+        }
       }
     ]
   },
@@ -772,6 +813,30 @@
     }
   ],
   "findings": {
+    "alternate-fixture-can-qualify": {
+      "finding_id": "alternate-fixture-can-qualify",
+      "fix_summary": "f069777: acceptance-fixture.json pins sha256 0e9188bf...dd; qualification requires restored archive digest == pinned; --fixture-sha cannot override for a qualifying verdict.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:44Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
+      "status": "fixed_pending_review",
+      "summary": "perf-suite/seasonal/qualification_decision.py:162 checks only digest length; a smaller fixture with matching --fixture-sha and manifest can produce GO. Qualification must require the pinned acceptance fixture digest."
+    },
+    "attribution-can-pass-with-zero-joined-requests": {
+      "finding_id": "attribution-can-pass-with-zero-joined-requests",
+      "fix_summary": "2160506: collection requires >=1 nginx upstream row, >=1 joined request and >=95% join ratio; unreadable nginx, disjoint IDs or low ratio fail.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:45Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P2",
+      "source": "review",
+      "stage": "deep",
+      "status": "fixed_pending_review",
+      "summary": "perf-suite/seasonal/attribution.py:291 computes collection success from independent record counts; unreadable nginx log or disjoint request IDs report success with zero joined requests."
+    },
     "bench-results-typed-gated": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
       "finding_id": "bench-results-typed-gated",
@@ -780,8 +845,9 @@
       "resolved_at": "2026-11-28T12:40:06Z",
       "severity": "P1",
       "source": "gate_failure",
-      "status": "fixed_pending_review",
-      "summary": "A gated Fast Gross Profit response was recorded as a successful latency sample."
+      "status": "closed_needs_safeguard",
+      "summary": "A gated Fast Gross Profit response was recorded as a successful latency sample.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "bench-rule-accepts-success-for-gated-result": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -791,8 +857,9 @@
       "resolved_at": "2026-11-28T13:55:05Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "backend_2gb.py:456 typed-classifier branch accepts calling unavailable_report_measurement, discarding its value, then storing a success timing."
+      "status": "closed_needs_safeguard",
+      "summary": "backend_2gb.py:456 typed-classifier branch accepts calling unavailable_report_measurement, discarding its value, then storing a success timing.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "cache-child-ownership-follows-links": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -802,8 +869,9 @@
       "resolved_at": "2026-11-28T13:28:48Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Oracle cache prep chowns/chmods children by pathname; a symlinked child lets root-run prep modify files outside the cache dir (perf_parity.py:2853)."
+      "status": "closed_needs_safeguard",
+      "summary": "Oracle cache prep chowns/chmods children by pathname; a symlinked child lets root-run prep modify files outside the cache dir (perf_parity.py:2853).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "cashier-only-ignores-actor-failure": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -813,8 +881,9 @@
       "resolved_at": "2026-11-28T13:35:07Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329)."
+      "status": "closed_needs_safeguard",
+      "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "export-admission-blocked-by-abandoned-job": {
       "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EqL4",
@@ -824,8 +893,9 @@
       "resolved_at": "2026-11-28T16:31:25Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "export_service.py:410 site-wide admission counts a Running job whose worker died after _claim_export(); other exports get ProfitExportBusyError and identical requests dedupe to a job that never finishes until 24h artifact expiry"
+      "status": "closed_needs_safeguard",
+      "summary": "export_service.py:410 site-wide admission counts a Running job whose worker died after _claim_export(); other exports get ProfitExportBusyError and identical requests dedupe to a job that never finishes until 24h artifact expiry",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "export-scope-omits-absorbed-returns": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -835,8 +905,21 @@
       "resolved_at": "2026-11-28T13:58:10Z",
       "severity": "P1",
       "source": "review",
+      "status": "closed_needs_safeguard",
+      "summary": "export_service.py:688 signed manifest captures only invoice headers; absorbed linked returns that change exported amounts are not rechecked at download, so losing visibility of only the return still permits download.",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "failed-attribution-does-not-block-qualification": {
+      "finding_id": "failed-attribution-does-not-block-qualification",
+      "fix_summary": "2160506: qualification_decision requires attribution-summary.json collection_passed true; missing or failed collection is NO-GO.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:45Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "export_service.py:688 signed manifest captures only invoice headers; absorbed linked returns that change exported amounts are not rechecked at download, so losing visibility of only the return still permits download."
+      "summary": "perf-suite/k6/evaluate_seasonal.py:1289 renders collection failure only as text; run_k6.sh downgrades the collector's nonzero exit to a warning and qualification can still emit GO without joined application evidence."
     },
     "fastpath-must-keep-upstream-validation": {
       "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
@@ -846,8 +929,9 @@
       "resolved_at": "2026-11-28T12:40:06Z",
       "severity": "P0",
       "source": "inherited_review",
-      "status": "fixed_pending_review",
-      "summary": "Counter sales skipped ERPNext's reserved-stock validation on the future SLE fast path."
+      "status": "closed_needs_safeguard",
+      "summary": "Counter sales skipped ERPNext's reserved-stock validation on the future SLE fast path.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "gross-profit-percent-precision": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -857,8 +941,9 @@
       "resolved_at": "2026-11-28T13:28:48Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Live GP comparator compares gross_profit_% at float precision while GP computes it at currency precision; 30.001 vs 30.000 passes (tools/fast_verify.py:599)."
+      "status": "closed_needs_safeguard",
+      "summary": "Live GP comparator compares gross_profit_% at float precision while GP computes it at currency precision; 30.001 vs 30.000 passes (tools/fast_verify.py:599).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "guest-verifier-accepts-stopped-services": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -868,8 +953,9 @@
       "resolved_at": "2026-11-28T14:08:04Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "verify_guest_cgroup.sh:213 checks only running containers and needs one running tree; a stopped cashier passes."
+      "status": "closed_needs_safeguard",
+      "summary": "verify_guest_cgroup.sh:213 checks only running containers and needs one running tree; a stopped cashier passes.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "gunicorn-pid-drops-attribution": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -879,8 +965,9 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "attribution.py:174 int(pid) fails on Gunicorn %(p)s '<42>' form, silently dropping every application record."
+      "status": "closed_needs_safeguard",
+      "summary": "attribution.py:174 int(pid) fails on Gunicorn %(p)s '<42>' form, silently dropping every application record.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "invoice-cap-counts-unrelated-packed-items": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -890,8 +977,9 @@
       "resolved_at": "2026-11-28T13:23:32Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Invoice batch loader counts all packed rows of a referenced Delivery Note, so a one-line invoice can raise InvoiceBatchTooLarge (fast_gross_profit.py:1949)."
+      "status": "closed_needs_safeguard",
+      "summary": "Invoice batch loader counts all packed rows of a referenced Delivery Note, so a one-line invoice can raise InvoiceBatchTooLarge (fast_gross_profit.py:1949).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "k6-compact-context-breaks-june-scenarios": {
       "evidence": "Codex PR review thread PRRT_kwDOV8jMGc69EGH_ on PR #19",
@@ -901,8 +989,9 @@
       "resolved_at": "2026-11-28T13:41:01Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Compact manifest context breaks june_sustained/june_burst_2x: inStockItemsFor returns entry.items (gone) and pickItem returns strings; buildLines/searchTermForItem throw (perf-suite/k6/lib/payloads.js:65)"
+      "status": "closed_needs_safeguard",
+      "summary": "Compact manifest context breaks june_sustained/june_burst_2x: inStockItemsFor returns entry.items (gone) and pickItem returns strings; buildLines/searchTermForItem throw (perf-suite/k6/lib/payloads.js:65)",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "k6-detail-page-signature-lacks-ids": {
       "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EVmj",
@@ -912,8 +1001,9 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "seasonal_runtime.js:1286 page signature omits sales_invoice/parent_invoice identifiers; same-day invoices with identical displayed values make correct successive pages look repeated, forcing fallback export and failing manager-detail gate"
+      "status": "closed_needs_safeguard",
+      "summary": "seasonal_runtime.js:1286 page signature omits sales_invoice/parent_invoice identifiers; same-day invoices with identical displayed values make correct successive pages look repeated, forcing fallback export and failing manager-detail gate",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "k6-preallocated-vus-casing": {
       "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69ELSr",
@@ -923,8 +1013,9 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "seasonal.js:37 scenario helper emits preAllocatedVus instead of k6 preAllocatedVUs, so constant-arrival-rate voucher/contention/search scenarios do not get their configured VU allocation (likely inflating dropped iterations in the smoke runs)"
+      "status": "closed_needs_safeguard",
+      "summary": "seasonal.js:37 scenario helper emits preAllocatedVus instead of k6 preAllocatedVUs, so constant-arrival-rate voucher/contention/search scenarios do not get their configured VU allocation (likely inflating dropped iterations in the smoke runs)",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "k6-shared-context-before-default-warehouses": {
       "evidence": "Codex PR review thread PRRT_kwDOV8jMGc69EGIC on PR #19",
@@ -934,8 +1025,9 @@
       "resolved_at": "2026-11-28T13:41:01Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "SharedArray initializer calls buildContextFromRoot before DEFAULT_WAREHOUSES is initialized; array-only manifests throw ReferenceError (perf-suite/k6/lib/payloads.js:88)"
+      "status": "closed_needs_safeguard",
+      "summary": "SharedArray initializer calls buildContextFromRoot before DEFAULT_WAREHOUSES is initialized; array-only manifests throw ReferenceError (perf-suite/k6/lib/payloads.js:88)",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "k6-ux-latency-excludes-simulated-rtt": {
       "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EZde",
@@ -945,8 +1037,9 @@
       "resolved_at": "2026-11-28T16:07:31Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "seasonal_runtime.js:1567 uxStart begins after sleepForSimulatedRtt() (also in executeReportCall), so search/summary/detail-first-page gates judge server time not end-to-end; 275ms search + 50ms RTT passes the 300ms gate"
+      "status": "closed_needs_safeguard",
+      "summary": "seasonal_runtime.js:1567 uxStart begins after sleepForSimulatedRtt() (also in executeReportCall), so search/summary/detail-first-page gates judge server time not end-to-end; 275ms search + 50ms RTT passes the 300ms gate",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "larger-host-can-attest-as-guest": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -956,8 +1049,9 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "guest_attestation.py:132 records guest CPU/memory/swap but does not gate on them; an 8 CPU / 16 GiB / 4 GiB swap host with a valid slice attests as the qualifying 2 vCPU / 2 GiB guest."
+      "status": "closed_needs_safeguard",
+      "summary": "guest_attestation.py:132 records guest CPU/memory/swap but does not gate on them; an 8 CPU / 16 GiB / 4 GiB swap host with a valid slice attests as the qualifying 2 vCPU / 2 GiB guest.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "lease-split-brain": {
       "evidence": "git commit 5dd94f0ac08747f5c73324bf66891d9a68f5f287",
@@ -967,8 +1061,21 @@
       "resolved_at": "2026-11-28T12:40:07Z",
       "severity": "P1",
       "source": "incident",
+      "status": "closed_needs_safeguard",
+      "summary": "Windows and WSL workers could hold independent leases for the same resource.",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "manual-container-restart-escapes-window-check": {
+      "finding_id": "manual-container-restart-escapes-window-check",
+      "fix_summary": "6886ad8: resource_proof records State.StartedAt and State.Pid; decision compares them per ADR service; changed or missing is NO-GO.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:45Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "Windows and WSL workers could hold independent leases for the same resource."
+      "summary": "perf-suite/seasonal/qualification_decision.py:46 compares RestartCount but not State.StartedAt; a manual stop/start keeps id and zero count and passes GO despite a restart in the measured hour."
     },
     "materialize-removes-existing-directory": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -978,8 +1085,9 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "app_tree.py:58 --materialize-dir recursively deletes an existing directory before archiving; a mistaken path erases the checkout or unrelated files."
+      "status": "closed_needs_safeguard",
+      "summary": "app_tree.py:58 --materialize-dir recursively deletes an existing directory before archiving; a mistaken path erases the checkout or unrelated files.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "no-chmod-on-operator-paths": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
@@ -989,8 +1097,33 @@
       "resolved_at": "2026-11-28T12:40:06Z",
       "severity": "P1",
       "source": "incident",
+      "status": "closed_needs_safeguard",
+      "summary": "Parity sidecar setup changed permissions on the shared /tmp directory.",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "on-guest-load-generator-can-qualify": {
+      "finding_id": "on-guest-load-generator-can-qualify",
+      "fix_summary": "9f7a7c5: load_generator_attestation records generator/guest daemon identity; host k6, local aliases, unidentifiable or same daemon are diagnostic only; run_k6.sh honors K6_DOCKER_HOST consistently.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:45Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "Parity sidecar setup changed permissions on the shared /tmp directory."
+      "summary": "perf-suite/seasonal/qualify_2gb.sh:351 defaults k6 onto the guest's Docker daemon/network; generator shares guest CPU/RAM yet the run can qualify, contrary to ADR 0004 off-guest requirement."
+    },
+    "oversized-guest-passes-memory-attestation": {
+      "finding_id": "oversized-guest-passes-memory-attestation",
+      "fix_summary": "65ff827: one-sided MemTotal window [2048-allowance, 2048] MiB; 2200 MiB diagnostic, 1980 MiB qualifies.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:44Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
+      "status": "fixed_pending_review",
+      "summary": "perf-suite/seasonal/guest_attestation.py:69 accepts guest-visible RAM up to 2252.8 MiB (+10%); a 2-CPU VM reporting 2200 MiB qualifies with extra memory for kernel/Docker outside the slice. Upper bound must not exceed the 2048 MiB assignment."
     },
     "parity-crashes-on-pending-gp": {
       "evidence": "cashier phase6 full-parity.log, grouped-gp-diagnostic.log",
@@ -1000,8 +1133,9 @@
       "resolved_at": "2026-11-28T13:39:16Z",
       "severity": "P1",
       "source": "gate_failure",
-      "status": "fixed_pending_review",
-      "summary": "perf_parity --require-db stops when Fast Gross Profit returns a 3-field pending/gated response (missing summary days): verifier unpacks 2 fields and aborts before invoking the stock oracle for that case; must classify pending explicitly and fail closed with a clear reason"
+      "status": "closed_needs_safeguard",
+      "summary": "perf_parity --require-db stops when Fast Gross Profit returns a 3-field pending/gated response (missing summary days): verifier unpacks 2 fields and aborts before invoking the stock oracle for that case; must classify pending explicitly and fail closed with a clear reason",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "post-run-resource-failure-ignored": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -1011,8 +1145,9 @@
       "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Post-run resource proof failure is suppressed; final predicate reads only within_budget, restarts/OOM after last sample ignored (qualify_2gb.sh:402)."
+      "status": "closed_needs_safeguard",
+      "summary": "Post-run resource proof failure is suppressed; final predicate reads only within_budget, restarts/OOM after last sample ignored (qualify_2gb.sh:402).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "qualification-launches-legacy-topology": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -1022,8 +1157,21 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P1",
       "source": "review",
+      "status": "closed_needs_safeguard",
+      "summary": "qualify_2gb.sh:249 starts --profile 2gb and legacy compose files; resource_proof.py:111 rejects unlimited child CPU quota; guest_cgroup_setup.sh:85 exits on a genuine 2-CPU machine. The standard entry point cannot produce the ADR 0004 dedicated-guest proof.",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "recovery-can-retire-live-synchronous-export": {
+      "finding_id": "recovery-can-retire-live-synchronous-export",
+      "fix_summary": "2439529: running exports heartbeat 'modified' every 30s on an independent raw connection (fenced on status='Running'); abandonment only when heartbeat is stale beyond timeout+grace, so a live --run-sync export past 3660s is never retired; zero-row fenced completion is logged, recorded on the failed export, and its artifacts are removed rather than published.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T16:57:18Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P2",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "qualify_2gb.sh:249 starts --profile 2gb and legacy compose files; resource_proof.py:111 rejects unlimited child CPU quota; guest_cgroup_setup.sh:85 exits on a genuine 2-CPU machine. The standard entry point cannot produce the ADR 0004 dedicated-guest proof."
+      "summary": "apps/khitmee_ops/khitmee_ops/profit_summary/export_service.py:470 treats every Running export older than 3660s as abandoned; a live --run-sync export has no RQ timeout, gets marked Failed, a second export is admitted and the first's completion silently affects zero rows."
     },
     "report-columns-have-fieldname-or-key": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
@@ -1033,8 +1181,9 @@
       "resolved_at": "2026-11-28T12:40:06Z",
       "severity": "P1",
       "source": "inherited_review",
-      "status": "fixed_pending_review",
-      "summary": "Financial comparison collapsed report columns with a label and no fieldname."
+      "status": "closed_needs_safeguard",
+      "summary": "Financial comparison collapsed report columns with a label and no fieldname.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "resource-lease-splits-across-clones": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -1044,8 +1193,9 @@
       "resolved_at": "2026-11-28T13:24:05Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Lease dir is per Git common dir; two clones on one host can both hold khitmee-perf/host-timing for the same Docker project (leases.py:148)."
+      "status": "closed_needs_safeguard",
+      "summary": "Lease dir is per Git common dir; two clones on one host can both hold khitmee-perf/host-timing for the same Docker project (leases.py:148).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "restart-count-read-from-state": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -1055,8 +1205,21 @@
       "resolved_at": "2026-11-28T15:59:16Z",
       "severity": "P1",
       "source": "review",
+      "status": "closed_needs_safeguard",
+      "summary": "resource_proof.py:101 reads RestartCount from State (always 0); Docker exposes it top-level, so a same-container restart after the last sample passes the window comparison.",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "route-verifier-accepts-failed-requests": {
+      "finding_id": "route-verifier-accepts-failed-requests",
+      "fix_summary": "5d225df+6e2d7ff: check_guest_routes.sh requires HTTP 200 on ping/login/search and a Frappe message payload without exc_type; behavioural tests run the real script with stub curl/docker: failed login + 403 search with correct pool names now fails.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T16:46:49Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P2",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "resource_proof.py:101 reads RestartCount from State (always 0); Docker exposes it top-level, so a same-container restart after the last sample passes the window comparison."
+      "summary": "perf-suite/scripts/check_guest_routes.sh:33 records ping/login/search status codes without asserting success; failed login + 403 search still PASS when nginx logs expected pool names."
     },
     "sale-basket-latency-masked": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -1066,8 +1229,9 @@
       "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "Seasonal latency gate pools sale p95; a failing 50-line class passes (evaluate_seasonal.py:145)."
+      "status": "closed_needs_safeguard",
+      "summary": "Seasonal latency gate pools sale p95; a failing 50-line class passes (evaluate_seasonal.py:145).",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "smoke-can-qualify-as-2gb": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
@@ -1077,8 +1241,21 @@
       "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
+      "status": "closed_needs_safeguard",
+      "summary": "qualify_2gb.sh can emit verdict=GO, qualification_evidence=true for a smoke or cashier-only run without acceptance profile, guest envelope attestation, or oracle evidence (qualify_2gb.sh:410).",
+      "verified_at": "2026-11-28T16:38:06Z"
+    },
+    "startup-migrates-unselected-app-tree": {
+      "finding_id": "startup-migrates-unselected-app-tree",
+      "fix_summary": "4332139: initial stack starts without --with-khitmee-ops; deploy_candidate migrates only the materialized tree via transient overlay, writes and reads back an app-tree hash marker; mismatch or missing marker is NO-GO.",
+      "opened_at": "2026-11-28T16:42:14Z",
+      "resolved_at": "2026-11-28T17:00:44Z",
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "severity": "P1",
+      "source": "review",
+      "stage": "deep",
       "status": "fixed_pending_review",
-      "summary": "qualify_2gb.sh can emit verdict=GO, qualification_evidence=true for a smoke or cashier-only run without acceptance profile, guest envelope attestation, or oracle evidence (qualify_2gb.sh:410)."
+      "summary": "perf-suite/seasonal/qualify_2gb.sh:266 runs up.sh --with-khitmee-ops before deploying the materialized --app-ref, so startup migrates the working checkout; a newer index can persist and qualify the older candidate."
     },
     "stock-lock-rule-accepts-inconsistent-order": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -1088,8 +1265,9 @@
       "resolved_at": "2026-11-28T13:55:04Z",
       "severity": "P2",
       "source": "review",
-      "status": "fixed_pending_review",
-      "summary": "backend_2gb.py:221 stock-lock rule accepts a mutation that reverses Item order only for plans with >2 aliases; overlapping transactions could lock common Items in opposite orders."
+      "status": "closed_needs_safeguard",
+      "summary": "backend_2gb.py:221 stock-lock rule accepts a mutation that reverses Item order only for plans with >2 aliases; overlapping transactions could lock common Items in opposite orders.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "stock-row-locks-only-in-stock-locks": {
       "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
@@ -1099,8 +1277,9 @@
       "resolved_at": "2026-11-28T12:40:06Z",
       "severity": "P1",
       "source": "incident",
-      "status": "fixed_pending_review",
-      "summary": "Late locking of bundle components could deadlock with other stock postings."
+      "status": "closed_needs_safeguard",
+      "summary": "Late locking of bundle components could deadlock with other stock postings.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "test-stubs-restored": {
       "evidence": "git commit 4242c8205586251c588135f4a6c8bdd60491c511",
@@ -1110,8 +1289,9 @@
       "resolved_at": "2026-11-28T12:40:07Z",
       "severity": "P1",
       "source": "gate_failure",
-      "status": "fixed_pending_review",
-      "summary": "Shared framework stub attributes leaked from one offline test suite into another."
+      "status": "closed_needs_safeguard",
+      "summary": "Shared framework stub attributes leaked from one offline test suite into another.",
+      "verified_at": "2026-11-28T16:38:06Z"
     },
     "wsl-scripts-lf": {
       "evidence": "git commit 89eaa8563e469435e202b59a19da7016a0758ae4",
@@ -1121,8 +1301,9 @@
       "resolved_at": "2026-11-28T12:40:07Z",
       "severity": "P1",
       "source": "gate_failure",
-      "status": "fixed_pending_review",
-      "summary": "WSL failed to execute scripts checked out with CRLF line endings."
+      "status": "closed_needs_safeguard",
+      "summary": "WSL failed to execute scripts checked out with CRLF line endings.",
+      "verified_at": "2026-11-28T16:38:06Z"
     }
   },
   "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle. Integrates PR17 changes.",
@@ -2516,6 +2697,266 @@
       "at": "2026-11-28T16:32:02Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T16:38:06Z",
+      "event": "record-review",
+      "stage": "cloud",
+      "status": "awaiting_deep_review",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T16:42:14Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "in_progress",
+      "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T16:46:19Z",
+      "check_name": "runtime_profile-check-1",
+      "event": "check-failed",
+      "head_sha": "5d225df26d55df232e9e00dc029b9e356b850dd0",
+      "shard": "runtime_profile",
+      "signature": "runtime_profile-check-1::ValidationError::test_profiles.GuestRouteVerifierBehaviourTest.test_search_error_payload_fails_even_with_http_200.test_search_error_payload_fails_even_with_http_200",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:46:37Z",
+      "code_tree_sha256": "1f93cacf6c73283fdb2fa40759b26f9d121c5f7efa7b119e893af1f2ba900e71",
+      "event": "shard-passed",
+      "shard": "runtime_profile",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:46:49Z",
+      "event": "resolve-finding",
+      "finding_id": "route-verifier-accepts-failed-requests"
+    },
+    {
+      "at": "2026-11-28T16:47:07Z",
+      "code_tree_sha256": "8cc1881634d2fad3478a4d834a2441ec40eeb23c6d4a22265099d36d26394e3f",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:47:13Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
+      "shard": "cashier_correctness",
+      "signature": "fast_check.py::EXIT_1::fast_check.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:47:19Z",
+      "code_tree_sha256": "2b0d2c32d9d23e4bffbcb9728c263d01112e764938a9664e32a23f9cd7681953",
+      "event": "shard-passed",
+      "shard": "docs",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:47:30Z",
+      "code_tree_sha256": "95449f8965e1a5ab5702aee285e5e85ee7e9736128abe73bac57aff2e617fbd8",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "fastpath-must-keep-upstream-validation": 1,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 7
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:48:23Z",
+      "code_tree_sha256": "98295c750cdbfcee1459cda0b2dddaa2d12ef6318e364d97eb722d42c44d7f3f",
+      "event": "shard-passed",
+      "shard": "cashier_correctness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 9
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:48:35Z",
+      "code_tree_sha256": "98295c750cdbfcee1459cda0b2dddaa2d12ef6318e364d97eb722d42c44d7f3f",
+      "event": "shard-passed",
+      "shard": "cashier_correctness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 9
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:57:18Z",
+      "code_tree_sha256": "5138d394bf088754f622506cb43ff4a7fe037432cb43b2d5bb5aa87aed1fee12",
+      "event": "shard-passed",
+      "shard": "report_paths",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:57:18Z",
+      "event": "resolve-finding",
+      "finding_id": "recovery-can-retire-live-synchronous-export"
+    },
+    {
+      "at": "2026-11-28T17:00:32Z",
+      "code_tree_sha256": "a900a54f769e19c4f68951941ee5d250cc760d1b9c50efa4c64dc563d464a018",
+      "event": "shard-passed",
+      "shard": "seasonal_harness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:00:44Z",
+      "event": "resolve-finding",
+      "finding_id": "oversized-guest-passes-memory-attestation"
+    },
+    {
+      "at": "2026-11-28T17:00:44Z",
+      "event": "resolve-finding",
+      "finding_id": "alternate-fixture-can-qualify"
+    },
+    {
+      "at": "2026-11-28T17:00:44Z",
+      "event": "resolve-finding",
+      "finding_id": "startup-migrates-unselected-app-tree"
+    },
+    {
+      "at": "2026-11-28T17:00:45Z",
+      "event": "resolve-finding",
+      "finding_id": "on-guest-load-generator-can-qualify"
+    },
+    {
+      "at": "2026-11-28T17:00:45Z",
+      "event": "resolve-finding",
+      "finding_id": "manual-container-restart-escapes-window-check"
+    },
+    {
+      "at": "2026-11-28T17:00:45Z",
+      "event": "resolve-finding",
+      "finding_id": "failed-attribution-does-not-block-qualification"
+    },
+    {
+      "at": "2026-11-28T17:00:45Z",
+      "event": "resolve-finding",
+      "finding_id": "attribution-can-pass-with-zero-joined-requests"
+    },
+    {
+      "at": "2026-11-28T17:00:50Z",
+      "code_tree_sha256": "5138d394bf088754f622506cb43ff4a7fe037432cb43b2d5bb5aa87aed1fee12",
+      "event": "shard-passed",
+      "shard": "report_paths",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -2559,7 +3000,28 @@
     "cloud": true,
     "deep": true
   },
-  "reviews": [],
+  "reviews": [
+    {
+      "at": "2026-11-28T16:38:06Z",
+      "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+      "code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "contract_revision": 7,
+      "oracle_mismatch_ids": [],
+      "reviewer": "chatgpt-codex-connector@5244dfa",
+      "stage": "cloud",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T16:42:14Z",
+      "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+      "code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "contract_revision": 7,
+      "oracle_mismatch_ids": [],
+      "reviewer": "codex gpt-6.2-astra high round3 @0d56b78",
+      "stage": "deep",
+      "verdict": "reject"
+    }
+  ],
   "run_id": "backend-2gb-proof-20261128",
   "safeguards": [],
   "schema_version": 1,
@@ -2580,16 +3042,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "passed_code_tree_sha256": "8cc1881634d2fad3478a4d834a2441ec40eeb23c6d4a22265099d36d26394e3f",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
-        "policy_shas": {
-          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
-        },
-        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
         "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
           "head_counts": {},
           "warning_count": 0
         }
@@ -2624,8 +3085,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "e012503b72caa6cfba8d1e1cada4e32674d45c18",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "last_green_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
+      "passed_code_tree_sha256": "98295c750cdbfcee1459cda0b2dddaa2d12ef6318e364d97eb722d42c44d7f3f",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2635,14 +3096,25 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 9
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "e012503b72caa6cfba8d1e1cada4e32674d45c18",
+      "trusted_policy_pass_sha": "6885400c9eadcd0ac3cf7a68bce2da93e8ea5e1c",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/cashier_correctness"
     },
@@ -2658,18 +3130,29 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "passed_code_tree_sha256": "2b0d2c32d9d23e4bffbcb9728c263d01112e764938a9664e32a23f9cd7681953",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
+          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b"
         },
-        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
+        "sha256": "05ce07351ea828aa4499882c857bcea4d651d3de4fbf3b09f91cc2f6493dd640",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
@@ -2692,8 +3175,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "last_green_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
+      "passed_code_tree_sha256": "5138d394bf088754f622506cb43ff4a7fe037432cb43b2d5bb5aa87aed1fee12",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2703,14 +3186,26 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
+      "trusted_policy_pass_sha": "24395297a227801f7a8ff9c28ae5440c5521de92",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
     },
@@ -2727,17 +3222,16 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "e3557656b08257fe2a2d705a2d4549e1f0c23bdf",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "last_green_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
+      "passed_code_tree_sha256": "1f93cacf6c73283fdb2fa40759b26f9d121c5f7efa7b119e893af1f2ba900e71",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
-        "policy_shas": {
-          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
-        },
-        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
         "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
           "head_counts": {},
           "warning_count": 0
         }
@@ -2745,7 +3239,7 @@
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "e3557656b08257fe2a2d705a2d4549e1f0c23bdf",
+      "trusted_policy_pass_sha": "6e2d7ff6e4988738b6db9dca2ed53ed0b21f21ca",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/runtime_profile"
     },
@@ -2763,8 +3257,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "last_green_sha": "2160506c02c592fca87cfa36cd035009e4339df0",
+      "passed_code_tree_sha256": "a900a54f769e19c4f68951941ee5d250cc760d1b9c50efa4c64dc563d464a018",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2774,14 +3268,26 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
+      "trusted_policy_pass_sha": "2160506c02c592fca87cfa36cd035009e4339df0",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/seasonal_harness"
     },
@@ -2797,18 +3303,27 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
-      "passed_code_tree_sha256": "b47ea71d3e620c8de29937e395b431131f35a343ec20b3305c64daf91b6725eb",
+      "passed_code_tree_sha256": "95449f8965e1a5ab5702aee285e5e85ee7e9736128abe73bac57aff2e617fbd8",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b",
-          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
+          "autoloop_meta": "7a562e0045730f02a835e92edb3cbce075d07d3b"
         },
-        "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
+        "sha256": "05ce07351ea828aa4499882c857bcea4d651d3de4fbf3b09f91cc2f6493dd640",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "fastpath-must-keep-upstream-validation": 1,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 7
         }
       },
       "pending_dead_end_sig": null,
@@ -2819,7 +3334,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:32:02Z"
+  "updated_at": "2026-11-28T17:00:50Z"
 }
