@@ -445,7 +445,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check = sub.add_parser("check", help="Run local lint + untampered verification and record shard pass")
     p_check.add_argument("--run-id", required=True)
     p_check.add_argument("--shard", default=None)
-    p_check.add_argument("--all-shards", action="store_true")
+    p_check.add_argument(
+        "--all-shards", action="store_true",
+        help="Merge each active shard's last_green_sha into the integration branch first. "
+             "Then check verifies ancestry and gates the integrated tree.",
+    )
     p_check.add_argument("--base-ref", "--base-sha", dest="base_ref", default=None)
     p_check.add_argument("--head-ref", default="HEAD")
     p_check.add_argument("--worktree", type=Path, default=None)
@@ -490,6 +494,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_rc.add_argument("--shard", required=True)
     p_rc.add_argument("--reason", required=True)
     p_rc.add_argument("--proposed-path", action="append", default=[])
+    p_rc.add_argument("--drop", action="store_true", help="Request removal of an unused shard")
 
     # apply-replan
     p_replan = sub.add_parser("apply-replan", help="Apply a bounded replan after worker strikes")
@@ -523,6 +528,7 @@ def _build_parser() -> argparse.ArgumentParser:
         p_finding.add_argument("--" + flag, required=True)
     p_finding.add_argument("--severity", choices=FINDING_SEVERITIES, required=True)
     p_finding.add_argument("--source", choices=FINDING_SOURCES, required=True)
+    p_finding.add_argument("--shard", help="Active shard associated with the finding")
     p_finding.add_argument("--fixed-by", help="Commit containing an already implemented fix")
 
     # resolve-finding
@@ -819,6 +825,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.shard,
                     reason=args.reason,
                     proposed_paths=args.proposed_path,
+                    drop=args.drop,
                 )
             )
         elif cmd == "apply-replan":
@@ -858,7 +865,7 @@ def main(argv: list[str] | None = None) -> int:
         elif cmd == "record-finding":
             _emit(record_finding(
                 repo, args.run_id, args.finding_id, severity=args.severity, source=args.source,
-                summary=args.summary, evidence=args.evidence, fixed_by=args.fixed_by,
+                summary=args.summary, evidence=args.evidence, fixed_by=args.fixed_by, shard_id=args.shard,
             ))
         elif cmd == "resolve-finding":
             _emit(resolve_finding(repo, args.run_id, args.finding_id, fix_summary=args.fix_summary))

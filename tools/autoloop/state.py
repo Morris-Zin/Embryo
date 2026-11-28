@@ -24,6 +24,7 @@ from .guard import (
     git_restore_to_commit,
     git_rev_parse,
     load_config,
+    matches_any_glob,
     open_oracle_mismatches,
     oracle_mismatch_id,
     validate_oracle_mismatch,
@@ -179,6 +180,8 @@ def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
     }
     if state.get("oracle_mismatches"):
         contract["oracle_mismatches"] = dict(state["oracle_mismatches"])
+    if state.get("dropped_shards"):
+        contract["dropped_shards"] = list(state["dropped_shards"])
     if state.get("base_branch_bound"):
         contract["base_branch_bound"] = True
     return contract
@@ -470,7 +473,8 @@ def start_shard(
             shard["last_green_sha"] = last_green_sha
         state["status"] = derive_run_status(state)
         state["history"].append(
-            {"at": utc_now(), "event": "start-shard", "shard": shard_id, "status": state["status"]}
+            {"at": utc_now(), "event": "start-shard", "shard": shard_id, "status": state["status"],
+             "branch": git_current_branch(repo) if worktree_path is None else None}
         )
         _save_run_unlocked(repo, run_id, state)
         return state
@@ -1034,6 +1038,47 @@ def log_dead_end(
         return state
 
 
+def _require_unused_shard(repo: Path, state: dict[str, Any], shard_id: str) -> None:
+    shard = _require_shard(state, shard_id)
+    if any(
+        record.get("shard", record.get("shard_id")) == shard_id
+        for register in ("findings", "oracle_mismatches")
+        for record in (state.get(register) or {}).values()
+    ):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has findings")
+    if shard.get("worktree_path"):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has a registered worktree")
+
+    start = None
+    for event in reversed(state["history"]):
+        if event.get("event") == "resolve-contract-change" and any(
+            item["shard"] == shard_id for item in event.get("dropped_shards", [])
+        ):
+            break
+        if event.get("event") == "start-shard" and event.get("shard") == shard_id:
+            start = event
+            break
+    if start is None and shard["status"] == "locked":
+        return
+
+    base = state.get("base_sha")
+    if not base or shard.get("last_green_sha") not in (None, base):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has commit evidence")
+    refs = ["HEAD"]
+    for branch in {f"shard/{shard_id}", (start or {}).get("branch")} - {None}:
+        ref = f"refs/heads/{branch}"
+        if _run_git(repo, ["show-ref", "--verify", "--quiet", ref], check=False).returncode == 0:
+            refs.append(ref)
+    changed = _run_git(repo, [
+        "log", "-m", "--full-history", "--name-only", "--format=", "--no-renames", "-z", *refs, f"^{base}", "--",
+    ]).stdout
+    if any(
+        matches_any_glob(path.decode("utf-8", errors="surrogateescape"), shard["allowed_paths"])
+        for path in changed.split(b"\0") if path
+    ):
+        raise IllegalTransitionError(f"cannot drop shard {shard_id!r}: it has commits in its allowed paths")
+
+
 def request_contract_change(
     repo: Path,
     run_id: str,
@@ -1041,6 +1086,7 @@ def request_contract_change(
     *,
     reason: str,
     proposed_paths: list[str] | None = None,
+    drop: bool = False,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
@@ -1061,17 +1107,27 @@ def request_contract_change(
         shard = state["shards"].get(shard_id)
         if shard is None and (not RUN_ID_RE.fullmatch(shard_id) or ".." in shard_id):
             raise IllegalTransitionError(f"invalid new shard ID {shard_id!r}")
-        req_id = f"amend-{len(state['pending_contract_amendments']) + 1}"
-        state["pending_contract_amendments"].append(
+        pending = state["pending_contract_amendments"]
+        if any(item["shard"] == shard_id and (drop or item.get("drop")) for item in pending):
+            raise IllegalTransitionError(f"conflicting contract change already requested for {shard_id!r}")
+        if drop:
+            if not reason.strip() or proposed_paths:
+                raise IllegalTransitionError("--drop requires a non-empty reason and cannot include proposed paths")
+            _require_unused_shard(repo, state, shard_id)
+            if len(state["shards"]) <= 1 + sum(bool(item.get("drop")) for item in pending):
+                raise IllegalTransitionError("cannot drop the last active shard")
+        req_id = f"amend-{len(pending) + 1}"
+        pending.append(
             {
                 "id": req_id,
                 "shard": shard_id,
                 "reason": reason,
                 "proposed_paths": list(proposed_paths or []),
                 "requested_at": utc_now(),
+                **({"drop": True} if drop else {}),
             }
         )
-        if shard is not None:
+        if shard is not None and not drop:
             shard["status"] = "needs_contract_amendment"
         state["status"] = "in_progress"
         state["status"] = derive_run_status(state)
@@ -1141,9 +1197,29 @@ def resolve_contract_change(
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
         state = load_run(repo, run_id)
         _require_status(state, ("needs_contract_amendment",), "resolve-contract-change")
+        drops = []
         if decision == "approve":
             shards = state["shards"]
-            requested_new = {r["shard"] for r in state["pending_contract_amendments"]} - shards.keys()
+            pending = state["pending_contract_amendments"]
+            drop_ids = {r["shard"] for r in pending if r.get("drop")}
+            if drop_ids & (set(add_paths or {}) | set(shard_checks or {})):
+                raise IllegalTransitionError("cannot update paths or checks for a shard being dropped")
+            if drop_ids and not (shards.keys() - drop_ids):
+                raise IllegalTransitionError("cannot drop the last active shard")
+            for request in pending:
+                if not request.get("drop"):
+                    continue
+                sid = request["shard"]
+                _require_unused_shard(repo, state, sid)
+                drops.append({
+                    "shard": sid, "reason": request["reason"],
+                    "allowed_paths": list(shards[sid]["allowed_paths"]),
+                    "contract_revision": state["contract_revision"] + 1,
+                })
+                del shards[sid]
+            if drops:
+                state.setdefault("dropped_shards", []).extend(drops)
+            requested_new = {r["shard"] for r in pending if not r.get("drop")} - shards.keys()
             supplied_new = set(add_paths or {}) - shards.keys()
             if supplied_new != requested_new:
                 raise IllegalTransitionError(
@@ -1159,6 +1235,14 @@ def resolve_contract_change(
                         _reset_shard_gate(shard)
                     else:
                         shards[sid] = _new_shard(extra, [], state.get("base_sha"))
+                    for dropped in state.get("dropped_shards", []):
+                        restored = [
+                            path for path in extra
+                            if any(globs_overlap(path, former) for former in dropped["allowed_paths"])
+                        ]
+                        if restored:
+                            readded = dropped.setdefault("readded", {})
+                            readded[sid] = list(dict.fromkeys([*readded.get(sid, []), *restored]))
             for sid in sorted(requested_new):
                 for other, other_shard in shards.items():
                     if other != sid and any(
@@ -1196,6 +1280,7 @@ def resolve_contract_change(
                 "decision": decision,
                 "contract_revision": state["contract_revision"],
                 "status": state["status"],
+                **({"dropped_shards": drops} if drops else {}),
             }
         )
         _save_run_unlocked(repo, run_id, state)
@@ -1329,6 +1414,7 @@ def record_finding(
     summary: str,
     evidence: str,
     fixed_by: str | None = None,
+    shard_id: str | None = None,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     finding_id, summary, evidence = finding_id.strip(), summary.strip(), evidence.strip()
@@ -1359,6 +1445,9 @@ def record_finding(
             "status": "open",
             "opened_at": now,
         }
+        if shard_id is not None:
+            _require_shard(state, shard_id)
+            finding["shard"] = shard_id
         if fixed_by is not None:
             finding.update(status="fixed_pending_review", fixed_by=fixed_by, resolved_at=now)
         findings[finding_id] = finding
@@ -1467,6 +1556,12 @@ def record_review(
                 }
                 if item.get("evidence") or previous.get("evidence"):
                     state["findings"][fid]["evidence"] = str(item.get("evidence") or previous["evidence"])
+                reported_shard = item.get("shard") or previous.get("shard")
+                if reported_shard is not None:
+                    _require_shard(state, reported_shard)
+                    if previous.get("shard") not in (None, reported_shard):
+                        raise IllegalTransitionError(f"finding {fid!r} is already assigned to another shard")
+                    state["findings"][fid]["shard"] = reported_shard
             # Re-open execution so worker must fix and re-pass gates
             for sdata in state["shards"].values():
                 sdata["status"] = "in_progress"

@@ -1499,6 +1499,8 @@ def load_verified_local_contract(
         raise GuardError("run checkpoint base_branch does not match FrozenContractV1")
     if run_data.get("oracle_mismatches", {}) != contract.get("oracle_mismatches", {}):
         raise GuardError("run checkpoint oracle mismatches do not match FrozenContractV1")
+    if run_data.get("dropped_shards", []) != contract.get("dropped_shards", []):
+        raise GuardError("run checkpoint dropped shards do not match FrozenContractV1")
 
     # Verify mutable run checkpoint shard checks and allowed_paths match authenticated FrozenContractV1
     contract_shards_map = contract.get("shards") or {}
@@ -1512,6 +1514,29 @@ def load_verified_local_contract(
         if list(cshard_k.get("checks") or []) != list(rshard_k.get("checks") or []):
             raise GuardError(f"run checkpoint shard {sid_k!r} checks tampered vs FrozenContractV1")
     return run_data, contract
+
+
+def _dropped_scope_changes(diff, contract, run_id, *, shard_id=None):
+    scopes = contract["shards"]
+    former_scopes = [
+        (
+            drop["allowed_paths"],
+            [
+                path for sid, paths in drop.get("readded", {}).items()
+                if sid in scopes and (shard_id is None or shard_id == sid)
+                for path in paths if path in scopes[sid]["allowed_paths"]
+            ],
+        )
+        for drop in contract.get("dropped_shards", [])
+    ]
+    return [
+        entry.path for entry in diff
+        if not is_framework_metadata_path(entry.path, run_id)
+        and any(
+            matches_any_glob(entry.path, dropped) and not matches_any_glob(entry.path, readded)
+            for dropped, readded in former_scopes
+        )
+    ]
 
 
 def verify_untampered(
@@ -1553,11 +1578,21 @@ def verify_untampered(
     if shard_id is not None:
         if shard_id not in shards:
             raise GuardError(f"unknown shard {shard_id!r} in FrozenContractV1")
-        allowed_paths = list(shards[shard_id].get("allowed_paths") or [])
+        active_paths = list(shards[shard_id].get("allowed_paths") or [])
+        allowed_paths = active_paths
     else:
-        allowed_paths = list(contract.get("allowed_paths") or [])
-        for sdata in shards.values():
-            allowed_paths.extend(sdata.get("allowed_paths") or [])
+        active_paths = [path for sdata in shards.values() for path in sdata.get("allowed_paths") or []]
+        allowed_paths = [*(contract.get("allowed_paths") or []), *active_paths]
+
+    if contract.get("dropped_shards"):
+        # A local comparison override cannot restore previously removed scope.
+        scope_diff = target_diff
+        if base_ref and run_data.get("base_sha") != base_sha:
+            scope_base = git_merge_base(target_repo, run_data["base_sha"], head_sha)
+            scope_diff = git_diff_tree_entries(target_repo, scope_base, head_sha)
+        dropped = _dropped_scope_changes(scope_diff, contract, run_id, shard_id=shard_id)
+        if dropped:
+            raise GuardError(f"changes outside allowed_paths (dropped shard scope): {', '.join(dropped[:10])}")
 
     policy_globs = [*(config.get("critical_policy_globs") or []), *EXTRA_SKILL_POLICY_GLOBS]
     outside: list[str] = []
@@ -1948,23 +1983,29 @@ def verify_pr_integrity(
         raise GuardError("base_branch moved or retargeted: publish the updated FrozenContractV1")
     if run_data.get("oracle_mismatches", {}) != contract.get("oracle_mismatches", {}):
         raise GuardError("run checkpoint oracle mismatches do not match FrozenContractV1")
+    if run_data.get("dropped_shards", []) != contract.get("dropped_shards", []):
+        raise GuardError("run checkpoint dropped shards do not match FrozenContractV1")
 
     # Verify FrozenContractV1 fields match run record
     contract_shards = contract.get("shards") or {}
     run_shards = run_data.get("shards") or {}
     if set(contract_shards.keys()) != set(run_shards.keys()) or not contract_shards:
         raise GuardError("run shards do not match FrozenContractV1 shards")
-    all_allowed_paths: list[str] = list(contract.get("allowed_paths") or [])
+    active_paths: list[str] = []
     shard_checks_payload: list[dict[str, Any]] = []
     for sid, cshard in sorted(contract_shards.items()):
         c_allowed = list(cshard.get("allowed_paths") or [])
         r_allowed = list((run_shards[sid] or {}).get("allowed_paths") or [])
         if c_allowed != r_allowed:
             raise GuardError(f"shard {sid!r} allowed_paths tampered vs FrozenContractV1")
-        all_allowed_paths.extend(c_allowed)
+        active_paths.extend(c_allowed)
         shard_checks_payload.append({"shard_id": sid, "checks": list(cshard.get("checks") or [])})
 
     # Check PR-introduced scope (mb_target..head_sha) against allowed_paths + strict metadata
+    dropped = _dropped_scope_changes(target_diff, contract, run_id)
+    if dropped:
+        raise GuardError(f"PR modifies paths outside FrozenContractV1 allowed_paths (dropped shard scope): {', '.join(dropped[:10])}")
+    all_allowed_paths = [*(contract.get("allowed_paths") or []), *active_paths]
     outside_scope: list[str] = []
     for entry in target_diff:
         if is_framework_metadata_path(entry.path, run_id):
