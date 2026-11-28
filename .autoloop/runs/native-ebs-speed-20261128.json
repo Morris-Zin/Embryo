@@ -2,7 +2,7 @@
   "allow_policy_paths": [],
   "allowed_paths": [],
   "base_branch": "devin/1795778138-native-migration-framework",
-  "base_sha": "9a43d836d4094aacd22450d7238bf51fc911d869",
+  "base_sha": "c7b1e0c592b7a4f97e1c6463de48e7cf839871b2",
   "contract_revision": 2,
   "contract_sha256": "5bed434c863b11d670623da607fce21d353d6d2e41c04155188ec9a40579a434",
   "created_at": "2026-11-28T10:47:14Z",
@@ -40,6 +40,30 @@
       "event": "bind-pr",
       "pr_number": 18,
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:00:03Z",
+      "base_sha": "c7b1e0c592b7a4f97e1c6463de48e7cf839871b2",
+      "event": "refresh-base",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T11:11:55Z",
+      "event": "start-shard",
+      "shard": "native_frontend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:11:59Z",
+      "code_tree_sha256": "b3a696a838eec0213a0525e852cd2714736e2ba42d7e26c5ea7b4989bee306c2",
+      "event": "shard-passed",
+      "shard": "native_frontend",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T11:12:02Z",
+      "event": "submit-for-review",
+      "status": "ready_to_merge"
     }
   ],
   "issue_number": null,
@@ -99,16 +123,17 @@
         "python desktop-frontend/tools/architecture_lint.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "9a43d836d4094aacd22450d7238bf51fc911d869",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "e0913ee84280fbb4a646d1003c83595f6f81e596",
+      "passed_code_tree_sha256": "b3a696a838eec0213a0525e852cd2714736e2ba42d7e26c5ea7b4989bee306c2",
       "pending_dead_end_sig": null,
-      "status": "in_progress",
+      "retry_scope": null,
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/embryo-worktrees/native-frontend-opt"
     }
   },
-  "status": "in_progress",
+  "status": "ready_to_merge",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T10:48:33Z"
+  "updated_at": "2026-11-28T11:12:02Z"
 }
