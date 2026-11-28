@@ -259,7 +259,9 @@ component VoucherLineRow inherits Rectangle {
         accessible-role: text-input;
         accessible-label: "Quantity";
         horizontal-alignment: center;
-        edited => { root.quantity-edited(line.item-code, self.text); }
+        changed has-focus => {
+            if (!self.has-focus) { root.quantity-edited(line.item-code, self.text); }
+        }
         accepted => { root.quantity-edited(line.item-code, self.text); }
     }
     Rectangle {
