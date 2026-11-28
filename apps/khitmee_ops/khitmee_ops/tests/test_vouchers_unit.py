@@ -233,9 +233,17 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 		stock_locks.clear_transaction_stock_locks()
 		self.addCleanup(stock_locks.clear_transaction_stock_locks)
-		with patch.object(doc, "insert", side_effect=submit), patch.object(vouchers.frappe.db, "sql", side_effect=sql):
+		after_commit, after_rollback = [], []
+		with (
+			patch.object(doc, "insert", side_effect=submit),
+			patch.object(vouchers.frappe.db, "sql", side_effect=sql),
+			patch.object(stock_locks.frappe.db, "after_commit", SimpleNamespace(add=after_commit.append), create=True),
+			patch.object(stock_locks.frappe.db, "after_rollback", SimpleNamespace(add=after_rollback.append), create=True),
+		):
 			create_invoice(doc, payment_mode=None, item_code="Z-BUNDLE")
 
+		self.assertEqual(after_commit, [stock_locks.clear_transaction_stock_locks])
+		self.assertEqual(after_rollback, after_commit)
 		self.assertEqual(
 			lock_queries,
 			[
