@@ -561,6 +561,8 @@
         "evidence/journeys/invoice-detail-permission-denied.json",
         "evidence/journeys/invoice-detail-mandatory-validation.json",
         "evidence/journeys/invoice-detail-overdue.json",
+        "evidence/journeys/invoice-detail-multi-row-edit.json",
+        "evidence/journeys/invoice-detail-item-rate-edit.json",
         "evidence/journeys/invoice-detail-paid.json",
         "evidence/journeys/invoice-list-permission-denied.json",
         "evidence/visual/invoice-detail-composite-list.png",

@@ -966,6 +966,62 @@ fn edit_invoice_detail_item_qty(app: &AppWindow, state: &mut PilotState, index: 
     app.set_status_text("Edited item quantity; save before submitting.".into());
 }
 
+fn edit_invoice_detail_item_rate(app: &AppWindow, state: &mut PilotState, index: i32, value: &str) {
+    if app.get_invoice_detail_status() != "Draft" || index < 0 {
+        return;
+    }
+    let Ok(new_rate) = value.trim().parse::<f64>() else {
+        return;
+    };
+    if new_rate < 0.0 {
+        app.set_status_text("Rate cannot be negative.".into());
+        return;
+    }
+    let Some(doc) = state.invoice_detail_doc.as_mut() else {
+        return;
+    };
+    let mut updated_amount = None;
+    if let Some(row) = doc
+        .get_mut("items")
+        .and_then(|rows| rows.as_array_mut())
+        .and_then(|rows| rows.get_mut(index as usize))
+    {
+        let amount = detail_number(row, "qty") * new_rate;
+        row["rate"] = serde_json::json!(new_rate);
+        row["amount"] = serde_json::json!(amount);
+        updated_amount = Some(amount);
+    }
+    let Some(amount) = updated_amount else {
+        return;
+    };
+    let total = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|item| detail_number(item, "amount"))
+                .sum::<f64>()
+        })
+        .unwrap_or(amount);
+    doc["total"] = serde_json::json!(total);
+    doc["net_total"] = serde_json::json!(total);
+    doc["grand_total"] = serde_json::json!(total);
+    doc["rounded_total"] = serde_json::json!(total);
+    doc["outstanding_amount"] = serde_json::json!(total);
+    let doc_snapshot = doc.clone();
+    if let Some(item) = state.invoice_detail_items.get_mut(index as usize) {
+        item.rate_text = format!("$ {}", money(new_rate)).into();
+        item.amount_text = format!("$ {}", money(amount)).into();
+        item.rate_value = money(new_rate).into();
+        item.amount_value = money(amount).into();
+    }
+    set_detail_numeric_fields(state, &doc_snapshot);
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    refresh_detail_item_model(app, state);
+    app.set_status_text("Edited item rate; save before submitting.".into());
+}
+
 fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
     let Some(client) = detail_login(app, state) else {
         return;
@@ -1864,6 +1920,16 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             edit_invoice_detail_item_qty(&app, &mut state, index, value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_item_rate_edited({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |index, value| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            edit_invoice_detail_item_rate(&app, &mut state, index, value.as_str());
         }
     });
 

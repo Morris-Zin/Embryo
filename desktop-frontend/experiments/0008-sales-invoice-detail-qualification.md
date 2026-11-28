@@ -61,3 +61,8 @@ The ERP password is read from the isolated environment in the normal qualificati
 ## Paid and overdue state milestone
 
 `evidence/journeys/invoice-detail-paid.json` and `evidence/journeys/invoice-detail-overdue.json` passed with zero differential failures. Browser and native both exposed `Paid` with zero outstanding amount and `Overdue` with `$ 18.46` outstanding, with matching read-only actions (`Create`, `Cancel`) and matching detail fields/items. The paid invoice is a genuine POS cash-payment submission (`ACC-SINV-2026-04961`). The overdue invoice (`ACC-SINV-2026-04964`) is display-state evidence only: because ERPNext rejects backdated due dates at creation, the isolated fixture seed updates the due date/payment schedule/status after a genuine submission; it is not evidence of an overdue aging workflow.
+## Item rate and multi-row editing milestone
+
+`evidence/journeys/invoice-detail-item-rate-edit.json` passed with zero differential failures for editing the first row rate to `20`, recalculating amount/grand total, saving, submitting, and matching authoritative item outcomes in independent invoices (`ACC-SINV-2026-04967` web, `ACC-SINV-2026-04968` native).
+
+`evidence/journeys/invoice-detail-multi-row-edit.json` passed with zero differential failures for opening the second row of a three-row draft, changing quantity `2` to `4`, saving, submitting, and matching the complete authoritative three-item arrays in independent invoices (`ACC-SINV-2026-04974` web, `ACC-SINV-2026-04975` native). This extends item-grid evidence beyond the first row, but row add/remove, item-code substitution, and invalid numeric validation remain open.

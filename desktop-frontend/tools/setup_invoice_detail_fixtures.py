@@ -88,6 +88,11 @@ draft_name = ensure_invoice(
     [("KM-00001", 1, 18.46)],
     submit=False,
 )
+multi_draft_name = ensure_invoice(
+    "migration-detail-multi-draft-v1",
+    [("KM-00001", 1, 18.46), ("KM-00002", 2, 0.53), ("KM-00003", 3, 3.06)],
+    submit=False,
+)
 
 def ensure_editable_draft(side):
     marker = f"migration-detail-editable-{side}-v2"
@@ -157,4 +162,16 @@ overdue_name = ensure_overdue_invoice("migration-detail-overdue-v1")
 
 web_draft = ensure_editable_draft("web")
 native_draft = ensure_editable_draft("native")
-print(json.dumps({"multi_item": multi_name, "draft": draft_name, "paid": paid_name, "overdue": overdue_name, "web_draft": web_draft, "native_draft": native_draft}))
+def ensure_editable_multi_draft(side):
+    import time
+    unique_marker = f"migration-detail-multi-editable-{side}-v1-{time.time_ns()}"
+    return ensure_invoice(
+        unique_marker,
+        [("KM-00001", 1, 18.46), ("KM-00002", 2, 0.53), ("KM-00003", 3, 3.06)],
+        submit=False,
+    )
+
+web_multi_draft = ensure_editable_multi_draft("web")
+native_multi_draft = ensure_editable_multi_draft("native")
+
+print(json.dumps({"multi_item": multi_name, "draft": draft_name, "multi_draft": multi_draft_name, "paid": paid_name, "overdue": overdue_name, "web_draft": web_draft, "native_draft": native_draft, "web_multi_draft": web_multi_draft, "native_multi_draft": native_multi_draft}))

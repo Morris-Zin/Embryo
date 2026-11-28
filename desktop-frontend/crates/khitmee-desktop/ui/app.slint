@@ -699,6 +699,7 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-detail-submit();
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
+    callback invoice-detail-item-rate-edited(int, string);
     callback invoice-detail-validation-close();
     background: #f4f5f7;
 
@@ -1239,6 +1240,7 @@ component InvoiceDetailScreen inherits Rectangle {
     callback detail-submit();
     callback detail-item-open(int);
     callback detail-item-qty-edited(int, string);
+    callback detail-item-rate-edited(int, string);
     in property <int> detail-editing-index: -1;
     background: #f4f5f7;
 
@@ -1348,7 +1350,7 @@ component InvoiceDetailScreen inherits Rectangle {
                 Text { x: 8px; y: 7px; width: 30px; height: 24px; text: item.index-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
                 LineEdit { x: 50px; y: 7px; width: root.column-width + 78px; height: 30px; text: item.item-code; accessible-role: text-input; accessible-label: "Item code"; font-size: 11px; }
                 LineEdit { x: root.content-width - 430px; y: 7px; width: 70px; height: 30px; text: item.qty-value; accessible-role: text-input; accessible-label: "Item quantity"; font-size: 11px; edited => { root.detail-item-qty-edited(index, self.text); } }
-                LineEdit { x: root.content-width - 350px; y: 7px; width: 88px; height: 30px; text: item.rate-value; accessible-role: text-input; accessible-label: "Item rate"; font-size: 11px; }
+                LineEdit { x: root.content-width - 350px; y: 7px; width: 88px; height: 30px; text: item.rate-value; accessible-role: text-input; accessible-label: "Item rate"; font-size: 11px; edited => { root.detail-item-rate-edited(index, self.text); } }
                 LineEdit { x: root.content-width - 252px; y: 7px; width: 96px; height: 30px; text: item.amount-value; accessible-role: text-input; accessible-label: "Item amount"; enabled: false; font-size: 11px; }
                 LineEdit { x: root.content-width - 146px; y: 7px; width: 120px; height: 30px; text: item.warehouse; accessible-role: text-input; accessible-label: "Item warehouse"; font-size: 11px; }
                 Text { x: 50px; y: 45px; width: 260px; height: 28px; text: "item_code    qty    rate    amount    warehouse"; color: Design.muted; font-size: 10px; vertical-alignment: center; }
@@ -1421,6 +1423,7 @@ export component AppWindow inherits Window {
     callback invoice-detail-submit();
     callback invoice-detail-item-open(int);
     callback invoice-detail-item-qty-edited(int, string);
+    callback invoice-detail-item-rate-edited(int, string);
     callback invoice-detail-validation-close();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
@@ -1519,5 +1522,6 @@ export component AppWindow inherits Window {
         detail-submit => { root.invoice-detail-submit(); }
         detail-item-open(index) => { root.invoice-detail-item-open(index); }
         detail-item-qty-edited(index, value) => { root.invoice-detail-item-qty-edited(index, value); }
+        detail-item-rate-edited(index, value) => { root.invoice-detail-item-rate-edited(index, value); }
     }
 }
