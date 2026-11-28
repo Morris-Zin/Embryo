@@ -17,6 +17,10 @@ if [[ ! -f "$SCENARIO_FILE" ]]; then
   exit 2
 fi
 
+TARGET_URL_EXPLICIT=0
+if [[ -n "${TARGET_URL:-}" ]]; then
+  TARGET_URL_EXPLICIT=1
+fi
 TARGET_URL="${TARGET_URL:-http://127.0.0.1:18086}"
 if [[ ! "$TARGET_URL" =~ ^https?://([^/:?#]+)(:([0-9]+))? ]]; then
   echo "TARGET_URL must be an http(s) URL, got '$TARGET_URL'" >&2
@@ -268,7 +272,14 @@ PY
 
   DOCKER_TARGET_URL="$TARGET_URL"
   if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
-    :
+    if [[ "$TARGET_URL_EXPLICIT" != "1" ]]; then
+      echo "K6_DOCKER_HOST is remote; set TARGET_URL explicitly to an address that reaches the qualification guest." >&2
+      exit 2
+    fi
+    if [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" || "$TARGET_HOST" == "frontend" ]]; then
+      echo "TARGET_URL=$TARGET_URL resolves on the remote generator, not the qualification guest; refusing remote k6 run." >&2
+      exit 2
+    fi
   elif [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" ]]; then
     # The local k6 container shares the khitmee-perf network, so it can reach the
     # frontend service directly; loopback only makes sense for host-mode k6.

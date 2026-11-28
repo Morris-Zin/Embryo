@@ -1331,6 +1331,23 @@ console.log(JSON.stringify({
         self.assertIn("run --rm", local)
         self.assertIn('NETWORK="${K6_NETWORK:-bridge}"', source)
 
+    def test_remote_docker_runner_requires_explicit_guest_reachable_target(self):
+        source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn("TARGET_URL_EXPLICIT=0", source)
+        remote_start = source.index('if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then', source.index('DOCKER_TARGET_URL="$TARGET_URL"'))
+        remote_end = source.index('  elif [[ "$TARGET_HOST"', remote_start)
+        remote = source[remote_start:remote_end]
+        self.assertIn('"$TARGET_URL_EXPLICIT" != "1"', remote)
+        self.assertIn("set TARGET_URL explicitly", remote)
+        self.assertIn('"$TARGET_HOST" == "frontend"', remote)
+        self.assertIn("resolves on the remote generator", remote)
+        rewrite = source[remote_end:source.index('EFFECTIVE_HOST_HEADER', remote_end)]
+        self.assertIn('DOCKER_TARGET_URL="http://frontend:8080"', rewrite)
+        # Red/green: the old remote path reused the local loopback-to-frontend
+        # rewrite. In the fixed ordering that rewrite is unreachable for a
+        # validated remote generator because frontend/loopback are rejected first.
+        self.assertNotIn('DOCKER_TARGET_URL="http://frontend:8080"', remote)
+
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn("perf_root/seasonal/verify_run.py".replace("perf_root", "$PERF_ROOT"), source)
