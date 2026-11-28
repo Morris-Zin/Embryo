@@ -1158,6 +1158,67 @@ console.log(JSON.stringify({
         self.assertTrue(payload["childDiffersFromParent"])
         self.assertIn("ACC-SINV-2026-0001", payload["firstIdentity"])
 
+    def test_ux_latency_includes_simulated_rtt_but_server_latency_excludes_it(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        report_start = runtime.index("function executeReportCall")
+        report_end = runtime.index("function validReportRows", report_start)
+        report_source = runtime[report_start:report_end]
+        search_start = runtime.index("export function performSeasonalSearch")
+        search_end = runtime.index("export function performCashierDiscovery", search_start)
+        search_source = runtime[search_start:search_end].replace("export function performSeasonalSearch", "function performSeasonalSearch", 1)
+        script = r"""
+let now = 0;
+Date.now = () => now;
+function sleepForSimulatedRtt() { now += 50; }
+function postMethod() { now += 275; return { status: 200 }; }
+""" + report_source + search_source + r"""
+const captured = { events: [] };
+function choose(values) { return values[0]; }
+const manifestContext = { defaultPriceList: 'Standard Selling' };
+function deterministicLines() { return [{ item_code: 'ITEM-001' }]; }
+function stableHash32() { return 0; }
+function getMethod() { now += 275; return { status: 200, body: JSON.stringify({ message: { items: [{ item_code: 'ITEM-001' }] } }) }; }
+function messageBody(response) { return JSON.parse(response.body).message; }
+function responseOk() { return true; }
+function managerTags(_phase, tags) { return tags || {}; }
+const searchDuration = { add(ms) { captured.searchUxMs = ms; } };
+const searchServerDuration = { add(ms) { captured.searchServerMs = ms; } };
+const errors = { add() {} };
+const errorRate = { add() {} };
+function logSeasonalEvent(payload) { captured.events.push(payload); }
+const reportMeasured = executeReportCall({}, 'Report', {}, '10s');
+now = 0;
+const plan = {
+  warehouses: { all: ['Shop 1'], distribution: ['Shop 1'] },
+  settings: { runId: 'run', seed: 'seed' },
+};
+performSeasonalSearch({ user: 'cashier' }, plan, { name: 'baseline', phase: 'baseline' }, 0);
+console.log(JSON.stringify({
+  reportUxMs: reportMeasured.durationMs,
+  reportServerMs: reportMeasured.serverDurationMs,
+  reportPasses300msUxGate: reportMeasured.durationMs < 300,
+  searchUxMs: captured.searchUxMs,
+  searchServerMs: captured.searchServerMs,
+  searchPasses300msUxGate: captured.searchUxMs < 300,
+  loggedSearchUxMs: captured.events[0].duration_ms,
+}));
+"""
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["reportUxMs"], 325)
+        self.assertEqual(payload["reportServerMs"], 275)
+        self.assertFalse(payload["reportPasses300msUxGate"])
+        self.assertEqual(payload["searchUxMs"], 325)
+        self.assertEqual(payload["searchServerMs"], 275)
+        self.assertFalse(payload["searchPasses300msUxGate"])
+        self.assertEqual(payload["loggedSearchUxMs"], 325)
+        self.assertIn("const uxStart = Date.now();\n  sleepForSimulatedRtt(1);\n  const serverStart = Date.now();", report_source)
+        self.assertIn("const uxStart = Date.now();\n  sleepForSimulatedRtt(1);\n  const serverStart = Date.now();", search_source)
+
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
         self.assertIn("iterationInTest", source)
