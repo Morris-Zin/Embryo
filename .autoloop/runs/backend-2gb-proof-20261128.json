@@ -198,6 +198,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.09,
           "fast_check.py/zizmor_workflows": 0.343
         }
+      },
+      {
+        "at": "2026-11-28T12:51:56Z",
+        "head_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
+        "passed": true,
+        "steps": {
+          "docs #1: python -B tools/autoloop/cli.py lint": 0.34,
+          "fast_check.py": 3.475,
+          "fast_check.py/autoloop_lint": 2.049,
+          "fast_check.py/bash": 0.476,
+          "fast_check.py/compose": 0.534,
+          "fast_check.py/guardrails": 1.032,
+          "fast_check.py/javascript": 0.065,
+          "fast_check.py/knip": 1.063,
+          "fast_check.py/python": 3.375,
+          "fast_check.py/ruff_and_dev_deps": 0.058,
+          "fast_check.py/zizmor_workflows": 0.296
+        }
       }
     ],
     "shard:report_paths": [
@@ -297,41 +315,6 @@
     ],
     "shard:verify_tooling": [
       {
-        "at": "2026-11-28T12:23:47Z",
-        "head_sha": "b5d54ba2c39522a3ebdc9f3c508efa0ea46646f6",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 3.065,
-          "fast_check.py/autoloop_lint": 1.315,
-          "fast_check.py/bash": 0.543,
-          "fast_check.py/compose": 0.491,
-          "fast_check.py/guardrails": 1.013,
-          "fast_check.py/javascript": 0.06,
-          "fast_check.py/knip": 0.898,
-          "fast_check.py/python": 2.977,
-          "fast_check.py/ruff_and_dev_deps": 0.042,
-          "fast_check.py/zizmor_workflows": 0.278
-        }
-      },
-      {
-        "at": "2026-11-28T12:24:16Z",
-        "head_sha": "6a06ae175ebe270c33bc490bef426ada036585dd",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 3.446,
-          "fast_check.py/autoloop_lint": 1.393,
-          "fast_check.py/bash": 0.488,
-          "fast_check.py/compose": 0.42,
-          "fast_check.py/guardrails": 1.007,
-          "fast_check.py/javascript": 0.044,
-          "fast_check.py/knip": 0.806,
-          "fast_check.py/python": 3.358,
-          "fast_check.py/ruff_and_dev_deps": 0.032,
-          "fast_check.py/zizmor_workflows": 0.254,
-          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.929
-        }
-      },
-      {
         "at": "2026-11-28T12:25:08Z",
         "head_sha": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8",
         "passed": true,
@@ -382,6 +365,41 @@
           "fast_check.py/python": 4.564,
           "fast_check.py/ruff_and_dev_deps": 0.057,
           "fast_check.py/zizmor_workflows": 0.305
+        }
+      },
+      {
+        "at": "2026-11-28T12:52:02Z",
+        "head_sha": "d44e42902fabf7031ccab38cba4f6808e8de4550",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 3.416,
+          "fast_check.py/autoloop_lint": 2.251,
+          "fast_check.py/bash": 0.451,
+          "fast_check.py/compose": 0.507,
+          "fast_check.py/guardrails": 1.079,
+          "fast_check.py/javascript": 0.05,
+          "fast_check.py/knip": 0.886,
+          "fast_check.py/python": 3.327,
+          "fast_check.py/ruff_and_dev_deps": 0.046,
+          "fast_check.py/zizmor_workflows": 0.259
+        }
+      },
+      {
+        "at": "2026-11-28T12:55:18Z",
+        "head_sha": "3fd5f1862605beae3cf8be3993388e9f8363f686",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.3,
+          "fast_check.py/autoloop_lint": 2.171,
+          "fast_check.py/bash": 0.519,
+          "fast_check.py/compose": 0.468,
+          "fast_check.py/guardrails": 1.118,
+          "fast_check.py/javascript": 0.048,
+          "fast_check.py/knip": 0.889,
+          "fast_check.py/python": 3.215,
+          "fast_check.py/ruff_and_dev_deps": 0.032,
+          "fast_check.py/zizmor_workflows": 0.264,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.822
         }
       }
     ]
@@ -858,6 +876,59 @@
         "warning_count": 10
       },
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:51:56Z",
+      "code_tree_sha256": "2b0d2c32d9d23e4bffbcb9728c263d01112e764938a9664e32a23f9cd7681953",
+      "event": "shard-passed",
+      "shard": "docs",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:52:02Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "d44e42902fabf7031ccab38cba4f6808e8de4550",
+      "shard": "verify_tooling",
+      "signature": "fast_check.py::AssertionError::tools/test_khitmee_gate.py:test_make_job_translates_windows_inputs_for_linux_worker",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:55:18Z",
+      "code_tree_sha256": "b65ea845020da3e1a92f66aa1bc5dd0aebd7c6e68ba352f76a7e6430452942d9",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "fastpath-must-keep-upstream-validation": 1,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 7
+      },
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -978,26 +1049,36 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
-      "passed_code_tree_sha256": "12efcf4b30d21046e10f9721913538431a447024ca35c63d537f900c4898fbf0",
+      "last_green_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
+      "passed_code_tree_sha256": "2b0d2c32d9d23e4bffbcb9728c263d01112e764938a9664e32a23f9cd7681953",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "verify_tooling": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8"
+          "autoloop_meta": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131"
         },
-        "sha256": "7b47b515ae33d4284c82e608d2276fff49b494660b9255afe6869485b4d4c55d",
+        "sha256": "d9d7e42aa4b8628c26578778a8dad458b7ae48a3e0a2e0b772672dfd04b5d071",
         "static_lint": {
-          "base_counts": {},
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
           "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {},
-          "warning_count": 0
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "3458419d3aa82db4afef99742c6e5caa4d4b1952",
+      "trusted_policy_pass_sha": "561c1a7fac1d370349f5186745c6c972990603bd",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/docs"
     },
@@ -1148,17 +1229,40 @@
         "python -B -m unittest discover -s tools -p test_*.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
-      "passed_code_tree_sha256": null,
-      "pending_dead_end_sig": "fast_check.py::AssertionError::tools/test_khitmee_gate.py:test_make_job_translates_windows_inputs_for_linux_worker",
+      "has_passed_individually": true,
+      "last_green_sha": "3fd5f1862605beae3cf8be3993388e9f8363f686",
+      "passed_code_tree_sha256": "b65ea845020da3e1a92f66aa1bc5dd0aebd7c6e68ba352f76a7e6430452942d9",
+      "passed_tooling": {
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "autoloop_meta": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131"
+        },
+        "sha256": "d9d7e42aa4b8628c26578778a8dad458b7ae48a3e0a2e0b772672dfd04b5d071",
+        "static_lint": {
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "fastpath-must-keep-upstream-validation": 1,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 7
+        }
+      },
+      "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
+      "trusted_policy_pass_sha": "3fd5f1862605beae3cf8be3993388e9f8363f686",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T12:46:43Z"
+  "updated_at": "2026-11-28T12:55:18Z"
 }
