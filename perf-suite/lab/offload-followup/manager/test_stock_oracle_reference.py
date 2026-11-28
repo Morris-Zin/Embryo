@@ -167,7 +167,7 @@ def runtime_kwargs():
         "summary_from_date": FROM_DATE, "summary_to_date": TO_DATE,
         "detail_from_date": FROM_DATE, "detail_to_date": TO_DATE,
         "warehouse_actor": ACTORS["warehouse"], "monthly_actor": ACTORS["monthly"], "detail_actor": ACTORS["detail"],
-        "snapshot_id": SNAPSHOT, "preflight": preflight(),
+        "snapshot_id": SNAPSHOT, "preflight": preflight(), "page_length": 2,
     }
 
 
@@ -183,6 +183,7 @@ class StockOracleReferenceTests(unittest.TestCase):
         loaded = ref.validate_reference_manifest(manifest, cache)
         validation = ref.validate_runtime_match(loaded, **runtime_kwargs())
         self.assertTrue(validation["passed"], validation)
+        self.assertFalse(ref.validate_runtime_match(loaded, **dict(runtime_kwargs(), page_length=3))["passed"])
         with tempfile.TemporaryDirectory() as td:
             staged = compare.stage_reference_checkpoint(loaded, "summary-warehouse", "stock", Path(td))
             self.assertEqual(staged["implementation"], "stock")

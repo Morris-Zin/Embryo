@@ -3,6 +3,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import candidate_stock_oracle_compare as c
@@ -69,6 +70,27 @@ def make_candidate_checkpoint(out, rows, page_length=2):
     checkpoint.update(evidence)
     (out / "checkpoint-detail-candidate.json").write_text(json.dumps(checkpoint, indent=2, sort_keys=True) + "\n")
     return checkpoint
+
+
+class WorkerIsolationTests(unittest.TestCase):
+    def test_stale_success_blocks_new_worker(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(c.subprocess, "run") as run:
+            out = Path(td)
+            (out / "checkpoint-detail-candidate.json").write_text("{}")
+            with self.assertRaises(FileExistsError):
+                c.run_report_worker("Fast Gross Profit", {}, ACTOR, 50, "candidate", out, "detail", "detail")
+            run.assert_not_called()
+
+    def test_nonzero_exit_cannot_publish_success(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            def failed_worker(*args, **kwargs):
+                (out / "checkpoint-detail-candidate.json").write_text('{"schema_version":"oracle-detail-checkpoint-v1"}')
+                return c.subprocess.CompletedProcess([], 1)
+            with mock.patch.object(c.subprocess, "run", side_effect=failed_worker):
+                result = c.run_report_worker("Fast Gross Profit", {}, ACTOR, 50, "candidate", out, "detail", "detail")
+            self.assertEqual(result["worker_exitcode"], 1)
+            self.assertNotEqual(result["schema_version"], "oracle-detail-checkpoint-v1")
 
 
 class DetailStreamingTests(unittest.TestCase):

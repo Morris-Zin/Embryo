@@ -929,6 +929,7 @@ def capture_detail(req, oracle, credentials, response_dir):
     source_rows = parts["rows"] if parts is not None else []
     source_columns = parts["columns"] if parts is not None else []
     source_sha = sha256_bytes(response.body)
+    ordered_sha = canonical_json_streaming_sha256([source_columns, source_rows]) if parts else ""
     observations = []
     cache_entries = {}
     page_digests = []
@@ -965,6 +966,7 @@ def capture_detail(req, oracle, credentials, response_dir):
             "response_sha256": body_sha,
             "response_artifact": artifact_name,
             "oracle_full_response_sha256": source_sha,
+            "oracle_source_columns_rows_sha256": ordered_sha,
             "derivation": "exact contiguous row slice of one synchronous oracle detail result; Frappe query_report.run does not paginate start/page_length",
             "hash_canonicalization": "canonical-json-v1([columns,result])",
             "key_payload": key_payload,
@@ -1109,7 +1111,7 @@ def cache_index_provenance(req):
     }
 
 
-def write_cache_index(cache_entries, artifact_dir, req):
+def write_cache_index(cache_entries, artifact_dir, req, verification=None):
     responses = {}
     for key, entry in cache_entries.items():
         if entry is None:
@@ -1130,6 +1132,8 @@ def write_cache_index(cache_entries, artifact_dir, req):
         "provenance": cache_index_provenance(req),
         "responses": responses,
     }
+    if verification:
+        index["verification"] = verification
     atomic_write_json(artifact_dir / "oracle-cache-index.json", index)
 
 
@@ -1151,12 +1155,34 @@ def capture_oracle(req, skip_export=False):
     freshness = assess_freshness(req)
     observations = []
     cache_entries = {}
+    verification = None
     if freshness["exact_static_snapshot"]:
         for group, actor in (("Warehouse", "summary_warehouse"), ("Monthly", "summary_monthly")):
             rows, cache = capture_report(req, oracle, credentials, actor, group, req["report_windows"]["year_to_date"], response_dir)
             observations.extend(rows)
             cache_entries.update(cache)
         rows, cache = capture_detail(req, oracle, credentials, response_dir)
+        if req["integration"].get("fail_closed_on_cache_miss") and all(row.get("ok") for row in rows):
+            verify_dir = artifact_dir / "detail-independent-repeat"
+            verify_dir.mkdir()
+            repeated, _ = capture_detail(req, oracle, credentials, verify_dir)
+            def signature(row):
+                return (row.get("cache_key"), row.get("response_sha256"),
+                        row.get("oracle_source_columns_rows_sha256"))
+            if (oracle_report_name(req) != "Gross Profit" or not rows
+                    or not all(row.get("ok") for row in repeated)
+                    or not all(re_full_hash(signature(row)[2]) for row in rows)
+                    or list(map(signature, rows)) != list(map(signature, repeated))):
+                raise RequestError("independent stock detail capture did not match")
+            verification = {
+                "schema_version": STOCK_DETAIL_VERIFICATION_SCHEMA,
+                "detail_source_report": "Gross Profit",
+                "stock_detail_rows_sha256": signature(rows[0])[2],
+                "detail_stock_double_execution_ordered_hash_equal": True,
+                "snapshot_id": req["fixture_sha256"],
+                "detail_cache_keys": {str(row["page"]): {"cache_key": row["cache_key"],
+                    "response_sha256": row["response_sha256"]} for row in rows},
+            }
         observations.extend(rows)
         cache_entries.update(cache)
         rows, cache = capture_export(req, oracle, credentials, response_dir, skip_export=skip_export)
@@ -1169,7 +1195,7 @@ def capture_oracle(req, skip_export=False):
             "reason": freshness["reason"],
             "group": "freshness",
         })
-    write_cache_index(cache_entries, artifact_dir, req)
+    write_cache_index(cache_entries, artifact_dir, req, verification)
     capture = {
         "schema_version": "manager-oracle-capture-v1",
         "captured_at": utc_now(),
@@ -1597,7 +1623,7 @@ def make_handler(state):
                 value = self.headers.get(name)
                 if value and (include_body_headers or name not in ("Content-Type",)):
                     headers[name] = value
-            if "X-Frappe-Site-Name" not in headers and state.req.get("site"):
+            if state.req.get("site"):
                 headers["X-Frappe-Site-Name"] = state.req["site"]
             return headers
 
@@ -1710,6 +1736,21 @@ def make_handler(state):
                 key, key_payload = request_cache_key(kind, user, method, fields, query)
             except Exception as exc:
                 self.reject(400, f"manager request could not be canonically interpreted: {exc}", "manager_request_reject", kind, started, active)
+                return
+
+            if not user or user.casefold() not in state.manager_users:
+                self.reject(403, "manager login required", "session_reject", kind, started, active)
+                return
+            identity = http_request(state.req["oracle"]["base_url"], "GET",
+                "/api/method/frappe.auth.get_logged_user", headers={
+                    "Cookie": "sid=" + sid, "X-Frappe-Site-Name": state.req["site"],
+                    "Accept": "application/json"}, timeout=30)
+            try:
+                payload = json.loads(identity.body) if identity.status == 200 else None
+            except (ValueError, UnicodeError):
+                payload = None
+            if not isinstance(payload, dict) or payload.get("message") != user:
+                self.reject(403, "oracle session is no longer valid", "session_reject", kind, started, active)
                 return
 
             filters = {}
@@ -1942,7 +1983,9 @@ def verify(req):
         key = obs["cache_key"]
         rows = external_by_key.get(key, [])
         matched = bool(rows)
-        exact = matched and any(row.get("sha256") == obs.get("sha256") for row in rows)
+        exact = matched and bool(obs.get("sha256")) and all(
+            row.get("status") == 200 and row.get("sha256") == obs["sha256"] for row in rows
+        )
         group = obs.get("group")
         if exact:
             covered.add("manager_detail" if group == "manager_detail" else group)
@@ -1964,7 +2007,8 @@ def verify(req):
     if export_in_timed_load:
         required.add("export_complete")
     coverage_ok = required <= covered and detail_exact == detail_needed
-    all_exact = bool(comparisons) and all(row["exact"] for row in comparisons)
+    timed = [row for row in comparisons if export_in_timed_load or row["group"] != "export_complete"]
+    all_exact = bool(timed) and all(row["exact"] for row in timed)
     unsupported = []
     for obs in capture.get("observations", []):
         if not obs.get("ok"):
@@ -1972,7 +2016,8 @@ def verify(req):
     export_events = {"export_enqueue", "export_complete", "export_reject", "export_not_run"}
     timed_unsupported = [row for row in unsupported if export_in_timed_load or row.get("event") not in export_events and row.get("group") != "export_complete"]
     export_unsupported = [row for row in unsupported if row.get("event") in export_events or row.get("group") == "export_complete"]
-    export_exact = any(row["group"] == "export_complete" and row["exact"] for row in comparisons)
+    export_rows = [row for row in comparisons if row["group"] == "export_complete"]
+    export_exact = bool(export_rows) and all(row["exact"] for row in export_rows)
     export_capability_passed = export_exact and not export_unsupported
     measured_passed = coverage_ok and all_exact and not timed_unsupported
     verdict = {
@@ -1985,7 +2030,8 @@ def verify(req):
         "export_in_timed_load": export_in_timed_load,
         "export_capability_passed": export_capability_passed,
         "coverage_ok": coverage_ok,
-        "all_oracle_observations_exact": all_exact,
+        "all_oracle_observations_exact": bool(comparisons) and all(row["exact"] for row in comparisons),
+        "all_timed_observations_exact": all_exact,
         "detail_pages_exact": detail_exact,
         "detail_pages_required": detail_needed,
         "covered_groups": sorted(covered),
@@ -2060,7 +2106,7 @@ def command_main(argv=None):
     else:
         result = sync_status(req)
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False))
-    return 0
+    return 1 if args.command == "verify" and not result["passed"] else 0
 
 
 def main():

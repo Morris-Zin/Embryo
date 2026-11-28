@@ -89,6 +89,9 @@ class FakeOracleHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if path == "/api/method/frappe.auth.get_logged_user":
+            self.send(200, json.dumps({"message": self.headers.get("Cookie", "").removeprefix("sid=sid-")}))
+            return
         if path.rstrip("/") == "/app":
             self.send(200, "<html><script>frappe.csrf_token = 'unit-csrf';</script></html>", "text/html")
             return
@@ -173,6 +176,7 @@ class ManagerOffloadTests(unittest.TestCase):
         self.assertIn("cashier", freshness["reason"])
 
     def test_capture_verify_and_exact_cache_replay(self):
+        self.request["integration"]["fail_closed_on_cache_miss"] = True
         req = mo.validate_trial_request(self.request)
         with mock.patch.dict(os.environ, {"MANAGER_TEST_CREDS": json.dumps(self.credentials)}):
             capture = mo.capture_oracle(req)
@@ -226,6 +230,11 @@ class ManagerOffloadTests(unittest.TestCase):
             )
             self.assertEqual(json_enqueue.status, 200)
             self.assertEqual(json_enqueue.header("X-Khitmee-Offload-Cache"), "hit")
+            for invalid_sid in ("unrecognized", sid):
+                with mock.patch.object(FakeOracleHandler, "do_GET", lambda handler: handler.send(403, "{}")):
+                    denied = mo.frappe_get_method(base, "unit.download_profit_csv_export", urlencode({"export_log_name": "EXP-1"}), invalid_sid)
+                self.assertEqual(denied.status, 403)
+
         finally:
             server.shutdown()
             server.server_close()
@@ -314,10 +323,10 @@ class ManagerOffloadTests(unittest.TestCase):
         }
         mo.atomic_write_json(artifact / "oracle-capture.json", capture)
         events = [
-            {"event": "external_response", "cache_key": "wh", "sha256": "a", "cache": "hit"},
-            {"event": "external_response", "cache_key": "mo", "sha256": "b", "cache": "hit"},
-            {"event": "external_response", "cache_key": "d0", "sha256": "c", "cache": "hit"},
-            {"event": "external_response", "cache_key": "d1", "sha256": "d", "cache": "hit"},
+            {"event": "external_response", "status": 200, "cache_key": "wh", "sha256": "a", "cache": "hit"},
+            {"event": "external_response", "status": 200, "cache_key": "mo", "sha256": "b", "cache": "hit"},
+            {"event": "external_response", "status": 200, "cache_key": "d0", "sha256": "c", "cache": "hit"},
+            {"event": "external_response", "status": 200, "cache_key": "d1", "sha256": "d", "cache": "hit"},
         ]
         with (artifact / "external-events.jsonl").open("w", encoding="utf-8") as handle:
             for event in events:
@@ -327,6 +336,14 @@ class ManagerOffloadTests(unittest.TestCase):
         self.assertTrue(verdict["measured_scope_passed"])
         self.assertFalse(verdict["export_capability_passed"])
         self.assertEqual(verdict["export_parity_rejects"][0]["reason"], "method absent")
+
+        capture["observations"][-1] = {"ok": True, "group": "export_complete", "cache_key": "export", "sha256": "e"}
+        mo.atomic_write_json(artifact / "oracle-capture.json", capture)
+        self.assertTrue(mo.verify(req)["measured_scope_passed"])
+        with (artifact / "external-events.jsonl").open("a") as handle:
+            handle.write(mo.json_dumps(dict(events[0], sha256="wrong")) + "\n")
+        self.assertFalse(mo.verify(req)["passed"])
+
 
 
     def test_fail_closed_cache_miss_does_not_query_upstream(self):

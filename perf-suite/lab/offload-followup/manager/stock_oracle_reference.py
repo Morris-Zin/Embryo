@@ -749,7 +749,7 @@ def validate_reference_manifest(manifest_path, cache_root, validate_artifacts=Tr
     return StockReference(manifest, manifest_path, cache_root, sha256_file(manifest_path))
 
 
-def validate_runtime_match(reference, *, site, company, summary_from_date, summary_to_date, detail_from_date, detail_to_date, warehouse_actor, monthly_actor, detail_actor, snapshot_id, preflight):
+def validate_runtime_match(reference, *, site, company, summary_from_date, summary_to_date, detail_from_date, detail_to_date, warehouse_actor, monthly_actor, detail_actor, snapshot_id, preflight, page_length):
     coverage = reference.manifest.get("coverage") or {}
     actors = coverage.get("actors") or {}
     errors = []
@@ -757,6 +757,7 @@ def validate_runtime_match(reference, *, site, company, summary_from_date, summa
         if not condition:
             errors.append({"kind": kind, **data})
 
+    check(page_length == coverage.get("detail_page_length"), "detail_page_length_mismatch")
     check(site == coverage.get("site"), "site_mismatch")
     check(company == coverage.get("company"), "company_mismatch")
     check(snapshot_id == coverage.get("snapshot_id"), "snapshot_mismatch")

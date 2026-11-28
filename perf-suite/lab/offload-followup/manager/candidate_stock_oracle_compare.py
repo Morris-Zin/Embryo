@@ -866,13 +866,15 @@ def run_report_worker(report_name, filters, user, page_length, implementation, o
         "--page-length", str(page_length),
         "--snapshot-id", RUNTIME_SNAPSHOT_ID,
     ]
+    success_path = out / f"checkpoint-{case_id}-{implementation}.json"
+    error_path = out / f"checkpoint-{case_id}-{implementation}-error.json"
+    if any(os.path.lexists(path) for path in (success_path, error_path)):
+        raise FileExistsError(f"checkpoint already exists for {case_id}/{implementation}")
     parent_started_utc = utc_now()
     started = time.monotonic()
     completed = subprocess.run(cmd, check=False)
     parent_finished_utc = utc_now()
-    success_path = out / f"checkpoint-{case_id}-{implementation}.json"
-    error_path = out / f"checkpoint-{case_id}-{implementation}-error.json"
-    for path in (success_path, error_path):
+    for path in ((error_path,) if completed.returncode else (error_path, success_path)):
         if path.exists():
             artifact = json.loads(path.read_text(encoding="utf-8"))
             artifact["worker_exitcode"] = completed.returncode
@@ -1702,6 +1704,7 @@ def main():
                     detail_actor=args.detail_actor,
                     snapshot_id=args.snapshot_id,
                     preflight=preflight,
+                    page_length=args.page_length,
                 )
                 if not runtime_validation.get("passed"):
                     raise ReferenceValidationError("runtime provenance mismatch: " + json.dumps(runtime_validation.get("mismatches"), sort_keys=True))
