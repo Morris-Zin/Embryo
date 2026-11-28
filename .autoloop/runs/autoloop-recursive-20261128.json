@@ -7,6 +7,33 @@
   "base_branch": "feat/backend-2gb-proof",
   "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
   "check_timings": {
+    "all-shards": [
+      {
+        "at": "2026-11-28T17:55:41Z",
+        "head_sha": "b4a565073000e00fa64ab04d2585a046af71ebe4",
+        "passed": true,
+        "steps": {
+          "admission #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/admission": 0.925,
+          "fast_check.py": 6.886,
+          "fast_check.py/autoloop_lint": 4.748,
+          "fast_check.py/bash": 0.151,
+          "fast_check.py/compose": 0.219,
+          "fast_check.py/guardrails": 4.72,
+          "fast_check.py/javascript": 0.045,
+          "fast_check.py/knip": 0.953,
+          "fast_check.py/python": 6.788,
+          "fast_check.py/ruff_and_dev_deps": 0.049,
+          "fast_check.py/zizmor_workflows": 0.308,
+          "integration #2: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/integration_tests": 8.844,
+          "profile #3: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/profile": 0.143,
+          "proofs #4: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/proofs": 1.483,
+          "rdocs #5: python -B tools/autoloop/cli.py lint": 1.365,
+          "receipts #6: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/receipts": 1.125,
+          "supervision #7: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.059,
+          "verification #8: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.183
+        }
+      }
+    ],
     "shard:admission": [
       {
         "at": "2026-11-28T16:11:42Z",
@@ -617,13 +644,19 @@
         "warning_count": 0
       },
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T17:55:41Z",
+      "code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
-  "last_integrated_branch": null,
-  "last_integrated_detached": null,
-  "last_integrated_sha": null,
-  "last_integrated_worktree": null,
+  "last_integrated_branch": "feat/autoloop-recursive",
+  "last_integrated_detached": false,
+  "last_integrated_sha": "b4a565073000e00fa64ab04d2585a046af71ebe4",
+  "last_integrated_worktree": "/root/gate/Recur",
   "limits": {
     "max_replan_count": 1,
     "max_safeguard_prose_lines": 15,
@@ -661,21 +694,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
-      "passed_code_tree_sha256": "1f744ccf7091052a079b3b8b58d158df7bef63960286c0cbeeaa22a7d88ffcdf",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
-          "proofs": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
-          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
-          "supervision": "f47da12f74e818d9ba86a29389bf897d9957b48d",
-          "verification": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d"
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "4fe3181614cdac2b89c4d6a903761a1b48daab2749070549a15960809ecfaaab",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -708,16 +741,15 @@
         "fast_check_ran": true,
         "policy_shas": {
           "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
           "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
           "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
           "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
           "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "d6219b4fbdb26c457f252bab9c2e9338982b79dbb5dbffe2b27ff8bc47fe9770",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -740,15 +772,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "0491ea278225107eac64dadce640a8c63428e865",
-      "passed_code_tree_sha256": "1468dbf63308f5ae91fb583d08402f33262badf19ddd4869cf2a8a6df4f58c13",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
-        "policy_shas": {},
-        "sha256": "5cba0756412a71bbe712cac4a78d0c93870f1df40c4b5714ca06d14bccb54351",
+        "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
+          "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
+        },
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -771,21 +809,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
-      "passed_code_tree_sha256": "9e6505137db318ea67555a072f196fdec248b7e3999fd82481634fdb8d164068",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
           "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
           "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
           "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
           "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "e0053de6e0b853253c8eb183208a33229c6a64265719e6fd331519caf4002516",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -808,19 +846,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "17a77d8809ed0aa28c32fc5db459b898ef63cf41",
-      "passed_code_tree_sha256": "40d1757f883308e61bf0ee6e7962dac7eb7ab194ea0cb2e32f2e1ed128d4fd20",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
+          "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
-          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
-          "verification": "37275c867a31abd019fa7692dc67d7cd176ce3e3"
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "91906db19108a8a3d44beb7e11b701ab10ff7d50196b41da71f0d70c483a3265",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -844,21 +884,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "5800e686c9c7ec00539996d9ff591404401925fb",
-      "passed_code_tree_sha256": "60dbed2d66e6657fe976de67d1394cf520d1d7fc106cd274712c203da4db0e5b",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
           "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
-          "proofs": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
-          "supervision": "f47da12f74e818d9ba86a29389bf897d9957b48d",
-          "verification": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d"
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
+          "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "831abea992ce2b6f47964f8a5db16db514a436a033693b265c5abad3b80a2895",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -881,21 +921,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "2fcfb4852d17276ecaba110691149d79d158d2be",
-      "passed_code_tree_sha256": "59230caf498930aaba09e52ecb8e1ceb31924b7bc4646a44640f37d0a5eeaa9d",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
           "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
-          "proofs": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
           "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
-          "verification": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d"
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "b049da6d656652478732c1dbfaffdd36c89a83d73595f81ef3f8e563138574fe",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -918,21 +958,21 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "6812114c51321cf4a734da7f2df9e1d947ebd119",
-      "passed_code_tree_sha256": "076221599662ac8ef11319b6bc420d2c89ed2e7ce79cf674ea2fdd0e11b6bfdb",
+      "passed_code_tree_sha256": "75995bec25cc80e83432c0ec64018292b3156822198e7082dee544a0e071aa84",
       "passed_tooling": {
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
         "fast_check_ran": true,
         "policy_shas": {
           "admission": "f378220a75ea4bf9d93cadafca1ec1e78699874d",
+          "integration": "80cb46fdcced9d7a02eee8086d1ba81d8d07821f",
           "profile": "0491ea278225107eac64dadce640a8c63428e865",
-          "proofs": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
+          "proofs": "8674f0a5ad5c2c71c9b2ef6dc10bee2950e1efaa",
           "receipts": "5800e686c9c7ec00539996d9ff591404401925fb",
-          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be"
+          "supervision": "2fcfb4852d17276ecaba110691149d79d158d2be",
+          "verification": "6812114c51321cf4a734da7f2df9e1d947ebd119"
         },
-        "sha256": "184ac0e4c22c5b95c38a173f60ff1c82863135b32c8a723f9fe64110f2475c0d",
+        "sha256": "ce6db5d502e70e2587477e87b653f73cfa18aad7e34ebe44fca68cc7afcad8df",
         "static_lint": {
-          "base_counts": {},
-          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
           "head_counts": {},
           "warning_count": 0
         }
@@ -945,7 +985,7 @@
       "worktree_path": "/root/gate/wt/verification"
     }
   },
-  "status": "in_progress",
+  "status": "gate_passed",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T17:54:18Z"
+  "updated_at": "2026-11-28T17:55:41Z"
 }
