@@ -416,6 +416,13 @@
       "event": "start-shard",
       "shard": "verification",
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T03:19:22Z",
+      "code_tree_sha256": "6f2c52cde9b5612de5a157f6227e9aa6dfe3e913ecd738e57badc41c937e78e3",
+      "event": "shard-passed",
+      "shard": "verification",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -587,17 +594,17 @@
         "python -B -m unittest tools.test_fast_check_guardrails"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "60f72730a23fbebbc449312592c8959b290abf5f",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "3a39c2717db28d814fca91750b5134fc5b9465a9",
+      "passed_code_tree_sha256": "6f2c52cde9b5612de5a157f6227e9aa6dfe3e913ecd738e57badc41c937e78e3",
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "in_progress",
+  "status": "gate_passed",
   "total_attempts": 1,
-  "updated_at": "2026-11-28T03:19:16Z"
+  "updated_at": "2026-11-28T03:19:22Z"
 }
