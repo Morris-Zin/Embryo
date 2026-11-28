@@ -33,6 +33,7 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
         result.notices.append(
             ScanNotice(provider, "codex_rollout", f"{len(compressed)} compressed .zst rollout files not decoded by the stdlib adapter", "warning")
         )
+    unknown_time_activities = 0
     for path in files:
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -42,6 +43,8 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
         cwd: str | None = None
         turn_models: dict[str, str] = {}
         turn_sequence: dict[str, int] = {}
+        turn_times: dict[str, str] = {}
+        session_time: str | None = None
         calls: dict[str, dict[str, Any]] = {}
         malformed = 0
         project_hit_file = project_text_hit(project_filter, str(path))
@@ -57,6 +60,7 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
             obj_type = obj.get("type")
             if obj_type == "session_meta":
                 session_id = str(payload.get("session_id") or payload.get("id") or session_id)
+                session_time = session_time or (obj.get("timestamp") if isinstance(obj.get("timestamp"), str) else None)
                 cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else cwd
                 project_hit_file = project_hit_file or project_text_hit(project_filter, cwd)
             elif obj_type == "turn_context":
@@ -64,6 +68,8 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
                 model = payload.get("model")
                 if turn_id and isinstance(model, str):
                     turn_models[str(turn_id)] = model
+                if turn_id and isinstance(obj.get("timestamp"), str):
+                    turn_times[str(turn_id)] = obj["timestamp"]
                 if isinstance(payload.get("cwd"), str):
                     cwd = payload.get("cwd")
                     project_hit_file = project_hit_file or project_text_hit(project_filter, cwd)
@@ -95,6 +101,8 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
                     granularity="request",
                     observed_at=observed,
                     native_session_id=str(payload.get("session_id") or payload.get("thread_id") or session_id),
+                    native_request_id=response_id,
+                    native_turn_id=turn_id,
                     model=turn_models.get(turn_id or ""),
                     turn=turn_sequence.get(turn_id or ""),
                     cached_input=cached,
@@ -130,11 +138,17 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
                 turn_id = call.get("turn_id")
                 if turn_id and str(turn_id) not in turn_sequence:
                     turn_sequence[str(turn_id)] = len(turn_sequence) + 1
+                activity_time = obj.get("timestamp") or call.get("observed") or turn_times.get(str(turn_id or "")) or session_time
+                if activity_time is None:
+                    unknown_time_activities += 1
+                    continue
+                if not is_since(activity_time, since_dt):
+                    continue
                 activity = ToolActivity(
                     provider=provider,
                     source="codex_rollout",
                     activity_id=f"codex-tool:{session_id}:{call_id or line_number}",
-                    observed_at=obj.get("timestamp") or call.get("observed"),
+                    observed_at=activity_time,
                     native_session_id=session_id,
                     turn=turn_sequence.get(str(turn_id or "")),
                     tool_name=str(call.get("name") or "unknown"),
@@ -146,4 +160,8 @@ def read_codex_rollouts(codex_home: object, since: str, project_filter: str | No
                 result.activities.append(activity)
         if malformed:
             result.notices.append(ScanNotice(provider, "codex_rollout", f"{malformed} malformed JSONL rows skipped in {path.name}", "warning"))
+    if unknown_time_activities:
+        result.notices.append(
+            ScanNotice(provider, "codex_rollout", f"{unknown_time_activities} unknown-time tool activities excluded from windowed stats", "warning")
+        )
     return result

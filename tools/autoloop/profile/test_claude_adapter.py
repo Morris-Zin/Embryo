@@ -70,6 +70,27 @@ class ClaudeTranscriptAdapterTest(unittest.TestCase):
         self.assertEqual(len(activity.read_path_hashes), 1)
         self.assertTrue(any("duplicate streamed usage rows collapsed" in notice.message for notice in scan.notices))
 
+    def test_old_tool_results_contribute_no_windowed_activities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            transcript = root / "claude-old.jsonl"
+            rows = [
+                {"type": "user", "timestamp": "2025-01-01T01:00:00Z", "sessionId": "claude-old", "message": {"role": "user", "content": "synthetic user prompt"}},
+                {
+                    "type": "assistant",
+                    "timestamp": "2025-01-01T01:00:01Z",
+                    "sessionId": "claude-old",
+                    "message": {"id": "msg-old", "content": [{"type": "tool_use", "id": "old-tool", "name": "Read", "input": {"file_path": "src/old.py"}}]},
+                },
+                {"type": "user", "timestamp": "2025-01-01T01:00:02Z", "sessionId": "claude-old", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "old-tool", "content": "old"}]}},
+            ]
+            transcript.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+            scan = read_claude_transcripts(root, "2026-11-28", "Khitmee-ERPNext")
+
+        self.assertEqual(len(scan.records), 0)
+        self.assertEqual(len(scan.activities), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

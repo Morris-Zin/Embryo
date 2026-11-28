@@ -190,6 +190,8 @@ def build_report(scan: ScanResult, since: str, project_filter: str | None) -> di
     sinks = build_sinks(scan.records, scan.activities)
     total_tokens, measured_records = _sum_tokens(scan.records)
     total_cost, cost_records = _sum_cost(scan.records)
+    unresolved_records = [record for record in scan.records if record.coverage == "unresolved_overlap"]
+    unresolved_tokens = sum(record.raw_measured_tokens() or 0 for record in unresolved_records)
     return {
         "since": since,
         "project_filter": project_filter,
@@ -197,6 +199,8 @@ def build_report(scan: ScanResult, since: str, project_filter: str | None) -> di
         "activity_count": len(scan.activities),
         "measured_token_records": measured_records,
         "measured_tokens": total_tokens,
+        "unresolved_token_records": len(unresolved_records),
+        "unresolved_tokens": unresolved_tokens if unresolved_records else 0,
         "cost": total_cost,
         "cost_records": cost_records,
         "coverage": coverage,
@@ -223,7 +227,8 @@ def render_markdown(report: dict[str, Any], top: int = 10) -> str:
     lines.append("")
     lines.append(
         f"since={report['since']} project={report.get('project_filter') or 'all'} records={report['record_count']} "
-        f"activities={report['activity_count']} measured_tokens={_fmt(report['measured_tokens'])} cost={_fmt(report['cost'])}"
+        f"activities={report['activity_count']} measured_tokens={_fmt(report['measured_tokens'])} "
+        f"unresolved_tokens={_fmt(report.get('unresolved_tokens'))} cost={_fmt(report['cost'])}"
     )
     lines.append("")
     lines.append("## Coverage")

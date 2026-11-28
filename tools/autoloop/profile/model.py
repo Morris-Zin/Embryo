@@ -12,6 +12,9 @@ class UsageRecord:
     granularity: str
     observed_at: str | None = None
     native_session_id: str | None = None
+    native_request_id: str | None = None
+    native_turn_id: str | None = None
+    covered_request_ids: tuple[str, ...] = ()
     thread_id: str | None = None
     run: str | None = None
     shard: str | None = None
@@ -50,7 +53,7 @@ class UsageRecord:
             )
         )
 
-    def measured_tokens(self) -> int | None:
+    def raw_measured_tokens(self) -> int | None:
         parts = [self.uncached_input, self.cached_input, self.cache_write, self.output]
         if all(value is None for value in parts):
             return None
@@ -58,6 +61,11 @@ class UsageRecord:
         if self.reasoning is not None and self.inclusion.get("reasoning_in_output") is False:
             total += self.reasoning
         return total
+
+    def measured_tokens(self) -> int | None:
+        if self.coverage == "unresolved_overlap":
+            return None
+        return self.raw_measured_tokens()
 
 
 @dataclass

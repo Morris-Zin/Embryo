@@ -104,6 +104,10 @@ def read_t3_state(db_path: object, since: str, project_filter: str | None = None
             }
 
         since_text = since[:10]
+        provider_turn_times: dict[str, str] = {}
+        for time_row in con.execute("select provider_turn_id, coalesce(started_at, completed_at, '') as observed from orchestration_v2_projection_provider_turns"):
+            if time_row["provider_turn_id"] and time_row["observed"]:
+                provider_turn_times[str(time_row["provider_turn_id"])] = time_row["observed"]
         for row in con.execute(
             "select * from orchestration_v2_projection_provider_turns where coalesce(started_at, completed_at, '') >= ?",
             (since_text,),
@@ -176,12 +180,11 @@ def read_t3_state(db_path: object, since: str, project_filter: str | None = None
             result.records.append(finish_record(record))
 
         tool_types = {"command_execution", "dynamic_tool", "web_search", "file_search"}
+        unknown_time_activities = 0
         for row in con.execute(
-            "select * from orchestration_v2_projection_turn_items where updated_at >= ?",
+            "select * from orchestration_v2_projection_turn_items where updated_at >= ? or updated_at is null or updated_at = ''",
             (since_text,),
         ):
-            if not is_since(row["updated_at"], since_dt):
-                continue
             item_type = str(row["type"] or "")
             if item_type not in tool_types:
                 continue
@@ -192,11 +195,23 @@ def read_t3_state(db_path: object, since: str, project_filter: str | None = None
             provider = canonical_provider(provider_thread.get("provider") or "t3")
             tool_input = payload.get("input") if "input" in payload else payload.get("arguments")
             output_value = payload.get("output") if "output" in payload else payload.get("result")
+            activity_time = (
+                row["updated_at"]
+                or payload.get("updatedAt")
+                or payload.get("completedAt")
+                or payload.get("startedAt")
+                or provider_turn_times.get(str(row["provider_turn_id"] or ""))
+            )
+            if activity_time is None:
+                unknown_time_activities += 1
+                continue
+            if not is_since(activity_time, since_dt):
+                continue
             activity = ToolActivity(
                 provider=provider,
                 source="t3_state",
                 activity_id="t3-state-item:" + str(row["turn_item_id"]),
-                observed_at=row["updated_at"],
+                observed_at=activity_time,
                 native_session_id=str(provider_thread.get("native_id")) if provider_thread.get("native_id") else None,
                 thread_id=thread_id,
                 run=str(row["run_id"] or "") or None,
@@ -210,6 +225,10 @@ def read_t3_state(db_path: object, since: str, project_filter: str | None = None
             )
             result.activities.append(activity)
             result.providers.add(provider)
+        if unknown_time_activities:
+            result.notices.append(
+                ScanNotice("t3", "t3_state", f"{unknown_time_activities} unknown-time tool activities excluded from windowed stats", "warning")
+            )
     finally:
         con.close()
     return result
