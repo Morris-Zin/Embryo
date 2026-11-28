@@ -648,6 +648,7 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
             let customer_name = detail_string(&doc, "customer_name");
             app.set_invoice_detail_name(detail_string(&doc, "name").into());
             app.set_invoice_detail_customer_title(customer_name.clone().into());
+            app.set_invoice_detail_show_currency(!customer.trim().is_empty());
             app.set_invoice_detail_status(detail_string(&doc, "status").into());
             let fields = [
                 ("Customer", customer, 0, 0, true),
@@ -876,6 +877,20 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
             }
         }
     }
+    if key == "customer" && normalized.trim().is_empty() {
+        doc["customer_name"] = serde_json::json!("");
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "Customer Name") {
+            field.value = "".into();
+        }
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
+            field.value = "".into();
+        }
+        let invoice_name = detail_string(doc, "name");
+        app.set_invoice_detail_customer_title(invoice_name.into());
+        app.set_invoice_detail_show_currency(false);
+    } else if key == "customer" {
+        app.set_invoice_detail_show_currency(true);
+    }
     let display_value = if key == "update_stock" {
         if normalized == "1" { "checked" } else { "unchecked" }.to_owned()
     } else {
@@ -990,6 +1005,11 @@ fn edit_invoice_detail_item_qty(app: &AppWindow, state: &mut PilotState, index: 
         item.qty_value = format!("{new_qty:.3}").into();
         item.amount_value = money(amount).into();
     }
+    if total < 0.0 {
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
+            field.value = "".into();
+        }
+    }
     set_detail_numeric_fields(state, &doc_snapshot);
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
@@ -1004,10 +1024,6 @@ fn edit_invoice_detail_item_rate(app: &AppWindow, state: &mut PilotState, index:
     let Ok(new_rate) = value.trim().parse::<f64>() else {
         return;
     };
-    if new_rate < 0.0 {
-        app.set_status_text("Rate cannot be negative.".into());
-        return;
-    }
     let Some(doc) = state.invoice_detail_doc.as_mut() else {
         return;
     };
@@ -1045,6 +1061,11 @@ fn edit_invoice_detail_item_rate(app: &AppWindow, state: &mut PilotState, index:
         item.amount_text = format!("$ {}", money(amount)).into();
         item.rate_value = money(new_rate).into();
         item.amount_value = money(amount).into();
+    }
+    if total < 0.0 {
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
+            field.value = "".into();
+        }
     }
     set_detail_numeric_fields(state, &doc_snapshot);
     state.invoice_detail_dirty = true;
@@ -1281,6 +1302,11 @@ fn delete_invoice_detail_items(app: &AppWindow, state: &mut PilotState) {
         doc["outstanding_amount"] = serde_json::json!(total);
         let snapshot = doc.clone();
         set_detail_numeric_fields(state, &snapshot);
+        if total <= 0.0 {
+            if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
+                field.value = "".into();
+            }
+        }
     }
     state.invoice_detail_editing_index = -1;
     app.set_invoice_detail_editing_index(-1);
@@ -1333,6 +1359,39 @@ fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
         return;
     };
     let name = detail_string(&doc, "name");
+    if detail_string(&doc, "customer").trim().is_empty() {
+        state.invoice_detail_editing_index = -1;
+        app.set_invoice_detail_editing_index(-1);
+        app.set_invoice_detail_validation_title("Missing Fields".into());
+        app.set_invoice_detail_validation_text(
+            "Please fill the following mandatory fields before saving:
+
+Customer is required.".into(),
+        );
+        app.set_status_text(
+            format!("Sales Invoice {name} validation failed: missing Customer").into(),
+        );
+        return;
+    }
+    if doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| rows.is_empty())
+        .unwrap_or(true)
+    {
+        state.invoice_detail_editing_index = -1;
+        app.set_invoice_detail_editing_index(-1);
+        app.set_invoice_detail_validation_title("Missing Fields".into());
+        app.set_invoice_detail_validation_text(
+            "Please fill the following mandatory fields before saving:
+
+Items is required.".into(),
+        );
+        app.set_status_text(
+            format!("Sales Invoice {name} validation failed: missing Items").into(),
+        );
+        return;
+    }
     if let Some((row_index, row)) =
         doc.get("items")
             .and_then(|rows| rows.as_array())
@@ -1401,6 +1460,8 @@ In Payment Schedule, Due Date is required in every row.";
         }
         Err(error) => {
             let message = error.to_string();
+            state.invoice_detail_editing_index = -1;
+            app.set_invoice_detail_editing_index(-1);
             if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, "In Words") {
                 field.value = "".into();
             }

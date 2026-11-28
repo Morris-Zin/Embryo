@@ -1,4 +1,4 @@
-import { AboutSlint, ComboBox, LineEdit, ListView } from "std-widgets.slint";
+import { AboutSlint, CheckBox, ComboBox, LineEdit, ListView } from "std-widgets.slint";
 
 export struct CatalogChoice {
     item-code: string,
@@ -1199,14 +1199,21 @@ component DetailFieldBox inherits Rectangle {
     }
     Rectangle {
         x: 0px; y: 19px; width: parent.width; height: 28px;
-        background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px;
-        if !field.editable: Text {
+        background: field.label == "Update Stock" ? transparent : #f8fafc; border-color: #e4e7ec; border-width: field.label == "Update Stock" ? 0px : 1px; border-radius: 6px;
+        if !field.editable && field.label != "Update Stock": Text {
             x: 9px; width: parent.width - 18px; height: parent.height;
             text: field.value; color: Design.text; font-size: 12px;
             font-weight: field.emphasized ? 750 : 500;
             vertical-alignment: center; overflow: elide;
         }
-        if field.editable: LineEdit {
+        if field.label == "Update Stock": CheckBox {
+            x: 9px; y: 2px; width: parent.width - 18px; height: 24px;
+            checked: field.value == "checked";
+            enabled: field.editable;
+            accessible-label: field.label;
+            toggled => { root.edited(field.label, self.checked ? "1" : "0"); }
+        }
+        if field.editable && field.label != "Update Stock": LineEdit {
             x: 3px; y: 1px; width: parent.width - 6px; height: parent.height - 2px;
             text: field.value;
             accessible-role: text-input;
@@ -1261,6 +1268,7 @@ component InvoiceDetailScreen inherits Rectangle {
     callback detail-item-delete();
     in property <int> detail-editing-index: -1;
     in property <bool> detail-item-selected: false;
+    in property <bool> detail-show-currency: true;
     in-out property <int> detail-active-tab: 0;
     background: #f4f5f7;
 
@@ -1269,14 +1277,14 @@ component InvoiceDetailScreen inherits Rectangle {
     property <length> column-width: (root.content-width - 88px) / 3;
     property <length> items-top: 150px;
     property <length> scan-top: root.items-top + 34px;
-    property <length> grid-header-top: root.scan-top + 58px;
+    property <length> grid-header-top: root.scan-top + 48px;
     property <length> row-top: root.grid-header-top + 34px;
     property <length> row-extra: root.detail-editing-index >= 0 ? 48px : 0px;
-    property <length> actions-top: root.row-top + root.detail-items.length * 38px + root.row-extra + 8px;
-    property <length> taxes-top: root.actions-top + 44px;
-    property <length> totals-heading-top: root.taxes-top + 44px;
-    property <length> totals-top: root.totals-heading-top + 30px;
-    property <length> detail-content-height: root.totals-top + 214px;
+    property <length> actions-top: root.row-top + root.detail-items.length * 38px + root.row-extra + 2px;
+    property <length> taxes-top: root.actions-top + 30px;
+    property <length> totals-heading-top: root.taxes-top + 30px;
+    property <length> totals-top: root.totals-heading-top + 24px;
+    property <length> detail-content-height: root.totals-top + 198px;
     property <string> display-status: root.detail-dirty ? "Not Saved" : root.detail-status;
 
     Rectangle { x: 0px; y: 0px; width: 57px; height: parent.height; background: #ffffff; border-color: #e4e7ec; border-width: 1px; }
@@ -1362,7 +1370,7 @@ component InvoiceDetailScreen inherits Rectangle {
             edited(label, value) => { root.detail-field-edited(label, value); }
         }
 
-        Text { x: 20px; y: 124px; width: 240px; height: 24px; text: "Currency and Price List  ›"; color: Design.text; font-size: 13px; font-weight: 650; vertical-alignment: center; accessible-label: "Currency and Price List"; }
+        Text { x: 20px; y: 124px; width: 240px; height: 24px; text: "Currency and Price List  ›"; visible: root.detail-show-currency; color: Design.text; font-size: 13px; font-weight: 650; vertical-alignment: center; accessible-label: "Currency and Price List"; }
         Text { x: 20px; y: root.items-top; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
         Rectangle { x: 20px; y: root.grid-header-top; width: root.content-width - 40px; height: 34px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; }
         Text { x: 28px; y: root.grid-header-top; width: 34px; height: 34px; text: "No."; color: Design.muted; font-size: 11px; font-weight: 700; vertical-alignment: center; }
@@ -1419,9 +1427,9 @@ component InvoiceDetailScreen inherits Rectangle {
             BrowserButton { x: 328px; y: 0px; width: 78px; height: 30px; text: "Upload"; visible: root.detail-item-selected; enabled: false; }
         }
 
-        Text { x: 20px; y: root.taxes-top; width: 240px; height: 26px; text: "Taxes and Charges  ›"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Taxes and Charges"; }
+        Text { x: 20px; y: root.taxes-top; width: 240px; height: 26px; text: "Taxes and Charges  ›"; visible: root.detail-status == "Draft"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Taxes and Charges"; }
         Text { x: 20px; y: root.totals-heading-top; width: 240px; height: 26px; text: "Totals (USD)"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Totals (USD)"; }
-        Text { x: 20px; y: root.totals-top + 174px; width: 240px; height: 26px; text: "Time Sheet List"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Time Sheet List"; }
+        Text { x: 20px; y: root.totals-top + 168px; width: 240px; height: 26px; text: "Time Sheet List"; visible: root.detail-status == "Draft"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Time Sheet List"; }
     }
 
     Flickable {
@@ -1478,6 +1486,7 @@ export component AppWindow inherits Window {
     in property <[InvoiceDetailItem]> invoice-detail-items: [];
     in property <bool> invoice-detail-dirty: false;
     in property <bool> invoice-detail-item-selected: false;
+    in property <bool> invoice-detail-show-currency: true;
     in property <string> invoice-detail-error-text: "";
     in property <string> invoice-detail-validation-text: "";
     in property <string> invoice-detail-validation-title: "";
@@ -1636,6 +1645,7 @@ export component AppWindow inherits Window {
         detail-validation-close => { root.invoice-detail-validation-close(); }
         detail-editing-index: root.invoice-detail-editing-index;
         detail-item-selected: root.invoice-detail-item-selected;
+        detail-show-currency: root.invoice-detail-show-currency;
         back-to-list => { current-screen = 2; }
         detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
         detail-save => { root.invoice-detail-save(); }

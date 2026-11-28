@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "scenario": "editable-draft",
+  "scenario": "detail-editable-draft",
   "passed": true,
   "failures": [],
   "businessOutcome": {
     "attempted": true,
     "matched": true,
-    "webVoucher": "ACC-SINV-2026-04944",
-    "nativeVoucher": "ACC-SINV-2026-04945",
+    "webVoucher": "ACC-SINV-2026-05101",
+    "nativeVoucher": "ACC-SINV-2026-05102",
     "web": {
       "docstatus": 1,
       "customer": "KM-CUST-0001",
-      "dueDate": "2026-12-20",
+      "dueDate": "2026-12-12",
       "updateStock": 1,
       "warehouse": "Dist Hub 1 - KMD",
       "totalQty": 1,
@@ -23,12 +23,21 @@
         "rate": 18.46,
         "amount": 18.46,
         "warehouse": "Dist Hub 1 - KMD"
-      }
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
     },
     "native": {
       "docstatus": 1,
       "customer": "KM-CUST-0001",
-      "dueDate": "2026-12-20",
+      "dueDate": "2026-12-12",
       "updateStock": 1,
       "warehouse": "Dist Hub 1 - KMD",
       "totalQty": 1,
@@ -40,7 +49,16 @@
         "rate": 18.46,
         "amount": 18.46,
         "warehouse": "Dist Hub 1 - KMD"
-      }
+      },
+      "items": [
+        {
+          "itemCode": "KM-00001",
+          "qty": 1,
+          "rate": 18.46,
+          "amount": 18.46,
+          "warehouse": "Dist Hub 1 - KMD"
+        }
+      ]
     },
     "mismatches": []
   },
@@ -52,15 +70,24 @@
       },
       "web": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04944",
+        "invoiceName": "ACC-SINV-2026-05101",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Draft",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:23",
+          "Posting Time": "03:40:49",
           "Payment Due Date": "2026-12-11",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -82,24 +109,47 @@
           "Get Items From",
           "Submit"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "native": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04945",
+        "invoiceName": "ACC-SINV-2026-05102",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Draft",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:23",
+          "Posting Time": "03:40:49",
           "Payment Due Date": "2026-12-11",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -121,12 +171,26 @@
           "Get Items From",
           "Submit"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "differences": []
     },
@@ -135,19 +199,28 @@
       "action": {
         "op": "detail-field",
         "label": "Payment Due Date",
-        "value": "2026-12-20"
+        "value": "2026-12-12"
       },
       "web": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04944",
+        "invoiceName": "ACC-SINV-2026-05101",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Not Saved",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:23",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:40:49",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -169,24 +242,47 @@
           "Get Items From",
           "Save"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "native": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04945",
+        "invoiceName": "ACC-SINV-2026-05102",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Not Saved",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:23",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:40:49",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -208,12 +304,26 @@
           "Get Items From",
           "Save"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "differences": []
     },
@@ -224,15 +334,24 @@
       },
       "web": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04944",
+        "invoiceName": "ACC-SINV-2026-05101",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Draft",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:41",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:41:07",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -254,24 +373,47 @@
           "Get Items From",
           "Submit"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "native": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04945",
+        "invoiceName": "ACC-SINV-2026-05102",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Taxes and Charges",
+          "Totals (USD)",
+          "Time Sheet List"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Draft",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:43",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:41:09",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -293,12 +435,26 @@
           "Get Items From",
           "Submit"
         ],
+        "gridActions": [
+          "Add row",
+          "Add multiple",
+          "Upload"
+        ],
         "editableFields": {
           "Customer": "editable",
           "Payment Due Date": "editable",
           "Update Stock": "editable",
           "Source Warehouse": "editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "differences": []
     },
@@ -309,15 +465,22 @@
       },
       "web": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04944",
+        "invoiceName": "ACC-SINV-2026-05101",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Totals (USD)"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Unpaid",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:46",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:41:13",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -337,24 +500,41 @@
           "Create",
           "Cancel"
         ],
+        "gridActions": [],
         "editableFields": {
           "Customer": "not-editable",
           "Payment Due Date": "not-editable",
           "Update Stock": "not-editable",
           "Source Warehouse": "not-editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "native": {
         "title": "Sales Invoice",
-        "invoiceName": "ACC-SINV-2026-04945",
+        "invoiceName": "ACC-SINV-2026-05102",
+        "activeTab": "Details",
+        "sections": [
+          "Currency and Price List",
+          "Items",
+          "Totals (USD)"
+        ],
         "customerTitle": "Khit Customer 0001",
         "status": "Unpaid",
         "fields": {
           "Customer": "KM-CUST-0001",
           "Customer Name": "Khit Customer 0001",
           "Posting Date": "2026-11-28",
-          "Posting Time": "02:09:48",
-          "Payment Due Date": "2026-12-20",
+          "Posting Time": "03:41:15",
+          "Payment Due Date": "2026-12-12",
+          "Scan Barcode": "",
           "Update Stock": "checked",
           "Source Warehouse": "Dist Hub 1 - KMD",
           "Total Quantity": "1",
@@ -374,12 +554,22 @@
           "Create",
           "Cancel"
         ],
+        "gridActions": [],
         "editableFields": {
           "Customer": "not-editable",
           "Payment Due Date": "not-editable",
           "Update Stock": "not-editable",
           "Source Warehouse": "not-editable"
-        }
+        },
+        "itemEditor": {
+          "open": false
+        },
+        "permissionState": "permitted",
+        "validationState": "none",
+        "confirmationState": "none",
+        "confirmationText": "",
+        "confirmationActions": [],
+        "validationText": ""
       },
       "differences": []
     }
