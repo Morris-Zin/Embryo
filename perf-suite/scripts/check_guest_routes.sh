@@ -35,12 +35,14 @@ general_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
   "$base_url/api/method/ping")"
 printf 'general_route=/api/method/ping status=%s\n' "$general_status"
 
-printf '%s' "$ADMIN_PASSWORD" | curl -fsS --max-time 10 -X POST \
+login_status="$(printf '%s' "$ADMIN_PASSWORD" | curl -sS --max-time 10 -X POST \
+  -o /dev/null -w '%{http_code}' \
   -H "Host: $SITE_NAME" \
   -c "$cookie_jar" \
   --data-urlencode "usr=Administrator" \
   --data-urlencode "pwd@-" \
-  "$base_url/api/method/login" >/dev/null
+  "$base_url/api/method/login")"
+printf 'login_route=/api/method/login status=%s\n' "$login_status"
 
 search_url="$base_url/api/method/khitmee_ops.api.search.search_items?q=KM-00001&warehouse=Shop%201%20-%20KMD&price_list=Standard%20Selling&limit=5"
 cashier_status="$(curl -sS --max-time 15 -o "$search_response" -w '%{http_code}' \
@@ -58,8 +60,8 @@ if [[ -z "$frontend_id" ]]; then
   exit 1
 fi
 
-general_line="$(docker exec "$frontend_id" sh -c "awk '/\\/api\\/method\\/ping/ { line=\$0 } END { print line }' /var/log/nginx/access.log")"
-cashier_line="$(docker exec "$frontend_id" sh -c "awk '/search_items/ { line=\$0 } END { print line }' /var/log/nginx/access.log")"
+general_line="$(docker logs "$frontend_id" 2>&1 | awk '/\/api\/method\/ping/ { line=$0 } END { print line }')"
+cashier_line="$(docker logs "$frontend_id" 2>&1 | awk '/search_items/ { line=$0 } END { print line }')"
 
 printf 'general_nginx=%s\n' "$general_line"
 printf 'cashier_nginx=%s\n' "$cashier_line"
