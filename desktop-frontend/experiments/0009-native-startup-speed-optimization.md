@@ -64,13 +64,13 @@ cp target/debug/khitmee-desktop /tmp/khitmee-desktop-base
 
 # candidate
 cd /path/to/worktree
-git checkout devin/1764435290-native-frontend-speed
+git checkout 915830c7cef85b9973278d93fd810db22a79e455
 cd desktop-frontend
 cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-opt
 ```
 
-Run the committed comparison harness from the candidate worktree root (the PR branch contains the harness fixture-isolation fix; harness/docs changes do not alter production code):
+Run the committed comparison harness from the candidate worktree root (`915830c` is pinned and contains the harness fixture-isolation fix; later commits only change docs or autoloop metadata):
 
 ```bash
 cd /path/to/worktree
