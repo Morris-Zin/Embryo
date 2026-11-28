@@ -1,0 +1,11 @@
+{
+  "applies_to": [
+    "apps/khitmee_ops/khitmee_ops/api/**"
+  ],
+  "created_at": "2026-11-28T11:59:12Z",
+  "draft": false,
+  "evidence": "cashier_correctness phase 3 profile-report.md; docs/adr/0002",
+  "kind": "perf_insight",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "Cashier throughput is bounded by the tabSeries naming lock: SLE/GL posting runs inside the hold (~16 ms/line) and 96% of Item lock waits chain to the series holder. Rust/FIFO/JSON offer under 20 ms per 200-line sale."
+}

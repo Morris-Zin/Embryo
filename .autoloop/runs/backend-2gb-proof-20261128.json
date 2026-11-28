@@ -7,12 +7,34 @@
     "tools/autoloop/**",
     ".autoloop/rules/**",
     ".devin/skills/autoloop/**",
-    ".gitattributes"
+    ".gitattributes",
+    ".claude/skills/autoloop/**",
+    ".agents/skills/autoloop/**"
   ],
   "allowed_paths": [],
   "base_branch": "main",
   "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
   "check_timings": {
+    "shard:autoloop_meta": [
+      {
+        "at": "2026-11-28T11:58:26Z",
+        "head_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 8.863,
+          "fast_check.py": 3.021,
+          "fast_check.py/autoloop_lint": 1.362,
+          "fast_check.py/bash": 0.281,
+          "fast_check.py/compose": 0.204,
+          "fast_check.py/guardrails": 2.263,
+          "fast_check.py/javascript": 0.046,
+          "fast_check.py/knip": 1.184,
+          "fast_check.py/python": 2.931,
+          "fast_check.py/ruff_and_dev_deps": 0.101,
+          "fast_check.py/zizmor_workflows": 0.338
+        }
+      }
+    ],
     "shard:verify_tooling": [
       {
         "at": "2026-11-28T11:52:57Z",
@@ -30,11 +52,46 @@
           "fast_check.py/ruff_and_dev_deps": 0.065,
           "fast_check.py/zizmor_workflows": 0.355
         }
+      },
+      {
+        "at": "2026-11-28T11:56:12Z",
+        "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 5.014,
+          "fast_check.py/autoloop_lint": 1.878,
+          "fast_check.py/bash": 0.737,
+          "fast_check.py/compose": 3.167,
+          "fast_check.py/guardrails": 1.293,
+          "fast_check.py/javascript": 0.257,
+          "fast_check.py/knip": 3.614,
+          "fast_check.py/python": 4.773,
+          "fast_check.py/ruff_and_dev_deps": 0.074,
+          "fast_check.py/zizmor_workflows": 0.326
+        }
+      },
+      {
+        "at": "2026-11-28T11:57:36Z",
+        "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.332,
+          "fast_check.py/autoloop_lint": 1.481,
+          "fast_check.py/bash": 0.855,
+          "fast_check.py/compose": 0.484,
+          "fast_check.py/guardrails": 1.115,
+          "fast_check.py/javascript": 0.043,
+          "fast_check.py/knip": 0.977,
+          "fast_check.py/python": 4.224,
+          "fast_check.py/ruff_and_dev_deps": 0.03,
+          "fast_check.py/zizmor_workflows": 0.301,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.544
+        }
       }
     ]
   },
-  "contract_revision": 2,
-  "contract_sha256": "2d30d9cd2b5db3a25e8c93ff7e2bfed3ea272b24c8a43deea2127169e2d39a64",
+  "contract_revision": 3,
+  "contract_sha256": "2603ef38bc628cdbdbc32bb7fc21617ddf79c4ba27877b6634de2a807515a14d",
   "created_at": "2026-11-28T11:25:07Z",
   "dead_ends": [],
   "findings": {},
@@ -101,6 +158,39 @@
       "event": "start-shard",
       "shard": "autoloop_meta",
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:57:36Z",
+      "code_tree_sha256": "96589d9a238313ff3fe8fd9614f91094cf7fa141fb6c2c6be79d1e0e78b54494",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:58:13Z",
+      "event": "request-contract-change",
+      "id": "amend-1",
+      "shard": "autoloop_meta"
+    },
+    {
+      "at": "2026-11-28T11:58:14Z",
+      "contract_revision": 3,
+      "decision": "approve",
+      "event": "resolve-contract-change",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:58:14Z",
+      "event": "start-shard",
+      "shard": "autoloop_meta",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:58:26Z",
+      "code_tree_sha256": "9f361fb63f8f70babf1d31241322885721f2aaf4e2566f26a17a93586debc64a",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -147,13 +237,23 @@
         "python -B -m unittest tools/autoloop/test_autoloop.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+      "passed_code_tree_sha256": "9f361fb63f8f70babf1d31241322885721f2aaf4e2566f26a17a93586debc64a",
+      "passed_tooling": {
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "verify_tooling": "d2f2d708a4006597f4bc5359c76c494ef5bd156d"
+        },
+        "sha256": "cdac36c833d637026ef2bb7764eb9178f6420e7ac92068675cc7a5e03c61a60b"
+      },
       "pending_dead_end_sig": null,
-      "status": "in_progress",
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
       "worker_strikes": 0,
-      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-62d7ec79-76849b25871cdeac"
+      "worktree_path": "/root/gate/wt/autoloop_meta"
     },
     "cashier_correctness": {
       "allowed_paths": [
@@ -295,14 +395,21 @@
       "has_passed_individually": true,
       "last_green_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
       "passed_code_tree_sha256": "96589d9a238313ff3fe8fd9614f91094cf7fa141fb6c2c6be79d1e0e78b54494",
+      "passed_tooling": {
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "fast_check_ran": true,
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31"
+      },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
+      "trusted_policy_pass_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
       "worker_strikes": 0,
-      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-a5085a3b-08bdc57dedd1d37e"
+      "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T11:52:57Z"
+  "updated_at": "2026-11-28T11:58:26Z"
 }

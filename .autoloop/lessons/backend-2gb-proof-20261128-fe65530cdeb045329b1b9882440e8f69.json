@@ -1,0 +1,12 @@
+{
+  "applies_to": [
+    "tools/**",
+    "perf-suite/**"
+  ],
+  "created_at": "2026-11-28T11:59:12Z",
+  "draft": false,
+  "evidence": "record-lesson/contract-change calls silently mis-parsed on 2026-11-28",
+  "kind": "process",
+  "run_id": "backend-2gb-proof-20261128",
+  "summary": "wsl.exe re-parses its arguments through a shell: pass multi-word arguments and $VARS via a script file, never inline."
+}
