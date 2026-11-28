@@ -559,5 +559,23 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertEqual(calls, [("ITEM-OTHER", True, False)])
 
 
+	def test_future_sle_fastpath_falls_back_when_allow_negative_stock_or_reserved_stock(self):
+		doc = _sale_doc([{"item_code": "ITEM-1", "warehouse": "WH-1"}])
+		with patch.object(voucher_fastpath, "find_pairs_with_future_sle", return_value=set()):
+			with voucher_fastpath.proven_empty_future_sle_fastpath(doc, [("ITEM-1", "WH-1")]):
+				STOCK_LEDGER_MOD.update_qty_in_future_sle(
+					{
+						"item_code": "ITEM-1",
+						"warehouse": "WH-1",
+						"voucher_type": "Sales Invoice",
+						"voucher_no": "SI-0001",
+						"posting_date": "2026-11-28",
+						"posting_time": "10:00:00",
+					},
+					allow_negative_stock=True,
+				)
+		self.assertEqual(len(self.upstream_calls), 1)
+
+
 if __name__ == "__main__":
 	unittest.main()

@@ -720,7 +720,7 @@ class TestPermissionDeduplication(unittest.TestCase):
 		try:
 			vouchers.frappe.session.user = "cashier@example.com"
 			clean_perms = SimpleNamespace(
-				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 0}},
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
 				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": None}]},
 			)
 			with (
@@ -754,12 +754,33 @@ class TestPermissionDeduplication(unittest.TestCase):
 
 			# 3) User Permission with applicable_for='Item' -> restricted
 			applicable_perms = SimpleNamespace(
-				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 0}},
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {}},
 				get_user_permissions=lambda user: {"Warehouse": [{"doc": "WH-1", "applicable_for": "Item"}]},
 			)
 			with (
 				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
 				patch.object(vouchers.frappe, "permissions", applicable_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			# 4) Zero-valued if_owner['read'] = 0 (Frappe owner-only marker) or missing read -> restricted
+			zero_if_owner_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 1, "if_owner": {"read": 0}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", zero_if_owner_perms, create=True),
+			):
+				self.assertTrue(vouchers._item_permission_restrictions_active())
+
+			no_read_perms = SimpleNamespace(
+				get_role_permissions=lambda doctype, user=None: {"read": 0, "if_owner": {}},
+				get_user_permissions=lambda user: {},
+			)
+			with (
+				patch.object(vouchers.frappe, "get_hooks", return_value={}, create=True),
+				patch.object(vouchers.frappe, "permissions", no_read_perms, create=True),
 			):
 				self.assertTrue(vouchers._item_permission_restrictions_active())
 		finally:

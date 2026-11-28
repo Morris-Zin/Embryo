@@ -158,7 +158,7 @@ def _item_search_version():
 		if raw_version is not None:
 			return str(raw_version)
 		try:
-			raw_key, seed = _seed_raw_item_search_version(cache)
+			_raw_key, seed = _seed_raw_item_search_version(cache)
 			return str(_raw_cache_get(cache, ITEM_SEARCH_VERSION_KEY) or seed)
 		except Exception:
 			pass

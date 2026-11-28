@@ -99,44 +99,56 @@ def transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items):
 	return ordered_bin_pairs(pairs)
 
 
+def _doc_rows(doc, fieldname):
+	return (doc.get(fieldname) if hasattr(doc, "get") else getattr(doc, fieldname, None)) or ()
+
+
 def document_item_codes(doc):
-	"""Return sorted, deduplicated Item codes referenced by a voucher document."""
-	items = doc.get("items") if hasattr(doc, "get") else getattr(doc, "items", None)
-	return ordered_item_codes(
-		row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None)
-		for row in (items or ())
-	)
+	"""Return sorted, deduplicated Item codes referenced by items and packed_items."""
+	codes = []
+	for fieldname in ("items", "packed_items"):
+		for row in _doc_rows(doc, fieldname):
+			codes.append(row.get("item_code") if hasattr(row, "get") else getattr(row, "item_code", None))
+	return ordered_item_codes(codes)
 
 
 def document_bin_pairs(doc):
-	"""Return sorted, deduplicated (item_code, warehouse) pairs referenced by a voucher document."""
-	items = doc.get("items") if hasattr(doc, "get") else getattr(doc, "items", None)
+	"""Return sorted, deduplicated (item_code, warehouse) pairs for items, packed_items, and internal transfers."""
 	default_wh = doc.get("set_warehouse") if hasattr(doc, "get") else getattr(doc, "set_warehouse", None)
+	default_target_wh = (
+		doc.get("set_target_warehouse") if hasattr(doc, "get") else getattr(doc, "set_target_warehouse", None)
+	)
 	default_from = (
 		doc.get("from_warehouse") if hasattr(doc, "get") else getattr(doc, "from_warehouse", None)
 	)
 	default_to = doc.get("to_warehouse") if hasattr(doc, "get") else getattr(doc, "to_warehouse", None)
 
 	pairs = []
-	for row in items or ():
-		if hasattr(row, "get"):
-			item_code = row.get("item_code")
-			warehouse = row.get("warehouse")
-			s_warehouse = row.get("s_warehouse")
-			t_warehouse = row.get("t_warehouse")
-		else:
-			item_code = getattr(row, "item_code", None)
-			warehouse = getattr(row, "warehouse", None)
-			s_warehouse = getattr(row, "s_warehouse", None)
-			t_warehouse = getattr(row, "t_warehouse", None)
+	for fieldname in ("items", "packed_items"):
+		for row in _doc_rows(doc, fieldname):
+			if hasattr(row, "get"):
+				item_code = row.get("item_code")
+				warehouse = row.get("warehouse")
+				s_warehouse = row.get("s_warehouse")
+				t_warehouse = row.get("t_warehouse")
+				target_warehouse = row.get("target_warehouse")
+			else:
+				item_code = getattr(row, "item_code", None)
+				warehouse = getattr(row, "warehouse", None)
+				s_warehouse = getattr(row, "s_warehouse", None)
+				t_warehouse = getattr(row, "t_warehouse", None)
+				target_warehouse = getattr(row, "target_warehouse", None)
 
-		if s_warehouse or t_warehouse:
-			if s_warehouse or default_from:
-				pairs.append((item_code, s_warehouse or default_from))
-			if t_warehouse or default_to:
-				pairs.append((item_code, t_warehouse or default_to))
-		elif warehouse or default_wh:
-			pairs.append((item_code, warehouse or default_wh))
+			if s_warehouse or t_warehouse:
+				if s_warehouse or default_from:
+					pairs.append((item_code, s_warehouse or default_from))
+				if t_warehouse or default_to:
+					pairs.append((item_code, t_warehouse or default_to))
+			elif warehouse or default_wh:
+				pairs.append((item_code, warehouse or default_wh))
+
+			if target_warehouse or default_target_wh:
+				pairs.append((item_code, target_warehouse or default_target_wh))
 	return ordered_bin_pairs(pairs)
 
 
