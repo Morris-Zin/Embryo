@@ -17,6 +17,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import ExitStack
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -977,15 +978,13 @@ def compare_live_gross_profit_reports(
     except (KeyError, TypeError, ValueError) as exc:
         raise ParityFailure("live GP parity requires integer currency/float precision settings") from exc
     verifier = _load_fast_verify_module()
-    return verifier.compare_financial_reports(
+    return verifier.compare_gross_profit_reports(
         fast_columns,
         fast_data,
         upstream_columns,
         upstream_data,
         currency_precision=currency_precision,
         float_precision=float_precision,
-        check_order=True,
-        check_column_metadata=True,
     )
 
 
@@ -2808,68 +2807,101 @@ def _validate_dedicated_host_dir(host_dir, description, *, is_posix, stat_fn=Non
     return resolved
 
 
-def prepare_sidecar_oracle_cache_dir(
-    host_cache,
-    target_uid=1000,
-    target_gid=1000,
-    *,
-    is_posix=None,
-    geteuid=None,
-    chown_fn=None,
-    chmod_fn=None,
-    access_fn=None,
-    stat_fn=None,
-):
-    """Ensure host oracle cache dir (and entries/) is writable by the sidecar container UID."""
+def _validate_cache_inode(info, name, *, is_directory, allowed_owners):
+    if is_directory:
+        if not stat.S_ISDIR(info.st_mode) or info.st_mode & (stat.S_ISVTX | stat.S_IWOTH):
+            raise OracleCacheDriftError(f"refusing unsafe oracle cache directory {name}")
+    elif not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise OracleCacheDriftError(f"oracle cache {name} must be a regular file with one link")
+    if (info.st_uid, info.st_gid) not in allowed_owners:
+        raise OracleCacheDriftError(
+            f"unexpected owner {info.st_uid}:{info.st_gid} for oracle cache {name}"
+        )
+
+
+def prepare_sidecar_oracle_cache_dir(host_cache, target_uid=1000, target_gid=1000):
+    """Prepare the dedicated cache using descriptors for all POSIX permission changes."""
+    caller_uid = getattr(os, "geteuid", lambda: None)()
+    posix = os.name == "posix"
+    if not posix and caller_uid == 0:
+        raise OracleCacheDriftError("secure oracle cache preparation requires POSIX descriptor support")
+    if posix:
+        if (
+            not getattr(os, "O_NOFOLLOW", 0)
+            or not getattr(os, "O_DIRECTORY", 0)
+            or not {os.open, os.mkdir, os.stat}.issubset(os.supports_dir_fd)
+            or (caller_uid != 0 and os.access not in os.supports_dir_fd)
+            or (caller_uid == 0 and not (hasattr(os, "fchown") and hasattr(os, "fchmod")))
+        ):
+            raise OracleCacheDriftError("secure oracle cache preparation requires POSIX descriptor support")
+        if caller_uid not in (0, target_uid):
+            raise OracleCacheDriftError(
+                f"oracle cache preparation for sidecar UID {target_uid} requires that UID or root "
+                f"(caller UID {caller_uid})"
+            )
+
     cache_path = _validate_dedicated_host_dir(
         host_cache,
         "oracle cache dir",
-        is_posix=is_posix,
-        stat_fn=stat_fn,
+        is_posix=posix,
     )
-    entries_path = cache_path / "entries"
-    cache_path.mkdir(parents=True, exist_ok=True)
-    _validate_dedicated_host_dir(
-        cache_path,
-        "oracle cache dir",
-        is_posix=is_posix,
-        stat_fn=stat_fn,
-    )
-    entries_path.mkdir(parents=True, exist_ok=True)
-    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
-    if not posix:
-        return str(cache_path)
-
-    euid_fn = geteuid if geteuid is not None else getattr(os, "geteuid", lambda: target_uid)
-    chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
-    chmod = chmod_fn if chmod_fn is not None else os.chmod
-    access = access_fn if access_fn is not None else os.access
-
-    targets = [cache_path, entries_path]
     manifest_file = cache_path / "manifest.json"
-    if manifest_file.is_file():
-        targets.append(manifest_file)
-
     try:
-        caller_uid = euid_fn()
-        if caller_uid == 0 and chown is not None:
-            for item in targets:
-                chown(item, target_uid, target_gid)
-                chmod(item, 0o640 if item.is_file() else 0o750)
-        elif caller_uid != target_uid:
-            raise OracleCacheDriftError(
-                f"refusing to chmod world-writable oracle cache dir {cache_path} for sidecar UID {target_uid} "
-                f"(caller UID {caller_uid}); run as UID {target_uid} or root"
+        requested_path = Path(host_cache).absolute()
+        requested_path.mkdir(parents=True, exist_ok=True, mode=0o750)
+        if not posix:
+            (cache_path / "entries").mkdir(exist_ok=True)
+            return str(cache_path)
+
+        allowed_owners = {(target_uid, target_gid)}
+        if caller_uid == 0:
+            # A new child can inherit the sidecar GID from a setgid directory.
+            allowed_owners.update({(0, os.getegid()), (0, target_gid)})
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        with ExitStack() as descriptors:
+            cache_fd = os.open(requested_path, directory_flags)
+            descriptors.callback(os.close, cache_fd)
+            _validate_cache_inode(os.fstat(cache_fd), cache_path, is_directory=True, allowed_owners=allowed_owners)
+
+            try:
+                os.mkdir("entries", mode=0o750, dir_fd=cache_fd)
+            except FileExistsError:
+                pass
+            entries_fd = os.open("entries", directory_flags, dir_fd=cache_fd)
+            descriptors.callback(os.close, entries_fd)
+            _validate_cache_inode(
+                os.fstat(entries_fd), cache_path / "entries", is_directory=True, allowed_owners=allowed_owners
             )
+            targets = [(cache_fd, 0o750), (entries_fd, 0o750)]
+
+            try:
+                manifest_info = os.stat("manifest.json", dir_fd=cache_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                # Reject special files before opening and recheck the opened inode.
+                _validate_cache_inode(manifest_info, manifest_file, is_directory=False, allowed_owners=allowed_owners)
+                manifest_fd = os.open(
+                    "manifest.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY, dir_fd=cache_fd
+                )
+                descriptors.callback(os.close, manifest_fd)
+                _validate_cache_inode(
+                    os.fstat(manifest_fd), manifest_file, is_directory=False, allowed_owners=allowed_owners
+                )
+                targets.append((manifest_fd, 0o640))
+
+            if caller_uid == 0:
+                for fd, mode in targets:
+                    os.fchown(fd, target_uid, target_gid)
+                    os.fchmod(fd, mode)
+            elif not all(os.access(".", os.W_OK, dir_fd=fd) for fd in (cache_fd, entries_fd)):
+                raise OracleCacheDriftError(
+                    f"oracle cache dir {cache_path} is not writable for sidecar UID {target_uid}"
+                )
     except OSError as exc:
         raise OracleCacheDriftError(
             f"failed to make oracle cache dir {cache_path} writable by UID {target_uid}: {exc}"
-        )
-
-    if not access(cache_path, os.W_OK) or not access(entries_path, os.W_OK):
-        raise OracleCacheDriftError(
-            f"oracle cache dir {cache_path} is not writable for sidecar UID {target_uid}"
-        )
+        ) from exc
     return str(cache_path)
 
 
