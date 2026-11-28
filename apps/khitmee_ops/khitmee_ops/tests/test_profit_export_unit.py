@@ -125,6 +125,8 @@ class FakeDB:
 			doc.update(status=status, modified=self.state.now)
 			if "`active_dedupe_key` = NULL" in query:
 				doc["active_dedupe_key"] = None
+			if "`error` = %s" in query:
+				doc["error"] = params[1]
 			if status == "Completed":
 				doc.update(artifact_published=1, exported_invoice_sha256=params[0], row_count=params[1])
 			self.row_count = 1
@@ -351,6 +353,61 @@ class ExportServiceTestCase(unittest.TestCase):
 			artifact.write(body)
 		return path
 
+	def make_heartbeat_harness(self, doc, failures):
+		connections = []
+		now = [0]
+
+		class Cursor:
+			def __init__(self):
+				self.rowcount = 0
+
+			def execute(self, query, params):
+				if failures:
+					raise failures.pop(0)
+				self.rowcount = 0
+				if doc["status"] == "Running" and params[1] == doc["name"]:
+					doc["modified"] = params[0]
+					self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def __init__(self):
+				self.commits = 0
+				self.closed = False
+
+			def cursor(self):
+				return Cursor()
+
+			def commit(self):
+				self.commits += 1
+
+			def rollback(self):
+				pass
+
+			def close(self):
+				self.closed = True
+
+		class Database:
+			def __init__(self):
+				self._conn = self.get_connection()
+				self.close_called = False
+
+			def get_connection(self):
+				connection = Connection()
+				connections.append(connection)
+				return connection
+
+			def close(self):
+				self.close_called = True
+
+		database = Database()
+		heartbeat = export_service._ExportHeartbeat(
+			doc["name"], database, now=lambda: self.state.now, monotonic=lambda: now[0]
+		)
+		return heartbeat, database, connections, now
+
 	def download(self, name="EXP-TEST"):
 		return profit_export.download_export(name)
 
@@ -478,7 +535,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 
 	def test_live_sync_export_that_heartbeats_is_not_retired_past_timeout(self):
 		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None, row_count=0)
-		self.start_heartbeat.return_value = types.SimpleNamespace(close=lambda: None)
+		self.start_heartbeat.return_value = types.SimpleNamespace(close=lambda: None, raise_if_failed=lambda: None)
 		recovery_results = []
 
 		def write(filters, path, **kwargs):
@@ -537,7 +594,68 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		doc["status"] = "Failed"
 		self.assertEqual(heartbeat.beat(), 0)
 		self.assertEqual(doc["modified"], self.state.now)
+		self.assertFalse(heartbeat._run_iteration())
+		self.assertTrue(heartbeat.terminal)
+		self.assertIsNone(heartbeat.failure)
 		heartbeat.close()
+
+	def test_transient_heartbeat_error_reconnects_and_renews(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		heartbeat, database, connections, _ = self.make_heartbeat_harness(doc, [TimeoutError("lock timeout")])
+
+		self.assertTrue(heartbeat._run_iteration())
+
+		self.assertEqual(len(connections), 2)
+		self.assertTrue(connections[0].closed)
+		self.assertIsNotNone(heartbeat.failure_started_at)
+		self.assertIsNone(heartbeat.failure)
+
+		self.assertTrue(heartbeat._run_iteration())
+
+		self.assertEqual(doc["modified"], self.state.now)
+		self.assertIsNone(heartbeat.failure_started_at)
+		self.assertIsNone(heartbeat.last_error)
+		self.assertIsNone(heartbeat.failure)
+		heartbeat.close()
+		self.assertTrue(database.close_called)
+
+	def test_persistent_heartbeat_failure_becomes_worker_failure(self):
+		doc = self.make_log(status="Running", artifact_published=0)
+		failures = [TimeoutError("lock timeout"), TimeoutError("connection dropped")]
+		heartbeat, _, _, now = self.make_heartbeat_harness(doc, failures)
+
+		self.assertTrue(heartbeat._run_iteration())
+		self.assertIsNone(heartbeat.failure)
+		now[0] = export_service.EXPORT_HEARTBEAT_FAILURE_SECONDS
+
+		self.assertFalse(heartbeat._run_iteration())
+
+		self.assertIsInstance(heartbeat.failure, export_service.ProfitExportHeartbeatError)
+		with self.assertRaisesRegex(export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON):
+			heartbeat.raise_if_failed()
+		heartbeat.close()
+
+	def test_worker_self_fails_when_heartbeat_failure_is_persistent(self):
+		doc = self.make_log(status="Queued", artifact_published=0)
+
+		def raise_heartbeat_failure():
+			raise export_service.ProfitExportHeartbeatError(export_service.EXPORT_HEARTBEAT_FAILURE_REASON)
+
+		heartbeat = types.SimpleNamespace(close=lambda: None, raise_if_failed=raise_heartbeat_failure)
+		self.start_heartbeat.return_value = heartbeat
+
+		def write(filters, path, **kwargs):
+			Path(path).write_text("Invoice\nSI-1\n", encoding="utf-8")
+			return 1
+
+		with patch.object(export_service, "write_profit_csv", side_effect=write), self.assertRaisesRegex(
+			export_service.ProfitExportHeartbeatError, export_service.EXPORT_HEARTBEAT_FAILURE_REASON
+		):
+			export_service.run_profit_csv_export(doc["name"])
+
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.EXPORT_HEARTBEAT_FAILURE_REASON)
+		self.assertFalse(os.path.exists(self.artifact_path()))
 
 	def test_missing_rq_job_recovers_an_old_queued_export(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})

@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -34,10 +35,17 @@ class ProfitExportBusyError(Exception):
 	http_status_code = 429
 
 
+class ProfitExportHeartbeatError(Exception):
+	pass
+
+
 EXPORT_DOCTYPE = "Khitmee Profit Export Log"
 EXPORT_TIMEOUT_SECONDS = 3600
 EXPORT_RECOVERY_GRACE_SECONDS = 60
 EXPORT_HEARTBEAT_INTERVAL_SECONDS = 30
+EXPORT_HEARTBEAT_RETRY_SECONDS = 5
+EXPORT_HEARTBEAT_FAILURE_SECONDS = 3 * EXPORT_HEARTBEAT_INTERVAL_SECONDS
+EXPORT_HEARTBEAT_FAILURE_REASON = "export heartbeat lost"
 EXPORT_HEARTBEAT_STALE_SECONDS = EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS
 EXPORT_RECOVERY_SCAN_LIMIT = 8
 ABANDONED_WORKER_REASON = "abandoned: worker lost"
@@ -487,17 +495,37 @@ def _open_export_heartbeat_connection():
 		password=conf.get("db_password"),
 		cur_db_name=db_name,
 	)
-	database.connect()
+	connection_settings = database.get_connection_settings()
+	database.get_connection_settings = lambda: dict(connection_settings)
+	database._conn = database.get_connection()
+	database._cursor = None
 	return database
 
 
 class _ExportHeartbeat:
-	def __init__(self, export_log_name, database, *, interval=EXPORT_HEARTBEAT_INTERVAL_SECONDS, now=None):
+	def __init__(
+		self,
+		export_log_name,
+		database,
+		*,
+		interval=EXPORT_HEARTBEAT_INTERVAL_SECONDS,
+		retry_interval=EXPORT_HEARTBEAT_RETRY_SECONDS,
+		failure_timeout=EXPORT_HEARTBEAT_FAILURE_SECONDS,
+		now=None,
+		monotonic=None,
+	):
 		self.export_log_name = export_log_name
 		self.database = database
 		self.interval = interval
+		self.retry_interval = retry_interval
+		self.failure_timeout = failure_timeout
 		self.now = now or datetime.now
-		self.error = None
+		self.monotonic = monotonic or time.monotonic
+		self.last_error = None
+		self.failure_started_at = None
+		self.failure = None
+		self.terminal = False
+		self.retry_delay = retry_interval
 		self._stop_event = threading.Event()
 		self._thread = threading.Thread(
 			target=self._run,
@@ -506,7 +534,6 @@ class _ExportHeartbeat:
 		)
 
 	def start(self):
-		self.beat()
 		self._thread.start()
 		return self
 
@@ -529,14 +556,56 @@ class _ExportHeartbeat:
 		finally:
 			cursor.close()
 
-	def _run(self):
-		while not self._stop_event.wait(self.interval):
+	def _reconnect(self):
+		connection = getattr(self.database, "_conn", None)
+		if connection is not None:
 			try:
-				if self.beat() != 1:
-					break
-			except Exception as error:
-				self.error = error
+				connection.close()
+			except Exception:
+				pass
+		try:
+			self.database._conn = None
+			self.database._conn = self.database.get_connection()
+			self.database._cursor = None
+		except Exception as error:
+			self.last_error = error
+
+	def _record_failure(self, error):
+		now = self.monotonic()
+		if self.failure_started_at is None:
+			self.failure_started_at = now
+		else:
+			self.retry_delay = min(self.retry_delay * 2, self.interval)
+		self.last_error = error
+		self._reconnect()
+		if now - self.failure_started_at >= self.failure_timeout:
+			self.failure = ProfitExportHeartbeatError(EXPORT_HEARTBEAT_FAILURE_REASON)
+
+	def _run_iteration(self):
+		try:
+			rowcount = self.beat()
+		except Exception as error:
+			self._record_failure(error)
+			return self.failure is None
+		if rowcount != 1:
+			self.terminal = True
+			return False
+		if self.failure is None:
+			self.failure_started_at = None
+			self.last_error = None
+			self.retry_delay = self.retry_interval
+		return True
+
+	def _run(self):
+		delay = 0
+		while not self._stop_event.wait(delay):
+			if not self._run_iteration():
 				break
+			delay = self.retry_delay if self.failure_started_at is not None else self.interval
+
+	def raise_if_failed(self):
+		if self.failure is not None:
+			raise self.failure
 
 	def close(self):
 		self._stop_event.set()
@@ -546,7 +615,7 @@ class _ExportHeartbeat:
 			try:
 				self.database.close()
 			except Exception as error:
-				self.error = self.error or error
+				self.last_error = self.last_error or error
 
 
 def _start_export_heartbeat(export_log_name):
@@ -923,7 +992,7 @@ def _row_values(row, fieldnames):
 MAX_EXPORT_INPUT_ROWS = 50_000
 
 
-def _write_invoice_csv(filters, path, invoice_ids, export_scope):
+def _write_invoice_csv(filters, path, invoice_ids, export_scope, heartbeat=None):
 	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 		_copy_report_filters,
 		flag_restricted_adjustment,
@@ -943,10 +1012,14 @@ def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 		fieldnames = None
 		options = {} if export_scope is None else {"export_scope": export_scope}
 		for columns, data in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids, **options):
+			if heartbeat is not None:
+				heartbeat.raise_if_failed()
 			if fieldnames is None:
 				writer.writerow(_column_headers(columns))
 				fieldnames = _column_fieldnames(columns)
 			for row in data:
+				if heartbeat is not None:
+					heartbeat.raise_if_failed()
 				if row.get("indent") == 1:
 					if row.get("restricted_adjustment"):
 						incomplete_total = True
@@ -969,10 +1042,10 @@ def _write_invoice_csv(filters, path, invoice_ids, export_scope):
 	return row_count + 1
 
 
-def write_profit_csv(filters, path, *, invoice_ids=None, export_scope=None):
+def write_profit_csv(filters, path, *, invoice_ids=None, export_scope=None, heartbeat=None):
 	group_by = (filters or {}).get("group_by") or "Invoice"
 	if group_by == "Invoice":
-		return _write_invoice_csv(filters or {}, path, invoice_ids, export_scope)
+		return _write_invoice_csv(filters or {}, path, invoice_ids, export_scope, heartbeat=heartbeat)
 
 	if invoice_ids is None:
 		from khitmee_ops.profit_summary.budget import preflight_detail_input_rows
@@ -993,6 +1066,8 @@ def write_profit_csv(filters, path, *, invoice_ids=None, export_scope=None):
 		writer = csv.writer(csv_file)
 		writer.writerow(_column_headers(columns))
 		for row in data:
+			if heartbeat is not None:
+				heartbeat.raise_if_failed()
 			writer.writerow(_row_values(row, fieldnames))
 			row_count += 1
 			if row_count % EXPORT_FLUSH_LINES == 0:
@@ -1054,7 +1129,7 @@ def run_profit_csv_export(export_log_name):
 		temporary_path, final_path = get_export_paths(export_uuid)
 		temporary_paths.append(temporary_path)
 		row_count = write_profit_csv(
-			filters, temporary_path, invoice_ids=invoice_ids, export_scope=export_scope
+			filters, temporary_path, invoice_ids=invoice_ids, export_scope=export_scope, heartbeat=heartbeat
 		)
 		if export_scope is not None:
 			scope_tmp, scope_path = _export_scope_paths(export_uuid)
@@ -1065,6 +1140,8 @@ def run_profit_csv_export(export_log_name):
 			)
 			os.replace(scope_tmp, scope_path)
 			renamed_paths.append(scope_path)
+		if heartbeat is not None:
+			heartbeat.raise_if_failed()
 		os.replace(temporary_path, final_path)
 		renamed_paths.append(final_path)
 		_commit_completed_export(
