@@ -1,0 +1,1 @@
+{"warehouse":"Dist Hub 1 - KMD","target_warehouse":"Shop 1 - KMD","transfer_mode":"direct","customer":"KM-CUST-0001","price_list":"Standard Selling","items":[{"item_code":"KM-00001","qty":1,"uom":"Nos"}],"printer_type":"voucher"}
