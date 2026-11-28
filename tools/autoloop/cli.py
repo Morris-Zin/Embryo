@@ -341,6 +341,9 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("profile", parents=[profile_parser()], add_help=False,
                    help="Profile existing local agent usage")
 
+    p_review_next = sub.add_parser("review-next", help="Print the advisory next review action")
+    p_review_next.add_argument("--run-id", required=True)
+
     # init
     p_init = sub.add_parser("init", help="Initialize a new /autoloop run in draft state")
     p_init.add_argument("--run-id", required=True)
@@ -605,6 +608,20 @@ def main(argv: list[str] | None = None) -> int:
             option = command_line[0]
             offset = (1 if "=" in option else 2) if option.startswith("--") else 0
             return profile_main(command_line[offset + 1:])
+        elif cmd == "review-next":
+            from autoloop.supervision import import_run_state, next_action
+
+            state = load_run(repo, args.run_id)
+            imported = import_run_state(state)
+            shards = tuple(state.get("shards", {}).values())
+            hashes = {shard.get("passed_code_tree_sha256") for shard in shards}
+            checks_valid = (
+                len(hashes) == 1 and None not in hashes
+                and all(shard["status"] == "passed" for shard in shards)
+                and not state.get("pending_contract_amendments")
+            )
+            contract = {**(state.get("review_supervision") or {}), "checks_valid": checks_valid}
+            _emit(next_action(imported.findings, imported.history, state.get("review_budget"), contract).to_dict())
         elif cmd == "init":
             lessons = matching_lessons(repo, args.paths)
             models = json.loads(args.models_json) if args.models_json else {}
