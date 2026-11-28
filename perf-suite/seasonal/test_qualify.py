@@ -4,6 +4,7 @@ import unittest
 import subprocess
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent
 
@@ -391,6 +392,62 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertEqual(coverage["problems"], [])
         runner = (ROOT.parent / "k6" / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn('--run-id "$RUN_ID"', runner)
+
+    def test_real_fixture_end_to_end_attribution_collector_writes_csv_and_summary(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixtures = ROOT / "fixtures" / "real"
+        lock_rows = chr(10).join([
+            "Innodb_row_lock_current_waits" + chr(9) + "0",
+            "Innodb_row_lock_time" + chr(9) + "0",
+            "Innodb_row_lock_time_avg" + chr(9) + "0",
+            "Innodb_row_lock_time_max" + chr(9) + "0",
+            "Innodb_row_lock_waits" + chr(9) + "0",
+            "",
+        ])
+
+        def snapshot(_docker_dir):
+            return {
+                "redis_cache_commandstats": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_queue_commandstats": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_cache_latency": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_queue_latency": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": lock_rows, "stderr": ""},
+            }
+
+        def fake_run(cmd, timeout=20):
+            text = " ".join(str(part) for part in cmd)
+            if "seasonal-attribution.log" in text:
+                return {"ok": True, "rc": 0, "stdout": (fixtures / "nginx-attribution.log").read_text(encoding="utf-8"), "stderr": ""}
+            if "logs" in text:
+                return {"ok": True, "rc": 0, "stdout": (fixtures / "gunicorn.log").read_text(encoding="utf-8"), "stderr": ""}
+            return {"ok": True, "rc": 0, "stdout": "", "stderr": ""}
+
+        old_snapshot, old_run = module.snapshot, module.run
+        module.snapshot, module.run = snapshot, fake_run
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                artifact = Path(td)
+                (artifact / "attribution-start.json").write_text(json.dumps(snapshot("")))
+                args = SimpleNamespace(
+                    artifact_dir=str(artifact), docker_dir="", k6_summary=str(fixtures / "k6-summary.json"),
+                    k6_log=str(fixtures / "k6-console.log"), run_id="fixture-run",
+                )
+                result = module.cmd_finish(args)
+                csv_text = (artifact / "request-attribution.csv").read_text(encoding="utf-8")
+                summary = json.loads((artifact / "attribution-summary.json").read_text(encoding="utf-8"))
+        finally:
+            module.snapshot, module.run = old_snapshot, old_run
+        self.assertEqual(result, 1)
+        self.assertIn("time,request_id,endpoint_class", csv_text.splitlines()[0])
+        self.assertEqual(csv_text.count("fixture-run-vu1-"), 4)
+        self.assertEqual(summary["k6_endpoint_request_counts"].get("search"), 4)
+        self.assertEqual(summary["endpoint_coverage"]["search"]["nginx_rows"], 4)
+        self.assertTrue(summary["endpoint_coverage"]["search"]["coverage_passed"])
+        self.assertTrue(summary["window_coverage"]["passed"], summary["window_coverage"]["problems"])
+        self.assertIn("manager_summary: missing or zero k6 request denominator", summary["collection_problems"])
+        self.assertFalse(summary["collection_passed"])
 
     def test_real_k6_summary_direct_counter_shape_is_attribution_denominator(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")

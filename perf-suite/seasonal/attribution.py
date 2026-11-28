@@ -489,8 +489,10 @@ def cmd_finish(args):
     nginx_rows, out_of_window_rows = filter_rows_to_window(run_nginx_rows, measured_start, measured_end)
     joined, missing = join_rows(nginx_rows, run_gunicorn_rows)
     with (artifact / "request-attribution.csv").open("w", newline="") as handle:
-        fieldnames = ["request_id", "endpoint_class", "method", "uri", "status", "request_time_ms", "upstream_connect_ms", "upstream_header_ms", "upstream_response_ms", "gunicorn_service_ms", "estimated_dispatch_to_entry_ms", "join_status"]
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        preferred = ["time", "request_id", "endpoint_class", "method", "uri", "status", "request_time_ms", "upstream_connect_ms", "upstream_header_ms", "upstream_response_ms", "gunicorn_service_ms", "estimated_dispatch_to_entry_ms", "join_status"]
+        present = sorted({key for row in joined for key in row.keys()})
+        fieldnames = [key for key in preferred if key in present] + [key for key in present if key not in preferred]
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="raise")
         writer.writeheader()
         writer.writerows(joined)
     joined_count = len(joined) - missing
