@@ -365,6 +365,12 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "generator_endpoint": "tcp://builder.example:2375",
                 "generator_daemon_identity": {"daemon_id": "remote-daemon", "name": "builder"},
             },
+            "environment-attestation.json": {
+                "schema_version": "seasonal-environment-attestation-v1-result",
+                "passed": True,
+                "attestation": "qualifying",
+                "problems": [],
+            },
         }.items():
             (artifact / name).write_text(json.dumps(value))
         (artifact / "resource-proof-after.exit").write_text("0" + chr(10))
@@ -429,6 +435,82 @@ class QualifyEntryPointTests(unittest.TestCase):
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+    def test_owner_environment_attestation_is_required_and_cross_checked(self):
+        spec = importlib.util.spec_from_file_location("environment_attestation", ROOT / "environment_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        guest_evidence = {
+            "online_cpu_count": 2,
+            "guest_mem_total_mib": 1980.0,
+            "guest_swap_total_bytes": 0,
+        }
+        generator_evidence = {
+            "generator_endpoint": "tcp://builder.example:2375",
+            "generator_daemon_identity": {"name": "builder"},
+        }
+
+        def write_attestation(directory, guest_memory=2048, guest_vcpus=2, swap=0, generator_host="builder", address="builder.example"):
+            data = {
+                "schema_version": "seasonal-environment-attestation-v1",
+                "attested_at": "2026-11-28T00:00:00Z",
+                "owner": "environment-owner",
+                "guest": {
+                    "host_identity": "hypervisor-a",
+                    "vm_identity": "qualification-vm",
+                    "vcpus": guest_vcpus,
+                    "assigned_memory_mib": guest_memory,
+                    "swap_mib": swap,
+                },
+                "load_generator": {"host_identity": generator_host, "address": address},
+            }
+            path = Path(directory) / "environment.json"
+            path.write_text(json.dumps(data))
+            return path
+
+        with tempfile.TemporaryDirectory() as td:
+            valid_path = write_attestation(td)
+            valid = module.validate(valid_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertTrue(valid["passed"], valid["problems"])
+
+            # Red/green trust boundary: 1980 MiB visible memory is consistent
+            # with a normal 2048 MiB assignment, but the in-guest measurement
+            # alone cannot distinguish it from an oversized/undersized assignment.
+            self.assertGreaterEqual(1980.0, 2048.0 * 0.9)
+            oversized_path = write_attestation(td, guest_memory=2112)
+            oversized = module.validate(oversized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(oversized["passed"])
+            self.assertIn("exactly 2048 MiB", " ".join(oversized["problems"]))
+            undersized_path = write_attestation(td, guest_memory=1984)
+            undersized = module.validate(undersized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(undersized["passed"])
+
+            # A distinct Docker daemon ID on the same machine would pass the
+            # round-3 daemon comparison; owner identity evidence must reject it.
+
+        decision = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "environment-attestation.json").unlink()
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["environment_attestation_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["passed"] = False
+            data["attestation"] = "diagnostic"
+            path.write_text(json.dumps(data))
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+
+        source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        self.assertIn("--environment-attestation PATH", source)
+        self.assertIn("Owner environment attestation procedure:", source)
+        self.assertTrue((ROOT / "environment-attestation.schema.json").is_file())
+        self.assertTrue((ROOT / "environment-attestation.example.json").is_file())
 
     def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
         spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")

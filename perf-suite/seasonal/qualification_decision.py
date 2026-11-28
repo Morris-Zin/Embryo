@@ -121,6 +121,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     fixture_restore = load_json(artifact / 'fixture-restore.json')
     load_generator = load_json(artifact / 'load-generator-attestation.json')
     attribution = load_json(artifact / 'attribution' / 'attribution-summary.json')
+    environment = load_json(artifact / 'environment-attestation.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -191,6 +192,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     attribution_ok = attribution.get('collection_passed') is True
     if not attribution_ok:
         evidence_problems.append('request attribution collection evidence missing or failed')
+    environment_ok = environment.get('passed') is True and environment.get('attestation') == 'qualifying'
+    if not environment_ok:
+        evidence_problems.append('owner host-environment attestation missing, inconsistent, or diagnostic only')
     actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
     fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
@@ -257,6 +261,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'attribution_collection_ok': attribution_ok,
         'attribution_collection_problems': attribution.get('collection_problems', []),
         'attribution_join_ratio': attribution.get('join_ratio'),
+        'environment_attestation_ok': environment_ok,
+        'environment_attestation': environment.get('attestation'),
+        'environment_attestation_problems': environment.get('problems', []),
         'resource_window_ok': resource_window_ok,
         'resource_window_problems': window['problems'],
         'qualification_resource_measurement_ok': resource_measurement_ok,
