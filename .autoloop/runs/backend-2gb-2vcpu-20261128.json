@@ -17,10 +17,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:49Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Master prep runs before rollback+lock, timestamps are captured strictly after lock_stock_coordinates(), and re-entrant before_submit locks cover all 6 stock doctypes in hooks.py.",
+        "why_not_static": null
+      },
       "severity": "P0",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "proven_empty_future_sle_fastpath can read a stale REPEATABLE READ MVCC snapshot opened before lock_stock_coordinates() and capture posting_time before locking; native Desk stock doctypes also lack before_submit stock locks."
+      "status": "safeguarded",
+      "summary": "proven_empty_future_sle_fastpath can read a stale REPEATABLE READ MVCC snapshot opened before lock_stock_coordinates() and capture posting_time before locking; native Desk stock doctypes also lack before_submit stock locks.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F02-voucher-fastpath-multithread-and-lazy-import-crash": {
       "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
@@ -28,10 +37,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:49Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Idempotent closure-bound dispatchers permanently capture original callables per attribute, making teardown races, NoneType crashes, RecursionError, and lazy-import poisoning structurally impossible.",
+        "why_not_static": null
+      },
       "severity": "P0",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "voucher_fastpath.py global dicts cleared on release can poison lazily-imported modules or race with concurrent threads under Gunicorn --threads=12."
+      "status": "safeguarded",
+      "summary": "voucher_fastpath.py global dicts cleared on release can poison lazily-imported modules or race with concurrent threads under Gunicorn --threads=12.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F03-perf-parity-oracle-cache-sidecar-permissions": {
       "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
@@ -39,10 +57,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/perf_parity.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:23Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "host_exec() fails closed when --oracle-cache-dir is combined with --runner exec and prepares UID-1000-writable cache permissions before launching the sidecar.",
+        "why_not_static": null
+      },
       "severity": "P1",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "tools/perf_parity.py creates --oracle-cache-dir with host umask causing PermissionError in UID 1000 sidecar, and fails to reject --oracle-cache-dir with --runner exec."
+      "status": "safeguarded",
+      "summary": "tools/perf_parity.py creates --oracle-cache-dir with host umask causing PermissionError in UID 1000 sidecar, and fails to reject --oracle-cache-dir with --runner exec.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F04-perf-parity-db-fingerprint-misses-valuation-mutations": {
       "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
@@ -50,10 +77,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/test_perf_parity_comparator.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify capture_db_fingerprint() covers Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata plus fail-closed external --oracle-manifest validation.",
+        "why_not_static": "Database fingerprint SQL coverage and external manifest digest verification depend on runtime SQL execution and JSON serialization semantics not modeled by repo static AST rules."
+      },
       "severity": "P1",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "capture_db_fingerprint() omits Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, allowing stale oracle cache hits after valuation reposts."
+      "status": "safeguarded",
+      "summary": "capture_db_fingerprint() omits Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, allowing stale oracle cache hits after valuation reposts.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F05-autopay-fastpath-loose-tolerance-and-loyalty": {
       "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
@@ -61,10 +97,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify _can_fast_sync_autopay_totals() enforces <=1e-9 exact parity on paid, payment, and base totals plus loyalty_amount == 0 before skipping recalculation.",
+        "why_not_static": "Floating-point tolerance and multi-field POS accounting invariants depend on runtime document values rather than static AST structure."
+      },
       "severity": "P2",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "_can_fast_sync_autopay_totals() allows 0.005 tolerance (5 units at precision=3) and omits loyalty_amount == 0 and base_paid_amount parity checks."
+      "status": "safeguarded",
+      "summary": "_can_fast_sync_autopay_totals() allows 0.005 tolerance (5 units at precision=3) and omits loyalty_amount == 0 and base_paid_amount parity checks.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F06-validate-items-permission-fastpath-gaps": {
       "finding_id": "F06-validate-items-permission-fastpath-gaps",
@@ -72,10 +117,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests verify _item_permission_restrictions_active() fails closed on Item has_permission hooks, if_owner role permissions, and applicable_for='Item' User Permissions.",
+        "why_not_static": "Dynamic Frappe permission hooks, role permissions, and User Permissions are evaluated at runtime and cannot be verified statically."
+      },
       "severity": "P2",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "_item_permission_restrictions_active() skips has_permission hooks for Item, if_owner role permissions, and User Permissions with applicable_for='Item'."
+      "status": "safeguarded",
+      "summary": "_item_permission_restrictions_active() skips has_permission hooks for Item, if_owner role permissions, and User Permissions with applicable_for='Item'.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F07-perf-bench-inner-duplicate-sale-items": {
       "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
@@ -83,10 +137,19 @@
       "opened_at": "2026-11-28T07:13:38Z",
       "resolved_at": "2026-11-28T07:20:51Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/test_fast_verify.py",
+        "layer": "layer_4_runtime_test",
+        "recorded_at": "2026-11-28T07:29:24Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "Unit tests assert build_sale_payload() samples without replacement so 10/50/200-line sales contain distinct item_codes.",
+        "why_not_static": "Random sampling uniqueness is a runtime payload invariant verified by executing build_sale_payload() on fixture pools."
+      },
       "severity": "P2",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "build_sale_payload() samples items with replacement, creating duplicate item_codes on 50/200-line sales and silently disabling proven_empty_future_sle_fastpath during inner-loop benchmarks."
+      "status": "safeguarded",
+      "summary": "build_sale_payload() samples items with replacement, creating duplicate item_codes on 50/200-line sales and silently disabling proven_empty_future_sle_fastpath during inner-loop benchmarks.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F08-happy-path-rollback-breaks-savepoints": {
       "finding_id": "F08-happy-path-rollback-breaks-savepoints",
@@ -94,10 +157,19 @@
       "opened_at": "2026-11-28T07:24:43Z",
       "resolved_at": "2026-11-28T07:27:08Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:25Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "_run_idempotent() skips rollback and disables future-SLE fastpath whenever transaction_writes > 0, and rollback harnesses use clean transaction rollback instead of fragile SAVEPOINTs.",
+        "why_not_static": null
+      },
       "severity": "P0",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "Unconditional frappe.db.rollback() in _run_idempotent() destroys MariaDB SAVEPOINTs in perf_parity/perf_bench_inner and can wipe outer uncommitted transaction writes."
+      "status": "safeguarded",
+      "summary": "Unconditional frappe.db.rollback() in _run_idempotent() destroys MariaDB SAVEPOINTs in perf_parity/perf_bench_inner and can wipe outer uncommitted transaction writes.",
+      "verified_at": "2026-11-28T07:29:23Z"
     },
     "F09-oracle-manifest-dir-chown-chmod-shared-tmp": {
       "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
@@ -105,10 +177,19 @@
       "opened_at": "2026-11-28T07:24:43Z",
       "resolved_at": "2026-11-28T07:27:08Z",
       "reviewer": "gemini-4-neon-high",
+      "safeguard": {
+        "artifact": "tools/perf_parity.py",
+        "layer": "layer_1_architecture",
+        "recorded_at": "2026-11-28T07:29:25Z",
+        "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+        "summary": "prepare_sidecar_oracle_manifest_dir() structurally rejects shared/system and sticky-bit parent directories before any ownership or permission call.",
+        "why_not_static": null
+      },
       "severity": "P2",
       "stage": "deep",
-      "status": "fixed_pending_review",
-      "summary": "tools/perf_parity.py::host_exec() runs chown/chmod on manifest_path.parent which can mutate or strip the sticky bit on /tmp."
+      "status": "safeguarded",
+      "summary": "tools/perf_parity.py::host_exec() runs chown/chmod on manifest_path.parent which can mutate or strip the sticky bit on /tmp.",
+      "verified_at": "2026-11-28T07:29:23Z"
     }
   },
   "goal": "Optimize Khitmee backend for full seasonal load on 2GiB RAM / 2 vCPU VPS while dramatically accelerating exact parity verification and dev inner-loop velocity",
@@ -303,6 +384,76 @@
       "at": "2026-11-28T07:27:12Z",
       "event": "submit-for-review",
       "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "safeguard_pending",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "event": "record-safeguard",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:24Z",
+      "event": "record-safeguard",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "layer": "layer_4_runtime_test",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:25Z",
+      "event": "record-safeguard",
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints",
+      "layer": "layer_1_architecture",
+      "status": "safeguard_pending"
+    },
+    {
+      "at": "2026-11-28T07:29:25Z",
+      "event": "record-safeguard",
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
+      "layer": "layer_1_architecture",
+      "status": "ready_to_merge"
     }
   ],
   "issue_number": null,
@@ -343,10 +494,99 @@
       "reviewer": "gemini-4-neon-high",
       "stage": "deep",
       "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:29:23Z",
+      "code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
     }
   ],
   "run_id": "backend-2gb-2vcpu-20261128",
-  "safeguards": [],
+  "safeguards": [
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Master prep runs before rollback+lock, timestamps are captured strictly after lock_stock_coordinates(), and re-entrant before_submit locks cover all 6 stock doctypes in hooks.py.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Idempotent closure-bound dispatchers permanently capture original callables per attribute, making teardown races, NoneType crashes, RecursionError, and lazy-import poisoning structurally impossible.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/perf_parity.py",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:23Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "host_exec() fails closed when --oracle-cache-dir is combined with --runner exec and prepares UID-1000-writable cache permissions before launching the sidecar.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/test_perf_parity_comparator.py",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify capture_db_fingerprint() covers Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata plus fail-closed external --oracle-manifest validation.",
+      "why_not_static": "Database fingerprint SQL coverage and external manifest digest verification depend on runtime SQL execution and JSON serialization semantics not modeled by repo static AST rules."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify _can_fast_sync_autopay_totals() enforces <=1e-9 exact parity on paid, payment, and base totals plus loyalty_amount == 0 before skipping recalculation.",
+      "why_not_static": "Floating-point tolerance and multi-field POS accounting invariants depend on runtime document values rather than static AST structure."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests verify _item_permission_restrictions_active() fails closed on Item has_permission hooks, if_owner role permissions, and applicable_for='Item' User Permissions.",
+      "why_not_static": "Dynamic Frappe permission hooks, role permissions, and User Permissions are evaluated at runtime and cannot be verified statically."
+    },
+    {
+      "artifact": "tools/test_fast_verify.py",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "layer": "layer_4_runtime_test",
+      "recorded_at": "2026-11-28T07:29:24Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "Unit tests assert build_sale_payload() samples without replacement so 10/50/200-line sales contain distinct item_codes.",
+      "why_not_static": "Random sampling uniqueness is a runtime payload invariant verified by executing build_sale_payload() on fixture pools."
+    },
+    {
+      "artifact": "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+      "finding_id": "F08-happy-path-rollback-breaks-savepoints",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:25Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "_run_idempotent() skips rollback and disables future-SLE fastpath whenever transaction_writes > 0, and rollback harnesses use clean transaction rollback instead of fragile SAVEPOINTs.",
+      "why_not_static": null
+    },
+    {
+      "artifact": "tools/perf_parity.py",
+      "finding_id": "F09-oracle-manifest-dir-chown-chmod-shared-tmp",
+      "layer": "layer_1_architecture",
+      "recorded_at": "2026-11-28T07:29:25Z",
+      "safeguard_code_tree_sha256": "a95d41ec21b3ef3ae605b0ce70f70a7ec7df0b666fbf96c0ef6fbee663827c3f",
+      "summary": "prepare_sidecar_oracle_manifest_dir() structurally rejects shared/system and sticky-bit parent directories before any ownership or permission call.",
+      "why_not_static": null
+    }
+  ],
   "schema_version": 1,
   "shards": {
     "cashier_backend": {
@@ -442,7 +682,7 @@
       "worktree_path": "E:\\khitmee-wt-manager-parity"
     }
   },
-  "status": "awaiting_deep_review",
+  "status": "ready_to_merge",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T07:27:12Z"
+  "updated_at": "2026-11-28T07:29:25Z"
 }
