@@ -300,7 +300,39 @@ class TestExactFinancialComparator(unittest.TestCase):
             [[20.0, 10.0]],
             currency_precision=3,
         )
-        self.assertTrue(len(mismatches) > 0, mismatches)
+        self.assertTrue(
+            any(m["kind"] == "monetary_mismatch" and m["field"] == "selling_amount" for m in mismatches),
+            mismatches,
+        )
+
+    def test_duplicate_detection_uses_precision_aware_numeric_semantics(self):
+        cols = [{"fieldname": "amount", "label": "Amount", "fieldtype": "Currency"}]
+        mismatches = fv.compare_financial_reports(
+            cols,
+            [[1.0], [1.0]],
+            cols,
+            [[1], [1]],
+            currency_precision=3,
+        )
+        self.assertEqual(mismatches, [])
+
+        below_precision = fv.compare_financial_reports(
+            cols,
+            [[1.0001], [1.0001]],
+            cols,
+            [[1.0002], [1.0002]],
+            currency_precision=3,
+        )
+        self.assertEqual(below_precision, [])
+
+        one_unit = fv.compare_financial_reports(
+            cols,
+            [[1.001], [1.001]],
+            cols,
+            [[1.0], [1.0]],
+            currency_precision=3,
+        )
+        self.assertTrue(any(m["kind"] == "monetary_mismatch" for m in one_unit), one_unit)
 
     def test_verify_all_accepts_perf_parity_cache_schema(self):
         import perf_parity
@@ -315,10 +347,20 @@ class TestExactFinancialComparator(unittest.TestCase):
                 "user": "Administrator",
                 "precision_settings": {"currency_precision": 3, "float_precision": 2},
             }
-            pc.put(key, [{"fieldname": "gross_profit", "fieldtype": "Currency"}], [{"gross_profit": 12.345}])
+            columns = [{"fieldname": "gross_profit", "fieldtype": "Currency"}]
+            pc.put(key, columns, [{"gross_profit": 12.345}])
             v = fv.StockOracleCache(tmp).verify_all()
             self.assertTrue(v["ok"], v)
             self.assertEqual(v["verified_entries"], 1)
+
+            second_key = dict(key, filters={"company": "Khit Me Distribution", "group_by": "Monthly"})
+            fast_writer = fv.StockOracleCache(tmp)
+            fast_writer.put(second_key, columns, [{"gross_profit": 22.345}])
+            manifest = json.loads((Path(tmp) / fv.MANIFEST_FILENAME).read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schema_version"], perf_parity.ORACLE_CACHE_SCHEMA_VERSION)
+            reopened = pc.get(second_key)
+            self.assertIsNotNone(reopened)
+            self.assertEqual(reopened[1], [{"gross_profit": 22.345}])
 
 
 class TestOfflineRunner(unittest.TestCase):
@@ -371,6 +413,24 @@ class TestPerfBenchInnerHelpers(unittest.TestCase):
         self.assertEqual(transfer["target"], "Shop 2")
         with self.assertRaises(ValueError):
             pbi.build_transfer_payload(pool, 10, "Shop 1", "Shop 1")
+
+    def test_gated_report_response_is_unavailable_not_successful_latency(self):
+        columns, rows, reason = pbi.split_query_report_result(
+            ([{"fieldname": "gross_profit"}], [], "Detail budget exceeded")
+        )
+        self.assertEqual(columns, [{"fieldname": "gross_profit"}])
+        self.assertEqual(rows, [])
+        self.assertEqual(reason, "Detail budget exceeded")
+
+        measurement = pbi.unavailable_report_measurement(reason, 100.0, 100.5)
+        self.assertTrue(measurement["unavailable"])
+        self.assertIsNone(measurement["wall_ms"])
+        self.assertIsNone(measurement["sql_count"])
+        self.assertEqual(measurement["reason"], reason)
+        self.assertEqual(measurement["rss_delta_mib"], 0.5)
+
+        successful = pbi.split_query_report_result((columns, [{"gross_profit": 1.0}], "ignored when rows exist"))
+        self.assertEqual(successful[2], None)
 
     def test_latency_stats_aggregation_and_empty_none(self):
         empty = pbi.compute_latency_stats([])
