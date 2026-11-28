@@ -414,7 +414,7 @@ sleep "${STATS_FLUSH_SECONDS:-1}"
 stop_stats_collector
 
 if [[ "$SCENARIO" == "seasonal" || "$SCENARIO" == "seasonal_preflight" ]]; then
-  python3 -B "$PERF_ROOT/seasonal/attribution.py" finish --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" --k6-summary "$K6_SUMMARY" --k6-log "$K6_LOG" >"$RESULT_DIR/${RUN_ID}-attribution-finish.log" 2>&1 || echo "WARNING: attribution finish collection failed" >&2
+  python3 -B "$PERF_ROOT/seasonal/attribution.py" finish --artifact-dir "$ATTRIBUTION_DIR" --docker-dir "$PERF_ROOT/docker" --k6-summary "$K6_SUMMARY" --k6-log "$K6_LOG" --run-id "$RUN_ID" >"$RESULT_DIR/${RUN_ID}-attribution-finish.log" 2>&1 || echo "WARNING: attribution finish collection failed" >&2
 fi
 
 EVAL_STATUS=0

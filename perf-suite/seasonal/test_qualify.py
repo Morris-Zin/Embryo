@@ -367,6 +367,31 @@ class QualifyEntryPointTests(unittest.TestCase):
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
+    def test_attribution_coverage_scopes_rows_to_run_and_measured_window(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        start = module.parse_iso_time("2026-01-01T10:00:00Z")
+        end = module.parse_iso_time("2026-01-01T10:10:00Z")
+
+        def row(request_id, time):
+            return {"request_id": request_id, "endpoint_class": "search", "time": time, "join_status": "joined"}
+        nginx = [
+            row("run-a-vu1-1", "2026-01-01T10:00:20Z"),
+            row("run-a-vu1-2", "2026-01-01T10:09:40Z"),
+            row("other-run-vu1-1", "2026-01-01T10:05:00Z"),
+            row("run-a-vu1-3", "2026-01-01T11:00:00Z"),
+        ]
+        scoped, _, out_of_run = module.scope_rows_to_run(nginx, {}, "run-a")
+        self.assertEqual(out_of_run, 1)
+        windowed, out_of_window = module.filter_rows_to_window(scoped, start, end)
+        self.assertEqual(out_of_window, 1)
+        self.assertEqual([row["request_id"] for row in windowed], ["run-a-vu1-1", "run-a-vu1-2"])
+        coverage = module.endpoint_coverage(windowed, {"search": 2})
+        self.assertEqual(coverage["problems"], [])
+        runner = (ROOT.parent / "k6" / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn('--run-id "$RUN_ID"', runner)
+
     def test_real_k6_summary_direct_counter_shape_is_attribution_denominator(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
         module = importlib.util.module_from_spec(spec)
