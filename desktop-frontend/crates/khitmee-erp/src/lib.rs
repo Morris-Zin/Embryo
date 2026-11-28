@@ -166,6 +166,14 @@ impl ErpClient {
         )
     }
 
+    pub fn save_sales_invoice(&self, doc: &Value) -> ErpResult<Value> {
+        self.post_method("frappe.client.save", &json!({ "doc": doc.to_string() }))
+    }
+
+    pub fn submit_sales_invoice(&self, doc: &Value) -> ErpResult<Value> {
+        self.post_method("frappe.client.submit", &json!({ "doc": doc.to_string() }))
+    }
+
     pub fn sales_invoice_count(&self, filter: &str) -> ErpResult<usize> {
         let filters = if filter.trim().is_empty() {
             json!([])

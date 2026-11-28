@@ -36,7 +36,16 @@ def find_invoice(marker):
     query = resource + "?" + urllib.parse.urlencode({
         "filters": json.dumps([["remarks", "like", f"%{marker}%"]]),
         "fields": json.dumps(["name", "docstatus"]),
-        "limit_page_length": 5,
+        "limit_page_length": 20,
+    })
+    rows = json.load(opener.open(base + query)).get("data", [])
+    return rows[0]["name"] if rows else None
+
+def find_draft_invoice(marker):
+    query = resource + "?" + urllib.parse.urlencode({
+        "filters": json.dumps([["remarks", "like", f"%{marker}%"], ["docstatus", "=", 0]]),
+        "fields": json.dumps(["name", "docstatus"]),
+        "limit_page_length": 1,
     })
     rows = json.load(opener.open(base + query)).get("data", [])
     return rows[0]["name"] if rows else None
@@ -79,4 +88,15 @@ draft_name = ensure_invoice(
     [("KM-00001", 1, 18.46)],
     submit=False,
 )
-print(json.dumps({"multi_item": multi_name, "draft": draft_name}))
+
+def ensure_editable_draft(side):
+    marker = f"migration-detail-editable-{side}-v1"
+    if existing := find_draft_invoice(marker):
+        return existing
+    import time
+    unique_marker = f"{marker}-{time.time_ns()}"
+    return ensure_invoice(unique_marker, [("KM-00001", 1, 18.46)], submit=False)
+
+web_draft = ensure_editable_draft("web")
+native_draft = ensure_editable_draft("native")
+print(json.dumps({"multi_item": multi_name, "draft": draft_name, "web_draft": web_draft, "native_draft": native_draft}))

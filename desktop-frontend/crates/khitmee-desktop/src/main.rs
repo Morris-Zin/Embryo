@@ -40,6 +40,8 @@ struct PilotState {
     print_token: String,
     runtime_config: Option<ErpRuntimeConfig>,
     erp_client: Option<ErpClient>,
+    invoice_detail_doc: Option<serde_json::Value>,
+    invoice_detail_dirty: bool,
 }
 
 #[derive(Clone)]
@@ -623,6 +625,9 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
     };
     match client.sales_invoice_detail(invoice_name) {
         Ok(doc) => {
+            state.invoice_detail_doc = Some(doc.clone());
+            state.invoice_detail_dirty = false;
+            app.set_invoice_detail_dirty(false);
             let customer = detail_string(&doc, "customer");
             let customer_name = detail_string(&doc, "customer_name");
             app.set_invoice_detail_name(detail_string(&doc, "name").into());
@@ -752,6 +757,120 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
         }
         Err(error) => {
             app.set_status_text(format!("Sales Invoice detail failed: {error}").into());
+        }
+    }
+}
+
+fn detail_login(app: &AppWindow, state: &mut PilotState) -> Option<ErpClient> {
+    let config = state.runtime_config.clone()?;
+    if state.erp_client.is_none() {
+        state.erp_client =
+            ErpClient::login(&config.base_url, &config.username, &config.password).ok();
+    }
+    if state.erp_client.is_none() {
+        app.set_status_text("ERP login failed for Sales Invoice detail".into());
+    }
+    state.erp_client.clone()
+}
+
+fn invoice_detail_field_key(label: &str) -> Option<&'static str> {
+    match label {
+        "Customer" => Some("customer"),
+        "Payment Due Date" => Some("due_date"),
+        "Update Stock" => Some("update_stock"),
+        "Source Warehouse" => Some("set_warehouse"),
+        _ => None,
+    }
+}
+
+fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &str, value: &str) {
+    if app.get_invoice_detail_status() != "Draft" {
+        app.set_status_text("Only draft Sales Invoices can be edited.".into());
+        return;
+    }
+    let Some(key) = invoice_detail_field_key(label) else {
+        return;
+    };
+    let Some(doc) = state.invoice_detail_doc.as_mut() else {
+        return;
+    };
+    let normalized = if key == "update_stock" {
+        if value.eq_ignore_ascii_case("yes") || value == "1" {
+            "1"
+        } else {
+            "0"
+        }
+    } else {
+        value
+    };
+    if key == "due_date" && normalized.trim().is_empty() {
+        app.set_status_text("Payment Due Date is required.".into());
+        return;
+    }
+    if key == "update_stock" {
+        doc[key] = serde_json::json!(normalized.parse::<i64>().unwrap_or(0));
+    } else {
+        doc[key] = serde_json::json!(normalized);
+    }
+    if key == "due_date" {
+        if let Some(schedule) = doc
+            .get_mut("payment_schedule")
+            .and_then(|rows| rows.as_array_mut())
+        {
+            for row in schedule {
+                row["due_date"] = serde_json::json!(normalized);
+            }
+        }
+    }
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    app.set_status_text(format!("Edited {label}; save before submitting.").into());
+}
+
+fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
+    let Some(client) = detail_login(app, state) else {
+        return;
+    };
+    let Some(doc) = state.invoice_detail_doc.clone() else {
+        app.set_status_text("No Sales Invoice is loaded.".into());
+        return;
+    };
+    let name = detail_string(&doc, "name");
+    app.set_status_text(
+        if submit {
+            format!("Submitting Sales Invoice {name}…")
+        } else {
+            format!("Saving Sales Invoice {name}…")
+        }
+        .into(),
+    );
+    let result = if submit {
+        client.submit_sales_invoice(&doc)
+    } else {
+        client.save_sales_invoice(&doc)
+    };
+    match result {
+        Ok(_) => {
+            state.invoice_detail_dirty = false;
+            app.set_invoice_detail_dirty(false);
+            refresh_invoice_detail(app, state, &name);
+            app.set_status_text(
+                if submit {
+                    format!("Submitted Sales Invoice {name}")
+                } else {
+                    format!("Saved Sales Invoice {name}")
+                }
+                .into(),
+            );
+        }
+        Err(error) => {
+            app.set_status_text(
+                format!(
+                    "Sales Invoice {} failed: {error}",
+                    if submit { "submit" } else { "save" }
+                )
+                .into(),
+            );
         }
     }
 }
@@ -1121,6 +1240,8 @@ fn main() -> Result<(), slint::PlatformError> {
         print_token,
         runtime_config: runtime_config.clone(),
         erp_client: None,
+        invoice_detail_doc: None,
+        invoice_detail_dirty: false,
     }));
 
     let app = AppWindow::new()?;
@@ -1550,6 +1671,36 @@ fn main() -> Result<(), slint::PlatformError> {
             let mut state = state.borrow_mut();
             refresh_invoice_detail(&app, &mut state, invoice_name.as_str());
             app.set_current_screen(3);
+        }
+    });
+
+    app.on_invoice_detail_field_edited({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |label, value| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            edit_invoice_detail_field(&app, &mut state, label.as_str(), value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_save({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            save_invoice_detail(&app, &mut state, false);
+        }
+    });
+
+    app.on_invoice_detail_submit({
+        let app = app.as_weak();
+        let state = state.clone();
+        move || {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            save_invoice_detail(&app, &mut state, true);
         }
     });
 

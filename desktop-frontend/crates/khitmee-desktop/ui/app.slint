@@ -689,6 +689,9 @@ component InvoiceScreen inherits Rectangle {
     callback invoice-load-more();
     callback invoice-sort-toggle();
     callback invoice-open(string);
+    callback invoice-detail-field-edited(string, string);
+    callback invoice-detail-save();
+    callback invoice-detail-submit();
     background: #f4f5f7;
 
     Rectangle { x: 0px; y: 0px; width: 240px; height: parent.height; background: #f8fafc; }
@@ -1163,6 +1166,7 @@ component InvoiceScreen inherits Rectangle {
 component DetailFieldBox inherits Rectangle {
     in property <DetailField> field;
     in property <length> column-width;
+    callback edited(string, string);
     x: 264px + field.column * (root.column-width + 12px);
     y: 112px + field.row * 58px;
     width: root.column-width;
@@ -1178,11 +1182,20 @@ component DetailFieldBox inherits Rectangle {
     Rectangle {
         x: 0px; y: 19px; width: parent.width; height: 28px;
         background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px;
-        Text {
+        if !field.editable: Text {
             x: 9px; width: parent.width - 18px; height: parent.height;
             text: field.value; color: Design.text; font-size: 12px;
             font-weight: field.emphasized ? 750 : 500;
             vertical-alignment: center; overflow: elide;
+        }
+        if field.editable: LineEdit {
+            x: 3px; y: 1px; width: parent.width - 6px; height: parent.height - 2px;
+            text: field.value;
+            accessible-role: text-input;
+            accessible-label: field.label;
+            accessible-enabled: true;
+            font-size: 12px;
+            edited => { root.edited(field.label, self.text); }
         }
     }
 }
@@ -1208,7 +1221,11 @@ component InvoiceDetailScreen inherits Rectangle {
     in property <string> detail-status: "";
     in property <[DetailField]> detail-fields: [];
     in property <[InvoiceDetailItem]> detail-items: [];
+    in property <bool> detail-dirty: false;
     callback back-to-list();
+    callback detail-field-edited(string, string);
+    callback detail-save();
+    callback detail-submit();
     background: #f4f5f7;
 
     property <length> content-x: 240px;
@@ -1242,7 +1259,8 @@ component InvoiceDetailScreen inherits Rectangle {
     BrowserButton { x: root.content-x + root.content-width - 422px; y: 13px; width: 86px; height: 32px; text: "Create"; }
     BrowserButton { x: root.content-x + root.content-width - 330px; y: 13px; width: 86px; height: 32px; text: "Preview"; visible: root.detail-status == "Draft"; }
     BrowserButton { x: root.content-x + root.content-width - 238px; y: 13px; width: 128px; height: 32px; text: "Get Items From"; visible: root.detail-status == "Draft"; }
-    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-status == "Draft"; primary: true; }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Save"; visible: root.detail-status == "Draft" && root.detail-dirty; primary: true; clicked => { root.detail-save(); } }
+    BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Submit"; visible: root.detail-status == "Draft" && !root.detail-dirty; primary: true; clicked => { root.detail-submit(); } }
     BrowserButton { x: root.content-x + root.content-width - 92px; y: 13px; width: 72px; height: 32px; text: "Cancel"; visible: root.detail-status != "Draft"; }
     Rectangle {
         x: root.content-x + root.content-width - 318px; y: 13px; width: 66px; height: 32px;
@@ -1269,6 +1287,7 @@ component InvoiceDetailScreen inherits Rectangle {
             column-width: root.column-width;
             x: 20px + field.column * (root.column-width + 12px);
             y: 12px + field.row * 58px;
+            edited(label, value) => { root.detail-field-edited(label, value); }
         }
 
         Text { x: 20px; y: 303px; width: 180px; height: 24px; text: "Items"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Items"; }
@@ -1308,6 +1327,7 @@ export component AppWindow inherits Window {
     in property <[InvoiceRow]> invoice-rows: [];
     in property <[DetailField]> invoice-detail-fields: [];
     in property <[InvoiceDetailItem]> invoice-detail-items: [];
+    in property <bool> invoice-detail-dirty: false;
     in property <string> invoice-detail-title: "Sales Invoice";
     in property <string> invoice-detail-name: "";
     in property <string> invoice-detail-customer-title: "";
@@ -1350,6 +1370,9 @@ export component AppWindow inherits Window {
     callback invoice-load-more();
     callback invoice-sort-toggle();
     callback invoice-open(string);
+    callback invoice-detail-field-edited(string, string);
+    callback invoice-detail-save();
+    callback invoice-detail-submit();
 
     if current-screen == 0 || current-screen == 4: CounterScreen {
         width: parent.width; height: parent.height;
@@ -1436,6 +1459,10 @@ export component AppWindow inherits Window {
         detail-status: root.invoice-detail-status;
         detail-fields: root.invoice-detail-fields;
         detail-items: root.invoice-detail-items;
+        detail-dirty: root.invoice-detail-dirty;
         back-to-list => { current-screen = 2; }
+        detail-field-edited(label, value) => { root.invoice-detail-field-edited(label, value); }
+        detail-save => { root.invoice-detail-save(); }
+        detail-submit => { root.invoice-detail-submit(); }
     }
 }
