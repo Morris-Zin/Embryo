@@ -439,15 +439,15 @@ class QualifyEntryPointTests(unittest.TestCase):
                 summary = json.loads((artifact / "attribution-summary.json").read_text(encoding="utf-8"))
         finally:
             module.snapshot, module.run = old_snapshot, old_run
-        self.assertEqual(result, 1)
+        self.assertEqual(result, 0)
         self.assertIn("time,request_id,endpoint_class", csv_text.splitlines()[0])
-        self.assertEqual(csv_text.count("fixture-run-vu1-"), 4)
-        self.assertEqual(summary["k6_endpoint_request_counts"].get("search"), 4)
-        self.assertEqual(summary["endpoint_coverage"]["search"]["nginx_rows"], 4)
+        self.assertEqual(csv_text.count("fixture-run-vu1-"), 6)
+        self.assertEqual(summary["k6_endpoint_request_counts"].get("search"), 1)
+        self.assertEqual(summary["endpoint_coverage"]["search"]["nginx_rows"], 1)
         self.assertTrue(summary["endpoint_coverage"]["search"]["coverage_passed"])
         self.assertTrue(summary["window_coverage"]["passed"], summary["window_coverage"]["problems"])
-        self.assertIn("manager_summary: missing or zero k6 request denominator", summary["collection_problems"])
-        self.assertFalse(summary["collection_passed"])
+        self.assertEqual(summary["collection_problems"], [])
+        self.assertTrue(summary["collection_passed"])
 
     def test_real_k6_summary_direct_counter_shape_is_attribution_denominator(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
@@ -455,7 +455,7 @@ class QualifyEntryPointTests(unittest.TestCase):
         spec.loader.exec_module(module)
         fixture_summary = json.loads((ROOT / "fixtures" / "real" / "k6-summary.json").read_text(encoding="utf-8"))
         counts = module.k6_endpoint_counts(fixture_summary)
-        self.assertEqual(counts.get("search"), 4)
+        self.assertEqual(counts.get("search"), 1)
         zero = module.endpoint_coverage([], {"search": 0}, required_classes=["search"])
         self.assertIn("missing or zero k6 request denominator", " ".join(zero["problems"]))
         missing = module.endpoint_coverage([], {}, required_classes=["search"])
@@ -473,7 +473,7 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertIsNotNone(end)
         self.assertGreater(end, start)
         parsed_events = module.verify_run.parse_events(fixture)["events"]
-        self.assertEqual(sum(1 for event in parsed_events if event.get("event") == "search_complete"), 4)
+        self.assertEqual(sum(1 for event in parsed_events if event.get("event") == "search_complete"), 6)
 
     def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")

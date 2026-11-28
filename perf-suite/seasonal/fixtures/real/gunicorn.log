@@ -1,4 +1,6 @@
-fixture-run-vu1-0|search|GET|/||200|1500|42
+fixture-run-vu1-0|cashier_submit|GET|/||200|1500|42
 fixture-run-vu1-1|search|GET|/||200|1500|42
-fixture-run-vu1-2|search|GET|/||200|1500|42
-fixture-run-vu1-3|search|GET|/||200|1500|42
+fixture-run-vu1-2|login/bootstrap|GET|/||200|1500|42
+fixture-run-vu1-3|manager_summary|GET|/||200|1500|42
+fixture-run-vu1-4|manager_detail|GET|/||200|1500|42
+fixture-run-vu1-5|manager_export|GET|/||200|1500|42
