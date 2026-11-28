@@ -323,12 +323,15 @@ class TestPerfBenchInnerHelpers(unittest.TestCase):
             pbi.validate_db_host("prod-db.internal")
 
     def test_payload_builders_produce_exact_line_counts(self):
-        pool = [{"item_code": f"KM-{i:04d}", "stock_uom": "Nos"} for i in range(1, 30)]
+        pool = [{"item_code": f"KM-{i:04d}", "stock_uom": "Nos"} for i in range(1, 251)]
         for count in (10, 50, 200):
             payload = pbi.build_sale_payload(pool, count, "Shop 1", "Walk-in", "Standard Selling", "Cash")
             self.assertEqual(len(payload["items"]), count)
             self.assertEqual(payload["warehouse"], "Shop 1")
             self.assertTrue(all(row["qty"] >= 1 for row in payload["items"]))
+            # Distinct item_codes allow proven_empty_future_sle_fastpath to trigger cleanly.
+            item_codes = [row["item_code"] for row in payload["items"]]
+            self.assertEqual(len(set(item_codes)), count)
 
         transfer = pbi.build_transfer_payload(pool, 50, "Dist Hub 1", "Shop 2")
         self.assertEqual(len(transfer["items"]), 50)

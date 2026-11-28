@@ -457,6 +457,125 @@ class OracleCacheAndTimingTests(unittest.TestCase):
         formatted = perf_parity.format_section_timings({"voucher": 1.2345, "gp": 0.4567}, 1.7001)
         self.assertEqual(formatted, {"sections": {"gp": 0.457, "voucher": 1.234}, "total_seconds": 1.7})
 
+    def test_host_exec_fails_closed_for_oracle_cache_with_exec_runner(self):
+        import io
+        from unittest import mock
+
+        err_buf = io.StringIO()
+        with mock.patch("sys.stderr", err_buf), mock.patch.object(perf_parity, "_inspect_backend") as inspect_mock:
+            rc = perf_parity.host_exec(["--oracle-cache-dir", "/tmp/oc", "--runner", "exec"], runner="exec")
+        self.assertEqual(rc, 3)
+        self.assertIn("--runner sidecar", err_buf.getvalue())
+        inspect_mock.assert_not_called()
+
+    def test_prepare_sidecar_oracle_cache_dir_permissions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "oracle-cache"
+            chown_calls = []
+            chmod_calls = []
+
+            # Root path uses chown to target UID:GID.
+            perf_parity.prepare_sidecar_oracle_cache_dir(
+                cache_dir,
+                target_uid=1000,
+                target_gid=1000,
+                is_posix=True,
+                geteuid=lambda: 0,
+                chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
+                chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
+                access_fn=lambda p, mode: True,
+            )
+            self.assertEqual(len(chown_calls), 2)
+            self.assertEqual(chmod_calls, [])
+
+            # Non-root path falls back to chmod 0o777.
+            chown_calls.clear()
+            perf_parity.prepare_sidecar_oracle_cache_dir(
+                cache_dir,
+                target_uid=1000,
+                target_gid=1000,
+                is_posix=True,
+                geteuid=lambda: 1001,
+                chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
+                chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
+                access_fn=lambda p, mode: True,
+            )
+            self.assertEqual(chown_calls, [])
+            self.assertTrue(all(mode == 0o777 for _name, mode in chmod_calls))
+
+            # Unwritable directory fails closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_cache_dir(
+                    cache_dir,
+                    is_posix=True,
+                    geteuid=lambda: 1001,
+                    chmod_fn=lambda p, m: None,
+                    access_fn=lambda p, mode: False,
+                )
+
+    def test_external_oracle_manifest_and_fail_closed_checks(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "cache"
+            external_manifest = Path(tmpdir) / "trust-root" / "manifest.json"
+            cache = perf_parity.ParityOracleCache(cache_dir, manifest_path=external_manifest)
+            key = self._sample_key()
+            cache.put(key, WAREHOUSE_COLUMNS, warehouse_group_rows())
+            self.assertTrue(external_manifest.is_file())
+            self.assertFalse((cache_dir / "manifest.json").exists())
+
+            hit = cache.get(key)
+            self.assertIsNotNone(hit)
+
+            # Manifest rooted inside cache_dir must fail closed.
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.ParityOracleCache(cache_dir, manifest_path=cache_dir / "manifest.json")
+
+            # Tampered external manifest digest fails closed.
+            manifest = json.loads(external_manifest.read_text(encoding="utf-8"))
+            kh = next(iter(manifest["entries"]))
+            manifest["entries"][kh]["payload_sha256"] = "0" * 64
+            external_manifest.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                cache.get(key)
+
+    def test_capture_db_fingerprint_tracks_repost_sle_sums_and_table_watermarks(self):
+        class FakeDB:
+            def __init__(self, sle_val_sum=1000.0, repost_count=0):
+                self.sle_val_sum = sle_val_sum
+                self.repost_count = repost_count
+                self.queries = []
+
+            def sql(self, query, *args, **kwargs):
+                self.queries.append(query)
+                if "SUM(stock_value_difference)" in query:
+                    return [(500, "2026-11-26 10:00:00", "2026-11-26", "2026-11-26 10:00:00", self.sle_val_sum, -250.0)]
+                if "MAX(posting_date)" in query:
+                    return [(100, "2026-11-26 10:00:00", "2026-11-26")]
+                if "`tabRepost Item Valuation`" in query:
+                    return [(self.repost_count, "2026-11-26 10:00:00" if self.repost_count else None)]
+                if "MAX(modified)" in query:
+                    return [(42, "2026-11-26 09:00:00")]
+                return [(10,)]
+
+        class FakeFrappe:
+            def __init__(self, db):
+                self.db = db
+
+        fp_base = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.0, 0)), site="bench.localhost")
+        fp_repost = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.0, 1)), site="bench.localhost")
+        fp_val_drift = perf_parity.capture_db_fingerprint(FakeFrappe(FakeDB(1000.5, 0)), site="bench.localhost")
+
+        self.assertNotEqual(fp_base, fp_repost)
+        self.assertNotEqual(fp_base, fp_val_drift)
+        db = FakeDB()
+        perf_parity.capture_db_fingerprint(FakeFrappe(db), site="bench.localhost")
+        joined = "\n".join(db.queries)
+        for tbl in perf_parity.FINGERPRINT_EXTRA_TABLES:
+            self.assertIn(tbl, joined)
+        self.assertIn("SUM(stock_value_difference)", joined)
+        self.assertIn("SUM(actual_qty)", joined)
+        self.assertIn("MAX(creation)", joined)
+
 
 if __name__ == "__main__":
     unittest.main()
