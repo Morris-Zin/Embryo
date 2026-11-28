@@ -109,6 +109,14 @@ class FakeDB:
 				doc.update(status="Failed", active_dedupe_key=None, error=params[0], modified=params[1])
 				self.row_count = 1
 				return []
+			if "`error` = %s" in query and "`status` = %s" not in query and "`status` = 'Completed'" not in query:
+				doc = self.state.docs[params[-1]]
+				if doc.get("status") != "Failed":
+					self.row_count = 0
+					return []
+				doc.update(error=params[0], modified=params[1])
+				self.row_count = 1
+				return []
 			doc = self.state.docs[params[-1]]
 			if "AND `status` = 'Running'" in query and doc.get("status") != "Running":
 				self.row_count = 0
@@ -281,15 +289,18 @@ class ExportServiceTestCase(unittest.TestCase):
 			"compute_exported_invoice_digest",
 			return_value=("digest", ["SI-1"], False),
 		)
+		self.heartbeat_patcher = patch.object(export_service, "_start_export_heartbeat", return_value=None)
 		self.authorize = self.authorize_patcher.start()
 		self.fingerprint = self.fingerprint_patcher.start()
 		self.restricted = self.restricted_patcher.start()
 		self.digest = self.digest_patcher.start()
+		self.start_heartbeat = self.heartbeat_patcher.start()
 		for patcher in (
 			self.authorize_patcher,
 			self.fingerprint_patcher,
 			self.restricted_patcher,
 			self.digest_patcher,
+			self.heartbeat_patcher,
 		):
 			self.addCleanup(patcher.stop)
 		self.addCleanup(self.restore_modules)
@@ -414,7 +425,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		doc.update(
 			status="Running",
 			modified=self.state.now - timedelta(
-				seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+				seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
 			),
 		)
 		self.fake.set_user("other")
@@ -434,7 +445,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		doc.update(
 			status="Running",
 			modified=self.state.now - timedelta(
-				seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+				seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
 			),
 		)
 
@@ -464,6 +475,69 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			export_service.enqueue_profit_csv_export({"company": "Company"})
 		self.fake.db.rollback()
 		self.assertEqual(doc["status"], "Running")
+
+	def test_live_sync_export_that_heartbeats_is_not_retired_past_timeout(self):
+		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None, row_count=0)
+		self.start_heartbeat.return_value = types.SimpleNamespace(close=lambda: None)
+		recovery_results = []
+
+		def write(filters, path, **kwargs):
+			Path(path).write_text("Invoice\nSI-1\n", encoding="utf-8")
+			self.state.now += timedelta(seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1)
+			doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_HEARTBEAT_INTERVAL_SECONDS)
+			recovery_results.append(export_service._recover_abandoned_export(dict(doc)))
+			return 1
+
+		with patch.object(export_service, "write_profit_csv", side_effect=write):
+			export_service.run_profit_csv_export(doc["name"])
+
+		self.assertEqual(recovery_results, [False])
+		self.start_heartbeat.assert_called_once_with(doc["name"])
+		self.assertEqual(doc["status"], "Completed")
+
+	def test_export_heartbeat_updates_only_a_running_export(self):
+		stale_modified = self.state.now - timedelta(seconds=export_service.EXPORT_HEARTBEAT_INTERVAL_SECONDS)
+		doc = self.make_log(status="Running", artifact_published=0, modified=stale_modified)
+
+		class Cursor:
+			def __init__(self):
+				self.rowcount = 0
+
+			def execute(self, query, params):
+				self.rowcount = 0
+				if doc["status"] == "Running" and params[1] == doc["name"]:
+					doc["modified"] = params[0]
+					self.rowcount = 1
+
+			def close(self):
+				pass
+
+		class Connection:
+			def __init__(self):
+				self.cursor_instance = Cursor()
+				self.commits = 0
+
+			def cursor(self):
+				return self.cursor_instance
+
+			def commit(self):
+				self.commits += 1
+
+			def rollback(self):
+				pass
+
+		connection = Connection()
+		database = types.SimpleNamespace(_conn=connection, close=lambda: None)
+		heartbeat = export_service._ExportHeartbeat(doc["name"], database, now=lambda: self.state.now)
+
+		self.assertEqual(heartbeat.beat(), 1)
+		self.assertEqual(doc["modified"], self.state.now)
+		self.assertEqual(connection.commits, 1)
+
+		doc["status"] = "Failed"
+		self.assertEqual(heartbeat.beat(), 0)
+		self.assertEqual(doc["modified"], self.state.now)
+		heartbeat.close()
 
 	def test_missing_rq_job_recovers_an_old_queued_export(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})
@@ -496,7 +570,7 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 
 	def test_recovery_conditional_update_loses_to_a_completed_worker(self):
 		stale_modified = self.state.now - timedelta(
-			seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+			seconds=export_service.EXPORT_HEARTBEAT_STALE_SECONDS + 1
 		)
 		doc = self.make_log(
 			status="Running",
@@ -523,13 +597,20 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			active_dedupe_key=None,
 			error=export_service.ABANDONED_WORKER_REASON,
 		)
+		artifact_path = self.write_artifact()
 
-		export_service._commit_completed_export(doc["name"], "digest", 2)
+		with patch.object(export_service, "_log_export_diagnostic") as log:
+			completed = export_service._commit_completed_export(doc["name"], "digest", 2)
 
-		self.assertEqual(self.fake.db.row_count, 0)
+		self.assertFalse(completed)
+		log.assert_called_once()
+		self.assertIn(export_service.FENCED_COMPLETION_DIAGNOSTIC, log.call_args.args[0])
 		self.assertEqual(doc["status"], "Failed")
 		self.assertEqual(doc["artifact_published"], 0)
-		completion_update, _ = self.fake.db.update_sql[-1]
+		self.assertIn(export_service.ABANDONED_WORKER_REASON, doc["error"])
+		self.assertIn(export_service.FENCED_COMPLETION_DIAGNOSTIC, doc["error"])
+		self.assertFalse(os.path.exists(artifact_path))
+		completion_update, _ = self.fake.db.update_sql[0]
 		self.assertIn("AND `status` = 'Running'", completion_update)
 
 	def test_one_slot_bounds_queued_and_running_exports_across_requesters(self):
