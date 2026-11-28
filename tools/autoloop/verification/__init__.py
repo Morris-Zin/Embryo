@@ -88,8 +88,8 @@ __all__ = [
     "VerificationTarget",
     "default_check_cache_dir",
     "env_allowlist_digest",
-    "receipt_attestation",
     "missing_receipts_shard_validator",
+    "receipt_attestation",
     "tooling_sources_digest",
     "verify",
 ]
