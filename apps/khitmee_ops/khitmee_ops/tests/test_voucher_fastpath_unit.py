@@ -539,5 +539,25 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		self.assertIsNone(getattr(voucher_fastpath._READ_CACHE_STATE, "context", None))
 
 
+
+	def test_future_sle_dispatcher_forwards_exact_erpnext_v16_kwargs_without_allow_zero_rate(self):
+		calls = []
+
+		def strict_v16_update(args, allow_negative_stock=False, via_landed_cost_voucher=False):
+			calls.append((args.get("item_code"), allow_negative_stock, via_landed_cost_voucher))
+			return "strict-v16-ok"
+
+		STOCK_LEDGER_MOD.update_qty_in_future_sle = strict_v16_update
+		doc = _sale_doc([{"item_code": "ITEM-1", "warehouse": "WH-1"}])
+		with patch.object(voucher_fastpath, "find_pairs_with_future_sle", return_value=set()):
+			with voucher_fastpath.proven_empty_future_sle_fastpath(doc, [("ITEM-1", "WH-1")]):
+				result = STOCK_LEDGER_MOD.update_qty_in_future_sle(
+					{"item_code": "ITEM-OTHER", "warehouse": "WH-1", "voucher_type": "Sales Invoice"},
+					allow_negative_stock=True,
+				)
+		self.assertEqual(result, "strict-v16-ok")
+		self.assertEqual(calls, [("ITEM-OTHER", True, False)])
+
+
 if __name__ == "__main__":
 	unittest.main()

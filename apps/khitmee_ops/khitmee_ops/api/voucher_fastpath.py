@@ -335,33 +335,23 @@ def _should_skip_future_sle_update(
 
 
 def _make_future_sle_dispatcher(original):
-	def _dispatch_update_qty_in_future_sle(
-		args,
-		allow_zero_rate=False,
-		allow_negative_stock=False,
-		via_landed_cost_voucher=False,
-		**kwargs,
-	):
+	def _dispatch_update_qty_in_future_sle(*call_args, **call_kwargs):
 		ctx = getattr(_THREAD_STATE, "context", None)
+		sle_args = call_args[0] if call_args else call_kwargs.get("args")
+		via_lcv = bool(call_kwargs.get("via_landed_cost_voucher", False))
+		if len(call_args) >= 3 and bool(call_args[2]):
+			via_lcv = True
 		if _should_skip_future_sle_update(
 			ctx,
-			args,
-			allow_zero_rate=allow_zero_rate,
-			allow_negative_stock=allow_negative_stock,
-			via_landed_cost_voucher=via_landed_cost_voucher,
+			sle_args,
+			via_landed_cost_voucher=via_lcv,
 		):
 			return None
 
 		if ctx is not None and ctx.active:
 			ctx.fallback_count += 1
 
-		return original(
-			args,
-			allow_zero_rate=allow_zero_rate,
-			allow_negative_stock=allow_negative_stock,
-			via_landed_cost_voucher=via_landed_cost_voucher,
-			**kwargs,
-		)
+		return original(*call_args, **call_kwargs)
 
 	_dispatch_update_qty_in_future_sle._khitmee_dispatcher = True
 	_dispatch_update_qty_in_future_sle._khitmee_original = original
