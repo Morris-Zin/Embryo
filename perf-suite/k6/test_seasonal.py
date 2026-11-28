@@ -996,6 +996,118 @@ console.log(JSON.stringify({
         self.assertTrue(payload["transferServerErrorResubmits"], payload)
 
 
+
+class PayloadsNodeTests(unittest.TestCase):
+    def node(self):
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        return node
+
+    def import_payloads_script(self, manifest_path):
+        source = (ROOT / "lib/payloads.js").read_text(encoding="utf-8")
+        shim = "class SharedArray { constructor(_name, factory) { return factory(); } }"
+        source = source.replace("import { SharedArray } from 'k6/data';", shim)
+        module_uri = "data:text/javascript;base64," + base64.b64encode(source.encode()).decode("ascii")
+        return f"""
+import fs from 'node:fs';
+globalThis.__ENV = {{SEED_MANIFEST_PATH: {json.dumps(str(manifest_path))}, SITE_NAME: 'bench-loadtest.localhost'}};
+globalThis.open = (path) => fs.readFileSync(path, 'utf8');
+const payloads = await import({json.dumps(module_uri)});
+"""
+
+    def write_manifest(self, root, payload):
+        path = Path(root) / "seed_manifest.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def object_manifest(self):
+        warehouses = [
+            {"name": "Dist Hub 1", "role": "distribution"},
+            {"name": "Dist Hub 2", "role": "distribution"},
+            {"name": "Shop 1", "role": "retail"},
+            {"name": "Shop 2", "role": "retail"},
+            {"name": "Shop 3", "role": "retail"},
+            {"name": "Shop 4", "role": "retail"},
+        ]
+        items = [
+            {"item_code": f"ITEM-{index:03d}", "item_name": f"June Item {index}", "barcode": f"890{index:07d}", "uom": "Nos", "rate": 10 + index}
+            for index in range(1, 9)
+        ]
+        in_stock = {}
+        for warehouse in warehouses:
+            count = 8 if warehouse["role"] == "distribution" else 5
+            in_stock[warehouse["name"]] = [
+                {"item_code": item["item_code"], "qty": 500, "uom": "Nos"}
+                for item in items[:count]
+            ]
+        return {
+            "site_name": "bench-loadtest.localhost",
+            "items": items,
+            "warehouses": warehouses,
+            "in_stock_items": in_stock,
+            "price_lists": ["Standard Selling"],
+            "customers": ["Walk-in Customer"],
+            "uoms": ["Nos"],
+            "company": "Khitmee",
+        }
+
+    def test_june_iteration_builders_accept_compact_manifest_context(self):
+        node = self.node()
+        with tempfile.TemporaryDirectory() as td:
+            manifest = self.write_manifest(td, self.object_manifest())
+            script = self.import_payloads_script(manifest) + r"""
+const sustainedSale = payloads.buildKhitmeeSalePayload({warehouse: 'Shop 1', contention: false, lineCount: 3});
+const burstTransfer = payloads.buildKhitmeeTransferPayload({sourceWarehouse: 'Dist Hub 1', contention: true, lineCount: 3, transferMode: 'direct'});
+const browseItem = payloads.pickItem({contention: false});
+const exactItem = payloads.pickItem({contention: true});
+console.log(JSON.stringify({
+  saleLines: sustainedSale.items,
+  transferLines: burstTransfer.items,
+  transferMode: burstTransfer.transfer_mode,
+  browseTerm: payloads.searchTermForItem(browseItem, false),
+  exactTerm: payloads.searchTermForItem(exactItem, true),
+  itemObject: browseItem,
+  contextItemsType: typeof payloads.manifestContext.items[0],
+  warehouseCount: payloads.manifestContext.warehouses.length,
+}));
+"""
+            result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["contextItemsType"], "string")
+        self.assertEqual(len(payload["saleLines"]), 3)
+        self.assertEqual(len(payload["transferLines"]), 3)
+        self.assertEqual(payload["transferMode"], "direct")
+        self.assertTrue(all(line["item_code"].startswith("ITEM-") for line in payload["saleLines"]))
+        self.assertTrue(all("rate" in line for line in payload["saleLines"]))
+        self.assertTrue(all("rate" not in line for line in payload["transferLines"]))
+        self.assertIsInstance(payload["itemObject"], dict)
+        self.assertTrue(payload["itemObject"]["item_code"].startswith("ITEM-"))
+        self.assertTrue(payload["browseTerm"])
+        self.assertTrue(payload["exactTerm"])
+        self.assertEqual(payload["warehouseCount"], 6)
+
+    def test_array_only_manifest_initializes_after_default_warehouses(self):
+        node = self.node()
+        with tempfile.TemporaryDirectory() as td:
+            manifest = self.write_manifest(td, ["ITEM-001", "ITEM-002"])
+            script = self.import_payloads_script(manifest) + r"""
+console.log(JSON.stringify({
+  loaded: true,
+  warehouses: payloads.manifestContext.warehouses.map((warehouse) => warehouse.name),
+  compactItemCount: payloads.manifestContext.items.length,
+}));
+"""
+            result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["loaded"])
+        self.assertEqual(payload["warehouses"][:2], ["Dist Hub 1", "Dist Hub 2"])
+        self.assertIn("Shop 4", payload["warehouses"])
+        self.assertEqual(payload["compactItemCount"], 2)
+
+
 class SeasonalStaticContractTests(unittest.TestCase):
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
