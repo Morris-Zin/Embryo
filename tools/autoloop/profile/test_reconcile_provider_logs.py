@@ -24,6 +24,7 @@ class ReconcileTest(unittest.TestCase):
             output=8,
             reasoning=3,
             inclusion={"reasoning_in_output": True},
+            native_request_id="msg-1",
         )
         turn = UsageRecord(
             provider="claude",
@@ -38,6 +39,7 @@ class ReconcileTest(unittest.TestCase):
             reasoning=30,
             cost=0.5,
             currency="USD",
+            covered_request_ids=("msg-1",),
         )
         snapshot = UsageRecord(
             provider="claude",
@@ -61,6 +63,112 @@ class ReconcileTest(unittest.TestCase):
         self.assertNotIn("t3_state", by_source)
         total = sum(record.measured_tokens() or 0 for record in scan.records)
         self.assertEqual(total, 43)
+
+    def test_provider_log_second_request_survives_partial_detailed_coverage(self) -> None:
+        detailed = UsageRecord(
+            provider="codex",
+            source="codex_rollout",
+            record_id="codex-response:resp-1",
+            granularity="request",
+            observed_at="2026-11-28T01:00:00Z",
+            native_session_id="session-1",
+            native_request_id="resp-1",
+            native_turn_id="turn-1",
+            uncached_input=0,
+            cached_input=0,
+            cache_write=0,
+            output=12,
+            reasoning=0,
+        )
+        overlapping = UsageRecord(
+            provider="codex",
+            source="t3_provider_log",
+            record_id="provider-1",
+            granularity="request",
+            observed_at="2026-11-28T01:00:01Z",
+            native_session_id="session-1",
+            native_turn_id="turn-1",
+            uncached_input=0,
+            cached_input=0,
+            cache_write=0,
+            output=12,
+            reasoning=0,
+        )
+        unmatched = UsageRecord(
+            provider="codex",
+            source="t3_provider_log",
+            record_id="provider-2",
+            granularity="request",
+            observed_at="2026-11-28T01:02:00Z",
+            native_session_id="session-1",
+            native_turn_id="turn-2",
+            uncached_input=0,
+            cached_input=0,
+            cache_write=0,
+            output=23,
+            reasoning=0,
+        )
+        scan = ScanResult(records=[detailed, overlapping, unmatched])
+        reconcile_scan(scan)
+
+        total = sum(record.measured_tokens() or 0 for record in scan.records)
+        self.assertEqual(total, 35)
+        self.assertEqual({record.record_id for record in scan.records}, {"codex-response:resp-1", "provider-2"})
+
+    def test_ambiguous_overlap_is_unresolved_and_not_measured(self) -> None:
+        detailed = UsageRecord(
+            provider="codex",
+            source="codex_rollout",
+            record_id="codex-response:resp-1",
+            granularity="request",
+            native_session_id="session-1",
+            native_turn_id="turn-1",
+            output=12,
+        )
+        ambiguous = UsageRecord(
+            provider="codex",
+            source="t3_provider_log",
+            record_id="provider-ambiguous",
+            granularity="request",
+            native_session_id="session-1",
+            native_turn_id="turn-1",
+            output=23,
+        )
+        scan = ScanResult(records=[detailed, ambiguous])
+        reconcile_scan(scan)
+
+        self.assertEqual(len(scan.records), 2)
+        self.assertEqual(ambiguous.coverage, "unresolved_overlap")
+        self.assertIsNone(ambiguous.measured_tokens())
+        self.assertEqual(sum(record.measured_tokens() or 0 for record in scan.records), 12)
+        self.assertTrue(any("unresolved coverage" in notice.message for notice in scan.notices))
+
+    def test_exact_timestamp_and_token_shape_is_demonstrable_overlap(self) -> None:
+        detailed = UsageRecord(
+            provider="codex",
+            source="codex_rollout",
+            record_id="codex-response:resp-1",
+            granularity="request",
+            observed_at="2026-11-28T01:00:00Z",
+            native_session_id="session-1",
+            cached_input=7,
+            output=12,
+        )
+        duplicate = UsageRecord(
+            provider="codex",
+            source="t3_provider_log",
+            record_id="provider-duplicate",
+            granularity="request",
+            observed_at="2026-11-28T01:00:00Z",
+            native_session_id="session-1",
+            cached_input=7,
+            output=12,
+        )
+        scan = ScanResult(records=[detailed, duplicate])
+        reconcile_scan(scan)
+
+        self.assertEqual([record.record_id for record in scan.records], ["codex-response:resp-1"])
+        self.assertEqual(sum(record.measured_tokens() or 0 for record in scan.records), 19)
 
 
 class ProviderLogAdapterTest(unittest.TestCase):

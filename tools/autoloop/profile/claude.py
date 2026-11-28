@@ -24,6 +24,7 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
         result.notices.append(ScanNotice(provider, "claude_transcript", f"Claude transcript directory not found: {root}", "warning"))
         return result
     since_dt = since_datetime(since)
+    unknown_time_activities = 0
     for path in sorted(root.glob("*.jsonl")):
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -35,6 +36,8 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
         duplicate_usage_rows = 0
         pending_tools: dict[str, dict[str, Any]] = {}
         seen_tool_use: set[str] = set()
+        turn_times: dict[int, str] = {}
+        session_time: str | None = None
         project_hit_file = project_text_hit(project_filter, str(path), str(root))
         saw_cost_state = False
         for line_number, line in enumerate(lines, 1):
@@ -45,6 +48,8 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
             except json.JSONDecodeError:
                 continue
             obj_type = obj.get("type")
+            if session_time is None and isinstance(obj.get("timestamp"), str):
+                session_time = obj["timestamp"]
             if isinstance(obj.get("cwd"), str):
                 project_hit_file = project_hit_file or project_text_hit(project_filter, obj.get("cwd"))
             if obj_type == "cost-state":
@@ -53,6 +58,8 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
                 content = (obj.get("message") or {}).get("content") if isinstance(obj.get("message"), dict) else None
                 if not _message_content_is_tool_result(content) and not obj.get("isMeta"):
                     current_turn += 1
+                    if isinstance(obj.get("timestamp"), str):
+                        turn_times[current_turn] = obj["timestamp"]
                 if isinstance(content, list):
                     for item in content:
                         if not isinstance(item, dict) or item.get("type") != "tool_result":
@@ -60,13 +67,20 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
                         tool_id = str(item.get("tool_use_id") or "")
                         call = pending_tools.get(tool_id, {})
                         input_value = call.get("input")
+                        activity_turn = call.get("turn") or current_turn or None
+                        activity_time = obj.get("timestamp") or call.get("observed") or turn_times.get(activity_turn or 0) or session_time
+                        if activity_time is None:
+                            unknown_time_activities += 1
+                            continue
+                        if not is_since(activity_time, since_dt):
+                            continue
                         activity = ToolActivity(
                             provider=provider,
                             source="claude_transcript",
                             activity_id=f"claude-tool:{session_id}:{tool_id or line_number}",
-                            observed_at=obj.get("timestamp"),
+                            observed_at=activity_time,
                             native_session_id=str(obj.get("sessionId") or session_id),
-                            turn=call.get("turn") or current_turn or None,
+                            turn=activity_turn,
                             tool_name=str(call.get("name") or "unknown"),
                             input_bytes=payload_bytes(input_value),
                             output_bytes=payload_bytes(item.get("content")),
@@ -78,8 +92,6 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
             if obj_type != "assistant":
                 continue
             observed = obj.get("timestamp")
-            if not is_since(observed, since_dt):
-                continue
             message = obj.get("message") if isinstance(obj.get("message"), dict) else {}
             content = message.get("content")
             if isinstance(content, list):
@@ -95,7 +107,12 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
                         "name": item.get("name"),
                         "input": item.get("input"),
                         "turn": current_turn or None,
+                        "observed": observed,
                     }
+            if current_turn and isinstance(observed, str):
+                turn_times.setdefault(current_turn, observed)
+            if not is_since(observed, since_dt):
+                continue
             usage = message.get("usage") if isinstance(message.get("usage"), dict) else None
             if not usage:
                 continue
@@ -117,6 +134,7 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
                 granularity="request",
                 observed_at=obj.get("timestamp"),
                 native_session_id=str(obj.get("sessionId") or session_id),
+                native_request_id=str(message.get("id") or obj.get("requestId") or "") or None,
                 model=message.get("model") or obj.get("requestedModel"),
                 role="sidechain" if obj.get("isSidechain") else "worker",
                 turn=turn,
@@ -140,4 +158,8 @@ def read_claude_transcripts(project_dir: object, since: str, project_filter: str
                 record.unknowns["currency"] = "currency_not_reported_in_claude_transcript"
             record.unknowns["retry"] = "retry_not_observed_in_claude_transcript"
             result.records.append(finish_record(record))
+    if unknown_time_activities:
+        result.notices.append(
+            ScanNotice(provider, "claude_transcript", f"{unknown_time_activities} unknown-time tool activities excluded from windowed stats", "warning")
+        )
     return result

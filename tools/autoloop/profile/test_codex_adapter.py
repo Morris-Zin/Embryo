@@ -51,6 +51,45 @@ class CodexRolloutAdapterTest(unittest.TestCase):
         self.assertEqual(repeated[0]["extra_reads"], 1)
         self.assertNotIn("src/a.py", repr(sinks))
 
+    def test_old_tool_rollout_contributes_no_windowed_activities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / "sessions" / "2025" / "01" / "01"
+            session_dir.mkdir(parents=True)
+            session = session_dir / "rollout-2025-01-01T01-00-00-synthetic.jsonl"
+            rows = [
+                {"type": "session_meta", "timestamp": "2025-01-01T01:00:00Z", "payload": {"id": "codex-old", "cwd": r"C:\work\Khitmee-ERPNext"}},
+                {"type": "response_item", "timestamp": "2025-01-01T01:00:01Z", "payload": {"type": "custom_tool_call", "call_id": "old-call", "name": "exec", "input": "cat src/old.py"}},
+                {"type": "response_item", "timestamp": "2025-01-01T01:00:02Z", "payload": {"type": "custom_tool_call_output", "call_id": "old-call", "output": "old"}},
+            ]
+            session.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+            scan = read_codex_rollouts(root, "2026-11-28", "Khitmee-ERPNext")
+
+        self.assertEqual(len(scan.records), 0)
+        self.assertEqual(len(scan.activities), 0)
+
+    def test_missing_tool_time_uses_session_time_or_counts_unknown_time(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / "sessions" / "2026" / "11" / "28"
+            session_dir.mkdir(parents=True)
+            dated = session_dir / "rollout-2026-11-28T01-00-00-dated.jsonl"
+            dated_rows = [
+                {"type": "session_meta", "timestamp": "2026-11-28T01:00:00Z", "payload": {"id": "dated-session", "cwd": r"C:\work\Khitmee-ERPNext"}},
+                {"type": "response_item", "payload": {"type": "custom_tool_call", "call_id": "call-1", "name": "exec", "input": "cat src/a.py"}},
+                {"type": "response_item", "payload": {"type": "custom_tool_call_output", "call_id": "call-1", "output": "alpha"}},
+            ]
+            dated.write_text("\n".join(json.dumps(row) for row in dated_rows) + "\n", encoding="utf-8")
+            timeless = session_dir / "rollout-2026-11-28T01-00-00-timeless.jsonl"
+            timeless.write_text(dated.read_text(encoding="utf-8").replace("dated-session", "timeless-session").replace('"timestamp": "2026-11-28T01:00:00Z", ', ""), encoding="utf-8")
+
+            scan = read_codex_rollouts(root, "2026-11-28", "Khitmee-ERPNext")
+
+        self.assertEqual(len(scan.activities), 1)
+        self.assertEqual(scan.activities[0].observed_at, "2026-11-28T01:00:00Z")
+        self.assertTrue(any("1 unknown-time tool activities excluded" in notice.message for notice in scan.notices))
+
 
 if __name__ == "__main__":
     unittest.main()
