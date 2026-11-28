@@ -12,6 +12,17 @@ REQUIRED_ORACLE_CHECKS = {
 }
 
 
+def acceptance_fixture_sha256():
+    try:
+        data = json.loads((pathlib.Path(__file__).resolve().with_name('acceptance-fixture.json')).read_text(encoding='utf-8'))
+        return str(data.get('sha256') or '')
+    except Exception:
+        return ''
+
+
+PINNED_ACCEPTANCE_FIXTURE_SHA256 = acceptance_fixture_sha256()
+
+
 def load_json(path):
     try:
         return json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
@@ -157,14 +168,20 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         evidence_problems.append('ADR guest envelope attestation missing, failed, or changed')
     if not oracle_ok:
         evidence_problems.append(oracle_problem)
+    actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
+    fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
         fixture_restore.get('passed') is True
-        and len(str(fixture_restore.get('fixture_sha256') or '')) == 64
+        and len(actual_fixture_sha) == 64
+        and fixture_pin_ok
         and fixture_restore.get('archive_format') == 'cold-named-volume-tar/v1'
         and len(str(fixture_restore.get('fixture_manifest_sha256') or '')) == 64
     )
     if not fixture_restore_ok:
-        evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
+        if len(actual_fixture_sha) == 64 and not fixture_pin_ok:
+            evidence_problems.append('restored fixture digest is not the pinned acceptance fixture; evidence is diagnostic only')
+        else:
+            evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
     if not candidate.get('app_commit_sha') or not candidate.get('app_tree_hash'):
         evidence_problems.append('candidate commit/tree evidence missing')
     if migration.get('exit_code') != 0:
@@ -212,6 +229,8 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'resource_budget_problems_after': after.get('budget_problems', []),
         'workload_exit': workload_exit,
         'fixture_sha256': fixture_restore.get('fixture_sha256'),
+        'pinned_acceptance_fixture_sha256': PINNED_ACCEPTANCE_FIXTURE_SHA256,
+        'fixture_is_acceptance_pin': fixture_pin_ok,
         'fixture_archive': fixture_restore.get('archive'),
         'fixture_archive_format': fixture_restore.get('archive_format'),
         'fixture_manifest_path': fixture_restore.get('fixture_manifest_path'),

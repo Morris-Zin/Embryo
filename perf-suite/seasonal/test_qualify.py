@@ -132,8 +132,12 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         restore_source = (ROOT / "fixture_restore.py").read_text(encoding="utf-8")
         new_pin = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
-        self.assertIn('PINNED_FIXTURE_SHA="' + new_pin + '"', source)
-        self.assertIn('PINNED_FIXTURE_SHA256 = "' + new_pin + '"', restore_source)
+        pin_file = json.loads((ROOT / "acceptance-fixture.json").read_text(encoding="utf-8"))
+        self.assertEqual(pin_file["sha256"], new_pin)
+        self.assertIn('acceptance-fixture.json', source)
+        self.assertIn('PINNED_FIXTURE_SHA256 = acceptance_fixture_pin()', restore_source)
+        self.assertNotIn('PINNED_FIXTURE_SHA="' + new_pin + '"', source)
+        self.assertNotIn('PINNED_FIXTURE_SHA256 = "' + new_pin + '"', restore_source)
         self.assertIn("--fixture-manifest", source)
         self.assertIn("validate_fixture_manifest", restore_source)
         self.assertLess(restore_source.index("fixture digest mismatch"), restore_source.index("validate_fixture_manifest(manifest_arg, digest)"))
@@ -375,6 +379,26 @@ class QualifyEntryPointTests(unittest.TestCase):
         )
         self.assertFalse(incomplete["passed"])
         self.assertIn("restart counter evidence missing", " ".join(incomplete["problems"]))
+
+    def test_alternate_verified_fixture_is_diagnostic_and_never_qualifies(self):
+        module = self.decision_module()
+        alternate = "d" * 64
+        # The old length-only predicate accepted this shape as fixture evidence.
+        self.assertEqual(len(alternate), 64)
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            fixture_path = Path(td) / "fixture-restore.json"
+            fixture = json.loads(fixture_path.read_text())
+            fixture["fixture_sha256"] = alternate
+            fixture["archive"] = "/srv/khitmee-lab/operator/fixtures/" + alternate + ".tar.gz"
+            fixture_path.write_text(json.dumps(fixture))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["fixture_is_acceptance_pin"])
+            self.assertFalse(result["fixture_evidence_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("not the pinned acceptance fixture", " ".join(result["qualification_evidence_problems"]))
+            self.assertEqual(result["pinned_acceptance_fixture_sha256"], "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd")
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):
         module = self.decision_module()

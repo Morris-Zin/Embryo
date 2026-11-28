@@ -10,7 +10,7 @@ PERF_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd -- "$PERF_ROOT/.." && pwd)"
 DOCKER_DIR="$PERF_ROOT/docker"
 PROJECT="khitmee-perf"
-PINNED_FIXTURE_SHA="0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
+PINNED_FIXTURE_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sha256"])' "$SCRIPT_DIR/acceptance-fixture.json")"
 DEFAULT_FIXTURE="/srv/khitmee-lab/operator/fixtures/${PINNED_FIXTURE_SHA}.tar.gz"
 DEFAULT_ACTORS="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seasonal-actor-env.json"
 DEFAULT_MANIFEST="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seed_manifest.json"
@@ -39,7 +39,7 @@ One-command isolated 2 GiB seasonal qualification on the KhitmeeERPNext WSL stac
 Options:
   --seasonal-profile smoke|acceptance           Workload length (default smoke)
   --fixture PATH                                Pinned cold-volume fixture archive
-  --fixture-sha SHA256                          Expected archive digest
+  --fixture-sha SHA256                          Expected archive digest for diagnostic alternate fixtures; qualification remains pinned
   --fixture-manifest PATH                       Archive manifest (default companion beside --fixture)
   --actors PATH                                 JSON actor environment for the pinned fixture
   --seed-manifest PATH                          Pinned seed manifest
