@@ -556,6 +556,23 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 				self.assertEqual(ACC_DIM_MOD.get_checks_for_pl_and_bs_accounts(), [{"fieldname": "branch"}])
 			upstream.assert_called_once_with()
 
+	def test_schema_filter_cache_preserves_order_and_leaves_child_rows_live(self):
+		schema = [object(), object()]
+		children = [object()]
+		upstream = Mock(side_effect=lambda data, filters, limit: list(data[:limit]))
+		dispatch = voucher_fastpath._make_schema_filter_dispatcher(upstream)
+		ctx = voucher_fastpath.VoucherReadCacheContext(active=True, schema_fields={id(schema): schema})
+
+		with patch.object(voucher_fastpath._READ_CACHE_STATE, "context", ctx, create=True):
+			first = dispatch(schema, {"reqd": True})
+			first.reverse()
+			self.assertEqual(dispatch(schema, {"reqd": True}), schema)
+			self.assertEqual(dispatch(schema, {"reqd": 1}, 1), schema[:1])
+			self.assertEqual(dispatch(children, {"reqd": True}), children)
+			children.append(object())
+			self.assertEqual(dispatch(children, {"reqd": True}), children)
+		self.assertEqual(upstream.call_count, 4)
+
 	def test_read_cache_thread_isolation_and_exception_cleanup(self):
 		barrier = threading.Barrier(2)
 		errors = []

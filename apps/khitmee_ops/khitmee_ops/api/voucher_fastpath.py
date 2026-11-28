@@ -171,6 +171,8 @@ class VoucherReadCacheContext:
 	active: bool
 	reads: dict = field(default_factory=dict)
 	locked_bin_names: dict = field(default_factory=dict)
+	schema_fields: dict = field(default_factory=dict)
+	schema_matches: dict = field(default_factory=dict)
 	prefetched_items: frozenset = field(default_factory=frozenset)
 	product_bundles: frozenset = field(default_factory=frozenset)
 	extra_product_bundles: dict = field(default_factory=dict)
@@ -654,6 +656,49 @@ def _make_get_or_make_bin_dispatcher(original):
 	return _dispatch_get_or_make_bin
 
 
+def _schema_filter_value(value):
+	kind = type(value)
+	if kind in (list, tuple):
+		return kind, tuple(_schema_filter_value(part) for part in value)
+	if kind in (str, int, bool, type(None)):
+		return kind, value
+	raise TypeError
+
+
+def _make_schema_filter_dispatcher(original):
+	def _dispatch_schema_filter(data, filters, limit=None):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is None or id(data) not in ctx.schema_fields or type(filters) is not dict:
+			return original(data, filters, limit)
+		try:
+			key = (
+				id(data),
+				tuple((field, _schema_filter_value(value)) for field, value in filters.items()),
+				_schema_filter_value(limit),
+			)
+		except TypeError:
+			return original(data, filters, limit)
+		if key not in ctx.schema_matches:
+			# Keep Frappe's operators, ordering and limit semantics.
+			ctx.schema_matches[key] = tuple(original(data, filters, limit))
+		return list(ctx.schema_matches[key])
+
+	_dispatch_schema_filter._khitmee_dispatcher = True
+	return _dispatch_schema_filter
+
+
+def _prepare_schema_filter_cache():
+	from frappe.model import document
+
+	with _READ_CACHE_LOCK:
+		if not getattr(document._filter, "_khitmee_dispatcher", False):
+			document._filter = _make_schema_filter_dispatcher(document._filter)
+
+	schemas = ("Sales Invoice Item", "Stock Ledger Entry", "GL Entry", "Payment Ledger Entry")
+	fields = (frappe.get_meta(doctype).fields for doctype in schemas)
+	return {id(rows): rows for rows in fields}
+
+
 _READ_CACHE_TARGETS = (
 	(
 		"get_accounting_dimensions",
@@ -744,6 +789,11 @@ def voucher_transaction_read_cache(
 
 	ctx = VoucherReadCacheContext(
 		active=True,
+		schema_fields=(
+			_prepare_schema_filter_cache()
+			if doctype == "Sales Invoice" and fresh_snapshot and callable(getattr(frappe, "get_meta", None))
+			else {}
+		),
 		# ERPNext enforces a unique (item_code, warehouse) Bin and this
 		# transaction owns each prefetched row lock until commit.
 		locked_bin_names={
