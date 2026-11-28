@@ -67,16 +67,31 @@ def status():
                     "('Stock Balance','Fast Gross Profit','Gross Profit') ORDER BY name"])
 
 
+def perf_port():
+    """Frontend port of the isolated perf stack (PERF_HTTP_PORT, default 18086)."""
+    value = os.environ.get("PERF_HTTP_PORT")
+    env_file = ROOT / "perf-suite/docker/.env"
+    if not value and env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("PERF_HTTP_PORT="):
+                value = line.split("=", 1)[1].strip().strip("'\"")
+    port = int(value or 18086)
+    if not 1024 <= port <= 65535:
+        raise ValueError("PERF_HTTP_PORT must be between 1024 and 65535")
+    return port
+
+
 def probe(name, filters):
     if not isinstance(json.loads(filters), dict):
         raise ValueError("expected JSON filter object")
-    if docker("port", container("frontend"), "8080/tcp") != "127.0.0.1:18086":
+    port = perf_port()
+    if docker("port", container("frontend"), "8080/tcp") != f"127.0.0.1:{port}":
         raise ValueError("unexpected perf port")
     # Parse the generated key=value file as data. Keep credentials in memory.
     entries = dict(line.split("=", 1) for line in
                    (ROOT / "perf-suite/docker/.env").read_text().splitlines()
                    if "=" in line and not line.startswith("#"))
-    conn = http.client.HTTPConnection("127.0.0.1", 18086, timeout=130)
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=130)
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     try:
         conn.request("POST", "/api/method/login", urlencode({
@@ -125,11 +140,13 @@ def main(args):
     elif cmd == "status" and not args:
         status()
     elif cmd == "browser-perf-check" and not args:
-        if docker("port", container("frontend"), "8080/tcp") != "127.0.0.1:18086":
+        port = perf_port()
+        if docker("port", container("frontend"), "8080/tcp") != f"127.0.0.1:{port}":
             raise ValueError("unexpected perf port")
         browser_dir = ROOT / "perf-suite/browser"
         subprocess.run(["pnpm", "install", "--frozen-lockfile", "--ignore-scripts"], cwd=browser_dir, check=True)
-        subprocess.run(["pnpm", "exec", "playwright", "test"], cwd=browser_dir, check=True)
+        subprocess.run(["pnpm", "exec", "playwright", "test"], cwd=browser_dir, check=True,
+                       env={**os.environ, "BENCH_URL": f"http://127.0.0.1:{port}"})
     elif cmd == "fast-check" and not args:
         from fast_check import check
         check(ROOT)
