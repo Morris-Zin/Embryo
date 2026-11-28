@@ -103,7 +103,6 @@ function installCounterProbe() {
   window.__counterProbeInstalled = true;
   const reset = () => ({
     marks: [],
-    keydowns: [],
     mutationBatches: 0,
     mutationRecords: 0,
     addedNodes: 0,
@@ -119,11 +118,6 @@ function installCounterProbe() {
   window.__counterProbeMark = (label) => {
     window.__counterProbe.marks.push({ label, time: performance.now() });
   };
-  document.addEventListener("keydown", (event) => {
-    const probe = window.__counterProbe;
-    probe.keydowns.push({ key: event.key, time: performance.now() });
-    if (probe.keydowns.length > 500) probe.keydowns.splice(0, probe.keydowns.length - 500);
-  }, true);
   const observer = new MutationObserver((records) => {
     const probe = window.__counterProbe;
     const now = performance.now();
