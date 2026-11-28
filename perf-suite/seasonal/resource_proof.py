@@ -129,6 +129,8 @@ def proof():
             "container": info.get("Name", "").lstrip("/"),
             "id": info.get("Id") or "",
             "running": bool(state.get("Running")),
+            "started_at": state.get("StartedAt") or "",
+            "pid": int(state.get("Pid") or 0),
             "memory_limit_bytes": memory,
             "cpu_limit": cpus,
             "cpu_shares": int(host.get("CpuShares") or 0),

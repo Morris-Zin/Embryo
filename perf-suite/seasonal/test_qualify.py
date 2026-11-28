@@ -84,7 +84,10 @@ class QualifyEntryPointTests(unittest.TestCase):
 
     def test_supervisor_contract_uses_adr_guest_topology(self):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
-        self.assertIn('run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest --with-khitmee-ops', source)
+        self.assertIn('run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"', source)
+        startup_line = 'run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"'
+        self.assertNotIn("--with-khitmee-ops", startup_line)
+        self.assertNotIn("--profile 2gb-guest --with-khitmee-ops", source)
         self.assertIn('CGROUP_PARENT="/sys/fs/cgroup/khitmeeperf.slice"', source)
         self.assertNotIn("docker update --cpus", source)
         self.assertNotIn('runtime-${RUNTIME_PROFILE}', source)
@@ -132,8 +135,12 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         restore_source = (ROOT / "fixture_restore.py").read_text(encoding="utf-8")
         new_pin = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
-        self.assertIn('PINNED_FIXTURE_SHA="' + new_pin + '"', source)
-        self.assertIn('PINNED_FIXTURE_SHA256 = "' + new_pin + '"', restore_source)
+        pin_file = json.loads((ROOT / "acceptance-fixture.json").read_text(encoding="utf-8"))
+        self.assertEqual(pin_file["sha256"], new_pin)
+        self.assertIn('acceptance-fixture.json', source)
+        self.assertIn('PINNED_FIXTURE_SHA256 = acceptance_fixture_pin()', restore_source)
+        self.assertNotIn('PINNED_FIXTURE_SHA="' + new_pin + '"', source)
+        self.assertNotIn('PINNED_FIXTURE_SHA256 = "' + new_pin + '"', restore_source)
         self.assertIn("--fixture-manifest", source)
         self.assertIn("validate_fixture_manifest", restore_source)
         self.assertLess(restore_source.index("fixture digest mismatch"), restore_source.index("validate_fixture_manifest(manifest_arg, digest)"))
@@ -268,10 +275,30 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(locks["row_lock_time_ms_delta"], 900)
             (root / "gunicorn.log").write_text("r1|search|GET|api/method/search|q=x|200|100000|not-a-pid" + chr(10))
             self.assertEqual(module.parse_gunicorn_log(root / "gunicorn.log"), {})
-            status = module.collection_status(1, 0)
+            status = module.collection_status(1, 0, 0)
             self.assertFalse(status["collection_passed"])
             self.assertIn("zero Gunicorn application records", status["collection_problems"][0])
             self.assertIn("return 0 if collection_passed else 1", (ROOT / "attribution.py").read_text(encoding="utf-8"))
+
+            # Red/green join evidence: the old collector accepted zero joined
+            # rows whenever at least one app record parsed, while the new
+            # collector requires positive joins and a documented 95% ratio.
+            old_zero_join_predicate_passed = bool(10 and 10)
+            self.assertTrue(old_zero_join_predicate_passed)
+            fully_joined = module.collection_status(10, 10, 10)
+            self.assertTrue(fully_joined["collection_passed"])
+            disjoint = module.collection_status(10, 10, 0)
+            self.assertFalse(disjoint["collection_passed"])
+            self.assertIn("zero nginx upstream requests joined", " ".join(disjoint["collection_problems"]))
+            partial = module.collection_status(20, 20, 18)
+            self.assertAlmostEqual(partial["join_ratio"], 0.9)
+            self.assertFalse(partial["collection_passed"])
+            self.assertIn("below required minimum 0.95", " ".join(partial["collection_problems"]))
+            passing = module.collection_status(20, 20, 19)
+            self.assertTrue(passing["collection_passed"], passing["collection_problems"])
+            empty = module.collection_status(0, 0, 0)
+            self.assertFalse(empty["collection_passed"])
+            self.assertIn("missing, unreadable, or contains no upstream rows", " ".join(empty["collection_problems"]))
 
 
     def test_preflight_evaluator_requires_every_step_status_and_denial(self):
@@ -304,7 +331,7 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "within_budget": True,
                 "budget_problems": [],
                 "workload_memory_limit_total_mib": 1728,
-                "services": [{"service": "backend", "id": "abc123", "restart_count": restart, "oom_killed": oom}],
+                "services": [{"service": "backend", "id": "abc123", "restart_count": restart, "oom_killed": oom, "started_at": "2026-01-01T00:00:00.000000001Z", "pid": 100}],
             }
         for name, value in {
             "resource-proof-before.json": proof(),
@@ -320,10 +347,24 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "fixture_manifest_path": "/srv/khitmee-lab/operator/fixtures/0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd.manifest.json",
                 "fixture_manifest_sha256": "c" * 64,
             },
-            "candidate-migration.json": {"required": True, "exit_code": 0},
+            "candidate-migration.json": {
+                "required": True,
+                "exit_code": 0,
+                "app_tree_hash_expected": "b" * 40,
+                "migrated_app_tree_hash": "b" * 40,
+                "tree_hash_verified": True,
+            },
             "guest-attestation-before.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "guest-attestation-after.json": {"passed": True, "cpuset_cpus_effective": "2-3", "cpu_max": "200000 100000", "memory_max_bytes": 2147483648, "memory_swap_max": "0", "online_cpu_count": 2, "nproc_count": 2, "guest_mem_total_bytes": 2000 * 1024**2, "guest_swap_total_bytes": 0},
             "seasonal-verification.json": {"by_type": {}},
+            "load-generator-attestation.json": {
+                "schema_version": "seasonal-load-generator-attestation-v1",
+                "passed": True,
+                "off_guest": True,
+                "attestation": "qualifying",
+                "generator_endpoint": "tcp://builder.example:2375",
+                "generator_daemon_identity": {"daemon_id": "remote-daemon", "name": "builder"},
+            },
         }.items():
             (artifact / name).write_text(json.dumps(value))
         (artifact / "resource-proof-after.exit").write_text("0" + chr(10))
@@ -335,12 +376,128 @@ class QualifyEntryPointTests(unittest.TestCase):
             }))
         config = {"profile": profile, "managers_enabled": True, "phases": [{"name": "baseline", "phase": "baseline", "duration_seconds": 3600}]}
         (artifact / "k6.log").write_text("noise KHITMEE_SEASONAL_EVENT " + json.dumps({"event": "config", "config": config}) + chr(10))
+        attribution_dir = artifact / "attribution"
+        attribution_dir.mkdir(exist_ok=True)
+        (attribution_dir / "attribution-summary.json").write_text(json.dumps({
+            "schema_version": "seasonal-request-attribution-v2",
+            "collection_passed": True,
+            "collection_problems": [],
+            "nginx_rows": 20,
+            "gunicorn_rows": 20,
+            "joined_rows": 20,
+            "unjoined_nginx_rows": 0,
+            "join_ratio": 1.0,
+            "minimum_join_ratio": 0.95,
+        }))
 
     def decision_module(self):
         spec = importlib.util.spec_from_file_location("qualification_decision", ROOT / "qualification_decision.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_startup_does_not_migrate_checkout_and_migration_tree_mismatch_is_no_go(self):
+        source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
+        startup = 'run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log"'
+        self.assertIn(startup, source)
+        self.assertNotIn(startup.replace(" --profile", " --with-khitmee-ops --profile"), source)
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        self.assertIn("MIGRATION_STATE_EVIDENCE", deploy)
+        self.assertIn("migrated_app_tree_hash", deploy)
+        self.assertIn("tree_hash_verified", deploy)
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            # This old evidence shape had only a successful exit code and would
+            # previously have satisfied the migration gate.
+            old_shape = {"required": True, "exit_code": 0}
+            self.assertNotIn("migrated_app_tree_hash", old_shape)
+            migration["migrated_app_tree_hash"] = "c" * 40
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "candidate-migration.json").write_text(json.dumps(old_shape))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("migrated app tree digest", " ".join(result["qualification_evidence_problems"]))
+
+    def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
+        spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        identities = {
+            "": {"daemon_id": "local-daemon", "name": "guest-docker"},
+            "tcp://builder.example:2375": {"daemon_id": "remote-daemon", "name": "builder"},
+        }
+        remote = module.attest("docker", "tcp://builder.example:2375", info_reader=lambda endpoint: identities[endpoint])
+        self.assertTrue(remote["passed"], remote["problems"])
+        self.assertTrue(remote["off_guest"])
+        self.assertEqual(remote["generator_daemon_identity"]["daemon_id"], "remote-daemon")
+
+        local = module.attest("docker", "", info_reader=lambda endpoint: identities[endpoint])
+        self.assertFalse(local["passed"])
+        self.assertEqual(local["attestation"], "diagnostic")
+        same_daemon = module.attest(
+            "docker",
+            "tcp://builder.example:2375",
+            info_reader=lambda endpoint: {"daemon_id": "same-daemon", "name": "forwarded"},
+        )
+        self.assertFalse(same_daemon["passed"])
+        self.assertIn("same Docker daemon", " ".join(same_daemon["problems"]))
+
+        decision = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "load-generator-attestation.json").write_text(json.dumps(local))
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["load_generator_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("off-guest k6", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            (Path(td) / "load-generator-attestation.json").unlink()
+            result = decision.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("off-guest k6", " ".join(result["qualification_evidence_problems"]))
+
+        runner = (ROOT.parent / "k6" / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn('K6_DOCKER_HOST="${K6_DOCKER_HOST:-}"', runner)
+        self.assertIn('k6_docker network inspect', runner)
+        self.assertIn('k6_docker "${DOCKER_CMD[@]}"', runner)
+
+    def test_failed_or_missing_attribution_collection_blocks_qualification(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            summary = Path(td) / "attribution" / "attribution-summary.json"
+            data = json.loads(summary.read_text())
+            data["collection_passed"] = False
+            data["collection_problems"] = ["zero Gunicorn application records parsed"]
+            summary.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["attribution_collection_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("attribution collection", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            # The pre-fix decision had no attribution input at all, so this
+            # missing file shape would not have blocked qualification.
+            (Path(td) / "attribution" / "attribution-summary.json").unlink()
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["attribution_collection_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_smoke_workload_pass_can_never_qualify_as_2gb(self):
         module = self.decision_module()
@@ -363,18 +520,77 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("restart count changed", " ".join(result["resource_window_problems"]))
         comparison = module.resource_window_comparison(
-            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
-            {"services": [{"service": "db", "id": "two", "restart_count": 0, "oom_killed": True}]},
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 10}]},
+            {"services": [{"service": "db", "id": "two", "restart_count": 0, "oom_killed": True, "started_at": "t0", "pid": 10}]},
         )
         self.assertFalse(comparison["passed"])
         self.assertIn("container identity changed", " ".join(comparison["problems"]))
         self.assertIn("OOM state changed", " ".join(comparison["problems"]))
         incomplete = module.resource_window_comparison(
-            {"services": [{"service": "db", "id": "one", "oom_killed": False}]},
-            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
+            {"services": [{"service": "db", "id": "one", "oom_killed": False, "started_at": "t0", "pid": 10}]},
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 10}]},
         )
         self.assertFalse(incomplete["passed"])
         self.assertIn("restart counter evidence missing", " ".join(incomplete["problems"]))
+
+    def test_alternate_verified_fixture_is_diagnostic_and_never_qualifies(self):
+        module = self.decision_module()
+        alternate = "d" * 64
+        # The old length-only predicate accepted this shape as fixture evidence.
+        self.assertEqual(len(alternate), 64)
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            fixture_path = Path(td) / "fixture-restore.json"
+            fixture = json.loads(fixture_path.read_text())
+            fixture["fixture_sha256"] = alternate
+            fixture["archive"] = "/srv/khitmee-lab/operator/fixtures/" + alternate + ".tar.gz"
+            fixture_path.write_text(json.dumps(fixture))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["fixture_is_acceptance_pin"])
+            self.assertFalse(result["fixture_evidence_ok"])
+            self.assertFalse(result["qualification_evidence"])
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("not the pinned acceptance fixture", " ".join(result["qualification_evidence_problems"]))
+            self.assertEqual(result["pinned_acceptance_fixture_sha256"], "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd")
+
+    def test_manual_container_restart_is_detected_without_restart_count(self):
+        module = self.decision_module()
+        before = {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "started_at": "t0", "pid": 100}]}
+        after = {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "started_at": "t1", "pid": 140}]}
+        # The old identity tuple (same container id and zero RestartCount)
+        # would have treated this manual stop/start as unchanged.
+        self.assertEqual(before["services"][0]["id"], after["services"][0]["id"])
+        self.assertEqual(before["services"][0]["restart_count"], after["services"][0]["restart_count"])
+        comparison = module.resource_window_comparison(before, after)
+        self.assertFalse(comparison["passed"])
+        self.assertIn("start timestamp changed", " ".join(comparison["problems"]))
+        self.assertIn("process id changed", " ".join(comparison["problems"]))
+
+        missing = module.resource_window_comparison(
+            before,
+            {"services": [{"service": "backend", "id": "same", "restart_count": 0, "oom_killed": False, "pid": 100}]},
+        )
+        self.assertFalse(missing["passed"])
+        self.assertIn("start timestamp evidence missing", " ".join(missing["problems"]))
+
+        resource = self.resource_module()
+        proof = self.collect_fake_resource_proof(resource, 0)
+        backend = next(row for row in proof["services"] if row["service"] == "backend")
+        self.assertEqual(backend["started_at"], "2026-01-01T00:00:00.000000001Z")
+        self.assertEqual(backend["pid"], 100)
+
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            before_proof = json.loads((Path(td) / "resource-proof-before.json").read_text())
+            after_proof = json.loads((Path(td) / "resource-proof-after.json").read_text())
+            before_proof["services"][0]["pid"] = 100
+            after_proof["services"][0]["pid"] = 140
+            after_proof["services"][0]["started_at"] = "2026-01-01T00:00:01Z"
+            (Path(td) / "resource-proof-before.json").write_text(json.dumps(before_proof))
+            (Path(td) / "resource-proof-after.json").write_text(json.dumps(after_proof))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["resource_window_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):
         module = self.decision_module()
@@ -411,7 +627,7 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "CpuShares": module.EXPECTED_CPU_SHARES[service],
                 "CgroupParent": module.EXPECTED_CGROUP_PARENT,
             },
-            "State": {"Running": service != "configurator", "Pid": 100 if service != "configurator" else 0, "OOMKilled": False},
+            "State": {"Running": service != "configurator", "Pid": 100 if service != "configurator" else 0, "StartedAt": "2026-01-01T00:00:00.000000001Z", "OOMKilled": False},
         }
         if include_restart:
             info["RestartCount"] = restart_count
@@ -477,6 +693,48 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertFalse(result["resource_window_ok"])
             self.assertEqual(result["qualified"], "NO-GO")
             self.assertIn("backend: restart count changed 0 -> 1", result["resource_window_problems"])
+
+    def test_oversized_guest_memory_is_diagnostic_under_one_sided_window(self):
+        spec = importlib.util.spec_from_file_location("guest_attestation", ROOT / "guest_attestation.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Reproduce the old two-sided acceptance shape: 2200 MiB was inside
+        # 2048 MiB +/- 10%, so the former check would have qualified it.
+        self.assertLessEqual(2200.0, 2048.0 * 1.10)
+        with tempfile.TemporaryDirectory() as td:
+            parent = Path(td) / "khitmeeperf.slice"
+            parent.mkdir()
+            (parent / "cpuset.cpus.effective").write_text("2-3")
+            (parent / "cpu.max").write_text("200000 100000")
+            (parent / "memory.max").write_text(str(2 * 1024**3))
+            (parent / "memory.swap.max").write_text("0")
+            members = ([{"service": service, "member": True} for service in module.SERVICES], [])
+
+            def facts(memory_mib):
+                return {
+                    "online_cpu_count": 2,
+                    "nproc_count": 2,
+                    "guest_mem_total_bytes": int(memory_mib * 1024**2),
+                    "guest_swap_total_bytes": 0,
+                }
+
+            def attest(memory_mib):
+                return module.attest(
+                    str(parent),
+                    fact_reader=lambda: facts(memory_mib),
+                    membership_reader=lambda project, parent_path: members,
+                )
+
+            oversized = attest(2200)
+            self.assertFalse(oversized["dedicated_guest_passed"])
+            self.assertFalse(oversized["passed"])
+            self.assertEqual(oversized["attestation"], "diagnostic")
+            self.assertIn("no more than 2048 MiB", " ".join(oversized["guest_problems"]))
+
+            reserved = attest(1980)
+            self.assertTrue(reserved["dedicated_guest_passed"], reserved["guest_problems"])
+            self.assertTrue(reserved["passed"], reserved["problems"])
+            self.assertEqual(reserved["attestation"], "qualifying")
 
     def test_larger_host_slice_is_diagnostic_and_never_qualified(self):
         spec = importlib.util.spec_from_file_location("guest_attestation", ROOT / "guest_attestation.py")

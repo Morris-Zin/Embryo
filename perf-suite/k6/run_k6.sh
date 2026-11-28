@@ -142,6 +142,15 @@ docker_available() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
+K6_DOCKER_HOST="${K6_DOCKER_HOST:-}"
+k6_docker() {
+  if [[ -n "$K6_DOCKER_HOST" ]]; then
+    DOCKER_HOST="$K6_DOCKER_HOST" docker "$@"
+  else
+    docker "$@"
+  fi
+}
+
 host_k6_available() {
   command -v k6 >/dev/null 2>&1
 }
@@ -153,7 +162,7 @@ select_network() {
   fi
   local candidate
   for candidate in khitmee-perf khitmee-perf_default; do
-    if docker network inspect "$candidate" >/dev/null 2>&1; then
+    if k6_docker network inspect "$candidate" >/dev/null 2>&1; then
       printf '%s\n' "$candidate"
       return 0
     fi
@@ -248,7 +257,7 @@ if [[ "$USE_DOCKER" == "1" ]]; then
 
   CONTAINER_SUMMARY="/perf-suite/results/$(basename "$K6_SUMMARY")"
   DOCKER_CMD=(
-    docker run --rm
+    run --rm
     --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
     --network "$NETWORK"
     --add-host host.docker.internal:host-gateway
@@ -293,7 +302,7 @@ if [[ "$USE_DOCKER" == "1" ]]; then
 
   echo "Running k6 scenario '$SCENARIO' in Docker image $K6_IMAGE on network $NETWORK"
   set +e
-  env MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
   K6_STATUS=${PIPESTATUS[0]}
   set -e
 else

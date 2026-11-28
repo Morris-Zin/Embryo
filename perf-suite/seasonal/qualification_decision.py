@@ -12,6 +12,17 @@ REQUIRED_ORACLE_CHECKS = {
 }
 
 
+def acceptance_fixture_sha256():
+    try:
+        data = json.loads((pathlib.Path(__file__).resolve().with_name('acceptance-fixture.json')).read_text(encoding='utf-8'))
+        return str(data.get('sha256') or '')
+    except Exception:
+        return ''
+
+
+PINNED_ACCEPTANCE_FIXTURE_SHA256 = acceptance_fixture_sha256()
+
+
 def load_json(path):
     try:
         return json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
@@ -48,6 +59,21 @@ def resource_window_comparison(before, after):
                 problems.append(f'{service}: restart counter evidence is not numeric')
             if restart_changed:
                 problems.append(f'{service}: restart count changed {old_restart} -> {new_restart}')
+        for key, label in (('started_at', 'start timestamp'), ('pid', 'process id')):
+            old_value = old.get(key)
+            new_value = new.get(key)
+            if old_value in (None, '') or new_value in (None, ''):
+                problems.append(f'{service}: {label} evidence missing in one resource proof')
+            elif key == 'pid':
+                try:
+                    changed = int(old_value) != int(new_value)
+                except (TypeError, ValueError):
+                    changed = True
+                    problems.append(f'{service}: process id evidence is not numeric')
+                if changed:
+                    problems.append(f'{service}: process id changed {old_value} -> {new_value}')
+            elif old_value != new_value:
+                problems.append(f'{service}: start timestamp changed {old_value} -> {new_value}')
         if bool(old.get('oom_killed')) != bool(new.get('oom_killed')):
             problems.append(f'{service}: OOM state changed {old.get("oom_killed")} -> {new.get("oom_killed")}')
     return {'passed': not problems, 'problems': problems}
@@ -93,6 +119,8 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
     fixture_restore = load_json(artifact / 'fixture-restore.json')
+    load_generator = load_json(artifact / 'load-generator-attestation.json')
+    attribution = load_json(artifact / 'attribution' / 'attribution-summary.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -157,18 +185,38 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         evidence_problems.append('ADR guest envelope attestation missing, failed, or changed')
     if not oracle_ok:
         evidence_problems.append(oracle_problem)
+    load_generator_ok = load_generator.get('schema_version') == 'seasonal-load-generator-attestation-v1' and load_generator.get('passed') is True and load_generator.get('off_guest') is True
+    if not load_generator_ok:
+        evidence_problems.append('off-guest k6 load-generator attestation missing, failed, or diagnostic only')
+    attribution_ok = attribution.get('collection_passed') is True
+    if not attribution_ok:
+        evidence_problems.append('request attribution collection evidence missing or failed')
+    actual_fixture_sha = str(fixture_restore.get('fixture_sha256') or '')
+    fixture_pin_ok = bool(PINNED_ACCEPTANCE_FIXTURE_SHA256) and actual_fixture_sha == PINNED_ACCEPTANCE_FIXTURE_SHA256
     fixture_restore_ok = (
         fixture_restore.get('passed') is True
-        and len(str(fixture_restore.get('fixture_sha256') or '')) == 64
+        and len(actual_fixture_sha) == 64
+        and fixture_pin_ok
         and fixture_restore.get('archive_format') == 'cold-named-volume-tar/v1'
         and len(str(fixture_restore.get('fixture_manifest_sha256') or '')) == 64
     )
     if not fixture_restore_ok:
-        evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
+        if len(actual_fixture_sha) == 64 and not fixture_pin_ok:
+            evidence_problems.append('restored fixture digest is not the pinned acceptance fixture; evidence is diagnostic only')
+        else:
+            evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
     if not candidate.get('app_commit_sha') or not candidate.get('app_tree_hash'):
         evidence_problems.append('candidate commit/tree evidence missing')
+    migration_tree_hash_ok = (
+        migration.get('exit_code') == 0
+        and migration.get('tree_hash_verified') is True
+        and migration.get('app_tree_hash_expected') == candidate.get('app_tree_hash')
+        and migration.get('migrated_app_tree_hash') == candidate.get('app_tree_hash')
+    )
     if migration.get('exit_code') != 0:
         evidence_problems.append('candidate migration evidence missing or failed')
+    elif not migration_tree_hash_ok:
+        evidence_problems.append('migrated app tree digest missing or does not match the selected candidate tree')
 
     qualification_evidence = not evidence_problems
     qualified_bool = qualification_evidence and workload_passed
@@ -202,6 +250,13 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'managers_enabled': managers_enabled,
         'guest_attestation_ok': guest_attestation_ok,
         'oracle_evidence_ok': oracle_ok,
+        'load_generator_ok': load_generator_ok,
+        'load_generator_attestation': load_generator.get('attestation'),
+        'load_generator_endpoint': load_generator.get('generator_endpoint'),
+        'load_generator_daemon_identity': load_generator.get('generator_daemon_identity'),
+        'attribution_collection_ok': attribution_ok,
+        'attribution_collection_problems': attribution.get('collection_problems', []),
+        'attribution_join_ratio': attribution.get('join_ratio'),
         'resource_window_ok': resource_window_ok,
         'resource_window_problems': window['problems'],
         'qualification_resource_measurement_ok': resource_measurement_ok,
@@ -212,6 +267,8 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'resource_budget_problems_after': after.get('budget_problems', []),
         'workload_exit': workload_exit,
         'fixture_sha256': fixture_restore.get('fixture_sha256'),
+        'pinned_acceptance_fixture_sha256': PINNED_ACCEPTANCE_FIXTURE_SHA256,
+        'fixture_is_acceptance_pin': fixture_pin_ok,
         'fixture_archive': fixture_restore.get('archive'),
         'fixture_archive_format': fixture_restore.get('archive_format'),
         'fixture_manifest_path': fixture_restore.get('fixture_manifest_path'),
@@ -226,6 +283,9 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'app_tree_path': candidate.get('app_tree_path'),
         'candidate_migration_required': migration.get('required') is True,
         'candidate_migration_exit_code': migration.get('exit_code'),
+        'candidate_migration_tree_hash_verified': migration.get('tree_hash_verified') is True,
+        'candidate_migrated_app_tree_hash': migration.get('migrated_app_tree_hash'),
+        'migration_tree_hash_ok': migration_tree_hash_ok,
         'candidate_migration_log': migration.get('log'),
         'candidate_role_grants': candidate.get('role_grants_artifact'),
         'request_attribution_summary': str(artifact / 'attribution' / 'attribution-summary.json'),

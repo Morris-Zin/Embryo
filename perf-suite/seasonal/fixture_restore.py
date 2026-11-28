@@ -12,7 +12,13 @@ import sys
 import tarfile
 
 PROJECT = "khitmee-perf"
-PINNED_FIXTURE_SHA256 = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
+def acceptance_fixture_pin():
+    pin_path = Path(__file__).resolve().with_name("acceptance-fixture.json")
+    data = json.loads(pin_path.read_text(encoding="utf-8"))
+    return str(data["sha256"])
+
+
+PINNED_FIXTURE_SHA256 = acceptance_fixture_pin()
 ARCHIVE_FORMAT = "cold-named-volume-tar/v1"
 VOLUMES = {
     "perf-db-data/_data": ("db", "perf-db-data"),

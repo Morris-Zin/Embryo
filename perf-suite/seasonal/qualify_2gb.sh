@@ -10,7 +10,7 @@ PERF_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd -- "$PERF_ROOT/.." && pwd)"
 DOCKER_DIR="$PERF_ROOT/docker"
 PROJECT="khitmee-perf"
-PINNED_FIXTURE_SHA="0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
+PINNED_FIXTURE_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sha256"])' "$SCRIPT_DIR/acceptance-fixture.json")"
 DEFAULT_FIXTURE="/srv/khitmee-lab/operator/fixtures/${PINNED_FIXTURE_SHA}.tar.gz"
 DEFAULT_ACTORS="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seasonal-actor-env.json"
 DEFAULT_MANIFEST="/srv/khitmee-lab/operator/year-actors/8f17a82b728ccb5b5720c805ac84f0e0986fd497b204652e782296ee2b81e20a/seed_manifest.json"
@@ -39,7 +39,7 @@ One-command isolated 2 GiB seasonal qualification on the KhitmeeERPNext WSL stac
 Options:
   --seasonal-profile smoke|acceptance           Workload length (default smoke)
   --fixture PATH                                Pinned cold-volume fixture archive
-  --fixture-sha SHA256                          Expected archive digest
+  --fixture-sha SHA256                          Expected archive digest for diagnostic alternate fixtures; qualification remains pinned
   --fixture-manifest PATH                       Archive manifest (default companion beside --fixture)
   --actors PATH                                 JSON actor environment for the pinned fixture
   --seed-manifest PATH                          Pinned seed manifest
@@ -262,8 +262,11 @@ python3 -B "$SCRIPT_DIR/fixture_restore.py" "$FIXTURE" \
   --docker-dir "$DOCKER_DIR" \
   --output "$ARTIFACT_DIR/fixture-restore.json" | tee "$ARTIFACT_DIR/fixture-restore.stdout"
 
-echo "Starting isolated stack with khitmee_ops"
-run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest --with-khitmee-ops >"$ARTIFACT_DIR/up.log" 2>&1
+echo "Starting isolated base stack; the selected candidate tree is deployed before migration"
+# Do not pass --with-khitmee-ops here: startup must not mount or migrate the
+# working checkout. deploy_candidate.py below mounts the exact materialized
+# tree, recreates the Python services, and performs the only khitmee_ops migration.
+run_bash_script "$PERF_ROOT/scripts/up.sh" --profile 2gb-guest >"$ARTIFACT_DIR/up.log" 2>&1
 
 SEASONAL_COMPOSE_FILES=(
   "$DOCKER_DIR/compose.base.yaml"
@@ -364,6 +367,9 @@ if [[ -f "$ARTIFACT_DIR/lease-renew.failed" ]]; then
   echo "INVALID: lease renewal failed before workload; exclusive host/perf use cannot be proven" >&2
   exit 6
 fi
+
+echo "Attesting k6 load-generator placement"
+python3 -B "$SCRIPT_DIR/load_generator_attestation.py"   --runtime "$K6_RUNTIME"   --docker-host "${K6_DOCKER_HOST:-}"   --output "$ARTIFACT_DIR/load-generator-attestation.json"   >"$ARTIFACT_DIR/load-generator-attestation.stdout" 2>&1 || true
 
 K6_SCENARIO="seasonal"
 if [[ "$PREFLIGHT_ONLY" == "1" ]]; then
