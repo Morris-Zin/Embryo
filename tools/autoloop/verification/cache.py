@@ -19,7 +19,7 @@ from typing import Any
 
 from ..leases import resource_lock_dir
 from .digests import canonical_json_bytes, sha256_json
-from .receipts import ReceiptValidator
+from .receipts import ReceiptAttestation, ReceiptValidator
 from .schemas import NEVER_CACHEABLE_CHECK_KINDS
 
 CACHE_SCHEMA_VERSION = 1
@@ -152,7 +152,7 @@ class CheckCache:
             return CacheLookup(False, reason="invalid-entry")
 
         receipt_id = entry["receipt_id"]
-        if not _receipt_valid(receipt_id, receipt_validator):
+        if not _receipt_valid(receipt_id, receipt_attestation(key_digest, outcome), receipt_validator):
             return CacheLookup(False, reason="invalid-receipt")
         evidence = _cached_evidence(key_digest, outcome, receipt_id)
         if not self._record_cached_evidence(evidence):
@@ -171,10 +171,10 @@ class CheckCache:
     ) -> bool:
         if _ineligible_reason(cacheable=cacheable, kind=kind):
             return False
-        if not receipt_id or not _receipt_valid(receipt_id, receipt_validator):
-            return False
         _validate_outcome(outcome)
         key_digest = self.key_digest(key)
+        if not receipt_id or not _receipt_valid(receipt_id, receipt_attestation(key_digest, outcome), receipt_validator):
+            return False
         entry = {
             "schema_version": CACHE_SCHEMA_VERSION,
             "key_digest": key_digest,
@@ -195,8 +195,12 @@ class CheckCache:
                 existing_entry = json.loads(existing.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
                 existing_entry = None
-            if isinstance(existing_entry, dict) and existing_entry.get("schema_version") == CACHE_SCHEMA_VERSION:
+            if self._entry_still_vouched(existing_entry, key, key_digest, receipt_validator):
+                # A different, still-valid result for the same key means the check is not
+                # deterministic; keep the first and refuse to overwrite it.
                 return False
+            # Corrupt, foreign-schema, revoked or no-longer-attested entries may be replaced
+            # by this freshly validated result.
         _atomic_write(path, payload)
         return True
 
@@ -229,6 +233,22 @@ class CheckCache:
             kind=kind,
         )
         return CacheExecution(False, fresh.outcome, None, stored, time.monotonic() - started)
+
+    def _entry_still_vouched(
+        self, entry: Any, key: CheckCacheKey, key_digest: str, receipt_validator: ReceiptValidator
+    ) -> bool:
+        if (
+            not isinstance(entry, dict)
+            or entry.get("schema_version") != CACHE_SCHEMA_VERSION
+            or entry.get("key_digest") != key_digest
+            or entry.get("key") != _canonical_key(key)
+        ):
+            return False
+        outcome = _outcome_from_entry(entry)
+        receipt_id = entry.get("receipt_id")
+        if outcome is None or not isinstance(receipt_id, str) or not receipt_id:
+            return False
+        return _receipt_valid(receipt_id, receipt_attestation(key_digest, outcome), receipt_validator)
 
     def _entry_path(self, key_digest: str) -> Path:
         return self.root / key_digest[:2] / f"{key_digest[2:]}.json"
@@ -336,11 +356,25 @@ def _ineligible_reason(*, cacheable: bool, kind: str) -> str | None:
     return None
 
 
-def _receipt_valid(receipt_id: str, validator: ReceiptValidator) -> bool:
+def receipt_attestation(key_digest: str, outcome: CheckOutcome) -> ReceiptAttestation:
+    """The exact execution a receipt must attest to vouch for ``outcome`` under ``key_digest``."""
+
+    return ReceiptAttestation(
+        cache_key_digest=key_digest,
+        outcome_digest=sha256_json(_canonical_outcome(outcome)),
+        evidence_id=outcome.evidence_id,
+        evidence_digest=outcome.evidence_digest,
+        output_digest=outcome.output_digest,
+        exit_code=outcome.exit_code,
+        completed_at=outcome.completed_at,
+    )
+
+
+def _receipt_valid(receipt_id: str, attestation: ReceiptAttestation, validator: ReceiptValidator) -> bool:
     if not receipt_id:
         return False
     try:
-        return bool(validator(receipt_id))
+        return validator(receipt_id, attestation) is True
     except Exception:
         return False
 
