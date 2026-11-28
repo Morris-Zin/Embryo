@@ -1155,8 +1155,9 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		self.assertIn("`sii`.`brand` = %s", sql)
 		self.assertIn("INNER JOIN `tabItem` AS `item` ON `item`.`name` = `sii`.`item_code`", sql)
 		self.assertIn("`item`.`item_group` = %s", sql)
-		self.assertIn("`st`.`sales_person` = %s", sql)
-		self.assertEqual(sql.count("LEFT JOIN `tabSales Team`"), 2)
+		self.assertIn("EXISTS (SELECT 1 FROM `tabSales Team` AS `st_f`", sql)
+		self.assertIn("AND `st_f`.`sales_person` = %s)", sql)
+		self.assertEqual(sql.count("LEFT JOIN `tabSales Team`"), 1)
 		self.assertEqual(params[-1], 51)
 		self.assertEqual(params.count("CUST-1"), 2)
 		self.assertEqual(params.count("ITEM-1"), 2)
@@ -1183,8 +1184,8 @@ class TestPr12ReviewFixes(unittest.TestCase):
 				cap=20,
 			)
 		self.assertIn("FROM `tabItem Group` AS `ig` WHERE `ig`.`lft` >= %s AND `ig`.`rgt` <= %s", sql_tree)
-		self.assertIn("FROM `tabSales Person` AS `sp` WHERE `sp`.`lft` >= %s AND `sp`.`rgt` <= %s", sql_tree)
-		self.assertEqual(params_tree, ["C", "2026-01-01", "2026-12-31", 10, 25, 1, 8, "C", "2026-01-01", "2026-12-31", 10, 25, 1, 8, 21])
+		self.assertIn("AND `st_f`.`sales_person` = %s)", sql_tree)
+		self.assertEqual(params_tree, ["C", "2026-01-01", "2026-12-31", 10, 25, "Sales Team", "C", "2026-01-01", "2026-12-31", 10, 25, "Sales Team", 21])
 
 	def test_preflight_uses_covering_index_range_scan_and_straight_join_packed_drive(self):
 		sql, _params = build_detail_preflight_query(
@@ -1194,7 +1195,7 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		self.assertIn("`si`.`is_return` IN (0, 1)", sql)
 		self.assertIn("FROM `tabSales Invoice` AS `si` FORCE INDEX (`khitmee_si_co_ds_ret_date`)", sql)
 		self.assertIn("STRAIGHT_JOIN `tabSales Invoice Item` AS `sii` FORCE INDEX (`khitmee_sii_parent_warehouse`)", sql)
-		self.assertIn("STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent_detail_docname` = `sii`.`name`", sql)
+		self.assertIn("STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent` = `si`.`name`", sql)
 
 		sql_narrow, _params_narrow = build_detail_preflight_query(
 			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "sales_invoice": "SI-9", "item_code": "ITEM-1", "warehouse": "W-1"},

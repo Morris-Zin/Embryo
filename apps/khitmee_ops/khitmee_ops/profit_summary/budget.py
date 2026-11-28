@@ -192,22 +192,18 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		"LEFT JOIN `tabSales Team` AS `st` ON `st`.`parent` = `si`.`name` AND `st`.`parenttype` = 'Sales Invoice'"
 	)
 	if sales_person:
-		filter_joins.append(sales_team_join)
-		lft_rgt = _tree_lft_rgt("Sales Person", sales_person)
-		if lft_rgt:
-			where.append(
-				"`st`.`sales_person` IN ("
-				"SELECT `sp`.`name` FROM `tabSales Person` AS `sp` WHERE `sp`.`lft` >= %s AND `sp`.`rgt` <= %s"
-				")"
-			)
-			params.extend([lft_rgt[0], lft_rgt[1]])
-		else:
-			where.append("`st`.`sales_person` = %s")
-			params.append(sales_person)
+		# Match ERPNext apply_common_filters: exact-name EXISTS predicate independent of Sales Person grouping.
+		where.append(
+			"EXISTS (SELECT 1 FROM `tabSales Team` AS `st_f` "
+			"WHERE `st_f`.`parent` = `si`.`name` "
+			"AND `st_f`.`parenttype` = 'Sales Invoice' "
+			"AND `st_f`.`sales_person` = %s)"
+		)
+		params.append(sales_person)
 
 	group_joins = []
 	group_by = str(filters.get("group_by") or "").lower()
-	if group_by == "sales person" and not sales_person:
+	if group_by == "sales person":
 		group_joins.append(sales_team_join)
 	if group_by == "payment term":
 		group_joins.append("LEFT JOIN `tabPayment Schedule` AS `ps` ON `ps`.`parent` = `si`.`name` AND `ps`.`parenttype` = 'Sales Invoice'")
@@ -227,8 +223,7 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		SELECT `pi`.`name` AS `input_row`
 		FROM `tabSales Invoice` AS `si`{si_index_hint}
 		STRAIGHT_JOIN `tabSales Invoice Item` AS `sii`{sii_index_hint} ON `sii`.`parent` = `si`.`name`
-		STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent_detail_docname` = `sii`.`name`
-			AND `pi`.`parent` = `si`.`name`
+		STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent` = `si`.`name`
 			AND `pi`.`parenttype` = 'Sales Invoice'
 			AND `pi`.`parent_item` = `sii`.`item_code`
 			AND `pi`.`docstatus` = 1
