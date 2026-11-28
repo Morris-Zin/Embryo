@@ -52,12 +52,12 @@ struct PilotState {
 
 #[derive(Clone)]
 struct InvoiceSeed {
-    name: String,
-    customer: String,
-    posting_date: String,
-    due_date: String,
+    name: SharedString,
+    customer: SharedString,
+    posting_date: SharedString,
+    due_date: SharedString,
     total: f64,
-    status: String,
+    status: SharedString,
 }
 
 fn new_client_voucher_id() -> String {
@@ -383,14 +383,16 @@ fn fixture_invoices(rows: usize) -> Vec<InvoiceSeed> {
                 };
             }
             InvoiceSeed {
-                name: format!("FIXTURE-SINV-{}", fixture_invoice_suffix(index)),
+                name: format!("FIXTURE-SINV-{}", fixture_invoice_suffix(index)).into(),
                 customer: if index % 1000 == 0 {
                     format!("မြတ်သူ {:04}", index % 1000)
                 } else {
                     format!("Customer {:04}", index % 997)
-                },
-                posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28),
-                due_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + ((index + 14) % 28)),
+                }
+                .into(),
+                posting_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + index % 28).into(),
+                due_date: format!("2026-{:02}-{:02}", 1 + index % 11, 1 + ((index + 14) % 28))
+                    .into(),
                 total: 1000.0 + ((index * 173) % 85_000) as f64 / 2.0,
                 status: match index % 5 {
                     0 => "Paid",
@@ -598,11 +600,11 @@ fn parse_invoice_rows(payload: &serde_json::Value) -> Vec<InvoiceSeed> {
                 .filter_map(|row| {
                     let columns = row.as_array()?;
                     Some(InvoiceSeed {
-                        name: columns.first()?.as_str()?.to_owned(),
-                        customer: columns.get(1)?.as_str()?.to_owned(),
-                        status: columns.get(2)?.as_str()?.to_owned(),
-                        posting_date: columns.get(3)?.as_str()?.to_owned(),
-                        due_date: columns.get(4)?.as_str()?.to_owned(),
+                        name: columns.first()?.as_str()?.into(),
+                        customer: columns.get(1)?.as_str()?.into(),
+                        status: columns.get(2)?.as_str()?.into(),
+                        posting_date: columns.get(3)?.as_str()?.into(),
+                        due_date: columns.get(4)?.as_str()?.into(),
                         total: columns.get(5)?.as_f64()?,
                     })
                 })
@@ -2136,7 +2138,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 state_ref
                     .invoices
                     .first()
-                    .map(|invoice| invoice.name.clone())
+                    .map(|invoice| invoice.name.to_string())
             });
         if let Some(invoice_name) = invoice_name {
             refresh_invoice_detail(&app, &mut state_ref, &invoice_name);
@@ -2725,12 +2727,12 @@ mod tests {
 
     fn invoice_seed(name: &str, customer: &str) -> InvoiceSeed {
         InvoiceSeed {
-            name: name.to_string(),
-            customer: customer.to_string(),
-            posting_date: "2026-11-27".to_string(),
-            due_date: "2026-12-11".to_string(),
+            name: name.into(),
+            customer: customer.into(),
+            posting_date: "2026-11-27".into(),
+            due_date: "2026-12-11".into(),
             total: 10.0,
-            status: "Paid".to_string(),
+            status: "Paid".into(),
         }
     }
 
@@ -2755,7 +2757,7 @@ mod tests {
             .map(|index| invoice_seed(&format!("ACC-SINV-{index:05}"), "Khit Customer"))
             .collect();
         let visible: Vec<String> = filtered_invoice_rows(&rows, "", 20)
-            .map(|row| row.name.clone())
+            .map(|row| row.name.to_string())
             .collect();
         assert_eq!(visible.len(), 20);
         assert_eq!(visible[0], "ACC-SINV-00000");
@@ -2770,7 +2772,7 @@ mod tests {
             invoice_seed("ACC-SINV-00003", "Alpha Wholesale"),
         ];
         let visible: Vec<String> = filtered_invoice_rows(&rows, "alpha", 2)
-            .map(|row| row.name.clone())
+            .map(|row| row.name.to_string())
             .collect();
         assert_eq!(visible, vec!["ACC-SINV-00001", "ACC-SINV-00003"]);
     }

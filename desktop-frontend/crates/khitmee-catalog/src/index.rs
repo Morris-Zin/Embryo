@@ -1,6 +1,7 @@
 use crate::models::CatalogItem;
 use memchr::memmem;
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::ops::Range;
 
 const ITEM_CODE: usize = 0;
@@ -10,17 +11,21 @@ const ITEM_GROUP: usize = 3;
 const BRAND: usize = 4;
 const BARCODE: usize = 5;
 const BARCODE_TEXT: usize = 6;
-const MODIFIED: usize = 7;
-const ORIGINAL_FIELD_COUNT: usize = 8;
+const INLINE_ORIGINAL_FIELD_COUNT: usize = 4;
 const SEARCH_FIELD_COUNT: usize = 5;
-const SEARCH_SEPARATOR: char = '\u{1f}';
+const INLINE_SEARCH_FIELD_COUNT: usize = 3;
+const MISSING_INTERNED_FIELD: u32 = u32::MAX;
 
 fn fold(value: &str) -> String {
     value.to_lowercase()
 }
 
 fn as_u32(value: usize) -> u32 {
-    u32::try_from(value).expect("catalog field fits in the compact index")
+    u32::try_from(value).expect("catalog row fits in the compact index")
+}
+
+fn as_u16(value: usize) -> u16 {
+    u16::try_from(value).expect("ERP catalog field fits in the compact index")
 }
 
 fn hash_bytes(bytes: &[u8]) -> u64 {
@@ -30,6 +35,58 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     hash
+}
+
+#[derive(Default)]
+struct InternedText {
+    original_text: String,
+    search_text: String,
+    original_ranges: Vec<(u32, u32)>,
+    search_ranges: Vec<(u32, u32)>,
+    lookup: HashMap<u64, Vec<u32>>,
+}
+
+impl InternedText {
+    fn intern(&mut self, value: &str) -> u32 {
+        let hash = hash_bytes(value.as_bytes());
+        if let Some(candidates) = self.lookup.get(&hash) {
+            if let Some(id) = candidates.iter().find(|id| self.original(**id) == value) {
+                return *id;
+            }
+        }
+
+        let id = as_u32(self.original_ranges.len());
+        let original_start = as_u32(self.original_text.len());
+        self.original_text.push_str(value);
+        self.original_ranges
+            .push((original_start, as_u32(value.len())));
+
+        let folded = fold(value);
+        let search_start = as_u32(self.search_text.len());
+        self.search_text.push_str(&folded);
+        self.search_ranges
+            .push((search_start, as_u32(folded.len())));
+        self.lookup.entry(hash).or_default().push(id);
+        id
+    }
+
+    fn original(&self, id: u32) -> &str {
+        let (start, len) = self.original_ranges[id as usize];
+        &self.original_text[start as usize..(start + len) as usize]
+    }
+
+    fn search(&self, id: u32) -> &str {
+        let (start, len) = self.search_ranges[id as usize];
+        &self.search_text[start as usize..(start + len) as usize]
+    }
+
+    fn shrink_to_fit(&mut self) {
+        self.original_text.shrink_to_fit();
+        self.search_text.shrink_to_fit();
+        self.original_ranges.shrink_to_fit();
+        self.search_ranges.shrink_to_fit();
+        self.lookup.shrink_to_fit();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -49,10 +106,13 @@ struct PreparedBarcodeEntry {
 #[derive(Clone, Debug)]
 struct PreparedItem {
     original_text: String,
-    original_lengths: [u32; ORIGINAL_FIELD_COUNT],
+    original_lengths: [u16; INLINE_ORIGINAL_FIELD_COUNT],
     present_fields: u8,
     search_text: String,
-    search_lengths: [u32; SEARCH_FIELD_COUNT],
+    search_lengths: [u16; INLINE_SEARCH_FIELD_COUNT],
+    stock_uom: Option<String>,
+    item_group: Option<String>,
+    brand: Option<String>,
     barcode_entries: Vec<PreparedBarcodeEntry>,
     rate: f64,
     actual_qty: f64,
@@ -60,59 +120,73 @@ struct PreparedItem {
 
 impl PreparedItem {
     fn new(row: CatalogItem) -> Self {
+        let CatalogItem {
+            item_code,
+            item_name,
+            stock_uom,
+            item_group,
+            brand,
+            barcode,
+            barcode_text,
+            rate,
+            actual_qty,
+            modified: _,
+            deleted: _,
+        } = row;
         let original_fields = [
-            row.item_code.as_str(),
-            row.item_name.as_deref().unwrap_or(""),
-            row.stock_uom.as_deref().unwrap_or(""),
-            row.item_group.as_deref().unwrap_or(""),
-            row.brand.as_deref().unwrap_or(""),
-            row.barcode.as_deref().unwrap_or(""),
-            row.barcode_text.as_deref().unwrap_or(""),
-            row.modified.as_deref().unwrap_or(""),
-        ];
-        let optional_fields = [
-            false,
-            row.item_name.is_some(),
-            row.stock_uom.is_some(),
-            row.item_group.is_some(),
-            row.brand.is_some(),
-            row.barcode.is_some(),
-            row.barcode_text.is_some(),
-            row.modified.is_some(),
+            (ITEM_CODE, item_code.as_str(), true),
+            (
+                ITEM_NAME,
+                item_name.as_deref().unwrap_or(""),
+                item_name.is_some(),
+            ),
+            (BARCODE, barcode.as_deref().unwrap_or(""), barcode.is_some()),
+            (
+                BARCODE_TEXT,
+                barcode_text.as_deref().unwrap_or(""),
+                barcode_text.is_some(),
+            ),
         ];
         let mut present_fields = 0u8;
-        let mut original_lengths = [0u32; ORIGINAL_FIELD_COUNT];
-        let original_len: usize = original_fields.iter().map(|field| field.len()).sum();
+        if stock_uom.is_some() {
+            present_fields |= 1 << STOCK_UOM;
+        }
+        if item_group.is_some() {
+            present_fields |= 1 << ITEM_GROUP;
+        }
+        if brand.is_some() {
+            present_fields |= 1 << BRAND;
+        }
+        let mut original_lengths = [0u16; INLINE_ORIGINAL_FIELD_COUNT];
+        let original_len: usize = original_fields
+            .iter()
+            .map(|(_, field, _)| field.len())
+            .sum();
         let mut original_text = String::with_capacity(original_len);
-        for (index, field) in original_fields.iter().enumerate() {
-            if optional_fields[index] {
-                present_fields |= 1 << index;
+        for (index, (field_bit, field, present)) in original_fields.iter().enumerate() {
+            if *present {
+                present_fields |= 1 << field_bit;
             }
-            original_lengths[index] = as_u32(field.len());
+            original_lengths[index] = as_u16(field.len());
             original_text.push_str(field);
         }
 
         let folded_fields = [
-            fold(&row.item_code),
-            fold(row.item_name.as_deref().unwrap_or("")),
-            fold(row.item_group.as_deref().unwrap_or("")),
-            fold(row.brand.as_deref().unwrap_or("")),
-            fold(row.barcode_text.as_deref().unwrap_or("")),
+            fold(&item_code),
+            fold(item_name.as_deref().unwrap_or("")),
+            fold(barcode_text.as_deref().unwrap_or("")),
         ];
-        let search_len = folded_fields.iter().map(|field| field.len()).sum::<usize>()
-            + SEARCH_FIELD_COUNT.saturating_sub(1);
+        let search_len = folded_fields.iter().map(|field| field.len()).sum::<usize>();
         let mut search_text = String::with_capacity(search_len);
-        let mut search_lengths = [0u32; SEARCH_FIELD_COUNT];
+        let mut search_lengths = [0u16; INLINE_SEARCH_FIELD_COUNT];
         for (index, field) in folded_fields.iter().enumerate() {
-            if index != 0 {
-                search_text.push(SEARCH_SEPARATOR);
-            }
-            search_lengths[index] = as_u32(field.len());
+            search_lengths[index] = as_u16(field.len());
             search_text.push_str(field);
         }
 
         let mut barcode_entries = Vec::new();
-        if let Some(barcode) = row.barcode.as_deref() {
+        let mut primary_folded = None;
+        if let Some(barcode) = barcode.as_deref() {
             let folded = fold(barcode);
             if !folded.is_empty() {
                 barcode_entries.push(PreparedBarcodeEntry {
@@ -121,12 +195,13 @@ impl PreparedItem {
                     start: 0,
                     end: 0,
                 });
+                primary_folded = Some(folded);
             }
         }
-        let folded_barcode_text = &folded_fields[4];
+        let folded_barcode_text = &folded_fields[2];
         let text_base = folded_barcode_text.as_ptr() as usize;
         for token in folded_barcode_text.split_whitespace() {
-            if token.is_empty() {
+            if token.is_empty() || primary_folded.as_deref() == Some(token) {
                 continue;
             }
             let start = token.as_ptr() as usize - text_base;
@@ -144,9 +219,12 @@ impl PreparedItem {
             present_fields,
             search_text,
             search_lengths,
+            stock_uom,
+            item_group,
+            brand,
             barcode_entries,
-            rate: row.rate,
-            actual_qty: row.actual_qty,
+            rate,
+            actual_qty,
         }
     }
 }
@@ -154,10 +232,13 @@ impl PreparedItem {
 #[derive(Clone, Copy, Debug)]
 struct IndexedItem {
     original_start: u32,
-    original_lengths: [u32; ORIGINAL_FIELD_COUNT],
+    original_lengths: [u16; INLINE_ORIGINAL_FIELD_COUNT],
     present_fields: u8,
     search_start: u32,
-    search_lengths: [u32; SEARCH_FIELD_COUNT],
+    search_lengths: [u16; INLINE_SEARCH_FIELD_COUNT],
+    stock_uom_id: u32,
+    item_group_id: u32,
+    brand_id: u32,
     rate: f64,
     actual_qty: f64,
 }
@@ -176,6 +257,7 @@ pub struct CatalogIndex {
     items: Vec<IndexedItem>,
     original_text: String,
     search_text: String,
+    interned_fields: InternedText,
     exact_barcode: Vec<BarcodeEntry>,
 }
 
@@ -233,12 +315,30 @@ impl CatalogIndexBuilder {
                     end: entry.end,
                 });
             }
+            let stock_uom_id = item
+                .stock_uom
+                .as_deref()
+                .map(|value| self.index.interned_fields.intern(value))
+                .unwrap_or(MISSING_INTERNED_FIELD);
+            let item_group_id = item
+                .item_group
+                .as_deref()
+                .map(|value| self.index.interned_fields.intern(value))
+                .unwrap_or(MISSING_INTERNED_FIELD);
+            let brand_id = item
+                .brand
+                .as_deref()
+                .map(|value| self.index.interned_fields.intern(value))
+                .unwrap_or(MISSING_INTERNED_FIELD);
             self.index.items.push(IndexedItem {
                 original_start,
                 original_lengths: item.original_lengths,
                 present_fields: item.present_fields,
                 search_start,
                 search_lengths: item.search_lengths,
+                stock_uom_id,
+                item_group_id,
+                brand_id,
                 rate: item.rate,
                 actual_qty: item.actual_qty,
             });
@@ -262,6 +362,7 @@ impl CatalogIndexBuilder {
         self.index.items.shrink_to_fit();
         self.index.original_text.shrink_to_fit();
         self.index.search_text.shrink_to_fit();
+        self.index.interned_fields.shrink_to_fit();
         self.index
     }
 }
@@ -288,7 +389,18 @@ impl CatalogIndex {
         self.items.len()
     }
 
+    fn inline_original_index(field: usize) -> usize {
+        match field {
+            ITEM_CODE => 0,
+            ITEM_NAME => 1,
+            BARCODE => 2,
+            BARCODE_TEXT => 3,
+            _ => unreachable!("interned catalog field has no inline range"),
+        }
+    }
+
     fn original_range(item: &IndexedItem, field: usize) -> Range<usize> {
+        let field = Self::inline_original_index(field);
         let start = item.original_start as usize
             + item.original_lengths[..field]
                 .iter()
@@ -301,38 +413,47 @@ impl CatalogIndex {
         if item.present_fields & (1 << field) == 0 {
             return None;
         }
-        Some(&self.original_text[Self::original_range(item, field)])
+        match field {
+            STOCK_UOM => Some(self.interned_fields.original(item.stock_uom_id)),
+            ITEM_GROUP => Some(self.interned_fields.original(item.item_group_id)),
+            BRAND => Some(self.interned_fields.original(item.brand_id)),
+            _ => Some(&self.original_text[Self::original_range(item, field)]),
+        }
     }
 
     fn item_code(&self, item: &IndexedItem) -> &str {
         &self.original_text[Self::original_range(item, ITEM_CODE)]
     }
 
+    fn inline_search_index(field: usize) -> usize {
+        match field {
+            0 => 0,
+            1 => 1,
+            4 => 2,
+            _ => unreachable!("interned search field has no inline range"),
+        }
+    }
+
     fn search_range(item: &IndexedItem, field: usize) -> Range<usize> {
+        let field = Self::inline_search_index(field);
         let mut start = item.search_start as usize;
         for length in &item.search_lengths[..field] {
-            start += *length as usize + SEARCH_SEPARATOR.len_utf8();
+            start += *length as usize;
         }
         start..start + item.search_lengths[field] as usize
     }
 
-    fn search_row_range(item: &IndexedItem) -> Range<usize> {
-        let start = item.search_start as usize;
-        let len = item
-            .search_lengths
-            .iter()
-            .map(|length| *length as usize)
-            .sum::<usize>()
-            + SEARCH_FIELD_COUNT.saturating_sub(1) * SEARCH_SEPARATOR.len_utf8();
-        start..start + len
-    }
-
     fn search_field(&self, item: &IndexedItem, field: usize) -> &str {
-        &self.search_text[Self::search_range(item, field)]
-    }
-
-    fn search_row_text(&self, item: &IndexedItem) -> &str {
-        &self.search_text[Self::search_row_range(item)]
+        match field {
+            2 if item.item_group_id != MISSING_INTERNED_FIELD => {
+                self.interned_fields.search(item.item_group_id)
+            }
+            3 if item.brand_id != MISSING_INTERNED_FIELD => {
+                self.interned_fields.search(item.brand_id)
+            }
+            2 | 3 => "",
+            _ => &self.search_text[Self::search_range(item, field)],
+        }
     }
 
     fn catalog_item(&self, item: &IndexedItem) -> CatalogItem {
@@ -346,7 +467,9 @@ impl CatalogIndex {
             barcode_text: self.original_field(item, BARCODE_TEXT).map(str::to_owned),
             rate: item.rate,
             actual_qty: item.actual_qty,
-            modified: self.original_field(item, MODIFIED).map(str::to_owned),
+            // `modified` is sync metadata retained in encrypted storage; the search index does not
+            // need to duplicate it for any cashier-facing lookup or rendering path.
+            modified: None,
             deleted: false,
         }
     }
@@ -365,10 +488,10 @@ impl CatalogIndex {
                 .original_field(item, BARCODE)
                 .is_some_and(|barcode| fold(barcode) == folded_term),
             BarcodeSource::TextToken => {
-                let barcode_range = Self::search_range(item, 4);
-                let start = barcode_range.start + entry.start as usize;
-                let end = barcode_range.start + entry.end as usize;
-                self.search_text.get(start..end) == Some(folded_term)
+                let barcode_text = self.search_field(item, 4);
+                let start = entry.start as usize;
+                let end = entry.end as usize;
+                barcode_text.get(start..end) == Some(folded_term)
             }
         }
     }
@@ -412,11 +535,13 @@ impl CatalogIndex {
                     prefix.push(position);
                 }
             } else if substring.len() < limit
-                && memmem::find(
-                    self.search_row_text(item).as_bytes(),
-                    folded_term.as_bytes(),
-                )
-                .is_some()
+                && (0..SEARCH_FIELD_COUNT).any(|field| {
+                    memmem::find(
+                        self.search_field(item, field).as_bytes(),
+                        folded_term.as_bytes(),
+                    )
+                    .is_some()
+                })
             {
                 substring.push(position);
             }
@@ -517,8 +642,33 @@ mod tests {
     }
 
     #[test]
+    fn interned_dimension_fields_roundtrip_and_search_independently() {
+        let mut first = row("A-TOOLS", "Hammer", "111");
+        first.stock_uom = Some("Box".to_string());
+        first.item_group = Some("Tools".to_string());
+        first.brand = Some("House".to_string());
+        let mut second = row("B-GROCERY", "Rice", "222");
+        second.stock_uom = Some("Nos".to_string());
+        second.item_group = Some("Grocery".to_string());
+        second.brand = Some("Khitmee".to_string());
+
+        let index = CatalogIndex::rebuild(vec![first, second]);
+        let hits = index.search("groc", 10);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].item_code, "B-GROCERY");
+        assert_eq!(hits[0].stock_uom.as_deref(), Some("Nos"));
+        assert_eq!(hits[0].item_group.as_deref(), Some("Grocery"));
+        assert_eq!(hits[0].brand.as_deref(), Some("Khitmee"));
+
+        let first = index.get_by_item_code("A-TOOLS").expect("first row");
+        assert_eq!(first.stock_uom.as_deref(), Some("Box"));
+        assert_eq!(first.item_group.as_deref(), Some("Tools"));
+        assert_eq!(first.brand.as_deref(), Some("House"));
+    }
+
+    #[test]
     fn compact_row_metadata_stays_small() {
-        assert!(std::mem::size_of::<IndexedItem>() <= 96);
+        assert!(std::mem::size_of::<IndexedItem>() <= 56);
     }
 
     fn reference_search(rows: &[CatalogItem], term: &str, limit: usize) -> Vec<String> {

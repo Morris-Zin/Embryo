@@ -8,6 +8,7 @@ description = "Native Slint Khitmee counter migration pilot"
 [features]
 default = ["encrypted-catalog"]
 encrypted-catalog = ["khitmee-catalog/sqlcipher"]
+ui-mcp = ["slint/mcp"]
 
 [dependencies]
 khitmee-catalog = { path = "../khitmee-catalog", default-features = false }
