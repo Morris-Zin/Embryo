@@ -1167,7 +1167,7 @@ def capture_oracle(req, skip_export=False):
             verify_dir.mkdir()
             repeated, _ = capture_detail(req, oracle, credentials, verify_dir)
             def signature(row):
-                return (row.get("cache_key"), row.get("response_sha256"),
+                return (row.get("cache_key"), row.get("sha256"),
                         row.get("oracle_source_columns_rows_sha256"))
             if (oracle_report_name(req) != "Gross Profit" or not rows
                     or not all(row.get("ok") for row in repeated)

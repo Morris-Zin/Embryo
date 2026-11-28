@@ -84,7 +84,8 @@ class WorkerIsolationTests(unittest.TestCase):
     def test_nonzero_exit_cannot_publish_success(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)
-            def failed_worker(*args, **kwargs):
+            def failed_worker(cmd, **kwargs):
+                self.assertEqual(Path(cmd[1]), Path(c.__file__).resolve())
                 (out / "checkpoint-detail-candidate.json").write_text('{"schema_version":"oracle-detail-checkpoint-v1"}')
                 return c.subprocess.CompletedProcess([], 1)
             with mock.patch.object(c.subprocess, "run", side_effect=failed_worker):

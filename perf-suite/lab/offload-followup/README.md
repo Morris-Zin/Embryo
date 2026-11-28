@@ -1,6 +1,6 @@
 # Seasonal benchmark scorecard
 
-The tested cashier guest had 2 vCPUs and 2 GiB RAM. On the seeded year fixture, e208 offered one mixed minute at the original shared numbering policy. It confirmed **69 of 100 by second 60** and all 100 by second 81.753. Searches and manager reads ran concurrently. The manager served a verified external snapshot. Timing predates the subsequent per-request session check against the oracle.
+The tested cashier guest had 2 vCPUs and 2 GiB RAM. On the seeded year fixture, e208 offered one mixed minute at the original shared numbering policy. It confirmed **69 of 100 by second 60** and all 100 by second 81.753. Searches and manager reads ran concurrently. The manager served a verified external snapshot. Manager timings below predate the per-request oracle session check. Cache-hit latency under mixed load with that check enabled remains unmeasured.
 
 | Voucher | Required by 60 s | Confirmed by 60 s | Confirmed after 60 s |
 | --- | ---: | ---: | ---: |
@@ -23,7 +23,7 @@ The [measurement extract](benchmark/e208-results.json) includes the digest of th
 
 The [comparator](manager/candidate_stock_oracle_compare.py) can reuse an independently verified, hash-pinned native report reference for the same snapshot, actors, report source, filters and precision. The candidate executes again. Ordered detail comparison streams the rows and checks their exact types. Reuse avoids about 74 minutes of archived full-year stock report execution or 67 minutes year to date. End-to-end repeat timing remains unmeasured. Reuse requires the original archived manifest bytes. Rebuilding the manifest changes its timestamp and digest.
 
-The full-year Warehouse and Monthly summaries matched stock. Fast invoice detail failed ordered parity, so verified detail pages came from native Gross Profit. In a separate disposable export environment the RPC aliases and content corrections produced the native CSV exactly over 1,350,437 rows and 211,904,767 bytes (SHA256 `8cfe4b836ccf7bd733515ea0a2eb72ef0c1978d0c6d713059080199ea3f9224c`). This export resumed the original log after an interruption under an Administrator worker identity. The evidence applies to that corrected implementation and recovery path. The original export implementation remains unqualified. The RPC alias patch is for the disposable lab copy only. Applying it to the application triggers the repository’s hook-override guardrail.
+The full-year Warehouse and Monthly summaries matched stock. Fast invoice detail failed ordered parity, so verified detail pages came from native Gross Profit. In a separate disposable export environment the RPC aliases and content corrections produced the native CSV exactly over 1,350,437 rows and 211,904,767 bytes (SHA256 `8cfe4b836ccf7bd733515ea0a2eb72ef0c1978d0c6d713059080199ea3f9224c`). This export resumed the original log after an interruption under an Administrator worker identity. The evidence applies to that corrected implementation and recovery path. The original export implementation remains unqualified. The RPC alias patch is for the disposable lab copy only. Applying it to the application triggers the repository's hook-override guardrail.
 
 To exercise the comparator checks on Linux, run the following from the manager directory.
 

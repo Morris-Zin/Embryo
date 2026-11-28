@@ -80,7 +80,7 @@ class FakeOracleHandler(BaseHTTPRequestHandler):
             else:
                 rows = [{"group": group, "qty": 2, "amount": "10.500"}]
                 columns = [{"fieldname": "group"}, {"fieldname": "qty"}, {"fieldname": "amount"}]
-            self.send(200, json.dumps({"message": {"columns": columns, "result": rows}}))
+            self.send(200, json.dumps({"message": {"columns": columns, "result": rows, "execution_time": self.query_count}}))
             return
         if path.endswith("enqueue_profit_csv_export"):
             self.send(200, json.dumps({"message": {"export_log_name": "EXP-1", "status": "Completed"}}))

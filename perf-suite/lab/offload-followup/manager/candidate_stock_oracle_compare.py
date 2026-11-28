@@ -22,7 +22,8 @@ from itertools import zip_longest
 from pathlib import Path
 
 sys.path.insert(0, "/opt/repo/perf-suite/lab/offload-followup/manager")
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+WORKER_SCRIPT = Path(__file__).resolve()
+sys.path.insert(0, str(WORKER_SCRIPT.parent))
 
 try:
     import frappe
@@ -852,7 +853,7 @@ def run_report_worker(report_name, filters, user, page_length, implementation, o
     """Run one implementation/report in a fresh Python process and load its checkpoint."""
     cmd = [
         sys.executable,
-        str(Path(sys.argv[0]).resolve()),
+        str(WORKER_SCRIPT),
         "--worker",
         "--site", RUNTIME_SITE,
         "--report-name", report_name,
