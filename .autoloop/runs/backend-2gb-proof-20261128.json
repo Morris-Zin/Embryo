@@ -316,24 +316,6 @@
     ],
     "shard:report_paths": [
       {
-        "at": "2026-11-28T12:35:51Z",
-        "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.515,
-          "fast_check.py/autoloop_lint": 1.681,
-          "fast_check.py/bash": 0.106,
-          "fast_check.py/compose": 0.214,
-          "fast_check.py/guardrails": 2.409,
-          "fast_check.py/javascript": 0.045,
-          "fast_check.py/knip": 1.575,
-          "fast_check.py/python": 2.29,
-          "fast_check.py/ruff_and_dev_deps": 0.084,
-          "fast_check.py/zizmor_workflows": 0.317,
-          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.465
-        }
-      },
-      {
         "at": "2026-11-28T13:11:24Z",
         "head_sha": "56576270c845831372ff59e77e141103fec599af",
         "passed": false,
@@ -401,6 +383,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.119,
           "fast_check.py/zizmor_workflows": 0.319,
           "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.445
+        }
+      },
+      {
+        "at": "2026-11-28T13:48:55Z",
+        "head_sha": "0a676beb6b5d543b081707eeb12ba17b6a3cdd9e",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.736,
+          "fast_check.py/autoloop_lint": 2.599,
+          "fast_check.py/bash": 0.11,
+          "fast_check.py/compose": 0.195,
+          "fast_check.py/guardrails": 2.651,
+          "fast_check.py/javascript": 0.176,
+          "fast_check.py/knip": 1.897,
+          "fast_check.py/python": 1.908,
+          "fast_check.py/ruff_and_dev_deps": 0.155,
+          "fast_check.py/zizmor_workflows": 0.348,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.479
         }
       }
     ],
@@ -652,6 +652,15 @@
       "status": "fixed_pending_review",
       "summary": "A gated Fast Gross Profit response was recorded as a successful latency sample."
     },
+    "bench-rule-accepts-success-for-gated-result": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "bench-rule-accepts-success-for-gated-result",
+      "opened_at": "2026-11-28T13:49:20Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "backend_2gb.py:456 typed-classifier branch accepts calling unavailable_report_measurement, discarding its value, then storing a success timing."
+    },
     "cache-child-ownership-follows-links": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "cache-child-ownership-follows-links",
@@ -673,6 +682,15 @@
       "source": "review",
       "status": "fixed_pending_review",
       "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329)."
+    },
+    "export-scope-omits-absorbed-returns": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "export-scope-omits-absorbed-returns",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "export_service.py:688 signed manifest captures only invoice headers; absorbed linked returns that change exported amounts are not rechecked at download, so losing visibility of only the return still permits download."
     },
     "fastpath-must-keep-upstream-validation": {
       "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
@@ -696,6 +714,24 @@
       "status": "fixed_pending_review",
       "summary": "Live GP comparator compares gross_profit_% at float precision while GP computes it at currency precision; 30.001 vs 30.000 passes (tools/fast_verify.py:599)."
     },
+    "guest-verifier-accepts-stopped-services": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "guest-verifier-accepts-stopped-services",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "verify_guest_cgroup.sh:213 checks only running containers and needs one running tree; a stopped cashier passes."
+    },
+    "gunicorn-pid-drops-attribution": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "gunicorn-pid-drops-attribution",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "attribution.py:174 int(pid) fails on Gunicorn %(p)s '<42>' form, silently dropping every application record."
+    },
     "invoice-cap-counts-unrelated-packed-items": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "invoice-cap-counts-unrelated-packed-items",
@@ -718,6 +754,24 @@
       "status": "fixed_pending_review",
       "summary": "Compact manifest context breaks june_sustained/june_burst_2x: inStockItemsFor returns entry.items (gone) and pickItem returns strings; buildLines/searchTermForItem throw (perf-suite/k6/lib/payloads.js:65)"
     },
+    "k6-detail-page-signature-lacks-ids": {
+      "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EVmj",
+      "finding_id": "k6-detail-page-signature-lacks-ids",
+      "opened_at": "2026-11-28T13:50:14Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "seasonal_runtime.js:1286 page signature omits sales_invoice/parent_invoice identifiers; same-day invoices with identical displayed values make correct successive pages look repeated, forcing fallback export and failing manager-detail gate"
+    },
+    "k6-preallocated-vus-casing": {
+      "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69ELSr",
+      "finding_id": "k6-preallocated-vus-casing",
+      "opened_at": "2026-11-28T13:50:14Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "seasonal.js:37 scenario helper emits preAllocatedVus instead of k6 preAllocatedVUs, so constant-arrival-rate voucher/contention/search scenarios do not get their configured VU allocation (likely inflating dropped iterations in the smoke runs)"
+    },
     "k6-shared-context-before-default-warehouses": {
       "evidence": "Codex PR review thread PRRT_kwDOV8jMGc69EGIC on PR #19",
       "finding_id": "k6-shared-context-before-default-warehouses",
@@ -729,6 +783,15 @@
       "status": "fixed_pending_review",
       "summary": "SharedArray initializer calls buildContextFromRoot before DEFAULT_WAREHOUSES is initialized; array-only manifests throw ReferenceError (perf-suite/k6/lib/payloads.js:88)"
     },
+    "larger-host-can-attest-as-guest": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "larger-host-can-attest-as-guest",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "guest_attestation.py:132 records guest CPU/memory/swap but does not gate on them; an 8 CPU / 16 GiB / 4 GiB swap host with a valid slice attests as the qualifying 2 vCPU / 2 GiB guest."
+    },
     "lease-split-brain": {
       "evidence": "git commit 5dd94f0ac08747f5c73324bf66891d9a68f5f287",
       "finding_id": "lease-split-brain",
@@ -739,6 +802,15 @@
       "source": "incident",
       "status": "fixed_pending_review",
       "summary": "Windows and WSL workers could hold independent leases for the same resource."
+    },
+    "materialize-removes-existing-directory": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "materialize-removes-existing-directory",
+      "opened_at": "2026-11-28T13:49:20Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "app_tree.py:58 --materialize-dir recursively deletes an existing directory before archiving; a mistaken path erases the checkout or unrelated files."
     },
     "no-chmod-on-operator-paths": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
@@ -773,6 +845,15 @@
       "status": "fixed_pending_review",
       "summary": "Post-run resource proof failure is suppressed; final predicate reads only within_budget, restarts/OOM after last sample ignored (qualify_2gb.sh:402)."
     },
+    "qualification-launches-legacy-topology": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "qualification-launches-legacy-topology",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "qualify_2gb.sh:249 starts --profile 2gb and legacy compose files; resource_proof.py:111 rejects unlimited child CPU quota; guest_cgroup_setup.sh:85 exits on a genuine 2-CPU machine. The standard entry point cannot produce the ADR 0004 dedicated-guest proof."
+    },
     "report-columns-have-fieldname-or-key": {
       "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
       "finding_id": "report-columns-have-fieldname-or-key",
@@ -795,6 +876,15 @@
       "status": "fixed_pending_review",
       "summary": "Lease dir is per Git common dir; two clones on one host can both hold khitmee-perf/host-timing for the same Docker project (leases.py:148)."
     },
+    "restart-count-read-from-state": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "restart-count-read-from-state",
+      "opened_at": "2026-11-28T13:49:19Z",
+      "severity": "P1",
+      "source": "review",
+      "status": "open",
+      "summary": "resource_proof.py:101 reads RestartCount from State (always 0); Docker exposes it top-level, so a same-container restart after the last sample passes the window comparison."
+    },
     "sale-basket-latency-masked": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "sale-basket-latency-masked",
@@ -816,6 +906,15 @@
       "source": "review",
       "status": "fixed_pending_review",
       "summary": "qualify_2gb.sh can emit verdict=GO, qualification_evidence=true for a smoke or cashier-only run without acceptance profile, guest envelope attestation, or oracle evidence (qualify_2gb.sh:410)."
+    },
+    "stock-lock-rule-accepts-inconsistent-order": {
+      "evidence": "Astra deep review round 2 of PR #19 @e824c10",
+      "finding_id": "stock-lock-rule-accepts-inconsistent-order",
+      "opened_at": "2026-11-28T13:49:20Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "open",
+      "summary": "backend_2gb.py:221 stock-lock rule accepts a mutation that reverses Item order only for plans with >2 aliases; overlapping transactions could lock common Items in opposite orders."
     },
     "stock-row-locks-only-in-stock-locks": {
       "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
@@ -1799,6 +1898,94 @@
       "at": "2026-11-28T13:41:42Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "restart-count-read-from-state",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "larger-host-can-attest-as-guest",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "qualification-launches-legacy-topology",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "export-scope-omits-absorbed-returns",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "guest-verifier-accepts-stopped-services",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:19Z",
+      "event": "record-finding",
+      "finding_id": "gunicorn-pid-drops-attribution",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:20Z",
+      "event": "record-finding",
+      "finding_id": "stock-lock-rule-accepts-inconsistent-order",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:20Z",
+      "event": "record-finding",
+      "finding_id": "bench-rule-accepts-success-for-gated-result",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:49:20Z",
+      "event": "record-finding",
+      "finding_id": "materialize-removes-existing-directory",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:50:14Z",
+      "event": "record-finding",
+      "finding_id": "k6-preallocated-vus-casing",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T13:50:14Z",
+      "event": "record-finding",
+      "finding_id": "k6-detail-page-signature-lacks-ids",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
     }
   ],
   "issue_number": null,
@@ -2086,7 +2273,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "gate_passed",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T13:41:42Z"
+  "updated_at": "2026-11-28T13:50:14Z"
 }
