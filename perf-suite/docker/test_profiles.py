@@ -389,7 +389,7 @@ class ProfileBudgetTest(unittest.TestCase):
         services = load_profile("2gb-guest")
         self.assertEqual(GUEST_SERVICES, set(services))
         for service in sorted(GUEST_SERVICES):
-            self.assertEqual("khitmee-perf.slice", services[service].get("cgroup_parent"), service)
+            self.assertEqual("khitmeeperf.slice", services[service].get("cgroup_parent"), service)
             self.assertNotIn("cpus", services[service], service)
             self.assertEqual(GUEST_MEMORY_MIB[service], memory_mib(services[service].get("mem_limit")), service)
             self.assertEqual(GUEST_CPU_SHARES[service], int(str(services[service].get("cpu_shares"))), service)
@@ -464,8 +464,11 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertIn("init.scope", setup)
         self.assertIn("system.slice", setup)
         self.assertIn("user.slice", setup)
+        self.assertIn("non-systemd", setup)
 
         self.assertIn("cpuset.cpus.effective", verify)
+        self.assertIn("non-systemd", verify)
+        self.assertIn("populated cgroup", verify)
         self.assertIn("cpu.weight", verify)
         self.assertIn("process_tree", verify)
         self.assertIn("cgroup.procs", verify)

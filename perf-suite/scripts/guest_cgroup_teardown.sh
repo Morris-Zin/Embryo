@@ -46,4 +46,21 @@ for unit in init.scope system.slice user.slice; do
   systemctl set-property --runtime "$unit" AllowedCPUs="$all_cpus" >/dev/null
 done
 
+NON_SYSTEMD_CGROUP="/sys/fs/cgroup/non-systemd"
+NON_SYSTEMD_STATE="/run/khitmee-perf.non-systemd.cpuset"
+if [[ -d "$NON_SYSTEMD_CGROUP" && -w "$NON_SYSTEMD_CGROUP/cpuset.cpus" ]]; then
+  restore_cpus="$all_cpus"
+  if [[ -f "$NON_SYSTEMD_STATE" ]]; then
+    saved_cpus="$(cat "$NON_SYSTEMD_STATE")"
+    if [[ -n "$saved_cpus" ]]; then
+      restore_cpus="$saved_cpus"
+    fi
+  fi
+  # An empty configured value means inherit-all, but the kernel refuses to
+  # clear cpuset.cpus while the cgroup is populated. Writing the current full
+  # online set restores the same effective placement for this WSL host.
+  printf '%s' "$restore_cpus" > "$NON_SYSTEMD_CGROUP/cpuset.cpus"
+  rm -f "$NON_SYSTEMD_STATE"
+fi
+
 printf 'host systemd scopes restored to cpuset.cpus.effective=%s\n' "$all_cpus"

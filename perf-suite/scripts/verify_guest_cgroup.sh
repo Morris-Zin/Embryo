@@ -11,7 +11,7 @@ import time
 
 project_name = os.environ.get("PROJECT_NAME", "khitmee-perf")
 expected_count = int(os.environ.get("EXPECTED_COUNT", "10"))
-slice_name = "khitmee-perf.slice"
+slice_name = "khitmeeperf.slice"
 slice_path = Path("/sys/fs/cgroup") / slice_name
 expected_cpu_max = "200000 100000"
 expected_memory_max = "2147483648"
@@ -55,6 +55,12 @@ def expand_cpuset(spec):
             cpus.add(int(part))
     return cpus
 
+def scope_procs(scope_path):
+    try:
+        return {int(line) for line in (scope_path / "cgroup.procs").read_text(encoding="utf-8").splitlines() if line.strip()}
+    except FileNotFoundError:
+        return set()
+
 if not Path("/sys/fs/cgroup/cgroup.controllers").is_file():
     fail("cgroup v2 is not mounted at /sys/fs/cgroup")
 if not slice_path.is_dir():
@@ -82,7 +88,8 @@ if memory_max != expected_memory_max:
 if swap_max != expected_swap_max:
     parent_errors.append(f"memory.swap.max is {swap_max!r}, expected {expected_swap_max!r}")
 
-for sibling in (Path("/sys/fs/cgroup/init.scope"), Path("/sys/fs/cgroup/system.slice"), Path("/sys/fs/cgroup/user.slice")):
+cgroup_root = Path("/sys/fs/cgroup")
+for sibling in (cgroup_root / "init.scope", cgroup_root / "system.slice", cgroup_root / "user.slice", cgroup_root / "non-systemd"):
     effective = read_text(sibling / "cpuset.cpus.effective")
     if not effective:
         parent_errors.append(f"{sibling} has no readable cpuset.cpus.effective")
@@ -90,6 +97,25 @@ for sibling in (Path("/sys/fs/cgroup/init.scope"), Path("/sys/fs/cgroup/system.s
     overlap = sorted(cpuset_cpus & expand_cpuset(effective))
     if overlap:
         parent_errors.append(f"{sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
+
+# The named scopes cover systemd and WSL interop, but fail closed if any other
+# populated top-level cgroup can still schedule on the guest CPUs.
+for sibling in cgroup_root.iterdir():
+    if not sibling.is_dir() or sibling.name == slice_name:
+        continue
+    effective = read_text(sibling / "cpuset.cpus.effective")
+    if not effective:
+        continue
+    overlap = sorted(cpuset_cpus & expand_cpuset(effective))
+    if not overlap:
+        continue
+    populated = False
+    for path in (sibling, *sibling.rglob("*")):
+        if path.is_dir() and scope_procs(path):
+            populated = True
+            break
+    if populated:
+        parent_errors.append(f"populated cgroup {sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
 if parent_errors:
     fail("; ".join(parent_errors))
 
@@ -152,12 +178,6 @@ def process_tree(root):
         result.add(pid)
         stack.extend(children.get(pid, []))
     return result
-
-def scope_procs(scope_path):
-    try:
-        return {int(line) for line in (scope_path / "cgroup.procs").read_text(encoding="utf-8").splitlines() if line.strip()}
-    except FileNotFoundError:
-        return set()
 
 failures = []
 running_checked = 0

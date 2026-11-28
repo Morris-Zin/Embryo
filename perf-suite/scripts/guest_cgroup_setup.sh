@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SLICE_NAME="khitmee-perf.slice"
+SLICE_NAME="khitmeeperf.slice"
 UNIT_PATH="/etc/systemd/system/$SLICE_NAME"
 CGROUP_PATH="/sys/fs/cgroup/$SLICE_NAME"
 EXPECTED_CPU_MAX="200000 100000"
@@ -110,7 +110,7 @@ EOF_UNIT
 }
 
 if [[ ! -f "$UNIT_PATH" ]] || ! cmp -s <(unit_contents) "$UNIT_PATH"; then
-  tmp_unit="$(mktemp /etc/systemd/system/.khitmee-perf.slice.XXXXXX)"
+  tmp_unit="$(mktemp /etc/systemd/system/.khitmeeperf.slice.XXXXXX)"
   unit_contents > "$tmp_unit"
   chmod 0644 "$tmp_unit"
   mv "$tmp_unit" "$UNIT_PATH"
@@ -130,6 +130,19 @@ for unit in init.scope system.slice user.slice; do
   systemctl set-property --runtime "$unit" AllowedCPUs="$HOST_COMPLEMENT_CPUSET" >/dev/null
 done
 
+# WSL keeps interop shells and /init helpers in a non-systemd cgroup directly
+# under the root. Restrict it as well; otherwise those host processes can still
+# use the supposedly exclusive guest CPUs. The configured value is runtime-only.
+NON_SYSTEMD_CGROUP="/sys/fs/cgroup/non-systemd"
+NON_SYSTEMD_STATE="/run/khitmee-perf.non-systemd.cpuset"
+if [[ -d "$NON_SYSTEMD_CGROUP" ]]; then
+  [[ -w "$NON_SYSTEMD_CGROUP/cpuset.cpus" ]] || fail "$NON_SYSTEMD_CGROUP/cpuset.cpus is not writable"
+  if [[ ! -f "$NON_SYSTEMD_STATE" ]]; then
+    cat "$NON_SYSTEMD_CGROUP/cpuset.cpus" > "$NON_SYSTEMD_STATE"
+  fi
+  printf '%s' "$HOST_COMPLEMENT_CPUSET" > "$NON_SYSTEMD_CGROUP/cpuset.cpus" || fail "could not restrict $NON_SYSTEMD_CGROUP to host complement CPUs"
+fi
+
 [[ -d "$CGROUP_PATH" ]] || fail "systemd started $SLICE_NAME but $CGROUP_PATH does not exist"
 
 cpu_max="$(cat "$CGROUP_PATH/cpu.max" 2>/dev/null || true)"
@@ -142,7 +155,7 @@ cpuset_effective="$(cat "$CGROUP_PATH/cpuset.cpus.effective" 2>/dev/null || true
 [[ "$memory_max" == "$EXPECTED_MEMORY_MAX" ]] || fail "memory.max is '$memory_max', expected '$EXPECTED_MEMORY_MAX'"
 [[ "$swap_max" == "$EXPECTED_SWAP_MAX" ]] || fail "memory.swap.max is '$swap_max', expected '$EXPECTED_SWAP_MAX'"
 
-for unit_path in /sys/fs/cgroup/init.scope /sys/fs/cgroup/system.slice /sys/fs/cgroup/user.slice; do
+for unit_path in /sys/fs/cgroup/init.scope /sys/fs/cgroup/system.slice /sys/fs/cgroup/user.slice /sys/fs/cgroup/non-systemd; do
   if [[ -f "$unit_path/cpuset.cpus.effective" ]]; then
     sibling_cpuset="$(cat "$unit_path/cpuset.cpus.effective")"
     [[ "$sibling_cpuset" == "$HOST_COMPLEMENT_CPUSET" ]] || fail "$unit_path cpuset is '$sibling_cpuset', expected complement '$HOST_COMPLEMENT_CPUSET'"
