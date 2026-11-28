@@ -382,24 +382,6 @@
     ],
     "shard:report_paths": [
       {
-        "at": "2026-11-28T13:23:22Z",
-        "head_sha": "351b943548b7dc2413e757af8c7b2d8c4d202ce0",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.923,
-          "fast_check.py/autoloop_lint": 2.67,
-          "fast_check.py/bash": 0.175,
-          "fast_check.py/compose": 0.24,
-          "fast_check.py/guardrails": 2.819,
-          "fast_check.py/javascript": 0.098,
-          "fast_check.py/knip": 1.638,
-          "fast_check.py/python": 2.014,
-          "fast_check.py/ruff_and_dev_deps": 0.119,
-          "fast_check.py/zizmor_workflows": 0.319,
-          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.445
-        }
-      },
-      {
         "at": "2026-11-28T13:48:55Z",
         "head_sha": "0a676beb6b5d543b081707eeb12ba17b6a3cdd9e",
         "passed": true,
@@ -469,6 +451,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.067,
           "fast_check.py/zizmor_workflows": 0.283,
           "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.455
+        }
+      },
+      {
+        "at": "2026-11-28T16:31:13Z",
+        "head_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.952,
+          "fast_check.py/autoloop_lint": 2.713,
+          "fast_check.py/bash": 0.124,
+          "fast_check.py/compose": 0.178,
+          "fast_check.py/guardrails": 2.858,
+          "fast_check.py/javascript": 0.064,
+          "fast_check.py/knip": 1.441,
+          "fast_check.py/python": 2.035,
+          "fast_check.py/ruff_and_dev_deps": 0.087,
+          "fast_check.py/zizmor_workflows": 0.316,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.426
         }
       }
     ],
@@ -548,24 +548,6 @@
     ],
     "shard:seasonal_harness": [
       {
-        "at": "2026-11-28T13:21:19Z",
-        "head_sha": "4b9fe44edb27c6b57a657c436a07d26e3e9bf6c4",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 2.967,
-          "fast_check.py/autoloop_lint": 2.851,
-          "fast_check.py/bash": 0.13,
-          "fast_check.py/compose": 0.202,
-          "fast_check.py/guardrails": 2.285,
-          "fast_check.py/javascript": 0.076,
-          "fast_check.py/knip": 1.257,
-          "fast_check.py/python": 2.112,
-          "fast_check.py/ruff_and_dev_deps": 0.046,
-          "fast_check.py/zizmor_workflows": 0.315,
-          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.205
-        }
-      },
-      {
         "at": "2026-11-28T13:35:06Z",
         "head_sha": "0e932a72dfe09fa99d011b7c4ecbb21025fdc2dc",
         "passed": true,
@@ -635,6 +617,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.131,
           "fast_check.py/zizmor_workflows": 0.371,
           "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.242
+        }
+      },
+      {
+        "at": "2026-11-28T16:07:31Z",
+        "head_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.675,
+          "fast_check.py/autoloop_lint": 2.587,
+          "fast_check.py/bash": 0.084,
+          "fast_check.py/compose": 0.269,
+          "fast_check.py/guardrails": 2.502,
+          "fast_check.py/javascript": 0.217,
+          "fast_check.py/knip": 2.019,
+          "fast_check.py/python": 2.125,
+          "fast_check.py/ruff_and_dev_deps": 0.123,
+          "fast_check.py/zizmor_workflows": 0.361,
+          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.252
         }
       }
     ],
@@ -789,6 +789,17 @@
       "status": "fixed_pending_review",
       "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329)."
     },
+    "export-admission-blocked-by-abandoned-job": {
+      "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EqL4",
+      "finding_id": "export-admission-blocked-by-abandoned-job",
+      "fix_summary": "7ecab5e: admission/dedup first run bounded abandoned-job recovery; stale Running jobs failed 'abandoned: worker lost' via conditional name/status/modified update; queued jobs checked via deterministic RQ job_id; late worker completion fenced on status='Running'. Tests cover stale recovery, dedup after abandonment, live busy/dedup, race, late-completion fence.",
+      "opened_at": "2026-11-28T16:04:08Z",
+      "resolved_at": "2026-11-28T16:31:25Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "export_service.py:410 site-wide admission counts a Running job whose worker died after _claim_export(); other exports get ProfitExportBusyError and identical requests dedupe to a job that never finishes until 24h artifact expiry"
+    },
     "export-scope-omits-absorbed-returns": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
       "finding_id": "export-scope-omits-absorbed-returns",
@@ -898,6 +909,17 @@
       "source": "review",
       "status": "fixed_pending_review",
       "summary": "SharedArray initializer calls buildContextFromRoot before DEFAULT_WAREHOUSES is initialized; array-only manifests throw ReferenceError (perf-suite/k6/lib/payloads.js:88)"
+    },
+    "k6-ux-latency-excludes-simulated-rtt": {
+      "evidence": "Codex PR #19 thread PRRT_kwDOV8jMGc69EZde",
+      "finding_id": "k6-ux-latency-excludes-simulated-rtt",
+      "fix_summary": "4a70a51: executeReportCall and performSeasonalSearch start uxStart before sleepForSimulatedRtt, server timer after; other call sites audited. Node-executed regression: 50ms RTT + 275ms server = 325ms UX fails 300ms gate, server 275ms.",
+      "opened_at": "2026-11-28T16:04:08Z",
+      "resolved_at": "2026-11-28T16:07:31Z",
+      "severity": "P2",
+      "source": "review",
+      "status": "fixed_pending_review",
+      "summary": "seasonal_runtime.js:1567 uxStart begins after sleepForSimulatedRtt() (also in executeReportCall), so search/summary/detail-first-page gates judge server time not end-to-end; 275ms search + 50ms RTT passes the 300ms gate"
     },
     "larger-host-can-attest-as-guest": {
       "evidence": "Astra deep review round 2 of PR #19 @e824c10",
@@ -2384,6 +2406,78 @@
       "at": "2026-11-28T16:00:41Z",
       "event": "submit-for-review",
       "status": "awaiting_cloud_review"
+    },
+    {
+      "at": "2026-11-28T16:04:08Z",
+      "event": "record-finding",
+      "finding_id": "k6-ux-latency-excludes-simulated-rtt",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T16:04:08Z",
+      "event": "record-finding",
+      "finding_id": "export-admission-blocked-by-abandoned-job",
+      "fixed_by": null,
+      "source": "review",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T16:07:31Z",
+      "code_tree_sha256": "34e5bff13c7fb661c26db22e9cb7a7a22a76b8e06ad6daeab5ad8be5b846d551",
+      "event": "shard-passed",
+      "shard": "seasonal_harness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:07:31Z",
+      "event": "resolve-finding",
+      "finding_id": "k6-ux-latency-excludes-simulated-rtt"
+    },
+    {
+      "at": "2026-11-28T16:31:13Z",
+      "code_tree_sha256": "f5c1afee002e98f050d7538fda8c93dff04b54aa0601f1e54671defe18587609",
+      "event": "shard-passed",
+      "shard": "report_paths",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:31:25Z",
+      "event": "resolve-finding",
+      "finding_id": "export-admission-blocked-by-abandoned-job"
     }
   ],
   "issue_number": null,
@@ -2560,8 +2654,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "8593c1b2b9752ef9ef97cf42af4bcf418ca55be7",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "last_green_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
+      "passed_code_tree_sha256": "f5c1afee002e98f050d7538fda8c93dff04b54aa0601f1e54671defe18587609",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2571,14 +2665,26 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "8593c1b2b9752ef9ef97cf42af4bcf418ca55be7",
+      "trusted_policy_pass_sha": "7ecab5e1cc0b24b066bea355354bac521ebee45d",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
     },
@@ -2631,8 +2737,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "697b5faaf2994262dfba20efb0717ada3c422190",
-      "passed_code_tree_sha256": "1682dde5d2bdd7b8531715102a8f0a5d8a265e89e9415fe7d31724eaef425426",
+      "last_green_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
+      "passed_code_tree_sha256": "34e5bff13c7fb661c26db22e9cb7a7a22a76b8e06ad6daeab5ad8be5b846d551",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -2642,14 +2748,26 @@
         },
         "sha256": "b799779aecbe75e5f51358aaf409a7952d4eed86c05982e918ee727571175603",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "697b5faaf2994262dfba20efb0717ada3c422190",
+      "trusted_policy_pass_sha": "4a70a515a0ba2d325177f071525b315a51a02f9b",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/seasonal_harness"
     },
@@ -2687,7 +2805,7 @@
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
-  "status": "awaiting_cloud_review",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:00:41Z"
+  "updated_at": "2026-11-28T16:31:25Z"
 }
