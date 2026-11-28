@@ -184,6 +184,8 @@ def _build_frozen_contract(state: dict[str, Any]) -> dict[str, Any]:
         contract["dropped_shards"] = list(state["dropped_shards"])
     if state.get("base_branch_bound"):
         contract["base_branch_bound"] = True
+    if state.get("require_delegation_receipts"):
+        contract["require_delegation_receipts"] = True
     return contract
 
 
@@ -398,6 +400,7 @@ def lock_run(
     *,
     base_sha: str | None = None,
     pr_number: int | None = None,
+    require_delegation_receipts: bool = False,
     lock_dir: Path | None = None,
 ) -> dict[str, Any]:
     with acquire_mutex(_state_mutex_path(repo, run_id, lock_dir)):
@@ -407,6 +410,8 @@ def lock_run(
             state["base_sha"] = git_rev_parse(repo, base_sha)
         if pr_number is not None:
             state["pr_number"] = int(pr_number)
+        if require_delegation_receipts:
+            state["require_delegation_receipts"] = True
         state["contract_revision"] = max(1, int(state.get("contract_revision") or 0) + 1)
         contract = _build_frozen_contract(state)
         state["contract_sha256"] = contract_sha256(contract)

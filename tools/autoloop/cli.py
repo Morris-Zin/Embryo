@@ -39,6 +39,7 @@ from autoloop.leases import (
     LeaseError, acquire_lease, lease_status, release_lease, renew_lease, resource_lease_key, resource_lock_dir,
 )
 from autoloop.lessons import LESSON_KINDS, matching_lessons, record_lesson
+from autoloop.receipts import Broker, ReceiptError, checkout_repo_id
 from autoloop.routing import NUMBER_FIELDS, OPTIONAL_FIELDS, REQUIRED_FIELDS, record_attempt, routing_report
 from autoloop.state import (
     IllegalTransitionError,
@@ -81,6 +82,58 @@ def _default_repo() -> Path:
 
 def _emit(payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _read_object(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _broker_repo_id(repo: Path, explicit: str | None = None) -> str:
+    repo_id = checkout_repo_id(repo)
+    if repo_id and explicit and repo_id != explicit:
+        raise ReceiptError("--repo-id differs from the checkout's Git origin")
+    if not (repo_id or explicit):
+        raise ReceiptError("a Git origin or explicit --repo-id is required")
+    return repo_id or explicit
+
+
+def _reserve_delegation(repo: Path, broker: Broker, run_id: str, shard_id: str,
+                        worktree: Path | None, data: dict[str, Any]) -> dict[str, Any]:
+    run, contract = load_verified_local_contract(repo, run_id)
+    if shard_id not in contract["shards"]:
+        raise ReceiptError(f"unknown shard {shard_id!r}")
+    registered = run["shards"][shard_id].get("worktree_path")
+    worktree = worktree or (Path(registered) if registered else repo)
+    head = git_rev_parse(worktree, "HEAD")
+    git = {"base": run["base_sha"], "head": head, "tree": compute_code_tree_sha256(worktree, head, run_id=run_id)}
+    if "cache_key_digest" in data or data.get("role") == "check-execution":
+        raise ReceiptError("check execution receipts are reserved by the check coordinator")
+    return broker.reserve(**{
+        **data, "run": run_id, "shard": shard_id, "contract_revision": contract["contract_revision"],
+        "contract_hash": run["contract_sha256"], "git": git,
+    })
+
+
+def _delegation_command(repo: Path, args: argparse.Namespace) -> Any:
+    broker = Broker(_broker_repo_id(repo, args.repo_id))
+    if args.action == "reserve":
+        return _reserve_delegation(repo, broker, args.run_id, args.shard, args.worktree, _read_object(args.payload))
+    if args.action == "status":
+        return broker.by_request(args.request_id)
+    if args.action == "settle":
+        return broker.settle(args.reservation_id, **_read_object(args.payload))
+    if args.action == "quarantine":
+        return {"dispatch": broker.reconcile(args.reservation_id, no_dispatch_evidence_id=args.no_dispatch_evidence_id)}
+    if args.action == "begin-dispatch":
+        broker.begin_dispatch(args.reservation_id)
+    elif args.action == "attach":
+        broker.attach(args.reservation_id, args.task_id)
+    else:
+        broker.revoke(args.reservation_id, args.reason)
+    return {"reservation_id": args.reservation_id, "action": args.action}
 
 
 def _parse_shard_specs(specs: list[str]) -> dict[str, list[str]]:
@@ -390,6 +443,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_lock.add_argument("--run-id", required=True)
     p_lock.add_argument("--base-sha", default=None)
     p_lock.add_argument("--pr", type=int, default=None)
+    p_lock.add_argument("--require-delegation-receipts", action="store_true",
+                        help="Freeze the owner opt-in for delegation receipts")
 
     # bind-pr
     p_bind = sub.add_parser("bind-pr", help="Bind PR number into FrozenContractV1 and bump contract_revision")
@@ -412,6 +467,29 @@ def _build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--shard", required=True)
     p_start.add_argument("--worktree", default=None)
     p_start.add_argument("--last-green-sha", default=None)
+    p_start.add_argument("--delegation-reservation", type=Path, help="Optional shadow reservation metadata JSON")
+    p_start.add_argument("--repo-id", help="Stable broker repository ID for a checkout without an origin")
+
+    p_delegation = sub.add_parser("delegation", help="Record a delegation in the shadow receipts broker")
+    p_delegation.add_argument("--repo-id", help="Stable repository ID for a checkout without an origin")
+    delegation = p_delegation.add_subparsers(dest="action", required=True)
+    reserve = delegation.add_parser("reserve")
+    reserve.add_argument("--run-id", required=True)
+    reserve.add_argument("--shard", required=True)
+    reserve.add_argument("--worktree", type=Path)
+    reserve.add_argument("--payload", type=Path, required=True, help="Delegation metadata JSON")
+    delegation.add_parser("status").add_argument("request_id")
+    for action in ("begin-dispatch", "attach", "settle", "quarantine", "revoke"):
+        event = delegation.add_parser(action)
+        event.add_argument("reservation_id")
+        if action == "attach":
+            event.add_argument("task_id")
+        elif action == "settle":
+            event.add_argument("--payload", type=Path, required=True, help="Settlement metadata JSON")
+        elif action == "quarantine":
+            event.add_argument("--no-dispatch-evidence-id")
+        elif action == "revoke":
+            event.add_argument("--reason", required=True)
 
     # retry-shard
     p_retry = sub.add_parser("retry-shard", help="Record a failed shard attempt with safe rollback guard")
@@ -689,7 +767,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             _emit({**res, "lessons": lessons})
         elif cmd == "lock":
-            _emit(lock_run(repo, args.run_id, base_sha=args.base_sha, pr_number=args.pr))
+            _emit(lock_run(repo, args.run_id, base_sha=args.base_sha, pr_number=args.pr,
+                           require_delegation_receipts=args.require_delegation_receipts))
         elif cmd == "bind-pr":
             _emit(bind_pr(repo, args.run_id, pr_number=args.pr))
         elif cmd == "refresh-base":
@@ -697,15 +776,20 @@ def main(argv: list[str] | None = None) -> int:
         elif cmd == "publish-contract":
             _emit(publish_contract(repo, args.run_id))
         elif cmd == "start-shard":
-            _emit(
-                start_shard(
-                    repo,
-                    args.run_id,
-                    args.shard,
-                    worktree_path=args.worktree,
-                    last_green_sha=args.last_green_sha,
-                )
+            result = start_shard(
+                repo, args.run_id, args.shard, worktree_path=args.worktree, last_green_sha=args.last_green_sha,
             )
+            if args.delegation_reservation is not None:
+                try:
+                    broker = Broker(_broker_repo_id(repo, args.repo_id))
+                    result["shadow_delegation"] = _reserve_delegation(
+                        repo, broker, args.run_id, args.shard, None, _read_object(args.delegation_reservation),
+                    )
+                except (RuntimeError, OSError, TypeError, ValueError) as exc:
+                    print(f"SHADOW-DIVERGENCE delegation reservation: {exc}", file=sys.stderr)
+            _emit(result)
+        elif cmd == "delegation":
+            _emit(_delegation_command(repo, args))
         elif cmd == "retry-shard":
             _emit(
                 retry_shard(
