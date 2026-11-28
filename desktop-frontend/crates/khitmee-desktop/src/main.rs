@@ -123,6 +123,16 @@ fn money(value: f64) -> String {
     format!("{value:.2}")
 }
 
+
+fn edited_quantity(value: &str) -> Option<f64> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        Some(0.0)
+    } else {
+        trimmed.parse::<f64>().ok().map(|parsed| parsed.max(0.0))
+    }
+}
+
 fn qty(value: f64) -> String {
     let value = if value == 0.0 { 0.0 } else { value };
     if (value.fract()).abs() < f64::EPSILON {
@@ -2218,7 +2228,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 .iter()
                 .position(|line| line.item.item_code == code.as_str())
             {
-                let next = value.parse::<f64>().unwrap_or(0.0).max(0.0);
+                let Some(next) = edited_quantity(value.as_str()) else {
+                    refresh_voucher(&app, &state);
+                    return;
+                };
                 if next == 0.0 {
                     state.lines.remove(position);
                 } else {
@@ -2571,4 +2584,25 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     app.run()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::edited_quantity;
+
+    #[test]
+    fn edited_quantity_rejects_nonnumeric_input() {
+        assert_eq!(edited_quantity("abc"), None);
+    }
+
+    #[test]
+    fn edited_quantity_preserves_empty_as_removal_signal() {
+        assert_eq!(edited_quantity(""), Some(0.0));
+    }
+
+    #[test]
+    fn edited_quantity_accepts_fractional_values() {
+        assert_eq!(edited_quantity("2.5"), Some(2.5));
+    }
 }
