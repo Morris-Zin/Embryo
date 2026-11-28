@@ -156,6 +156,15 @@ def find_element(elements: list[dict[str, Any]], element_id: str, label: str) ->
     raise RuntimeError(f"target element {element_id}/{label!r} not found")
 
 
+def loaded_invoice_count(client: McpClient, handle: str) -> int | None:
+    properties = client.tool("get_element_properties", {"elementHandle": handle})
+    label = properties.get("accessibleLabel") or ""
+    try:
+        return int(label.split(" of ", 1)[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def measure_workload(
     executable: Path,
     workload: str,
@@ -199,13 +208,27 @@ def measure_workload(
         elif workload == "invoice":
             target = find_element(elements, "invoice-filter", "ID")["handle"]
             load_more = find_element(elements, "", "Load More")["handle"]
-            terms = ["ACC", "paid", "customer", "zzzz", "မြတ", ""]
+            count_target = find_element(elements, "invoice-count", "")["handle"]
+            terms = ["ACC", "paid", "customer", "မြတ", ""]
         else:
             target = next(
                 (element for element in elements if element.get("accessibleRole") == "List" and element.get("handle")),
                 {"handle": handles["root"]},
             )["handle"]
+            load_more = find_element(elements, "", "Load More")["handle"]
+            count_target = find_element(elements, "invoice-count", "")["handle"]
             terms = []
+
+        if workload == "scroll":
+            for _ in range(10):
+                before_count = loaded_invoice_count(client, count_target)
+                client.tool("click_element", {"elementHandle": load_more})
+                after_count = loaded_invoice_count(client, count_target)
+                if before_count is None or after_count != before_count + 20:
+                    raise RuntimeError(
+                        f"scroll warm-up Load More did not append 20 rows: {before_count} -> {after_count}"
+                    )
+            result["scrollWarmupLoadedRows"] = loaded_invoice_count(client, count_target)
         click_measurement_floor_ms = None
         if workload == "invoice":
             control_text = next(
@@ -225,6 +248,7 @@ def measure_workload(
         interaction_wall_started = time.perf_counter()
         latencies = []
         click_latencies = []
+        verified_load_more_clicks = 0
         memory_checkpoints = []
         for iteration in range(iterations):
             action_started = time.perf_counter()
@@ -237,9 +261,13 @@ def measure_workload(
                 client.tool("set_element_value", {"elementHandle": target, "value": terms[iteration % len(terms)]})
             latencies.append((time.perf_counter() - action_started) * 1000)
             if workload == "invoice" and iteration % 10 == 9:
+                before_count = loaded_invoice_count(client, count_target)
                 click_started = time.perf_counter()
                 client.tool("click_element", {"elementHandle": load_more})
                 click_latencies.append((time.perf_counter() - click_started) * 1000)
+                after_count = loaded_invoice_count(client, count_target)
+                if before_count is not None and after_count == before_count + 20:
+                    verified_load_more_clicks += 1
             if (iteration + 1) % 100 == 0:
                 memory_checkpoints.append({
                     "iteration": iteration + 1,
@@ -277,6 +305,12 @@ def measure_workload(
             },
             "samples": len(all_latencies),
         })
+        if workload == "invoice":
+            result.update({
+                "loadMoreAttempts": len(click_latencies),
+                "loadMoreVerified": verified_load_more_clicks,
+                "finalInvoiceCountText": client.tool("get_element_properties", {"elementHandle": count_target}).get("accessibleLabel"),
+            })
     except Exception as error:
         result["error"] = str(error)
     finally:
@@ -329,6 +363,10 @@ def main() -> int:
         cpu_ms = run.get("cpuMsPerInteraction")
         if cpu_ms is None or cpu_ms > args.max_cpu_ms_per_interaction:
             failures.append(f"{label}: CPU per interaction missing or above {args.max_cpu_ms_per_interaction}ms")
+        if label == "invoice" and run.get("loadMoreVerified") != run.get("loadMoreAttempts"):
+            failures.append(
+                f"{label}: only {run.get('loadMoreVerified')} of {run.get('loadMoreAttempts')} Load More clicks appended rows"
+            )
 
     report = {
         "schemaVersion": 1,

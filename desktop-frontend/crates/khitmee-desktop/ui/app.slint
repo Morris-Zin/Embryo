@@ -1165,7 +1165,7 @@ component InvoiceScreen inherits Rectangle {
         text <=> root.invoice-filter-text;
         edited => { root.invoice-filter-edited(self.text); }
     }
-    Text { x: 590px; y: parent.height - 35px; width: 180px; height: 28px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
+    invoice-count := Text { x: 590px; y: parent.height - 35px; width: 180px; height: 28px; text: root.invoice-count-text; accessible-label: root.invoice-count-text; color: Design.muted; font-size: 11px; vertical-alignment: center; }
 }
 
 component DetailFieldBox inherits Rectangle {
