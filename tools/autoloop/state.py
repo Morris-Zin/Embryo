@@ -755,6 +755,7 @@ def record_shard_pass(
                 "shard": shard_id,
                 "code_tree_sha256": eff_code_hash,
                 "status": state["status"],
+                **({"static_lint": tooling["static_lint"]} if tooling and "static_lint" in tooling else {}),
             }
         )
         _save_run_unlocked(repo, run_id, state)

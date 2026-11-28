@@ -1451,6 +1451,10 @@ class TestReport(unittest.TestCase):
             ["tools/script.sh"],
         )
 
+    def test_current_memory_hooks_stub_matches_the_legacy_baseline(self) -> None:
+        path = "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py"
+        self.assertEqual(self.rules["test-stubs-restored"]({path: (REPO_ROOT / path).read_bytes()}), [])
+
 
 class TestScenario7ReviewFixRegressions(unittest.TestCase):
     """Regression suite covering all 13 Astra findings & 15 PR review threads."""
@@ -3100,6 +3104,72 @@ class TestWorkflowMetadata(unittest.TestCase):
         change, _ = self.cli("resolve-contract-change", "--run-id", run_id, "--decision", "approve",
                              "--new-base-sha", self.base, "--new-base-branch", "main")
         self.assertEqual((change["base_branch"], change["base_sha"], change["contract_revision"]), ("main", self.base, 3))
+
+    def _install_lint_ratchet_fixture(self) -> str:
+        rule = self.repo / ".autoloop/rules/test_ratchet.py"
+        _write_lf(rule,
+                  "def check(files):\n"
+                  "    count = int(b'# inherited' in files['src/b.py'])\n"
+                  "    count += int(b'# grow lint' in files['src/a.py'])\n"
+                  "    return [{'path': 'src/b.py', 'line': n + 1, 'message': 'fixture violation'}"
+                  " for n in range(count)]\n"
+                  "RULES = [('fixture-ratchet', check)]\n")
+        gate = self.repo / "tools/fast_check.py"
+        _write_lf(gate,
+                  "from autoloop.static_rules import lint_repo\n"
+                  "def check(root):\n"
+                  "    assert not lint_repo(root), 'fast_check autoloop_lint failed'\n")
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 2  # inherited\n")
+        _git(self.repo, "add", ".")
+        _git(self.repo, "commit", "-m", "trusted lint with an inherited violation")
+        return _git(self.repo, "rev-parse", "HEAD")
+
+    def test_individual_check_warns_about_inherited_static_lint_and_integration_rejects_it(self) -> None:
+        base = self._install_lint_ratchet_fixture()
+        self.create_run("lint-inherited")
+        run = ("--run-id", "lint-inherited")
+        self.cli("start-shard", *run, "--shard", "a")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 3\n")
+        _git(self.repo, "commit", "-am", "independent shard change")
+        result, warnings = self.cli("check", *run, "--shard", "a")
+        self.assertIn("WARNING: inherited static lint: fixture-ratchet:src/b.py:1:", warnings)
+        self.assertTrue(result["tooling"]["fast_check_ran"])
+        stats = {
+            "base_sha": base, "base_counts": {"fixture-ratchet": 1},
+            "head_counts": {"fixture-ratchet": 1}, "warning_count": 1,
+        }
+        state = load_run(self.repo, "lint-inherited")
+        self.assertEqual(result["tooling"]["static_lint"], stats)
+        self.assertEqual(state["shards"]["a"]["passed_tooling"]["static_lint"], stats)
+        self.assertEqual(state["history"][-1]["static_lint"], stats)
+        _, error = self.cli("check", *run, "--all-shards", expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("fixture-ratchet:src/b.py:1:", error)
+        self.assertNotIn("WARNING: inherited", error)
+
+    def test_individual_check_rejects_static_lint_growth_in_unchanged_files(self) -> None:
+        base = self._install_lint_ratchet_fixture()
+        self.create_run("lint-growth")
+        run = ("--run-id", "lint-growth")
+        self.cli("start-shard", *run, "--shard", "a")
+        _write_lf(self.repo / "src/a.py", "def a():\n    return 3  # grow lint\n")
+        _git(self.repo, "commit", "-am", "trigger a new violation through an unchanged file")
+        self.assertEqual(_git(self.repo, "diff", "--name-only", base, "HEAD"), "src/a.py")
+        # An explicit scope-comparison base cannot reset the frozen lint baseline.
+        command = ("check", *run, "--shard", "a", "--base-ref", "HEAD", "--skip-fast-check")
+        _, error = self.cli(*command, expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("rule counts increased (fixture-ratchet 1 -> 2)", error)
+        self.assertIn("fixture-ratchet:src/b.py:2:", error)
+
+    def test_individual_check_rejects_inherited_static_lint_in_touched_files(self) -> None:
+        self._install_lint_ratchet_fixture()
+        self.create_run("lint-touched", shard="a=src/b.py")
+        run = ("--run-id", "lint-touched")
+        self.cli("start-shard", *run, "--shard", "a")
+        _write_lf(self.repo / "src/b.py", "def b():\n    return 7  # inherited\n")
+        _git(self.repo, "commit", "-am", "touch the inherited violation")
+        _, error = self.cli("check", *run, "--shard", "a", "--skip-fast-check", expected=EXIT_POLICY_OR_INTEGRITY)
+        self.assertIn("shard static lint: fixture-ratchet:src/b.py:1:", error)
+        self.assertNotIn("rule counts increased", error)
 
     def test_check_timings_capture_jobs_and_failed_attempt(self) -> None:
         _write_lf(_ensure_parent(self.repo / "tools/fast_check.py"),

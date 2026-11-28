@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import concurrent.futures
 import json
 import os
@@ -14,12 +15,13 @@ from threading import current_thread
 from time import monotonic
 from typing import Any
 
+
 def _run_check_command(
-    command: list[str] | str, cwd: Path, *, shell: bool = False,
+    command: list[str] | str, cwd: Path, *, shell: bool = False, input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         command, cwd=cwd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        encoding="utf-8", errors="replace",
+        encoding="utf-8", errors="replace", input=input_text,
     )
     if result.stdout:
         print(result.stdout, end="", file=sys.stderr)
@@ -32,11 +34,14 @@ def _adapter_args(action: str, tooling: Path, worktree: Path) -> list[str]:
 
 def verify_with_trusted_tooling(
     tooling: Path, worktree: Path, repo: Path, run_id: str, *,
-    shard_id: str | None, base_ref: str | None, head_sha: str,
+    shard_id: str | None, base_ref: str | None, head_sha: str, lint_base_sha: str,
 ) -> dict[str, Any]:
     from autoloop.guard import GuardError
 
-    request = {"run_id": run_id, "shard_id": shard_id, "base_ref": base_ref, "head_ref": head_sha}
+    request = {
+        "run_id": run_id, "shard_id": shard_id, "base_ref": base_ref, "head_ref": head_sha,
+        "lint_base_sha": lint_base_sha,
+    }
     proc = subprocess.run(
         [*_adapter_args("verify", tooling, worktree), str(repo)], cwd=tooling,
         input=json.dumps(request), encoding="utf-8", capture_output=True,
@@ -46,11 +51,15 @@ def verify_with_trusted_tooling(
         if "changes outside allowed_paths:" in message and "--base-ref" not in message:
             message += ". For an already-integrated dependency PR, pass --base-ref <integration-commit> (or --base-sha)."
         raise GuardError(message or f"trusted verify-untampered failed with exit {proc.returncode}")
-    return json.loads(proc.stdout)
+    result = json.loads(proc.stdout)
+    for warning in result.pop("lint_warnings", []):
+        print(f"WARNING: inherited static lint: {warning}", file=sys.stderr)
+    return result
 
 
 def time_check_commands(
     tooling: Path, worktree: Path, commands: list[tuple[str, str]], steps: dict[str, float], *, skip_fast_check: bool,
+    lint_scope: dict[str, Any] | None,
 ) -> bool:
     from autoloop.guard import CheckCommandError, GuardError
 
@@ -63,7 +72,7 @@ def time_check_commands(
             argv = [*_adapter_args("fast-check", tooling, worktree), str(timing_file)]
             started = monotonic()
             try:
-                proc = _run_check_command(argv, tooling)
+                proc = _run_check_command(argv, tooling, input_text=json.dumps(lint_scope))
             finally:
                 steps["fast_check.py"] = round(monotonic() - started, 3)
                 if timing_file.is_file():
@@ -160,12 +169,90 @@ def _trusted_modules(tooling: Path):
     guard.load_config = trusted_config
     guard.evaluate_file_map = lambda _rules, files: evaluate(rules, files)
     static_rules.lint_repo = lambda root, **kwargs: lint(root, **{**kwargs, "rules_dir": rules})
-    return guard
+    return guard, static_rules
 
 
-def run_timed_fast_check(tooling: Path, repo: Path, timing_file: Path) -> None:
+def _shard_lint_violations(violations, base_counts, changed_paths):
+    counts = Counter(violation.rule_id for violation in violations)
+    increased = {rule for rule, count in counts.items() if count > base_counts.get(rule, 0)}
+    failures, inherited = [], []
+    for violation in violations:
+        if violation.path in changed_paths or violation.rule_id in increased:
+            failures.append(violation)
+        else:
+            inherited.append(violation)
+    return failures, inherited, dict(sorted(counts.items())), increased
+
+
+def _format_violation(violation) -> str:
+    return f"{violation.rule_id}:{violation.path}:{violation.line}:{violation.message}"
+
+
+def verify_checked_tree(guard, target: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
+    guard.assert_clean_worktree_for_check(target, run_id=request["run_id"])
+    lint_base_sha = request.pop("lint_base_sha")
+    if request["shard_id"] is None:
+        result = guard.verify_untampered(repo, git_repo=target, **request)
+        return {**result, "static_lint": {"head_counts": {}, "warning_count": 0}, "lint_scope": None}
+
+    evaluate = guard.evaluate_file_map
+    # --base-ref can change the allowed-path comparison. The lint ratchet is
+    # always bound to the frozen run base and uses the same rules for both trees.
+    shard_base = guard.git_merge_base(target, lint_base_sha, request["head_ref"])
+    changed_paths = {
+        entry.path for entry in guard.git_diff_tree_entries(target, shard_base, request["head_ref"])
+    }
+    base_counts = Counter()
+    head_counts = {}
+    warnings = []
+
+    def scoped_evaluate(rules_dir, head_files):
+        head_violations = evaluate(rules_dir, head_files)
+        if request["head_ref"] == lint_base_sha:
+            base_violations = head_violations
+        else:
+            base_violations = evaluate(rules_dir, guard.git_read_tree_blobs(target, lint_base_sha))
+        base_counts.update(violation.rule_id for violation in base_violations)
+        failures, inherited, counts, increased = _shard_lint_violations(head_violations, base_counts, changed_paths)
+        if failures:
+            details = "; ".join(_format_violation(violation) for violation in failures[:5])
+            if increased:
+                deltas = ", ".join(f"{rule} {base_counts[rule]} -> {counts[rule]}" for rule in sorted(increased))
+                details = f"rule counts increased ({deltas}); {details}"
+            raise guard.GuardError(f"shard static lint: {details}")
+        head_counts.update(counts)
+        warnings.extend(_format_violation(violation) for violation in inherited)
+        return []
+
+    guard.evaluate_file_map = scoped_evaluate
+    result = guard.verify_untampered(repo, git_repo=target, **request)
+    return {
+        **result,
+        "static_lint": {
+            "base_sha": lint_base_sha, "base_counts": dict(sorted(base_counts.items())),
+            "head_counts": head_counts, "warning_count": len(warnings),
+        },
+        "lint_scope": {"base_counts": dict(base_counts), "changed_paths": sorted(changed_paths)},
+        "lint_warnings": warnings,
+    }
+
+
+def run_timed_fast_check(tooling: Path, repo: Path, timing_file: Path, lint_scope: dict[str, Any] | None) -> None:
     """Run the trusted gate against the candidate, timing its outer executor jobs."""
-    _trusted_modules(tooling)
+    _, static_rules = _trusted_modules(tooling)
+    if lint_scope is not None:
+        # fast_check also calls lint_repo. Keep that gate using this shard's ratchet.
+        lint = static_rules.lint_repo
+        changed_paths = set(lint_scope["changed_paths"])
+
+        def scoped_lint(root, **kwargs):
+            violations = lint(root, **kwargs)
+            if Path(root).resolve() != repo:
+                return violations
+            failures, _, _, _ = _shard_lint_violations(violations, lint_scope["base_counts"], changed_paths)
+            return failures
+
+        static_rules.lint_repo = scoped_lint
     script = tooling / "tools/fast_check.py"
     sys.argv = [str(script)]
     check_thread = current_thread()
@@ -208,15 +295,12 @@ def run_timed_fast_check(tooling: Path, repo: Path, timing_file: Path) -> None:
 if __name__ == "__main__":
     action, tooling, worktree, extra = sys.argv[1:]
     if action == "verify":
-        guard = _trusted_modules(Path(tooling))
-        target = Path(worktree)
-        request = json.load(sys.stdin)
+        guard, _ = _trusted_modules(Path(tooling))
         try:
-            guard.assert_clean_worktree_for_check(target, run_id=request["run_id"])
-            result = guard.verify_untampered(Path(extra), git_repo=target, **request)
+            result = verify_checked_tree(guard, Path(worktree), Path(extra), json.load(sys.stdin))
             print(json.dumps(result))
         except guard.GuardError as exc:
             print(exc, file=sys.stderr)
             sys.exit(exc.exit_code)
     else:
-        run_timed_fast_check(Path(tooling), Path(worktree), Path(extra))
+        run_timed_fast_check(Path(tooling), Path(worktree), Path(extra), json.load(sys.stdin))

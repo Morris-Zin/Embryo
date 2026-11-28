@@ -157,11 +157,14 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
         try:
             verified = verify_with_trusted_tooling(
                 snapshot, worktree, repo, args.run_id, shard_id=args.shard, base_ref=args.base_ref, head_sha=requested,
+                lint_base_sha=run["base_sha"],
             )
             head = verified["head_sha"]
+            tooling["static_lint"] = verified["static_lint"]
             stage = "check"
             tooling["fast_check_ran"] = time_check_commands(
                 snapshot, worktree, commands, steps, skip_fast_check=args.skip_fast_check,
+                lint_scope=verified["lint_scope"],
             )
             if git_rev_parse(worktree, "HEAD") != head:
                 raise GuardError("target checkout HEAD moved during check; run check again")
