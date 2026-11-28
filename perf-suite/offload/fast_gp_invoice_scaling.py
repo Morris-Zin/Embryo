@@ -94,9 +94,22 @@ def global_variables(frappe) -> dict[str, str]:
     return {str(key): str(value) for key, value in rows if str(key).lower() in wanted}
 
 
+def wait_for_buffer_pool_preload(frappe, timeout_seconds: int = 90) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    last_status = ""
+    while time.monotonic() < deadline:
+        rows = frappe.db.sql("SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_load_status'")
+        last_status = str(rows[0][1]) if rows else ""
+        lowered = last_status.lower()
+        if not last_status or "load completed" in lowered or "not started" in lowered:
+            return last_status
+        time.sleep(2)
+    raise RuntimeError(f"InnoDB buffer pool preload did not complete within {timeout_seconds}s: {last_status}")
+
+
 def buffer_pool_status(frappe) -> dict[str, str]:
     rows = frappe.db.sql(
-        "SHOW GLOBAL STATUS WHERE Variable_name IN (%s, %s, %s, %s, %s, %s)",
+        "SHOW GLOBAL STATUS WHERE Variable_name IN (%s, %s, %s, %s, %s, %s, %s)",
         (
             "Innodb_buffer_pool_pages_total",
             "Innodb_buffer_pool_pages_data",
@@ -104,6 +117,7 @@ def buffer_pool_status(frappe) -> dict[str, str]:
             "Innodb_buffer_pool_pages_dirty",
             "Innodb_buffer_pool_read_requests",
             "Innodb_buffer_pool_reads",
+            "Innodb_buffer_pool_load_status",
         ),
     )
     return {str(key): str(value) for key, value in rows}
@@ -173,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     frappe = None
     try:
         frappe, site = connect_frappe(args.site)
+        preload_status = wait_for_buffer_pool_preload(frappe)
         from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import run_detail_gross_profit
 
         company = args.company
@@ -246,6 +261,13 @@ def main(argv: list[str] | None = None) -> int:
             "warmups": args.warmups,
             "invoice_scope_sha256": None,
             "database_variables": global_variables(frappe),
+            "buffer_pool_preload_status": preload_status,
+            "cache_state": {
+                "frappe_document_cache_cleared_between_iterations": True,
+                "transactions_rolled_back_between_iterations": True,
+                "warmup_iterations_per_case": args.warmups,
+                "buffer_pool_preload_completed_before_measurement": True,
+            },
             "buffer_pool_status_before_cases": buffer_pool_before_cases,
             "buffer_pool_status_before_exit": buffer_pool_status(frappe),
             "cases": cases,

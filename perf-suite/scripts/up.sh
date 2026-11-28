@@ -19,6 +19,7 @@ Options:
   --with-khitmee-ops  Sync and mount apps/khitmee_ops, then install it on the site
   --with-optimus      Install the Optimus profiler app into the isolated bench
   --with-binlog       Enable MariaDB ROW binlogging for CDC overhead experiments
+  --skip-asset-precompress  Skip optional static gzip precompression for API-only benchmark runs
   -h, --help          Show this help
 
 MARIADB_IMAGE may be exported or set in the local .env to a digest-pinned image
@@ -30,6 +31,7 @@ PROFILE="$DEFAULT_PROFILE"
 WITH_KHITMEE_OPS=0
 WITH_OPTIMUS=0
 WITH_BINLOG=0
+SKIP_ASSET_PRECOMPRESS=0
 
 while (($#)); do
   case "$1" in
@@ -52,6 +54,10 @@ while (($#)); do
       ;;
     --with-binlog)
       WITH_BINLOG=1
+      shift
+      ;;
+    --skip-asset-precompress)
+      SKIP_ASSET_PRECOMPRESS=1
       shift
       ;;
     -h|--help)
@@ -309,9 +315,19 @@ wait_for_innodb_buffer_pool_preload() {
   local last_status="__unset__"
   local printable_status
 
+  local auth_user="root"
+  local auth_password="$DB_PASSWORD"
+  local site_auth=""
+  if ! compose exec -T -e MYSQL_PWD="$DB_PASSWORD" db mariadb -uroot -N -B -e "SELECT 1" >/dev/null 2>&1; then
+    if site_auth="$(compose exec -T backend python -c "import json; c=json.load(open('/home/frappe/frappe-bench/sites/$SITE_NAME/site_config.json')); print(str(c.get('db_name') or c.get('db_user') or '')+' '+str(c.get('db_password') or ''))" 2>/dev/null | tr -d '\r' | head -n 1)"; then
+      auth_user="${site_auth%% *}"
+      auth_password="${site_auth#* }"
+    fi
+  fi
+
   echo "Waiting up to ${timeout_seconds}s for InnoDB buffer pool preload..."
   while (( elapsed < timeout_seconds )); do
-    if status="$(compose exec -T -e MYSQL_PWD="$DB_PASSWORD" db mariadb -uroot -N -B -e "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_load_status'" 2>/dev/null | tr -d '\r' | cut -f2- | head -n 1)"; then
+    if [[ -n "$auth_user" && -n "$auth_password" ]] && status="$(compose exec -T -e MYSQL_PWD="$auth_password" db mariadb -u"$auth_user" -N -B -e "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_load_status'" 2>/dev/null | tr -d '\r' | cut -f2- | head -n 1)"; then
       printable_status="${status:-no load in progress}"
       if [[ "$printable_status" != "$last_status" ]]; then
         echo "InnoDB buffer pool load status: $printable_status"
@@ -467,8 +483,12 @@ compose exec -T backend bench --site "$SITE_NAME" execute frappe.db.set_single_v
 compose exec -T backend bench --site "$SITE_NAME" scheduler enable < /dev/null
 compose exec -T backend bench --site "$SITE_NAME" scheduler resume < /dev/null
 
-echo "Precompressing changed static assets for gzip_static..."
-compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
+if [[ "$SKIP_ASSET_PRECOMPRESS" == "1" ]]; then
+  echo "Skipping optional static asset precompression for this API-only benchmark run."
+else
+  echo "Precompressing changed static assets for gzip_static..."
+  compose exec -T frontend bash -c 'set -e; shopt -s nullglob; roots=(/home/frappe/frappe-bench/sites/assets/*/dist); if ((${#roots[@]})); then find "${roots[@]}" -type f \( -name "*.js" -o -name "*.css" -o -name "*.map" -o -name "*.json" -o -name "*.svg" -o -name "*.html" -o -name "*.txt" -o -name "*.xml" \) -print0 | while IFS= read -r -d "" file; do if [[ ! -f "$file.gz" || "$file" -nt "$file.gz" ]]; then gzip -9 -n -k -f "$file"; fi; done; fi' < /dev/null
+fi
 
 health_url="http://127.0.0.1:${PERF_HTTP_PORT}/api/method/ping"
 echo "Waiting for $health_url ..."

@@ -96,10 +96,30 @@ if docker inspect "$BACKEND_CONTAINER" >/dev/null 2>&1; then
   fi
 fi
 
+verify_container_set() {
+  local output_file="$1"
+  docker ps -a --filter name=khitmee-perf --format '{{.Names}}' | LC_ALL=C sort > "$output_file"
+  cat > "$output_file.expected" <<'EOF_EXPECTED'
+khitmee-perf-backend-1
+khitmee-perf-configurator-1
+khitmee-perf-db-1
+khitmee-perf-frontend-1
+khitmee-perf-queue-1
+khitmee-perf-redis-cache-1
+khitmee-perf-redis-queue-1
+khitmee-perf-scheduler-1
+khitmee-perf-websocket-1
+EOF_EXPECTED
+  if ! diff -u "$output_file.expected" "$output_file" > "$output_file.diff" 2>&1; then
+    echo "khitmee-perf container set is not exactly one container per service; see $output_file.diff" >&2
+    exit 5
+  fi
+}
+
 RUN_DIR="$RESULT_ROOT/$RUN_ID"
 mkdir -p "$RUN_DIR"
-git rev-parse HEAD > "$RUN_DIR/git-head.txt"
-git status --porcelain > "$RUN_DIR/git-status-porcelain.txt"
+(git rev-parse HEAD 2>/dev/null || echo unknown) > "$RUN_DIR/git-head.txt"
+(git status --porcelain 2>/dev/null || echo unavailable) > "$RUN_DIR/git-status-porcelain.txt"
 printf '%s\n' "$MARIADB_1189" > "$RUN_DIR/mariadb-11.8.9.ref.txt"
 printf '%s\n' "$MARIADB_11810" > "$RUN_DIR/mariadb-11.8.10.ref.txt"
 
@@ -124,13 +144,14 @@ run_arm() {
 
   echo "[$arm] starting stack with $image_ref"
   export MARIADB_IMAGE="$image_ref"
-  bash "$REPO_ROOT/perf-suite/scripts/up.sh" --profile "$PROFILE" --with-khitmee-ops > "$arm_dir/up.log" 2>&1
+  bash "$REPO_ROOT/perf-suite/scripts/up.sh" --profile "$PROFILE" --with-khitmee-ops --skip-asset-precompress > "$arm_dir/up.log" 2>&1
+  verify_container_set "$arm_dir/container-set-after-up.txt"
 
   echo "[$arm] restoring immutable snapshot $(basename "$SNAPSHOT")"
   bash "$REPO_ROOT/perf-suite/scripts/restore_db_snapshot.sh" "$SNAPSHOT" > "$arm_dir/restore.log" 2>&1
   wait_for_ping
 
-  docker inspect "$DB_CONTAINER" > "$arm_dir/docker-inspect-db.json"
+  docker inspect "$DB_CONTAINER" | python3 "$SCRIPT_DIR/sanitize_docker_inspect.py" > "$arm_dir/docker-inspect-db.json"
   docker image inspect "$image_ref" > "$arm_dir/docker-image-inspect.json" 2>/dev/null || true
   docker inspect --format '{{.Id}}' "$DB_CONTAINER" > "$arm_dir/db-container-id.txt"
   docker inspect --format '{{.Config.Image}}' "$DB_CONTAINER" > "$arm_dir/db-config-image.txt"
@@ -158,18 +179,29 @@ run_arm() {
     --output "$remote_json" \
     > "$arm_dir/fastgp-stdout.json"
   docker cp "$BACKEND_CONTAINER:$remote_json" "$arm_dir/fastgp-invoice-scaling.json" >/dev/null
-  docker exec "$BACKEND_CONTAINER" rm -f "$remote_json" /tmp/fast_gp_invoice_scaling.py
+  docker exec --user root "$BACKEND_CONTAINER" rm -f "$remote_json" /tmp/fast_gp_invoice_scaling.py 2>/dev/null || true
 
-  echo "[$arm] measuring rollback-safe cashier benchmarks"
-  python3 -B "$REPO_ROOT/tools/perf_bench_inner.py" \
-    --from-date "$FROM_DATE" \
-    --to-date "$TO_DATE" \
-    --output "$arm_dir/cashier-perf-bench.json" \
-    > "$arm_dir/cashier-perf-bench.stdout.json"
+  echo "[$arm] measuring rollback-safe repeated cashier benchmarks"
+  docker cp "$SCRIPT_DIR/cashier_sale_repeat.py" "$BACKEND_CONTAINER:/tmp/cashier_sale_repeat.py" >/dev/null
+  local remote_cashier_json="/tmp/cashier-sale-repeat-$arm.json"
+  docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \
+    -w /home/frappe/frappe-bench/sites \
+    "$BACKEND_CONTAINER" \
+    /home/frappe/frappe-bench/env/bin/python /tmp/cashier_sale_repeat.py \
+    --arm "$arm" \
+    --iterations 5 \
+    --warmups 1 \
+    --output "$remote_cashier_json" \
+    > "$arm_dir/cashier-sale-repeat.stdout.json"
+  docker cp "$BACKEND_CONTAINER:$remote_cashier_json" "$arm_dir/cashier-sale-repeat.json" >/dev/null
+  docker exec --user root "$BACKEND_CONTAINER" rm -f "$remote_cashier_json" /tmp/cashier_sale_repeat.py 2>/dev/null || true
 }
+
+verify_container_set "$RUN_DIR/container-set-before.txt"
 
 run_arm "mariadb-11.8.9" "$MARIADB_1189"
 run_arm "mariadb-11.8.10" "$MARIADB_11810"
+verify_container_set "$RUN_DIR/container-set-after.txt"
 unset MARIADB_IMAGE
 
 python3 - "$RUN_DIR" <<'PY'
@@ -181,18 +213,21 @@ run_dir = Path(sys.argv[1])
 arms = {}
 for arm_dir in sorted(path for path in run_dir.iterdir() if path.is_dir()):
     fastgp_path = arm_dir / "fastgp-invoice-scaling.json"
-    cashier_path = arm_dir / "cashier-perf-bench.json"
+    cashier_path = arm_dir / "cashier-sale-repeat.json"
+    if not cashier_path.exists():
+        cashier_path = arm_dir / "cashier-perf-bench.json"
     if not fastgp_path.exists() or not cashier_path.exists():
         continue
     fastgp = json.loads(fastgp_path.read_text(encoding="utf-8"))
     cashier = json.loads(cashier_path.read_text(encoding="utf-8"))
+    cashier_cases = cashier.get("cases") or cashier.get("benchmarks", {})
     arms[arm_dir.name] = {
         "database_variables": fastgp.get("database_variables"),
         "buffer_pool_status_before_cases": fastgp.get("buffer_pool_status_before_cases"),
         "invoice_scope_sha256": fastgp.get("invoice_scope_sha256"),
         "fastgp": fastgp.get("cases"),
         "cashier": {
-            key: cashier.get("benchmarks", {}).get(key)
+            key: cashier_cases.get(key)
             for key in ("sale_10_lines", "sale_50_lines")
         },
     }

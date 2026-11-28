@@ -1,7 +1,7 @@
 services:
   configurator:
     mem_limit: 64m
-    cpus: 0.05
+    cpus: 0.20
 
   db:
     mem_limit: 512m
@@ -41,7 +41,7 @@ services:
 
   backend:
     mem_limit: 544m
-    cpus: 0.70
+    cpus: 0.75
     environment:
       MALLOC_ARENA_MAX: "2"
       MALLOC_MMAP_THRESHOLD_: "1048576"
@@ -67,7 +67,7 @@ services:
     restart: ${RESTART_POLICY:-unless-stopped}
     platform: linux/amd64
     mem_limit: 224m
-    cpus: 0.30
+    cpus: 0.25
     environment:
       MALLOC_ARENA_MAX: "2"
     command:
@@ -83,11 +83,11 @@ services:
 
   scheduler:
     mem_limit: 96m
-    cpus: 0.10
+    cpus: 0.05
 
   redis-cache:
     mem_limit: 64m
-    cpus: 0.05
+    cpus: 0.02
     command:
       - redis-server
       - --maxmemory
@@ -101,7 +101,7 @@ services:
 
   redis-queue:
     mem_limit: 32m
-    cpus: 0.05
+    cpus: 0.02
     command:
       - redis-server
       - --maxmemory
@@ -113,12 +113,12 @@ services:
 
   websocket:
     mem_limit: 72m
-    cpus: 0.10
+    cpus: 0.05
     environment:
       NODE_OPTIONS: "--max-old-space-size=56"
 
   frontend:
     mem_limit: 24m
-    cpus: 0.05
+    cpus: 0.06
     volumes:
       - ./nginx-2gb.conf:/etc/nginx/nginx.conf:ro
