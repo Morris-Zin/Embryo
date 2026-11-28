@@ -25,6 +25,54 @@ ALL_CONTAINER_MEMORY_CEILING_MIB = TOTAL_MEMORY_MIB - ABSOLUTE_MINIMUM_HEADROOM_
 CPU_BUDGET = 2.0
 TRANSIENT_CONFIGURATOR_BUDGET_MIB = 64
 
+GUEST_SERVICES = {
+    "configurator",
+    "db",
+    "backend",
+    "cashier",
+    "queue",
+    "scheduler",
+    "redis-cache",
+    "redis-queue",
+    "websocket",
+    "frontend",
+}
+GUEST_MEMORY_MIB = {
+    "configurator": 64,
+    "db": 544,
+    "backend": 224,
+    "cashier": 416,
+    "queue": 256,
+    "scheduler": 96,
+    "redis-cache": 64,
+    "redis-queue": 32,
+    "websocket": 72,
+    "frontend": 24,
+}
+GUEST_CPU_SHARES = {
+    "configurator": 1024,
+    "db": 4050,
+    "backend": 1024,
+    "cashier": 4050,
+    "queue": 416,
+    "scheduler": 212,
+    "redis-cache": 1703,
+    "redis-queue": 1284,
+    "websocket": 311,
+    "frontend": 1024,
+}
+GUEST_CPU_WEIGHTS = {
+    "db": 300,
+    "cashier": 300,
+    "backend": 100,
+    "queue": 50,
+    "scheduler": 30,
+    "redis-cache": 150,
+    "redis-queue": 120,
+    "websocket": 40,
+    "frontend": 100,
+}
+
 # ADR trial allocations. Configurator is intentionally absent because it exits
 # before backend, queue, websocket and scheduler start; it is capped separately.
 COMPONENT_MEMORY_BUDGETS_MIB = {
@@ -128,6 +176,9 @@ def load_profile(profile_name: str) -> dict[str, dict]:
     ops_overlay = DOCKER_DIR / ("khitmee-ops-2gb.yaml" if profile_name.startswith("2gb") else f"khitmee-ops-{profile_name}.yaml")
     if ops_overlay.is_file():
         paths.append(ops_overlay)
+    guest_ops_overlay = DOCKER_DIR / "khitmee-ops-guest.yaml"
+    if profile_name == "2gb-guest" and guest_ops_overlay.is_file():
+        paths.append(guest_ops_overlay)
     services: dict[str, dict] = {}
     for path in paths:
         for name, service in parse_compose_services(path).items():
@@ -156,6 +207,19 @@ def cpu_count(value) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def runc_132_cgroup_v2_weight(shares: int) -> int:
+    """runc >=1.3.2 conversion used by the Ubuntu runc 1.3.4 runtime."""
+    if shares == 0:
+        return 0
+    if shares <= 2:
+        return 1
+    if shares >= 262144:
+        return 10000
+    log2 = math.log2(shares)
+    exponent = (log2 * log2 + 125 * log2) / 612.0 - 7.0 / 34.0
+    return math.ceil(math.pow(10, exponent))
 
 
 def command_list(service: dict) -> list[str]:
@@ -320,6 +384,111 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertIn("db memory 920 MiB exceeds ADR allocation 512 MiB", joined)
         self.assertIn("backend memory 576 MiB exceeds ADR allocation 544 MiB", joined)
         self.assertIn("frontend memory 120 MiB exceeds ADR allocation 24 MiB", joined)
+
+    def test_guest_profile_matches_adr0004_topology_budgets_and_weights(self):
+        services = load_profile("2gb-guest")
+        self.assertEqual(GUEST_SERVICES, set(services))
+        for service in sorted(GUEST_SERVICES):
+            self.assertEqual("khitmeeperf.slice", services[service].get("cgroup_parent"), service)
+            self.assertNotIn("cpus", services[service], service)
+            self.assertEqual(GUEST_MEMORY_MIB[service], memory_mib(services[service].get("mem_limit")), service)
+            self.assertEqual(GUEST_CPU_SHARES[service], int(str(services[service].get("cpu_shares"))), service)
+
+        running_memory = sum(GUEST_MEMORY_MIB[name] for name in GUEST_SERVICES - {"configurator"})
+        self.assertEqual(1728, running_memory)
+        self.assertEqual(1792, sum(GUEST_MEMORY_MIB.values()))
+        for service, weight in GUEST_CPU_WEIGHTS.items():
+            self.assertEqual(weight, runc_132_cgroup_v2_weight(GUEST_CPU_SHARES[service]), service)
+
+        db_command = command_list(services["db"])
+        self.assertEqual("320M", command_equals_option(db_command, "innodb-buffer-pool-size"))
+        self.assertEqual("32", command_equals_option(db_command, "max-connections"))
+
+        backend_command = command_list(services["backend"])
+        self.assertIn("--worker-class=sync", backend_command)
+        self.assertIn("--workers=${GENERAL_GUNICORN_WORKERS:-1}", backend_command)
+        self.assertIn("--preload", backend_command)
+        self.assertNotIn("--threads=1", backend_command)
+
+        cashier_command = command_list(services["cashier"])
+        self.assertIn("--worker-class=gthread", cashier_command)
+        self.assertIn("--workers=${CASHIER_GUNICORN_WORKERS:-1}", cashier_command)
+        self.assertIn("--threads=${CASHIER_GUNICORN_THREADS:-3}", cashier_command)
+        self.assertIn("--preload", cashier_command)
+
+    def test_guest_nginx_implements_adr0004_classes_routes_and_observability(self):
+        template = (DOCKER_DIR / "nginx-frappe-guest.conf.template").read_text(encoding="utf-8")
+        main_conf = (DOCKER_DIR / "nginx-guest.conf").read_text(encoding="utf-8")
+
+        self.assertIn("upstream cashier-server", template)
+        self.assertIn("server cashier:8000", template)
+        self.assertIn("upstream backend-server", template)
+        for zone in ("adr4_cashier_write", "adr4_cashier_search", "adr4_general", "adr4_login_conn", "adr4_login_rate"):
+            self.assertIn(zone, template)
+        self.assertIn("limit_conn adr4_cashier_write 2;", template)
+        self.assertIn("limit_conn adr4_cashier_search 1;", template)
+        self.assertIn("limit_conn adr4_general 1;", template)
+        self.assertIn("limit_req zone=adr4_login_rate burst=6 nodelay;", template)
+        self.assertIn("limit_conn_status 429;", template)
+        self.assertIn("limit_req_status 429;", template)
+
+        self.assertIn(r"^/api/method/khitmee_ops\.api\.vouchers\.[A-Za-z0-9_]+$", template)
+        self.assertIn("location = /api/method/khitmee_ops.api.search.search_items", template)
+        self.assertIn("location = /api/method/frappe.desk.form.save.savedocs", template)
+        self.assertIn("^/api/resource/Purchase(?:%20| )(Receipt|Invoice)", template)
+        self.assertIn("location = /api/method/login", template)
+        self.assertIn("proxy_pass http://cashier-server;", template)
+        self.assertIn("proxy_pass http://backend-server;", template)
+        self.assertIn("proxy_request_buffering on;", template)
+        self.assertIn("proxy_next_upstream off;", template)
+        self.assertIn("try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;", template)
+
+        for variable in (
+            "$request_time",
+            "$upstream_connect_time",
+            "$upstream_header_time",
+            "$upstream_response_time",
+            "$status",
+            "$upstream_pool",
+        ):
+            self.assertIn(variable, main_conf)
+
+    def test_guest_cgroup_scripts_cover_cpuset_limits_and_process_tree_membership(self):
+        setup = (DOCKER_DIR.parent / "scripts" / "guest_cgroup_setup.sh").read_text(encoding="utf-8")
+        verify = (DOCKER_DIR.parent / "scripts" / "verify_guest_cgroup.sh").read_text(encoding="utf-8")
+        self.assertIn("AllowedCPUs=", setup)
+        self.assertIn("CPUQuota=200%", setup)
+        self.assertIn("MemoryMax=2G", setup)
+        self.assertIn("MemorySwapMax=0", setup)
+        self.assertIn("cpuset.cpus.effective", setup)
+        self.assertIn("init.scope", setup)
+        self.assertIn("system.slice", setup)
+        self.assertIn("user.slice", setup)
+        self.assertIn("non-systemd", setup)
+
+        self.assertIn("cpuset.cpus.effective", verify)
+        self.assertIn("non-systemd", verify)
+        self.assertIn("populated cgroup", verify)
+        self.assertIn("cpu.weight", verify)
+        self.assertIn("process_tree", verify)
+        self.assertIn("cgroup.procs", verify)
+        self.assertIn("host PIDs outside container scope", verify)
+
+    def test_guest_startup_migration_and_cashier_ops_overlay_are_wired(self):
+        up = (DOCKER_DIR.parent / "scripts" / "up.sh").read_text(encoding="utf-8")
+        overlay = (DOCKER_DIR / "khitmee-ops-guest.yaml").read_text(encoding="utf-8")
+        self.assertIn("run_khitmee_ops_migration_if_needed", up)
+        self.assertIn('bench --site "$SITE_NAME" migrate', up)
+        self.assertIn("startup-migrations.log", up)
+        self.assertIn("KHITMEE_OPS_SYNC_CHANGED", up)
+        self.assertIn("python_services+=(cashier)", up)
+        self.assertIn("wait_for_service_running cashier 180", up)
+        self.assertIn("khitmee-ops-guest.yaml", up)
+        self.assertIn("verify_guest_cgroup.sh", up)
+        down = (DOCKER_DIR.parent / "scripts" / "down.sh").read_text(encoding="utf-8")
+        self.assertIn("profile-2gb-guest.yaml", down)
+        self.assertIn("cashier:", overlay)
+        self.assertIn("PYTHONPATH: /home/frappe/frappe-bench/apps/khitmee_ops", overlay)
 
     def test_mariadb_image_is_opt_in_overridable(self):
         db = parse_compose_services(DOCKER_DIR / "compose.base.yaml")["db"]
