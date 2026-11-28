@@ -619,7 +619,6 @@ component InvoiceGeneratedRow inherits Rectangle {
     in property <int> index;
     callback open-invoice(string);
     height: 41px;
-    y: 190px + index * 41px;
     accessible-role: list-item;
     accessible-label: invoice.customer + "|" + invoice.status + "|" + invoice.posting-date + "|" + invoice.due-date + "|" + "$ " + invoice.total-text + "|" + invoice.name;
     property <length> content-width: root.width - 240px;
@@ -712,12 +711,10 @@ component InvoiceScreen inherits Rectangle {
         Text { x: 18px; y: 16px; width: parent.width - 36px; height: 58px; text: root.invoice-error-text; accessible-label: root.invoice-error-text; color: #17202a; font-size: 15px; font-weight: 650; vertical-alignment: center; }
     }
 
-    invoice-scroll := Flickable {
-        x: 0px; y: 0px; width: 100%; height: 100%;
-        content-width: root.width;
-        content-height: 230px + root.invoice-rows.length * 41px;
+    invoice-scroll := ListView {
+        x: 0px; y: 190px; width: 100%; height: parent.height - 190px;
         for row[index] in root.invoice-rows: InvoiceGeneratedRow {
-            x: 0px; width: root.width; invoice: row; index: index;
+            width: root.width; invoice: row; index: index;
             open-invoice(name) => { root.invoice-open(name); }
         }
     }

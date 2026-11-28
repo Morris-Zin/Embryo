@@ -1,4 +1,6 @@
+use crate::index::CatalogIndexBuilder;
 use crate::models::CatalogItem;
+use crate::CatalogIndex;
 use rayon::prelude::*;
 use rusqlite::{params, Connection};
 use std::error::Error;
@@ -113,16 +115,64 @@ impl EncryptedStore {
         self.item_count(scope)
     }
 
-    pub fn rows(&self, scope: &str) -> Result<Vec<CatalogItem>, Box<dyn Error + Send + Sync>> {
-        let connection = self.connection.lock().map_err(|_| "store lock poisoned")?;
-        let mut statement = connection
-            .prepare("SELECT payload FROM catalog_rows WHERE scope = ?1 ORDER BY item_code")?;
-        let rows = statement.query_map(params![scope], |row| row.get::<_, String>(0))?;
-        let payloads = rows.collect::<Result<Vec<String>, rusqlite::Error>>()?;
+    fn decode_chunk(
+        payloads: Vec<String>,
+    ) -> Result<Vec<CatalogItem>, Box<dyn Error + Send + Sync>> {
         payloads
             .into_par_iter()
             .map(|payload| serde_json::from_str::<CatalogItem>(&payload).map_err(Into::into))
-            .collect::<Result<Vec<CatalogItem>, Box<dyn Error + Send + Sync>>>()
+            .collect()
+    }
+
+    pub fn rows(&self, scope: &str) -> Result<Vec<CatalogItem>, Box<dyn Error + Send + Sync>> {
+        const DECODE_CHUNK_ROWS: usize = 2048;
+        let connection = self.connection.lock().map_err(|_| "store lock poisoned")?;
+        let count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM catalog_rows WHERE scope = ?1",
+            params![scope],
+            |row| row.get(0),
+        )?;
+        let mut output = Vec::with_capacity(count as usize);
+        let mut statement = connection
+            .prepare("SELECT payload FROM catalog_rows WHERE scope = ?1 ORDER BY item_code")?;
+        let mut rows = statement.query(params![scope])?;
+        loop {
+            let mut payloads = Vec::with_capacity(DECODE_CHUNK_ROWS);
+            while payloads.len() < DECODE_CHUNK_ROWS {
+                let Some(row) = rows.next()? else {
+                    break;
+                };
+                payloads.push(row.get::<_, String>(0)?);
+            }
+            if payloads.is_empty() {
+                break;
+            }
+            output.extend(Self::decode_chunk(payloads)?);
+        }
+        Ok(output)
+    }
+
+    pub fn index(&self, scope: &str) -> Result<CatalogIndex, Box<dyn Error + Send + Sync>> {
+        const DECODE_CHUNK_ROWS: usize = 2048;
+        let connection = self.connection.lock().map_err(|_| "store lock poisoned")?;
+        let mut statement = connection
+            .prepare("SELECT payload FROM catalog_rows WHERE scope = ?1 ORDER BY item_code")?;
+        let mut rows = statement.query(params![scope])?;
+        let mut builder = CatalogIndexBuilder::default();
+        loop {
+            let mut payloads = Vec::with_capacity(DECODE_CHUNK_ROWS);
+            while payloads.len() < DECODE_CHUNK_ROWS {
+                let Some(row) = rows.next()? else {
+                    break;
+                };
+                payloads.push(row.get::<_, String>(0)?);
+            }
+            if payloads.is_empty() {
+                break;
+            }
+            builder.append_sorted_rows(Self::decode_chunk(payloads)?);
+        }
+        Ok(builder.finish())
     }
 }
 
@@ -130,6 +180,7 @@ impl EncryptedStore {
 mod tests {
     use super::*;
     use crate::keyring::hex_key;
+    use crate::CatalogIndex;
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("khitmee-store-test-{name}-{}", std::process::id()))
@@ -193,6 +244,37 @@ mod tests {
         let rows = store.rows("scope").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].item_code, "B");
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+    }
+
+    #[test]
+    fn streamed_index_matches_materialized_rows_across_decode_chunks() {
+        let path = temp_path("streamed-index.db");
+        let _ = std::fs::remove_file(&path);
+        let key = hex_key(&[7u8; 32]);
+        let store = EncryptedStore::open(&path, &key).unwrap();
+        let items = (0..2100)
+            .map(|index| item(&format!("ITEM-{index:07}"), false))
+            .collect::<Vec<_>>();
+        store.apply_sync("scope", true, "token", &items).unwrap();
+        let expected = CatalogIndex::rebuild(store.rows("scope").unwrap());
+        let actual = store.index("scope").unwrap();
+        assert_eq!(actual.len(), expected.len());
+        for term in ["item", "ITEM-0002047", "missing"] {
+            let actual_codes = actual
+                .search(term, 25)
+                .into_iter()
+                .map(|row| row.item_code)
+                .collect::<Vec<_>>();
+            let expected_codes = expected
+                .search(term, 25)
+                .into_iter()
+                .map(|row| row.item_code)
+                .collect::<Vec<_>>();
+            assert_eq!(actual_codes, expected_codes);
+        }
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-shm"));
         let _ = std::fs::remove_file(path.with_extension("db-wal"));
