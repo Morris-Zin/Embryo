@@ -1560,6 +1560,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self.invoice_item_amounts = {}
 
 		grouped_by_invoice = self.filters.get("group_by") == "Invoice"
+		grouped_by_month = self.filters.get("group_by") == "Monthly"
+		month_labels = {}
 		track_grouped_amounts = not grouped_by_invoice
 		if grouped_by_invoice:
 			buying_amount = 0
@@ -1568,8 +1570,11 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		for row in reversed(self.si_list):
 			sales_invoice_item = row.item_row
 
-			if self.filters.get("group_by") == "Monthly":
-				row.monthly = formatdate(row.posting_date, "MMM YYYY")
+			if grouped_by_month:
+				day = row.posting_date
+				if day not in month_labels:
+					month_labels[day] = formatdate(day, "MMM YYYY")
+				row.monthly = month_labels[day]
 
 			if self.skip_row(row):
 				continue

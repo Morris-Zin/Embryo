@@ -687,6 +687,35 @@ class TestTupleWindowFallback(unittest.TestCase):
 
 
 class TestInvoiceModeQueryAndMemoryCuts(unittest.TestCase):
+	def test_monthly_process_reuses_formatting_only_for_identical_posting_dates(self):
+		class ReportRow(AttrDict):
+			__setattr__ = dict.__setitem__
+
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.filters = AttrDict(group_by="Monthly")
+		generator._preload_delivery_note_item_quantities = lambda: None
+		generator._preload_stock_ledger_data = lambda: None
+		generator.skip_row = lambda row: False
+		generator.product_bundles = {}
+		generator.bundle_deliveries = {}
+		generator.get_buying_amount = lambda row, item_code: 4
+		generator.update_return_invoices = lambda *_: None
+		generator.is_not_invoice_row = lambda row: True
+		generator.get_average_rate_based_on_group_by = lambda: None
+		generator.si_list = [ReportRow(item_row=f"ROW-{index}", posting_date=day, qty=1, base_net_amount=10)
+			for index, day in enumerate(("2024-12-31", "2024-12-25", "2024-12-31"))]
+		labels = {"2024-12-31": "Dec 2025", "2024-12-25": "Dec 2024"}
+		frappe_stub = types.SimpleNamespace(_dict=AttrDict, db=types.SimpleNamespace(get_default=lambda key: 2))
+		stock_stub = types.SimpleNamespace(scrub=str.lower)
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+			fast_gross_profit, "standard_gross_profit", stock_stub
+		), patch.object(fast_gross_profit, "formatdate", side_effect=lambda day, pattern: labels[day]) as format_day:
+			generator.process()
+		self.assertEqual([row.monthly for row in generator.si_list], ["Dec 2025", "Dec 2024", "Dec 2025"])
+		self.assertEqual([call.args for call in format_day.call_args_list], [
+			("2024-12-31", "MMM YYYY"), ("2024-12-25", "MMM YYYY"),
+		])
+
 	def test_invoice_process_skips_grouped_and_invoice_item_amount_allocations(self):
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.filters = AttrDict(group_by="Invoice")
