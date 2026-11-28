@@ -590,6 +590,58 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 			self.assertEqual(dispatch(children, {"reqd": True}), children)
 		self.assertEqual(upstream.call_count, 4)
 
+	def test_counter_status_updates_skip_only_null_source_links(self):
+		calls = Mock()
+
+		class StockStatusUpdater:
+			def _update_children(self, args, update_modified):
+				calls(args, update_modified)
+
+			def _update_modified(self, args, update_modified):
+				pass
+
+		class Invoice(voucher_fastpath.CounterSalesInvoiceStatusMixin, StockStatusUpdater):
+			docstatus = 1
+			is_return = False
+
+			def get_all_children(self):
+				return self.children
+
+		class CustomInvoice(Invoice):
+			def _update_modified(self, args, update_modified):
+				pass
+
+		invoice = Invoice()
+		args = {
+			"source_dt": "Sales Invoice Item",
+			"second_source_dt": "Delivery Note Item",
+			"join_field": "so_detail",
+			"second_join_field": "so_detail",
+		}
+		row = type("ItemRow", (dict,), {"doctype": "Sales Invoice Item"})()
+		invoice.children = [row, SimpleNamespace(doctype="Sales Invoice Payment")]
+		context = voucher_fastpath.VoucherReadCacheContext(active=True, document=invoice)
+		with (
+			patch.dict(sys.modules, {"erpnext.controllers.status_updater": SimpleNamespace(StatusUpdater=StockStatusUpdater)}),
+			patch.object(voucher_fastpath._READ_CACHE_STATE, "context", context, create=True),
+		):
+			invoice._update_children(args, True)
+			calls.assert_not_called()
+			for reference in ("SO-ITEM-1", ""):
+				row["so_detail"] = reference
+				invoice._update_children(args, True)
+			row.clear()
+			invoice.docstatus = 2
+			invoice._update_children(args, True)
+			invoice.docstatus = 1
+			invoice.is_return = True
+			invoice._update_children(args, True)
+			context.document = custom = CustomInvoice()
+			custom.children = [row]
+			custom._update_children(args, True)
+		invoice._update_children(args, True)
+		self.assertEqual(calls.call_count, 6)
+
 	def test_read_cache_thread_isolation_and_exception_cleanup(self):
 		barrier = threading.Barrier(2)
 		errors = []
