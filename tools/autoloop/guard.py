@@ -341,9 +341,25 @@ def is_valid_experiment_path(path: str, run_id: str) -> bool:
     return bool(EXPERIMENT_SLUG_RE.match(slug))
 
 
+_LESSON_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def is_valid_lesson_path(path: str, run_id: str) -> bool:
+    """Lessons written by ``record-lesson`` for this run: ``.autoloop/lessons/<run_id>-<32 hex>.json``."""
+    norm = _normalize_posix_path(path)
+    prefix = f".autoloop/lessons/{run_id}-"
+    if not norm.startswith(prefix) or not norm.endswith(".json"):
+        return False
+    return bool(_LESSON_ID_RE.match(norm[len(prefix) : -5]))
+
+
 def is_framework_metadata_path(path: str, run_id: str) -> bool:
     norm = _normalize_posix_path(path)
-    return norm == f".autoloop/runs/{run_id}.json" or is_valid_experiment_path(norm, run_id)
+    return (
+        norm == f".autoloop/runs/{run_id}.json"
+        or is_valid_experiment_path(norm, run_id)
+        or is_valid_lesson_path(norm, run_id)
+    )
 
 
 def _resolve_git_bin() -> str:
