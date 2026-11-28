@@ -1348,6 +1348,18 @@ console.log(JSON.stringify({
         # validated remote generator because frontend/loopback are rejected first.
         self.assertNotIn('DOCKER_TARGET_URL="http://frontend:8080"', remote)
 
+    def test_endpoint_class_tags_and_measured_window_events_are_emitted(self):
+        auth = (ROOT / "lib/auth.js").read_text(encoding="utf-8")
+        scenario = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
+        runner = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn("function tagsWithEndpointClass", auth)
+        self.assertIn("endpoint_class: observabilityEndpointClass(options)", auth)
+        self.assertGreaterEqual(auth.count("tagsWithEndpointClass"), 5)
+        self.assertIn("event: 'measured_window_start'", scenario)
+        self.assertIn("event: 'measured_window_end'", scenario)
+        self.assertIn('--k6-summary "$K6_SUMMARY"', runner)
+        self.assertIn('--k6-log "$K6_LOG"', runner)
+
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn("perf_root/seasonal/verify_run.py".replace("perf_root", "$PERF_ROOT"), source)

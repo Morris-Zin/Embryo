@@ -112,6 +112,10 @@ export function observabilityHeaders(options = {}) {
   };
 }
 
+function tagsWithEndpointClass(tags, options = {}) {
+  return Object.assign({ endpoint_class: observabilityEndpointClass(options) }, tags || {});
+}
+
 function traceAuthEvent(payload) {
   const event = Object.assign({ at: new Date().toISOString() }, payload);
   try {
@@ -159,7 +163,7 @@ function fetchCsrfToken(baseUrl, timeout) {
     headers: baseHeaders(Object.assign({ Accept: 'text/html,application/xhtml+xml' }, observabilityHeaders({ endpointClass: 'login/bootstrap' }))),
     redirects: 5,
     timeout: timeout || '30s',
-    tags: { name: 'desk_boot', endpoint: 'desk_boot' },
+    tags: tagsWithEndpointClass({ name: 'desk_boot', endpoint: 'desk_boot' }, { endpointClass: 'login/bootstrap' }),
   });
   if (response.status >= 200 && response.status < 400) {
     return extractCsrfToken(response.body);
@@ -185,7 +189,7 @@ export function login(baseUrl, user, password, options = {}) {
       headers: baseHeaders(observabilityHeaders({ endpointClass: 'login/bootstrap' })),
       redirects: 0,
       timeout: options.timeout || '30s',
-      tags: { name: 'login', endpoint: 'login' },
+      tags: tagsWithEndpointClass({ name: 'login', endpoint: 'login' }, { endpointClass: 'login/bootstrap' }),
     }
   );
 
@@ -258,7 +262,7 @@ export function postMethodRequest(session, method, payload = {}, options = {}) {
       headers,
       redirects: 0,
       timeout: options.timeout || '60s',
-      tags: options.tags || { name: method, endpoint: method },
+      tags: tagsWithEndpointClass(options.tags || { name: method, endpoint: method }, options),
     },
   };
 }
@@ -273,7 +277,7 @@ export function getMethod(session, methodAndQuery, options = {}) {
     headers: authHeaders(session, options.headers || {}, options),
     redirects: 0,
     timeout: options.timeout || '60s',
-    tags: options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] },
+    tags: tagsWithEndpointClass(options.tags || { name: methodAndQuery.split('?')[0], endpoint: methodAndQuery.split('?')[0] }, options),
   });
 }
 
@@ -289,7 +293,7 @@ export function getResourceRequest(session, doctype, options = {}) {
       headers: authHeaders(session, options.headers || {}, options),
       redirects: 0,
       timeout: options.timeout || '30s',
-      tags: options.tags || { name: `resource_${doctype}`, endpoint: 'frappe_resource' },
+      tags: tagsWithEndpointClass(options.tags || { name: `resource_${doctype}`, endpoint: 'frappe_resource' }, options),
     },
   };
 }

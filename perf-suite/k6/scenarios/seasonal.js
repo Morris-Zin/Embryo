@@ -304,9 +304,11 @@ export function setup() {
   if (!performCashierDiscovery(setupSession, plan)) {
     throw new Error('cashier discovery failed against the real login/search path; refusing to start voucher mutation');
   }
+  logSeasonalEvent({ event: 'measured_window_start' });
   return { cashier_discovery: true };
 }
 
 export function teardown() {
+  logSeasonalEvent({ event: 'measured_window_end' });
   logSeasonalEvent({ event: 'load_generator_finished' });
 }

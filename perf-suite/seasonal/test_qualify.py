@@ -301,6 +301,68 @@ class QualifyEntryPointTests(unittest.TestCase):
             self.assertIn("missing, unreadable, or contains no upstream rows", " ".join(empty["collection_problems"]))
 
 
+    def test_attribution_uses_k6_counts_per_class_and_window_timestamps(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        summary = {
+            "metrics": {
+                "http_reqs": {"values": {"count": 100}},
+                "http_reqs{endpoint_class:search,name:seasonal_search}": {"values": {"count": 20}},
+                "http_reqs{endpoint:seasonal_query_report,endpoint_class:manager_summary,name:seasonal_query_report}": {"values": {"count": 20}},
+            }
+        }
+        counts = module.k6_endpoint_counts(summary)
+        self.assertEqual(counts, {"search": 20, "manager_summary": 20})
+
+        def row(endpoint_class, joined=True, time="2026-01-01T10:00:20Z", index=0):
+            return {
+                "time": time,
+                "endpoint_class": endpoint_class,
+                "join_status": "joined" if joined else "nginx_only",
+            }
+
+        green_rows = [row("search", True, index=i) for i in range(19)] + [row("manager_summary", True, index=i) for i in range(19)]
+        coverage = module.endpoint_coverage(green_rows, counts)
+        self.assertEqual(coverage["problems"], [])
+        self.assertTrue(coverage["classes"]["search"]["coverage_passed"])
+
+        # Red/green: the round-3 denominator was only surviving nginx rows, so
+        # 18 surviving rows out of 18 looked complete. The k6 denominator shows
+        # two lost rows and both nginx/joined coverage must fail per class.
+        legacy_global = module.collection_status(18, 18, 18)
+        self.assertTrue(legacy_global["collection_passed"])
+        partial_rows = [row("search", True, index=i) for i in range(18)] + [row("manager_summary", True, index=i) for i in range(20)]
+        coverage = module.endpoint_coverage(partial_rows, counts)
+        self.assertIn("search: nginx rows cover 18/20", " ".join(coverage["problems"]))
+        self.assertIn("search: joined rows cover 18/20", " ".join(coverage["problems"]))
+        disjoint_rows = [row("manager_summary", False, index=i) for i in range(20)] + [row("search", True, index=i) for i in range(19)]
+        coverage = module.endpoint_coverage(disjoint_rows, counts)
+        self.assertIn("manager_summary: joined rows cover 0/20", " ".join(coverage["problems"]))
+
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "k6.log"
+            events = [
+                {"event": "measured_window_start", "at": "2026-01-01T10:00:00Z"},
+                {"event": "measured_window_end", "at": "2026-01-01T10:10:00Z"},
+            ]
+            log.write_text("".join("noise KHITMEE_SEASONAL_EVENT " + json.dumps(event) + chr(10) for event in events))
+            start, end = module.measured_window_from_log(log)
+            self.assertIsNotNone(start)
+            self.assertIsNotNone(end)
+            window_rows = [
+                row("search", True, "2026-01-01T10:00:20Z"),
+                row("search", True, "2026-01-01T10:09:40Z", 1),
+            ]
+            window = module.nginx_window_coverage(window_rows, start, end)
+            self.assertTrue(window["passed"], window["problems"])
+            self.assertEqual(window["first_nginx_at"], "2026-01-01T10:00:20Z")
+            self.assertEqual(window["last_nginx_at"], "2026-01-01T10:09:40Z")
+            late_start = [row("search", True, "2026-01-01T10:01:00Z"), window_rows[1]]
+            self.assertFalse(module.nginx_window_coverage(late_start, start, end)["passed"])
+            early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
+            self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
+
     def test_preflight_evaluator_requires_every_step_status_and_denial(self):
         spec = importlib.util.spec_from_file_location("evaluate_preflight", ROOT / "evaluate_preflight.py")
         module = importlib.util.module_from_spec(spec)
