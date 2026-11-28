@@ -240,34 +240,49 @@ fi
 
 K6_STATUS=0
 if [[ "$USE_DOCKER" == "1" ]]; then
+  K6_IMAGE="${K6_IMAGE:-grafana/k6:latest}"
+  K6_REMOTE_GENERATOR=0
+  if [[ -n "$K6_DOCKER_HOST" ]]; then
+    REMOTE_CHECK="$("$PYTHON_BIN" - "$K6_DOCKER_HOST" <<'PY'
+import sys
+from urllib.parse import urlparse
+parsed = urlparse(sys.argv[1])
+host = (parsed.hostname or '').lower()
+remote = parsed.scheme in {'tcp', 'http', 'https', 'ssh'} and host not in {'', '127.0.0.1', 'localhost', '::1'}
+print('1' if remote else '0')
+PY
+)"
+    if [[ "$REMOTE_CHECK" == "1" ]]; then
+      K6_REMOTE_GENERATOR=1
+    fi
+  fi
+
   NETWORK=""
-  if ! NETWORK="$(select_network)"; then
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    NETWORK="${K6_NETWORK:-bridge}"
+  elif ! NETWORK="$(select_network)"; then
     echo "Docker network khitmee-perf or khitmee-perf_default was not found." >&2
     echo "Start the isolated benchmark stack first, set K6_NETWORK, or use K6_RUNTIME=host." >&2
     exit 5
   fi
-  K6_IMAGE="${K6_IMAGE:-grafana/k6:latest}"
+
   DOCKER_TARGET_URL="$TARGET_URL"
-  if [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" ]]; then
-    # The k6 container shares the khitmee-perf network, so it can reach the
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    :
+  elif [[ "$TARGET_HOST" == "127.0.0.1" || "$TARGET_HOST" == "localhost" || "$TARGET_HOST" == "::1" ]]; then
+    # The local k6 container shares the khitmee-perf network, so it can reach the
     # frontend service directly; loopback only makes sense for host-mode k6.
     DOCKER_TARGET_URL="http://frontend:8080"
   fi
   EFFECTIVE_HOST_HEADER="${HOST_HEADER:-${SITE_NAME:-bench-loadtest.localhost}}"
 
   CONTAINER_SUMMARY="/perf-suite/results/$(basename "$K6_SUMMARY")"
-  DOCKER_CMD=(
-    run --rm
-    --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
-    --network "$NETWORK"
-    --add-host host.docker.internal:host-gateway
-    -v "$PERF_ROOT:/perf-suite"
-    -w /perf-suite/k6
+  DOCKER_ENV_ARGS=(
     -e "TARGET_URL=$DOCKER_TARGET_URL"
     -e "HOST_HEADER=$EFFECTIVE_HOST_HEADER"
   )
   if [[ -n "$SEED_MANIFEST_EFFECTIVE" ]]; then
-    DOCKER_CMD+=( -e "SEED_MANIFEST_PATH=$CONTAINER_MANIFEST_PATH" )
+    DOCKER_ENV_ARGS+=( -e "SEED_MANIFEST_PATH=$CONTAINER_MANIFEST_PATH" )
   fi
   PASSTHROUGH_VARS=(
     SITE_NAME MODE PERF_MODE SIMULATED_PING_MS DURATION SHOP_VUS MANAGER_VUS RUN_ID
@@ -290,21 +305,84 @@ if [[ "$USE_DOCKER" == "1" ]]; then
     SEASONAL_MANAGER_EXPORT_USER SEASONAL_MANAGER_EXPORT_PASSWORD
   )
   for var_name in "${PASSTHROUGH_VARS[@]}"; do
-    DOCKER_CMD+=( -e "$var_name" )
+    DOCKER_ENV_ARGS+=( -e "$var_name" )
   done
-  DOCKER_CMD+=(
-    "$K6_IMAGE" run
-    --summary-export "$CONTAINER_SUMMARY"
-    --tag "runid=$RUN_ID"
-    --tag "scenario=$SCENARIO"
-    "scenarios/$SCENARIO.js"
-  )
 
-  echo "Running k6 scenario '$SCENARIO' in Docker image $K6_IMAGE on network $NETWORK"
-  set +e
-  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
-  K6_STATUS=${PIPESTATUS[0]}
-  set -e
+  if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then
+    CONTAINER_NAME="khitmee-seasonal-k6-${RUN_ID}"
+    CREATE_CMD=(
+      create
+      --name "$CONTAINER_NAME"
+      --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
+      --network "$NETWORK"
+      --add-host host.docker.internal:host-gateway
+      -w /perf-suite/k6
+      "${DOCKER_ENV_ARGS[@]}"
+      "$K6_IMAGE" run
+      --summary-export "$CONTAINER_SUMMARY"
+      --tag "runid=$RUN_ID"
+      --tag "scenario=$SCENARIO"
+      "scenarios/$SCENARIO.js"
+    )
+    echo "Running k6 scenario '$SCENARIO' on remote Docker host $K6_DOCKER_HOST without bind-mounted guest files"
+    REMOTE_STAGE="$RESULT_DIR/${RUN_ID}-remote-k6-stage"
+    rm -rf "$REMOTE_STAGE"
+    mkdir -p "$REMOTE_STAGE/perf-suite/k6" "$REMOTE_STAGE/perf-suite/results"
+    cp -a "$SCRIPT_DIR/scenarios" "$REMOTE_STAGE/perf-suite/k6/scenarios"
+    cp -a "$SCRIPT_DIR/lib" "$REMOTE_STAGE/perf-suite/k6/lib"
+    if [[ -n "$SEED_MANIFEST_EFFECTIVE" ]]; then
+      cp "$SEED_MANIFEST_EFFECTIVE" "$REMOTE_STAGE/perf-suite/results/$(basename "$MANIFEST_STAGING")"
+    fi
+    chmod -R a+rX "$REMOTE_STAGE/perf-suite" 2>/dev/null || true
+    chmod 777 "$REMOTE_STAGE/perf-suite/results" 2>/dev/null || true
+
+    if ! CONTAINER_ID="$(k6_docker "${CREATE_CMD[@]}")"; then
+      echo "Failed to create remote k6 container" >&2
+      rm -rf "$REMOTE_STAGE"
+      exit 6
+    fi
+    if ! k6_docker cp "$REMOTE_STAGE/perf-suite/." "$CONTAINER_ID:/perf-suite" >"$RESULT_DIR/${RUN_ID}-remote-copy-in.log" 2>&1; then
+      echo "Failed to copy k6 scenario/lib/manifest into remote container" >&2
+      k6_docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+      rm -rf "$REMOTE_STAGE"
+      exit 6
+    fi
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker start -a "$CONTAINER_ID" 2>&1 | tee "$K6_LOG"
+    K6_STATUS=${PIPESTATUS[0]}
+    k6_docker cp "$CONTAINER_ID:$CONTAINER_SUMMARY" "$K6_SUMMARY" >"$RESULT_DIR/${RUN_ID}-remote-copy-back.log" 2>&1
+    COPY_BACK_STATUS=$?
+    k6_docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+    rm -rf "$REMOTE_STAGE"
+    set -e
+    if [[ "$COPY_BACK_STATUS" != "0" || ! -s "$K6_SUMMARY" ]]; then
+      echo "Remote k6 summary copy-back missing; result evidence is invalid." >&2
+      if [[ "$K6_STATUS" == "0" ]]; then
+        K6_STATUS=7
+      fi
+    fi
+  else
+    DOCKER_CMD=(
+      run --rm
+      --user "${K6_DOCKER_USER:-$(id -u):$(id -g)}"
+      --network "$NETWORK"
+      --add-host host.docker.internal:host-gateway
+      -v "$PERF_ROOT:/perf-suite"
+      -w /perf-suite/k6
+      "${DOCKER_ENV_ARGS[@]}"
+      "$K6_IMAGE" run
+      --summary-export "$CONTAINER_SUMMARY"
+      --tag "runid=$RUN_ID"
+      --tag "scenario=$SCENARIO"
+      "scenarios/$SCENARIO.js"
+    )
+
+    echo "Running k6 scenario '$SCENARIO' in Docker image $K6_IMAGE on network $NETWORK"
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' k6_docker "${DOCKER_CMD[@]}" 2>&1 | tee "$K6_LOG"
+    K6_STATUS=${PIPESTATUS[0]}
+    set -e
+  fi
 else
   echo "Running k6 scenario '$SCENARIO' with host k6"
   HOST_K6_ENV=()

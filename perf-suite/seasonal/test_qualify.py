@@ -108,7 +108,7 @@ class QualifyEntryPointTests(unittest.TestCase):
 
         deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
         self.assertIn('SERVICES = ["backend", "cashier", "queue", "scheduler", "websocket"]', deploy)
-        self.assertIn("khitmee-migration-transient.yaml", deploy)
+        self.assertIn("khitmee-migration-readonly.yaml", deploy)
         observability = (ROOT / "compose-observability.yaml").read_text(encoding="utf-8")
         self.assertIn("cashier:", observability)
         self.assertIn("--access-logformat=%({x-k6-request-id}i)s", observability)

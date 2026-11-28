@@ -1312,6 +1312,25 @@ console.log(JSON.stringify({
         self.assertIn("errors: ['count==0']", source)
         self.assertIn("preflight_result", source)
 
+    def test_remote_docker_runner_copies_inputs_and_fails_closed_on_copyback(self):
+        source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
+        remote_start = source.index('if [[ "$K6_REMOTE_GENERATOR" == "1" ]]; then', source.index('PASSTHROUGH_VARS'))
+        remote_end = source.index('  else' + chr(10) + '    DOCKER_CMD=(', remote_start)
+        remote = source[remote_start:remote_end]
+        local = source[remote_end:source.index('else' + chr(10) + '  echo "Running k6 scenario', remote_end)]
+        self.assertIn("create", remote)
+        self.assertIn('k6_docker cp "$REMOTE_STAGE/perf-suite/." "$CONTAINER_ID:/perf-suite"', remote)
+        self.assertIn('k6_docker start -a "$CONTAINER_ID"', remote)
+        self.assertIn('k6_docker cp "$CONTAINER_ID:$CONTAINER_SUMMARY" "$K6_SUMMARY"', remote)
+        self.assertIn("COPY_BACK_STATUS", remote)
+        self.assertIn("K6_STATUS=7", remote)
+        self.assertNotIn('-v "$PERF_ROOT:/perf-suite"', remote)
+        # The old one-shot run path remains only for the daemon-local branch,
+        # where bind mounts resolve on the same machine that hosts this checkout.
+        self.assertIn('-v "$PERF_ROOT:/perf-suite"', local)
+        self.assertIn("run --rm", local)
+        self.assertIn('NETWORK="${K6_NETWORK:-bridge}"', source)
+
     def test_runner_wires_independent_verifier_and_feature_scorecard(self):
         source = (ROOT / "run_k6.sh").read_text(encoding="utf-8")
         self.assertIn("perf_root/seasonal/verify_run.py".replace("perf_root", "$PERF_ROOT"), source)
