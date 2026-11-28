@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from dataclasses import asdict
 import hashlib
 import json
 import os
@@ -134,6 +135,48 @@ def _delegation_command(repo: Path, args: argparse.Namespace) -> Any:
     else:
         broker.revoke(args.reservation_id, args.reason)
     return {"reservation_id": args.reservation_id, "action": args.action}
+
+
+def _reserve_admission(repo: Path, repo_id: str | None, run_id: str, shard: str, data: dict[str, Any]) -> dict[str, Any]:
+    from autoloop.admission import AdmissionError, Controller, EnforcedBounds, Usage
+
+    _, contract = load_verified_local_contract(repo, run_id)
+    if shard not in contract["shards"]:
+        raise AdmissionError(f"unknown shard {shard!r}")
+    controller = Controller(_broker_repo_id(repo, repo_id))
+    params = dict(data)
+    bounds = dict(params.pop("bounds"))
+    bounds["limits"] = Usage(**bounds["limits"])
+    params.update(run=run_id, shard=shard, bounds=EnforcedBounds(**bounds))
+    return asdict(controller.reserve(**params))
+
+
+def _admission_command(repo: Path, args: argparse.Namespace) -> Any:
+    from autoloop.admission import AdmissionError, Controller, Usage
+
+    if args.action == "reserve":
+        return _reserve_admission(repo, args.repo_id, args.run_id, args.shard, _read_object(args.payload))
+    controller = Controller(_broker_repo_id(repo, args.repo_id))
+    if args.action == "status":
+        return controller.snapshot()
+    if args.action == "begin-dispatch":
+        return asdict(controller.begin_dispatch(args.reservation_id))
+    if args.action == "attach":
+        return asdict(controller.attach(args.reservation_id, args.task_id))
+    data = _read_object(args.payload)
+    if args.action == "settle":
+        if data.get("actual") is not None:
+            data["actual"] = Usage(**data["actual"])
+        return asdict(controller.settle(args.reservation_id, **data))
+    data["limits"] = Usage(**data["limits"])
+    if args.action == "register-campaign":
+        controller.register_campaign(**data)
+    else:
+        _, contract = load_verified_local_contract(repo, data["run"])
+        if data["dag"].keys() != contract["shards"].keys():
+            raise AdmissionError("admission DAG must list the frozen run shards")
+        controller.register_run(**data)
+    return {"action": args.action, "status": "registered"}
 
 
 def _parse_shard_specs(specs: list[str]) -> dict[str, list[str]]:
@@ -468,6 +511,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--worktree", default=None)
     p_start.add_argument("--last-green-sha", default=None)
     p_start.add_argument("--delegation-reservation", type=Path, help="Optional shadow reservation metadata JSON")
+    p_start.add_argument("--admission-reservation", type=Path, help="Optional shadow budget reservation JSON")
     p_start.add_argument("--repo-id", help="Stable broker repository ID for a checkout without an origin")
 
     p_delegation = sub.add_parser("delegation", help="Record a delegation in the shadow receipts broker")
@@ -490,6 +534,23 @@ def _build_parser() -> argparse.ArgumentParser:
             event.add_argument("--no-dispatch-evidence-id")
         elif action == "revoke":
             event.add_argument("--reason", required=True)
+
+    p_admission = sub.add_parser("admission", help="Reserve and account for budget in shadow mode")
+    p_admission.add_argument("--repo-id", help="Stable repository ID for a checkout without an origin")
+    admission = p_admission.add_subparsers(dest="action", required=True)
+    budget = admission.add_parser("reserve")
+    budget.add_argument("--run-id", required=True)
+    budget.add_argument("--shard", required=True)
+    budget.add_argument("--payload", type=Path, required=True, help="Request, enforced bounds and expiry JSON")
+    admission.add_parser("status")
+    for action in ("register-campaign", "register-run", "begin-dispatch", "attach", "settle"):
+        event = admission.add_parser(action)
+        if action in ("begin-dispatch", "attach", "settle"):
+            event.add_argument("reservation_id")
+        if action == "attach":
+            event.add_argument("task_id")
+        if action in ("register-campaign", "register-run", "settle"):
+            event.add_argument("--payload", type=Path, required=True)
 
     # retry-shard
     p_retry = sub.add_parser("retry-shard", help="Record a failed shard attempt with safe rollback guard")
@@ -787,9 +848,20 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 except (RuntimeError, OSError, TypeError, ValueError) as exc:
                     print(f"SHADOW-DIVERGENCE delegation reservation: {exc}", file=sys.stderr)
+            if args.admission_reservation is not None:
+                try:
+                    result["shadow_admission"] = _reserve_admission(
+                        repo, args.repo_id, args.run_id, args.shard, _read_object(args.admission_reservation),
+                    )
+                    if result["shadow_admission"]["status"] != "reserved":
+                        print(f"SHADOW-DIVERGENCE admission: {result['shadow_admission']['reason']}", file=sys.stderr)
+                except (RuntimeError, OSError, KeyError, TypeError, ValueError) as exc:
+                    print(f"SHADOW-DIVERGENCE admission reservation: {exc}", file=sys.stderr)
             _emit(result)
         elif cmd == "delegation":
             _emit(_delegation_command(repo, args))
+        elif cmd == "admission":
+            _emit(_admission_command(repo, args))
         elif cmd == "retry-shard":
             _emit(
                 retry_shard(
