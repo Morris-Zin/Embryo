@@ -164,6 +164,43 @@ def _percentile(sorted_vals: list[float], pct: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
 
 
+def split_query_report_result(result: Any) -> tuple[list[Any], list[Any], str | None]:
+    """Return (columns, rows, unavailable_reason) for Frappe query-report responses.
+
+    Fast Gross Profit returns a third message element for pending/over-budget
+    executions.  That short-circuit is not a successful latency measurement.
+    """
+    if not isinstance(result, (list, tuple)) or len(result) < 2:
+        return [], [], "malformed report response"
+    columns = result[0] if isinstance(result[0], list) else []
+    rows = result[1] if isinstance(result[1], list) else []
+    message = result[2] if len(result) >= 3 else None
+    if not rows and message:
+        return columns, rows, str(message)
+    return columns, rows, None
+
+
+def unavailable_report_measurement(reason: str, rss_before: float | None, rss_after: float | None) -> dict[str, Any]:
+    return {
+        "unavailable": True,
+        "reason": reason,
+        "wall_ms": None,
+        "sql_count": None,
+        "sql_ms": None,
+        "top_sql_templates": [],
+        "cprofile_top": [],
+        "cprofile_self_top": [],
+        "row_count": 0,
+        "rss_before_mib": rss_before,
+        "rss_after_mib": rss_after,
+        "rss_delta_mib": (
+            round(rss_after - rss_before, 3)
+            if (rss_before is not None and rss_after is not None)
+            else None
+        ),
+    }
+
+
 def compute_latency_stats(samples_ms: list[float]) -> dict[str, Any]:
     """Aggregate latency samples in milliseconds; returns None metrics when empty."""
     cleaned = sorted(float(x) for x in (samples_ms or []))
@@ -633,11 +670,14 @@ def run_inside_backend(args: argparse.Namespace) -> int:
                     gp_profiler.enable()
                     try:
                         gp_result = fast_gp_execute(frappe._dict(dict(flt)))
-                        rows = gp_result[1] if isinstance(gp_result, (list, tuple)) and len(gp_result) >= 2 else []
+                        _columns, rows, unavailable_reason = split_query_report_result(gp_result)
                     finally:
                         gp_profiler.disable()
                 wall_ms = round((time.perf_counter() - t0) * 1000.0, 3)
                 rss_after = current_rss_mib()
+                if unavailable_reason is not None:
+                    benchmarks[label] = unavailable_report_measurement(unavailable_reason, rss_before, rss_after)
+                    continue
                 if label == "fast_gp_invoice_detail_50":
                     rows = list(rows or [])[:INVOICE_DETAIL_PAGE_LIMIT]
                 benchmarks[label] = {

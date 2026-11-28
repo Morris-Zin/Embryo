@@ -130,6 +130,46 @@ def compare(rows, upstream_rows, columns=WAREHOUSE_COLUMNS, **kwargs):
 
 
 class GrossProfitComparatorNegativeControlTests(unittest.TestCase):
+    def test_live_gp_parity_uses_precision_aware_fast_verify_comparator(self):
+        columns = [{"fieldname": "selling_amount", "label": "Selling Amount", "fieldtype": "Currency"}]
+        precision = {
+            "currency_precision": 3,
+            "float_precision": 2,
+            "rounding_method": "Banker's Rounding (legacy)",
+        }
+        equal = perf_parity.compare_live_gross_profit_reports(
+            columns,
+            [[1.0001]],
+            columns,
+            [[1.0002]],
+            precision,
+        )
+        self.assertEqual(equal, [])
+
+        mismatch = perf_parity.compare_live_gross_profit_reports(
+            columns,
+            [[1.001]],
+            columns,
+            [[1.0]],
+            precision,
+        )
+        self.assertTrue(any(item["kind"] == "monetary_mismatch" for item in mismatch), mismatch)
+
+        with self.assertRaises(perf_parity.ParityFailure):
+            perf_parity.compare_live_gross_profit_reports(
+                columns,
+                [[1.0]],
+                columns,
+                [[1.0]],
+                {**precision, "rounding_method": "Commercial Rounding"},
+            )
+
+    def test_inner_payload_embeds_fast_verify_and_compiles(self):
+        payload = perf_parity.build_inner_python_source()
+        self.assertIn(b"_fast_verify_module", payload[:5000])
+        self.assertIn(b"compare_financial_reports", payload)
+        compile(payload, "<embedded-parity-test>", "exec")
+
     def test_exact_warehouse_baseline_passes_at_oracle_tolerance(self):
         rows = warehouse_group_rows()
         self.assertEqual(compare(rows, copy.deepcopy(rows), tolerance=1e-7, compare_group_order=True), [])
@@ -469,10 +509,17 @@ class OracleCacheAndTimingTests(unittest.TestCase):
         inspect_mock.assert_not_called()
 
     def test_prepare_sidecar_oracle_cache_dir_permissions(self):
+        import stat as stat_mod
+
+        class NormalStat:
+            st_mode = stat_mod.S_IFDIR | 0o755
+
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_dir = Path(tmpdir) / "oracle-cache"
             chown_calls = []
             chmod_calls = []
+            def normal_stat(_p):
+                return NormalStat()
 
             # Root path uses chown to target UID:GID.
             perf_parity.prepare_sidecar_oracle_cache_dir(
@@ -484,6 +531,7 @@ class OracleCacheAndTimingTests(unittest.TestCase):
                 chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
                 chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
                 access_fn=lambda p, mode: True,
+                stat_fn=normal_stat,
             )
             self.assertEqual(len(chown_calls), 2)
             self.assertTrue(all(mode == 0o750 for _name, mode in chmod_calls))
@@ -500,6 +548,7 @@ class OracleCacheAndTimingTests(unittest.TestCase):
                 chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
                 chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
                 access_fn=lambda p, mode: True,
+                stat_fn=normal_stat,
             )
             self.assertEqual(chown_calls, [])
             self.assertEqual(chmod_calls, [])
@@ -515,6 +564,7 @@ class OracleCacheAndTimingTests(unittest.TestCase):
                     chown_fn=lambda p, u, g: chown_calls.append((Path(p).name, u, g)),
                     chmod_fn=lambda p, m: chmod_calls.append((Path(p).name, m)),
                     access_fn=lambda p, mode: True,
+                    stat_fn=normal_stat,
                 )
 
             # Unwritable directory fails closed.
@@ -525,7 +575,64 @@ class OracleCacheAndTimingTests(unittest.TestCase):
                     geteuid=lambda: 1001,
                     chmod_fn=lambda p, m: None,
                     access_fn=lambda p, mode: False,
+                    stat_fn=normal_stat,
                 )
+
+    def test_prepare_sidecar_oracle_cache_dir_rejects_unsafe_paths_before_mutation(self):
+        import stat as stat_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mutated = []
+            for unsafe in ("/tmp", "/var/tmp", "/"):
+                with self.subTest(unsafe=unsafe):
+                    with self.assertRaises(perf_parity.OracleCacheDriftError):
+                        perf_parity.prepare_sidecar_oracle_cache_dir(
+                            unsafe,
+                            is_posix=True,
+                            geteuid=lambda: 0,
+                            chown_fn=lambda *a: mutated.append(a),
+                            chmod_fn=lambda *a: mutated.append(a),
+                            access_fn=lambda *a: True,
+                        )
+            self.assertEqual(mutated, [])
+
+            sticky = Path(tmpdir) / "sticky-cache"
+            sticky.mkdir()
+
+            class StickyStat:
+                st_mode = stat_mod.S_IFDIR | stat_mod.S_ISVTX | 0o777
+
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_cache_dir(
+                    sticky,
+                    is_posix=True,
+                    geteuid=lambda: 0,
+                    chown_fn=lambda *a: mutated.append(a),
+                    chmod_fn=lambda *a: mutated.append(a),
+                    access_fn=lambda *a: True,
+                    stat_fn=lambda _p: StickyStat(),
+                )
+            self.assertEqual(mutated, [])
+            self.assertFalse((sticky / "entries").exists())
+
+            world_writable = Path(tmpdir) / "world-cache"
+            world_writable.mkdir()
+
+            class WorldWritableStat:
+                st_mode = stat_mod.S_IFDIR | 0o777
+
+            with self.assertRaises(perf_parity.OracleCacheDriftError):
+                perf_parity.prepare_sidecar_oracle_cache_dir(
+                    world_writable,
+                    is_posix=True,
+                    geteuid=lambda: 0,
+                    chown_fn=lambda *a: mutated.append(a),
+                    chmod_fn=lambda *a: mutated.append(a),
+                    access_fn=lambda *a: True,
+                    stat_fn=lambda _p: WorldWritableStat(),
+                )
+            self.assertEqual(mutated, [])
+            self.assertFalse((world_writable / "entries").exists())
 
     def test_external_oracle_manifest_and_fail_closed_checks(self):
         with tempfile.TemporaryDirectory() as tmpdir:

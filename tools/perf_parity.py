@@ -8,6 +8,7 @@ import argparse
 import calendar
 import gc
 import hashlib
+import importlib
 import inspect
 import json
 import os
@@ -944,6 +945,50 @@ class ParityFailure(RuntimeError):
     pass
 
 
+def _load_fast_verify_module():
+    try:
+        return importlib.import_module("fast_verify")
+    except ImportError as exc:
+        raise ParityFailure(
+            "precision-aware live comparator unavailable: fast_verify.py was not embedded or importable"
+        ) from exc
+
+
+def compare_live_gross_profit_reports(
+    fast_columns,
+    fast_data,
+    upstream_columns,
+    upstream_data,
+    precision_settings,
+):
+    """Compare live GP output with the exact precision-aware fast_verify comparator.
+
+    The comparator is deliberately fail-closed: without verified precision metadata or
+    the legacy banker's-rounding semantics it implements, live parity cannot pass.
+    """
+    if not isinstance(precision_settings, dict):
+        raise ParityFailure("live GP parity requires captured precision settings")
+    rounding_method = str(precision_settings.get("rounding_method") or "")
+    if "banker" not in rounding_method.lower():
+        raise ParityFailure(f"unsupported ERPNext rounding method for exact GP parity: {rounding_method!r}")
+    try:
+        currency_precision = int(precision_settings["currency_precision"])
+        float_precision = int(precision_settings["float_precision"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ParityFailure("live GP parity requires integer currency/float precision settings") from exc
+    verifier = _load_fast_verify_module()
+    return verifier.compare_financial_reports(
+        fast_columns,
+        fast_data,
+        upstream_columns,
+        upstream_data,
+        currency_precision=currency_precision,
+        float_precision=float_precision,
+        check_order=True,
+        check_column_metadata=True,
+    )
+
+
 def resolve_warehouse(frappe, logical_name):
     if frappe.db.exists("Warehouse", logical_name):
         return logical_name
@@ -1702,13 +1747,14 @@ def run_gp_parity(frappe, args):
     oracle_precision = None
     oracle_cache_dir = getattr(args, "oracle_cache_dir", None)
     oracle_manifest = getattr(args, "oracle_manifest", None)
+    runtime_precision = capture_precision_settings(frappe)
     if oracle_manifest and not oracle_cache_dir:
         raise OracleCacheDriftError("--oracle-manifest requires --oracle-cache-dir")
     if oracle_cache_dir:
         oracle_cache = ParityOracleCache(oracle_cache_dir, manifest_path=oracle_manifest)
         oracle_db_fingerprint = capture_db_fingerprint(frappe, getattr(args, "site", None))
         oracle_source_sha256 = capture_erpnext_gp_source_sha256()
-        oracle_precision = capture_precision_settings(frappe)
+        oracle_precision = runtime_precision
     for label, filters in cases:
         capture_for_explain = label.startswith("30d-") and filters.get("group_by") == "Invoice" and filters.get("include_returned_invoices") == 1
         if capture_for_explain:
@@ -1749,20 +1795,12 @@ def run_gp_parity(frappe, args):
             upstream_columns, upstream_data, upstream_seconds = run_upstream_gross_profit_piecewise_by_month(frappe, filters)
         else:
             upstream_columns, upstream_data, upstream_seconds = run_gross_profit(frappe, "upstream", filters)
-        order_keys = None
-        if filters.get("group_by") == "Invoice":
-            order_keys = {
-                "fast": build_live_invoice_order_keys(frappe, fast_columns, fast_data),
-                "upstream": build_live_invoice_order_keys(frappe, upstream_columns, upstream_data),
-            }
-        case_mismatches = compare_gross_profit_rows(
+        case_mismatches = compare_live_gross_profit_reports(
             fast_columns,
             fast_data,
             upstream_columns,
             upstream_data,
-            tolerance=1e-7,
-            compare_group_order=filters.get("group_by") in {"Invoice", "Warehouse", "Monthly"},
-            order_keys=order_keys,
+            runtime_precision,
         )
         executed_cases += 1
         if case_mismatches:
@@ -2740,6 +2778,36 @@ def _parse_container_uid_gid(user_spec, default_uid=1000, default_gid=1000):
         return default_uid, default_gid
 
 
+SHARED_SYSTEM_DIRS = frozenset({"/", "/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"})
+
+
+def _validate_dedicated_host_dir(host_dir, description, *, is_posix, stat_fn=None):
+    raw_posix = Path(host_dir).as_posix().rstrip("/") or "/"
+    resolved = Path(host_dir).resolve(strict=False)
+    resolved_posix = resolved.as_posix().rstrip("/") or "/"
+    if raw_posix in SHARED_SYSTEM_DIRS or resolved_posix in SHARED_SYSTEM_DIRS or resolved == resolved.parent:
+        raise OracleCacheDriftError(
+            f"refusing shared/system directory {resolved} as {description}; use a dedicated subdirectory"
+        )
+
+    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
+    if posix and (resolved.exists() or stat_fn is not None):
+        st_fn = stat_fn if stat_fn is not None else os.stat
+        try:
+            mode = st_fn(resolved).st_mode
+        except OSError:
+            mode = 0
+        if mode & stat.S_ISVTX:
+            raise OracleCacheDriftError(
+                f"refusing sticky directory {resolved} as {description}; use a dedicated subdirectory"
+            )
+        if mode & stat.S_IWOTH:
+            raise OracleCacheDriftError(
+                f"refusing world-writable directory {resolved} as {description}; use a dedicated subdirectory"
+            )
+    return resolved
+
+
 def prepare_sidecar_oracle_cache_dir(
     host_cache,
     target_uid=1000,
@@ -2750,11 +2818,23 @@ def prepare_sidecar_oracle_cache_dir(
     chown_fn=None,
     chmod_fn=None,
     access_fn=None,
+    stat_fn=None,
 ):
     """Ensure host oracle cache dir (and entries/) is writable by the sidecar container UID."""
-    cache_path = Path(host_cache).resolve()
+    cache_path = _validate_dedicated_host_dir(
+        host_cache,
+        "oracle cache dir",
+        is_posix=is_posix,
+        stat_fn=stat_fn,
+    )
     entries_path = cache_path / "entries"
     cache_path.mkdir(parents=True, exist_ok=True)
+    _validate_dedicated_host_dir(
+        cache_path,
+        "oracle cache dir",
+        is_posix=is_posix,
+        stat_fn=stat_fn,
+    )
     entries_path.mkdir(parents=True, exist_ok=True)
     posix = (os.name != "nt") if is_posix is None else bool(is_posix)
     if not posix:
@@ -2791,9 +2871,6 @@ def prepare_sidecar_oracle_cache_dir(
             f"oracle cache dir {cache_path} is not writable for sidecar UID {target_uid}"
         )
     return str(cache_path)
-
-
-SHARED_SYSTEM_DIRS = frozenset({"/", "/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"})
 
 
 def prepare_sidecar_oracle_manifest_dir(
@@ -2946,6 +3023,22 @@ def _rewrite_cli_flag(argv, flag_name, new_value):
     return rewritten
 
 
+def build_inner_python_source(parity_path=None):
+    """Build the stdin payload with fast_verify embedded for container execution."""
+    parity_file = Path(parity_path or __file__)
+    parity_source = parity_file.read_text(encoding="utf-8")
+    verifier_source = parity_file.with_name("fast_verify.py").read_text(encoding="utf-8")
+    bootstrap = (
+        "import sys as _khitmee_sys, types as _khitmee_types\n"
+        "_fast_verify_module = _khitmee_types.ModuleType('fast_verify')\n"
+        "_fast_verify_module.__file__ = '<embedded fast_verify.py>'\n"
+        "_fast_verify_source = " + repr(verifier_source) + "\n"
+        "exec(compile(_fast_verify_source, '<embedded fast_verify.py>', 'exec'), _fast_verify_module.__dict__)\n"
+        "_khitmee_sys.modules['fast_verify'] = _fast_verify_module\n"
+    )
+    return (bootstrap + "\n" + parity_source).encode("utf-8")
+
+
 def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
     parsed_host = build_parser().parse_args(argv)
     if parsed_host.oracle_manifest and not parsed_host.oracle_cache_dir:
@@ -2968,7 +3061,11 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
     if project != PROJECT or project == FORBIDDEN_PROJECT:
         print(f"refusing parity run: {backend} compose project is {project!r}, expected {PROJECT!r}", file=sys.stderr)
         return 3
-    source = Path(__file__).read_bytes()
+    try:
+        source = build_inner_python_source()
+    except OSError as exc:
+        print(f"could not build embedded parity/comparator payload: {exc}", file=sys.stderr)
+        return 3
     inner_argv = _strip_host_only_args(argv)
     if runner == "exec":
         command = [

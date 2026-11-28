@@ -232,6 +232,7 @@ class StockOracleCache:
     def __init__(self, cache_dir: str | Path, manifest_path: str | Path | None = None):
         self.cache_dir = Path(cache_dir)
         self.manifest_path = Path(manifest_path) if manifest_path is not None else (self.cache_dir / MANIFEST_FILENAME)
+        self._manifest_schema_version: str | None = None
 
     def _load_manifest(self) -> dict[str, Any] | None:
         if not self.manifest_path.exists():
@@ -261,11 +262,13 @@ class StockOracleCache:
         expected_root = _manifest_entries_root_sha256(entries)
         if manifest.get("entries_root_sha256") != expected_root:
             raise OracleCacheError("oracle cache manifest entries_root_sha256 mismatch (manifest tampered)")
+        self._manifest_schema_version = str(manifest["schema_version"])
         return manifest
 
     def _write_manifest(self, entries: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        schema_version = self._manifest_schema_version or CACHE_SCHEMA_VERSION
         manifest = {
-            "schema_version": CACHE_SCHEMA_VERSION,
+            "schema_version": schema_version,
             "updated_utc": utc_now(),
             "entries": {kh: entries[kh] for kh in sorted(entries)},
             "entries_root_sha256": _manifest_entries_root_sha256(entries),
@@ -288,8 +291,10 @@ class StockOracleCache:
         if not isinstance(columns, list) or not isinstance(rows, list):
             raise OracleCacheError("columns and rows must be lists")
 
+        existing_manifest = self._load_manifest()
+        schema_version = self._manifest_schema_version or CACHE_SCHEMA_VERSION
         payload = {
-            "schema_version": CACHE_SCHEMA_VERSION,
+            "schema_version": schema_version,
             "key_hash": key_hash,
             "key": normalized_key,
             "columns": columns,
@@ -321,8 +326,7 @@ class StockOracleCache:
         }
         entry["entry_sha256"] = canonical_sha256(_entry_core(entry))
 
-        manifest = self._load_manifest()
-        entries = dict(manifest["entries"]) if manifest is not None else {}
+        entries = dict(existing_manifest["entries"]) if existing_manifest is not None else {}
         entries[key_hash] = entry
         self._write_manifest(entries)
         return entry
@@ -642,6 +646,54 @@ def _canonical_row_signature(row: dict[str, Any]) -> str:
     return canonical_json({str(k): _signature_value(v) for k, v in row.items() if not str(k).startswith("_")})
 
 
+def _financial_signature_value(
+    field: str,
+    value: Any,
+    *,
+    monetary_fields: set[str],
+    float_fields: set[str],
+    currency_precision: int,
+    float_precision: int,
+) -> Any:
+    """Canonicalize one value with the same numeric semantics as compare_financial_value."""
+    if _is_numeric_value(value):
+        dec = _to_exact_decimal(value)
+        if dec is None:
+            return ["invalid_num", type(value).__name__, str(value)]
+        precision = currency_precision if field in monetary_fields else float_precision
+        quantum = Decimal(10) ** (-int(precision))
+        try:
+            quantized = dec.quantize(quantum, rounding=ROUND_HALF_EVEN)
+        except InvalidOperation:
+            return ["invalid_num", type(value).__name__, str(value)]
+        return ["num", int(precision), format(quantized, "f")]
+    return _signature_value(value)
+
+
+def _financial_row_signature(
+    row: dict[str, Any],
+    *,
+    monetary_fields: set[str],
+    float_fields: set[str],
+    currency_precision: int,
+    float_precision: int,
+) -> str:
+    return canonical_json(
+        {
+            str(k): _financial_signature_value(
+                str(k),
+                v,
+                monetary_fields=monetary_fields,
+                float_fields=float_fields,
+                currency_precision=currency_precision,
+                float_precision=float_precision,
+            )
+            for k, v in row.items()
+            if not str(k).startswith("_")
+        }
+    )
+
+
 def compare_financial_reports(
     candidate_columns: list[Any] | None,
     candidate_rows: list[Any] | None,
@@ -695,7 +747,19 @@ def compare_financial_reports(
         for side_name, rows_list in (("candidate", cand_dicts), ("oracle", orac_dicts)):
             seen: dict[tuple[Any, ...], int] = {}
             for idx, row in enumerate(rows_list):
-                ident = tuple((type(row.get(f)).__name__, row.get(f)) for f in identity_fields)
+                ident = tuple(
+                    canonical_json(
+                        _financial_signature_value(
+                            f,
+                            row.get(f),
+                            monetary_fields=mon_set,
+                            float_fields=flt_set,
+                            currency_precision=currency_precision,
+                            float_precision=float_precision,
+                        )
+                    )
+                    for f in identity_fields
+                )
                 if ident in seen:
                     mismatches.append(
                         {
@@ -712,10 +776,22 @@ def compare_financial_reports(
         cand_counts: dict[str, int] = {}
         orac_counts: dict[str, int] = {}
         for row in cand_dicts:
-            sig = _canonical_row_signature(row)
+            sig = _financial_row_signature(
+                row,
+                monetary_fields=mon_set,
+                float_fields=flt_set,
+                currency_precision=currency_precision,
+                float_precision=float_precision,
+            )
             cand_counts[sig] = cand_counts.get(sig, 0) + 1
         for row in orac_dicts:
-            sig = _canonical_row_signature(row)
+            sig = _financial_row_signature(
+                row,
+                monetary_fields=mon_set,
+                float_fields=flt_set,
+                currency_precision=currency_precision,
+                float_precision=float_precision,
+            )
             orac_counts[sig] = orac_counts.get(sig, 0) + 1
         for sig, count in cand_counts.items():
             if count > orac_counts.get(sig, 0) and count > 1:

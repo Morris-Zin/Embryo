@@ -40,6 +40,18 @@ class TestMonkeyPatchGuardrail(unittest.TestCase):
 		self.assertTrue(all(violation.rule == "anti-monkey-patch" for violation in violations))
 		self.assertIn("erpnext.patched", violations[0].message)
 
+	def test_direct_patch_allowlist_is_exact_path_and_target(self):
+		source = (
+			"from frappe.model import document\n"
+			"document._filter = lambda *a: None\n"
+			"document.other = 1\n"
+		)
+		with mock.patch.dict(fc.MONKEY_PATCH_ALLOWLIST, {"sample.py:document._filter": "x" * 40}):
+			violations = self.scan(source)
+		self.assertEqual([v.message for v in violations if "document._filter" in v.message], [])
+		self.assertTrue(any("document.other" in v.message for v in violations))
+		self.assertEqual(len(self.scan(source)), 2)
+
 	def test_detects_augassign_annassign_and_setattr_on_core_symbols(self):
 		violations = self.scan(
 			"import frappe\n"
@@ -83,6 +95,56 @@ class TestMonkeyPatchGuardrail(unittest.TestCase):
 			write_source(root, "apps/khitmee_ops/khitmee_ops/setup/indexes.py", bad)
 
 			self.assertEqual(fc.scan_monkey_patches(root), [])
+
+	def test_detects_setattr_and_assignment_after_dynamic_core_import(self):
+		violations = self.scan(
+			"import importlib\n"
+			"module_name = 'erpnext.stock.stock_ledger'\n"
+			"mod = importlib.import_module(module_name)\n"
+			"setattr(mod, 'update_qty_in_future_sle', lambda: None)\n"
+			"mod.other_patch = True\n"
+		)
+
+		self.assertEqual(len(violations), 2)
+		self.assertTrue(all("dynamically imported" in violation.message for violation in violations))
+		self.assertIn("erpnext.stock.stock_ledger.update_qty_in_future_sle", violations[0].message)
+
+	def test_detects_frappe_get_attr_and_import_helper_core_objects(self):
+		violations = self.scan(
+			"import importlib\n"
+			"import frappe\n"
+			"def load(name):\n"
+			"    return importlib.import_module(name)\n"
+			"first = load('erpnext.stock.stock_ledger')\n"
+			"first.x = 1\n"
+			"second = frappe.get_attr('erpnext.stock.utils')\n"
+			"setattr(second, 'x', 1)\n"
+		)
+
+		self.assertEqual(len(violations), 2)
+
+	def test_dynamic_import_of_noncore_module_is_not_a_monkey_patch(self):
+		violations = self.scan(
+			"import importlib\n"
+			"mod = importlib.import_module('khitmee_ops.api.search')\n"
+			"setattr(mod, 'x', 1)\n"
+		)
+
+		self.assertEqual(violations, [])
+
+	def test_sanctioned_dynamic_patches_are_explicitly_allowlisted_with_justifications(self):
+		self.assertGreaterEqual(len(fc.MONKEY_PATCH_ALLOWLIST), 16)
+		# Sanctioned patches may live only in the two reviewed dispatcher modules.
+		sanctioned_paths = {fc.VOUCHER_FASTPATH_PATH, fc.INVOICE_SERIES_PATH}
+		for key in fc.MONKEY_PATCH_ALLOWLIST:
+			path, _, target = key.partition(":")
+			self.assertIn(path, sanctioned_paths, key)
+			self.assertTrue(target, key)
+		self.assertTrue(all(isinstance(reason, str) and len(reason) > 30 for reason in fc.MONKEY_PATCH_ALLOWLIST.values()))
+
+		root = TOOLS_DIR.parent
+		path = root / fc.VOUCHER_FASTPATH_PATH
+		self.assertEqual(fc.scan_monkey_patch_file(path, fc.VOUCHER_FASTPATH_PATH), [])
 
 
 class TestCoreAndHooksGuardrails(unittest.TestCase):
@@ -357,12 +419,12 @@ class TestZizmorGate(unittest.TestCase):
 
 
 class TestParallelUnittestSelection(unittest.TestCase):
-	def test_tools_suite_uses_measured_class_parallelism(self):
+	def test_tools_suite_uses_measured_test_parallelism(self):
 		command = fc.unittest_parallel_command(Path("/repo"))
 
 		self.assertIn("--level", command)
-		self.assertEqual(command[command.index("--level") + 1], "class")
-		self.assertEqual(command[command.index("-j") + 1], "4")
+		self.assertEqual(command[command.index("--level") + 1], "test")
+		self.assertEqual(command[command.index("-j") + 1], "12")
 		self.assertEqual(command[command.index("-s") + 1], "/repo/tools")
 
 	def test_windows_paths_normalize_to_posix_for_unittest_and_git(self):
@@ -380,6 +442,83 @@ class TestParallelUnittestSelection(unittest.TestCase):
 			"perf-suite/k6",
 			"perf-suite/offload",
 		))
+
+	def test_windows_offload_suite_uses_wsl_posix_python_when_fcntl_is_missing(self):
+		root = r"C:\work\Khitmee-ERPNext"
+
+		def wsl_only(name):
+			return "C:/Windows/System32/wsl.exe" if name in {"wsl.exe", "wsl"} else None
+
+		argv, cwd = fc.unittest_discovery_invocation(
+			root,
+			"perf-suite/offload",
+			os_name="nt",
+			which=wsl_only,
+			find_spec=lambda name: None,
+		)
+
+		self.assertEqual(cwd, root)
+		self.assertEqual(argv[:3], ["wsl.exe", "-d", "KhitmeeERPNext"])
+		self.assertEqual(argv[argv.index("--cd") + 1], "/mnt/c/work/Khitmee-ERPNext")
+		self.assertEqual(argv[argv.index("--") + 1], "python3")
+		self.assertIn("/mnt/c/work/Khitmee-ERPNext/perf-suite/offload", argv)
+
+	def test_windows_offload_suite_fails_closed_without_fcntl_or_wsl(self):
+		with self.assertRaises(RuntimeError) as raised:
+			fc.unittest_discovery_invocation(
+				r"C:\work\Khitmee-ERPNext",
+				"perf-suite/offload",
+				os_name="nt",
+				which=lambda name: None,
+				find_spec=lambda name: None,
+			)
+
+		self.assertIn("requires fcntl", str(raised.exception))
+		self.assertIn("KhitmeeERPNext", str(raised.exception))
+
+
+class TestDockerComposeInvocation(unittest.TestCase):
+	def test_wsl_fallback_translates_cwd_env_file_and_compose_file_paths(self):
+		cwd = r"C:\work\Khitmee-ERPNext\perf-suite\docker"
+
+		def wsl_only(name):
+			return "C:/Windows/System32/wsl.exe" if name in {"wsl.exe", "wsl"} else None
+
+		argv, returned_cwd = fc.docker_compose_config_invocation(cwd, "2gb", overlay=True, which=wsl_only)
+
+		self.assertEqual(returned_cwd, cwd)
+		self.assertEqual(argv[:3], ["wsl.exe", "-d", "KhitmeeERPNext"])
+		self.assertEqual(argv[argv.index("--cd") + 1], "/mnt/c/work/Khitmee-ERPNext/perf-suite/docker")
+		self.assertEqual(argv[argv.index("--") + 1], "docker")
+		self.assertEqual(argv[argv.index("--env-file") + 1], "/dev/null")
+		self.assertNotIn("nul", argv)
+		for expected in (
+			"/mnt/c/work/Khitmee-ERPNext/perf-suite/docker/compose.base.yaml",
+			"/mnt/c/work/Khitmee-ERPNext/perf-suite/docker/profile-2gb.yaml",
+			"/mnt/c/work/Khitmee-ERPNext/perf-suite/docker/khitmee-ops-2gb.yaml",
+		):
+			self.assertIn(expected, argv)
+
+	def test_docker_on_path_uses_native_command_and_windows_devnull(self):
+		cwd = r"C:\work\Khitmee-ERPNext\perf-suite\docker"
+
+		def docker_only(name):
+			return "C:/tools/docker.exe" if name == "docker" else None
+
+		argv, returned_cwd = fc.docker_compose_config_invocation(cwd, "4gb", which=docker_only)
+
+		self.assertEqual(returned_cwd, cwd)
+		self.assertEqual(argv[:3], ["docker", "compose", "--env-file"])
+		self.assertEqual(argv[3], fc.os.devnull)
+		self.assertNotIn("wsl.exe", argv)
+
+	def test_compose_fails_closed_when_neither_docker_nor_wsl_is_available(self):
+		with self.assertRaises(RuntimeError) as raised:
+			fc.docker_compose_config_invocation(r"C:\work\perf-suite\docker", "2gb", which=lambda name: None)
+
+		self.assertIn("docker is not on PATH", str(raised.exception))
+		self.assertIn("wsl.exe is unavailable", str(raised.exception))
+		self.assertIn("KhitmeeERPNext", str(raised.exception))
 
 
 class TestVerificationEvidenceSafeguards(unittest.TestCase):
