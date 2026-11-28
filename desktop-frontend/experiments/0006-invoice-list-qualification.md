@@ -1,5 +1,8 @@
 # 0006 Invoice-list differential qualification
 
+> Evidence artifact note: `desktop-frontend/evidence/` is intentionally gitignored because raw journey JSON, traces and screenshots are bulky generated artifacts. Paths below identify the local artifacts produced when the recorded commands are rerun; this file is the committed concise qualification record.
+
+
 ## Passing evidence
 
 - `evidence/journeys/invoice-list-initial.json` — first page parity against `/app/sales-invoice`: all 20 visible ERP rows match exactly for customer, status, posting date, due date, grand total and invoice ID; count text matches `20 of 1,000+`.

@@ -1,5 +1,8 @@
 # 0005 Item-search differential qualification
 
+> Evidence artifact note: `desktop-frontend/evidence/` is intentionally gitignored because raw journey JSON, traces and screenshots are bulky generated artifacts. Paths below identify the local artifacts produced when the recorded commands are rerun; this file is the committed concise qualification record.
+
+
 ## Scope
 
 Item-search behavior inside the Khitmee sales counter was qualified against the original web frontend in the isolated ERPNext environment (`http://127.0.0.1:18086`). This is behavioral/accessibility evidence only; it does not close full-screen visual or hardware qualification.

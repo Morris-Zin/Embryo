@@ -1,5 +1,8 @@
 # Sales voucher qualification evidence
 
+> Evidence artifact note: `desktop-frontend/evidence/` is intentionally gitignored because raw journey JSON, traces and screenshots are bulky generated artifacts. Paths below identify the local artifacts produced when the recorded commands are rerun; this file is the committed concise qualification record.
+
+
 This is the reproducible qualification record for the first migrated screen. It is not a mass-migration approval record.
 
 ## Environment

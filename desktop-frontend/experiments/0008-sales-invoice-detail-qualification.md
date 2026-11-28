@@ -1,5 +1,8 @@
 # 0008 Sales Invoice detail qualification
 
+> Evidence artifact note: `desktop-frontend/evidence/` is intentionally gitignored because raw journey JSON, traces and screenshots are bulky generated artifacts. Paths below identify the local artifacts produced when the recorded commands are rerun; this file is the committed concise qualification record.
+
+
 ## Status
 
 Initial live ERP parity passed on 2026-11-27. This is a read-only submitted-invoice detail qualification milestone, not completion of every Sales Invoice form interaction.

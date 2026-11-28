@@ -1,5 +1,8 @@
 # 0007 Stock-transfer differential qualification
 
+> Evidence artifact note: `desktop-frontend/evidence/` is intentionally gitignored because raw journey JSON, traces and screenshots are bulky generated artifacts. Paths below identify the local artifacts produced when the recorded commands are rerun; this file is the committed concise qualification record.
+
+
 ## Passing evidence
 
 - `evidence/journeys/stock-transfer-initial.json` — initial native/web state parity.
