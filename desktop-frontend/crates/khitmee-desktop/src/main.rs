@@ -2240,7 +2240,11 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_print_format_selected({
         let state = state.clone();
         move |value| {
-            state.borrow_mut().print_format = if value == "a4" { "a4".into() } else { "voucher".into() };
+            state.borrow_mut().print_format = if value == "a4" {
+                "a4".into()
+            } else {
+                "voucher".into()
+            };
         }
     });
 
