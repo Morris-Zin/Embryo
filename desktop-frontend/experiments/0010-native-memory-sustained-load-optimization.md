@@ -29,15 +29,15 @@ Measured warm p50 startup improvement: **23.52%**. Measured p50 idle memory redu
 
 ## Sustained-load result
 
-The committed `benchmark_sustained.py` harness drove 1,000 timed iterations in each workload; the invoice workload adds 100 verification filter edits and 100 verified Load More clicks. Gates were p95 below 30 ms, end RSS below 128 MiB, memory growth below 4 MiB, and CPU below 10 ms/interaction. All gates passed. Every invoice Load More click was verified by the displayed loaded-row count (100 of 100 appended 20 rows, split into 50 filtered and 50 unfiltered pages). Filtered paging used the selective term `customer 000` and verified that the visible row content matched the active filter, so an implementation ignoring the filter could not pass. The scroll workload first verified a 220-row warm-up so scrolling exercised virtualization rather than only the initial 20 rows.
+The committed `benchmark_sustained.py` harness drove 1,000 timed iterations in each workload; the invoice workload adds 100 verification filter edits and 100 verified Load More clicks. Gates were p95 below 30 ms, end RSS below 128 MiB, memory growth below 4 MiB, and CPU below 10 ms/interaction. All gates passed. Every invoice Load More click was verified by the displayed loaded-row count (100 of 100 appended 20 rows, split into 50 filtered and 50 unfiltered pages). Filtered paging used the selective invoice-name term `fixture-sinv-a`, scrolled to the appended end of the virtualized list, and verified that visible row content matched the active filter, so an implementation ignoring the filter or appending unfiltered rows below the viewport could not pass. The expected append length is derived from the displayed filtered total, so smaller fixtures validate partial pages or skip impossible paging instead of failing correct behavior. The scroll workload first verified a 220-row warm-up (10 clicks) so scrolling exercised virtualization rather than only the initial 20 rows.
 
 | workload | end RSS | memory behavior | p95 interaction latency | CPU/interaction |
 | --- | ---: | --- | ---: | ---: |
-| 1,000 catalog search edits | 64,466,944 B | checkpoints stayed within 4,096 B from iteration 100 through 1000 | 6.413 ms | 2.890 ms |
-| 1,100 invoice filter edits + 100 verified Load More clicks | 64,114,688 B | ended 1,044,480 B below start; flat at 64,114,688 B at every checkpoint | 3.156 ms | 1.500 ms |
-| 1,000 invoice scroll events over a 220-row loaded list | 63,348,736 B | ended 1,474,560 B below start; checkpoints stayed within 4,096 B | 0.527 ms | 0.200 ms |
+| 1,000 catalog search edits | 63,295,488 B | flat at 63,295,488 B at every checkpoint | 6.515 ms | 2.930 ms |
+| 1,100 invoice filter edits + 100 verified Load More clicks | 64,319,488 B | ended 1,048,576 B below start; flat at 64,319,488 B at every checkpoint | 3.165 ms | 1.508 ms |
+| 1,000 invoice scroll events over a 220-row loaded list | 63,803,392 B | ended 1,449,984 B below start; checkpoints stayed within 4,096 B | 2.003 ms | 0.280 ms |
 
-Slint MCP `click_element` has an approximately 51 ms fixed wait even when clicking non-interactive text. The invoice report therefore separates raw click latency (53.644 ms p95) from latency above the same-run control-click floor (2.786 ms p95). CPU time is measured independently; invoice work averaged 1.500 ms per interaction including clicks and row-count verification.
+Slint MCP `click_element` has an approximately 51 ms fixed wait even when clicking non-interactive text. The invoice report therefore separates raw click latency (51.550 ms p95) from latency above the same-run control-click floor (0.662 ms p95). CPU time is measured independently; invoice work averaged 1.508 ms per interaction including clicks and row-count verification.
 
 ## Behavior-preservation evidence
 

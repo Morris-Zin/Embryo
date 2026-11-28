@@ -156,11 +156,12 @@ def find_element(elements: list[dict[str, Any]], element_id: str, label: str) ->
     raise RuntimeError(f"target element {element_id}/{label!r} not found")
 
 
-def loaded_invoice_count(client: McpClient, handle: str) -> int | None:
+def invoice_counts(client: McpClient, handle: str) -> tuple[int, int] | None:
     properties = client.tool("get_element_properties", {"elementHandle": handle})
     label = properties.get("accessibleLabel") or ""
     try:
-        return int(label.split(" of ", 1)[0])
+        loaded, total = label.split(" of ", 1)
+        return int(loaded), int(total)
     except (TypeError, ValueError):
         return None
 
@@ -218,6 +219,10 @@ def measure_workload(
             target = find_element(elements, "invoice-filter", "ID")["handle"]
             load_more = find_element(elements, "", "Load More")["handle"]
             count_target = find_element(elements, "invoice-count", "")["handle"]
+            list_target = next(
+                (element for element in elements if element.get("accessibleRole") == "List" and element.get("handle")),
+                {"handle": handles["root"]},
+            )["handle"]
             terms = ["ACC", "paid", "customer", "မြတ", ""]
         else:
             target = next(
@@ -229,15 +234,26 @@ def measure_workload(
             terms = []
 
         if workload == "scroll":
+            warmup_clicks = 0
             for _ in range(10):
-                before_count = loaded_invoice_count(client, count_target)
+                before_counts = invoice_counts(client, count_target)
+                if before_counts is None:
+                    raise RuntimeError("scroll warm-up could not read the invoice count text")
+                before_count, total_count = before_counts
+                expected_append = min(20, max(0, total_count - before_count))
+                if expected_append == 0:
+                    break
                 client.tool("click_element", {"elementHandle": load_more})
-                after_count = loaded_invoice_count(client, count_target)
-                if before_count is None or after_count != before_count + 20:
+                warmup_clicks += 1
+                after_counts = invoice_counts(client, count_target)
+                after_count = after_counts[0] if after_counts else None
+                if after_count != before_count + expected_append:
                     raise RuntimeError(
-                        f"scroll warm-up Load More did not append 20 rows: {before_count} -> {after_count}"
+                        f"scroll warm-up Load More did not append {expected_append} rows: {before_count} -> {after_count}"
                     )
-            result["scrollWarmupLoadedRows"] = loaded_invoice_count(client, count_target)
+            result["scrollWarmupClicks"] = warmup_clicks
+            final_counts = invoice_counts(client, count_target)
+            result["scrollWarmupLoadedRows"] = final_counts[0] if final_counts else None
         click_measurement_floor_ms = None
         if workload == "invoice":
             control_text = next(
@@ -272,26 +288,37 @@ def measure_workload(
                 client.tool("set_element_value", {"elementHandle": target, "value": terms[iteration % len(terms)]})
             latencies.append((time.perf_counter() - action_started) * 1000)
             if workload == "invoice" and iteration % 10 == 9:
-                use_filtered_page = len(click_latencies) % 2 == 0
-                verification_term = "customer 000" if use_filtered_page else ""
+                use_filtered_page = (iteration // 10) % 2 == 0
+                verification_term = "fixture-sinv-a" if use_filtered_page else ""
                 edit_started = time.perf_counter()
                 client.tool("set_element_value", {"elementHandle": target, "value": verification_term})
                 latencies.append((time.perf_counter() - edit_started) * 1000)
+                before_counts = invoice_counts(client, count_target)
+                if before_counts is None:
+                    raise RuntimeError("could not read invoice counts before Load More")
+                before_count, total_count = before_counts
+                expected_append = min(20, max(0, total_count - before_count))
+                if expected_append == 0:
+                    if use_filtered_page:
+                        result["filteredLoadMoreSkipped"] = True
+                    continue
                 if use_filtered_page:
                     filtered_load_more_attempts += 1
-                before_count = loaded_invoice_count(client, count_target)
                 click_started = time.perf_counter()
                 client.tool("click_element", {"elementHandle": load_more})
                 click_latencies.append((time.perf_counter() - click_started) * 1000)
-                after_count = loaded_invoice_count(client, count_target)
-                appended_rows = before_count is not None and after_count == before_count + 20
+                after_counts = invoice_counts(client, count_target)
+                after_count = after_counts[0] if after_counts else None
+                appended_rows = after_count == before_count + expected_append
                 filtered_content_matches = True
                 if use_filtered_page and filtered_load_more_attempts == 1:
+                    client.tool("scroll_element", {"elementHandle": list_target, "deltaY": 2000})
                     visible_rows = visible_invoice_list_items(client, handles["root"])
                     filtered_content_matches = bool(visible_rows) and all(
-                        verification_term in row.split("|", 1)[0].lower()
+                        verification_term in row.lower()
                         for row in visible_rows
                     )
+                    client.tool("scroll_element", {"elementHandle": list_target, "deltaY": -2000})
                     result["filteredLoadMoreContentChecked"] = filtered_content_matches
                 if appended_rows and filtered_content_matches:
                     verified_load_more_clicks += 1
@@ -402,9 +429,9 @@ def main() -> int:
             failures.append(
                 f"{label}: only {run.get('filteredLoadMoreVerified')} of {run.get('filteredLoadMoreAttempts')} filtered Load More clicks appended rows"
             )
-        if label == "invoice" and not run.get("filteredLoadMoreAttempts"):
+        if label == "invoice" and run.get("invoiceRows", 0) >= 100 and not run.get("filteredLoadMoreAttempts"):
             failures.append(f"{label}: filtered Load More paging was not exercised")
-        if label == "invoice" and not run.get("filteredLoadMoreContentChecked"):
+        if label == "invoice" and run.get("filteredLoadMoreAttempts") and not run.get("filteredLoadMoreContentChecked"):
             failures.append(f"{label}: filtered Load More visible rows did not all match the active filter")
 
     report = {
