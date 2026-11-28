@@ -369,6 +369,12 @@ class QualifyEntryPointTests(unittest.TestCase):
         self.assertFalse(comparison["passed"])
         self.assertIn("container identity changed", " ".join(comparison["problems"]))
         self.assertIn("OOM state changed", " ".join(comparison["problems"]))
+        incomplete = module.resource_window_comparison(
+            {"services": [{"service": "db", "id": "one", "oom_killed": False}]},
+            {"services": [{"service": "db", "id": "one", "restart_count": 0, "oom_killed": False}]},
+        )
+        self.assertFalse(incomplete["passed"])
+        self.assertIn("restart counter evidence missing", " ".join(incomplete["problems"]))
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):
         module = self.decision_module()

@@ -36,8 +36,18 @@ def resource_window_comparison(before, after):
             continue
         if old.get('id') != new.get('id'):
             problems.append(f'{service}: container identity changed {old.get("id")} -> {new.get("id")}')
-        if int(old.get('restart_count') or 0) != int(new.get('restart_count') or 0):
-            problems.append(f'{service}: restart count changed {old.get("restart_count")} -> {new.get("restart_count")}')
+        old_restart = old.get('restart_count')
+        new_restart = new.get('restart_count')
+        if old_restart is None or new_restart is None:
+            problems.append(f'{service}: restart counter evidence missing in one resource proof')
+        else:
+            try:
+                restart_changed = int(old_restart) != int(new_restart)
+            except (TypeError, ValueError):
+                restart_changed = True
+                problems.append(f'{service}: restart counter evidence is not numeric')
+            if restart_changed:
+                problems.append(f'{service}: restart count changed {old_restart} -> {new_restart}')
         if bool(old.get('oom_killed')) != bool(new.get('oom_killed')):
             problems.append(f'{service}: OOM state changed {old.get("oom_killed")} -> {new.get("oom_killed")}')
     return {'passed': not problems, 'problems': problems}
