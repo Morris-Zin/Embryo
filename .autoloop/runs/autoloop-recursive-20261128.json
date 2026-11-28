@@ -198,6 +198,24 @@
           "fast_check.py/ruff_and_dev_deps": 0.072,
           "fast_check.py/zizmor_workflows": 0.28
         }
+      },
+      {
+        "at": "2026-11-28T16:59:57Z",
+        "head_sha": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.315,
+          "fast_check.py/autoloop_lint": 3.405,
+          "fast_check.py/bash": 0.137,
+          "fast_check.py/compose": 0.199,
+          "fast_check.py/guardrails": 3.586,
+          "fast_check.py/javascript": 0.039,
+          "fast_check.py/knip": 1.099,
+          "fast_check.py/python": 4.23,
+          "fast_check.py/ruff_and_dev_deps": 0.016,
+          "fast_check.py/zizmor_workflows": 0.296,
+          "verification #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification": 1.128
+        }
       }
     ]
   },
@@ -399,6 +417,19 @@
       "head_sha": "6f19302ff230617afe74d9605db79ad5769d0832",
       "shard": "verification",
       "signature": "fast_check.py::VerificationFailure::fast_check.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:59:57Z",
+      "code_tree_sha256": "486cb94872c5876ac6ef8be0e73d230a3f0eb0f09b82d04c89b9b25a0a866b69",
+      "event": "shard-passed",
+      "shard": "verification",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
       "status": "in_progress"
     }
   ],
@@ -671,17 +702,36 @@
         "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/verification"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "2f6977293f2bbff8a35a2f7b4e18ba6e31e9c8ea",
-      "passed_code_tree_sha256": null,
-      "pending_dead_end_sig": "fast_check.py::VerificationFailure::fast_check.py",
+      "has_passed_individually": true,
+      "last_green_sha": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d",
+      "passed_code_tree_sha256": "486cb94872c5876ac6ef8be0e73d230a3f0eb0f09b82d04c89b9b25a0a866b69",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "08681fd01d119406df8c1f42573c83be98e3ac39",
+          "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "proofs": "596666a78333e6ebfd9ad0a293f0f32f48523cdb",
+          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
+          "supervision": "f47da12f74e818d9ba86a29389bf897d9957b48d"
+        },
+        "sha256": "cf2a6d4901cf31667565420262e0c0c9f2cc4c92900edaec9f589c3e311cd8b6",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
+      "trusted_policy_pass_sha": "a9a0628e32d67afbfea44ca01e31b62ef2f0056d",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verification"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:59:22Z"
+  "updated_at": "2026-11-28T16:59:57Z"
 }
