@@ -257,6 +257,7 @@ component VoucherLineRow inherits Rectangle {
         accessible-role: text-input;
         accessible-label: "Quantity";
         horizontal-alignment: center;
+        edited => { root.quantity-edited(line.item-code, self.text); }
         accepted => { root.quantity-edited(line.item-code, self.text); }
     }
     Rectangle {
@@ -1513,6 +1514,7 @@ export component AppWindow inherits Window {
     callback line-quantity-edited(string, string);
     callback clear-lines();
     callback submit-print();
+    callback screen-navigated(int);
     callback invoice-filter-edited(string);
     callback invoice-load-more();
     callback invoice-sort-toggle();
@@ -1547,7 +1549,7 @@ export component AppWindow inherits Window {
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
-        navigate(screen) => { current-screen = screen; }
+        navigate(screen) => { current-screen = screen; root.screen-navigated(screen); }
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }
@@ -1578,7 +1580,7 @@ export component AppWindow inherits Window {
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
-        navigate(screen) => { current-screen = screen; }
+        navigate(screen) => { current-screen = screen; root.screen-navigated(screen); }
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }

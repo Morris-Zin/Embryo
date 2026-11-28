@@ -1670,7 +1670,10 @@ fn load_live_catalog_scoped(
     let key = load_or_create_key(&key_path)?;
     let store = EncryptedStore::open(&db_path, &hex_key(&key))?;
     let customer_key = customer.unwrap_or("");
-    let scope = format!("erp:{}:{}:{}", warehouse, config.price_list, customer_key);
+    let scope = format!(
+        "erp:{}:{}:{}:{}:{}",
+        config.base_url, config.username, warehouse, config.price_list, customer_key
+    );
     let prior_token = store.sync_token(&scope)?;
     let client = ErpClient::login(&config.base_url, &config.username, &config.password)?;
     let payload = client.sync_catalog(
@@ -1730,6 +1733,11 @@ fn refresh_context_catalog(
         .collect();
     state.catalog_size = rows.len();
     state.catalog = CatalogIndex::rebuild(rows);
+    for line in &mut state.lines {
+        if let Some(current) = state.by_code.get(&line.item.item_code) {
+            line.item = current.clone();
+        }
+    }
     Ok(())
 }
 
@@ -2211,6 +2219,30 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             state.lines.clear();
+            refresh_voucher(&app, &state);
+        }
+    });
+
+    app.on_screen_navigated({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |screen| {
+            if screen > 1 {
+                return;
+            }
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            state.lines.clear();
+            state.warehouse = state
+                .warehouses
+                .first()
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default();
+            state.customer.clear();
+            state.payment_mode.clear();
+            state.target_warehouse.clear();
+            state.outgoing_stock_entry.clear();
+            state.transfer_mode = "direct".into();
             refresh_voucher(&app, &state);
         }
     });

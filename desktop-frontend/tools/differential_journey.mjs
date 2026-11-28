@@ -220,6 +220,7 @@ if(screen==='invoice-detail'){
   }
   const businessOutcomeEvidence=screen==='invoice-list'?{attempted:false,matched:true,reason:'read-only invoice journey'}:screen==='invoice-detail'?await invoiceDetailOutcome(page):await businessOutcome(page,steps);
   failures.push(...(businessOutcomeEvidence.mismatches||[]).map(d=>({step:'businessOutcome',op:'erp-readback',...d})));
+  if((screen==='sales-voucher'||screen==='stock-transfer')&&/submission|success|idempotency|transit-receive/.test(scenario)&&!businessOutcomeEvidence.matched)failures.push({step:'businessOutcome',op:'erp-readback',field:'erp-confirmation',web:businessOutcomeEvidence.web||businessOutcomeEvidence.reason,native:businessOutcomeEvidence.native||businessOutcomeEvidence.nativeVoucher});
   await browser.close();
   const report={schemaVersion:1,scenario,passed:failures.length===0,failures,businessOutcome:businessOutcomeEvidence,steps};
   await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
