@@ -16,6 +16,7 @@ from khitmee_ops.api.payloads import (
 	request_fingerprint,
 )
 from khitmee_ops.api.stock_locks import (
+	clear_transaction_stock_locks,
 	lock_stock_coordinates,
 	sale_bin_pairs,
 	transfer_bin_pairs,
@@ -47,16 +48,36 @@ def _item_permission_restrictions_active():
 	user = getattr(getattr(frappe, "session", None), "user", None)
 	if user == "Administrator":
 		return False
+	if not user:
+		return True
+
 	get_hook = getattr(frappe, "get_hook", None) or getattr(frappe, "get_hooks", None)
 	if not callable(get_hook):
 		return True
-	try:
-		hooks = get_hook("permission_query_conditions", {}) or {}
-	except TypeError:
-		hooks = get_hook("permission_query_conditions") or {}
-	if hooks.get("Item"):
-		return True
+	for hook_name in ("permission_query_conditions", "has_permission"):
+		try:
+			hooks = get_hook(hook_name, {}) or {}
+		except TypeError:
+			hooks = get_hook(hook_name) or {}
+		if isinstance(hooks, dict) and hooks.get("Item"):
+			return True
+
+	# Fail closed if the user's Item read role permission relies on if_owner=1
+	# or if role permissions cannot be inspected.
 	permissions_mod = getattr(frappe, "permissions", None)
+	get_role_permissions = getattr(permissions_mod, "get_role_permissions", None)
+	if not callable(get_role_permissions):
+		return True
+	try:
+		role_perms = get_role_permissions("Item", user=user)
+	except Exception:
+		return True
+	if not isinstance(role_perms, dict):
+		return True
+	if_owner = role_perms.get("if_owner")
+	if isinstance(if_owner, dict) and if_owner.get("read"):
+		return True
+
 	get_user_permissions = getattr(permissions_mod, "get_user_permissions", None)
 	if not callable(get_user_permissions):
 		defaults_mod = getattr(frappe, "defaults", None)
@@ -65,17 +86,22 @@ def _item_permission_restrictions_active():
 		try:
 			perms = get_user_permissions(user)
 			if isinstance(perms, dict):
-				return any(perms.get(doctype) for doctype in ("Item", "Item Group", "Brand"))
+				if any(perms.get(doctype) for doctype in ("Item", "Item Group", "Brand")):
+					return True
+				for entries in perms.values():
+					for entry in entries or ():
+						if isinstance(entry, dict) and (entry.get("applicable_for") or "") == "Item":
+							return True
+				return False
 		except Exception:
-			pass
-	if not user:
-		return True
+			return True
 	return bool(
 		frappe.db.sql(
 			"""
 			SELECT 1
 			FROM `tabUser Permission`
-			WHERE `user` = %s AND `allow` IN ('Item', 'Item Group', 'Brand')
+			WHERE `user` = %s
+				AND (`allow` IN ('Item', 'Item Group', 'Brand') OR `applicable_for` = 'Item')
 			LIMIT 1
 			""",
 			(user,),
@@ -286,7 +312,9 @@ def _bind_reservation(key, reference_doctype, reference_name):
 	)
 
 
-def _run_idempotent(client_voucher_id, voucher_kind, reference_doctype, fingerprint, create_document):
+def _run_idempotent(
+	client_voucher_id, voucher_kind, reference_doctype, fingerprint, create_document, prepare=None
+):
 	key = idempotency_key(voucher_kind, client_voucher_id, user=frappe.session.user)
 
 	existing = _lookup_idempotency(key)
@@ -294,6 +322,14 @@ def _run_idempotent(client_voucher_id, voucher_kind, reference_doctype, fingerpr
 		_verify_replay(existing, fingerprint, key)
 		if doc := _load_idempotent_document(existing):
 			return doc, False
+
+	prepared = prepare() if callable(prepare) else None
+
+	# Clear any REPEATABLE READ MVCC snapshot opened by pre-lock reads (such as
+	# _lookup_idempotency or master-data cache misses in prepare()) before
+	# reserving the idempotency key and acquiring stock locks.
+	frappe.db.rollback()
+	clear_transaction_stock_locks()
 
 	lock = _acquire_idempotency_lock(key)
 	if lock is None:
@@ -321,7 +357,7 @@ def _run_idempotent(client_voucher_id, voucher_kind, reference_doctype, fingerpr
 				)
 			)
 
-		doc = create_document()
+		doc = create_document(prepared) if callable(prepare) else create_document()
 		_bind_reservation(key, doc.doctype, doc.name)
 		_release_lock_after_transaction(lock)
 		lock_handled = True
@@ -419,14 +455,34 @@ def _sales_invoice_payments_match_total(doc, total):
 	)
 
 
-def _create_sales_invoice(
-	client_voucher_id, warehouse, customer, price_list, cleaned_items, payment_mode, override_rate
-):
+def _prepare_sale_metadata(warehouse, customer, price_list, payment_mode):
 	warehouse_row = _validate_warehouse(warehouse, _("Warehouse"))
 	_validate_sale_inputs(customer, price_list, payment_mode)
-	company_currency = frappe.get_cached_value("Company", warehouse_row.company, "default_currency")
-	customer_currency = frappe.get_cached_value("Customer", customer, "default_currency")
-	price_list_currency = frappe.get_cached_value("Price List", price_list, "currency")
+	return {
+		"company": warehouse_row.company,
+		"company_currency": frappe.get_cached_value("Company", warehouse_row.company, "default_currency"),
+		"customer_currency": frappe.get_cached_value("Customer", customer, "default_currency"),
+		"price_list_currency": frappe.get_cached_value("Price List", price_list, "currency"),
+	}
+
+
+def _create_sales_invoice(
+	client_voucher_id,
+	warehouse,
+	customer,
+	price_list,
+	cleaned_items,
+	payment_mode,
+	override_rate,
+	prepared=None,
+):
+	meta = prepared if prepared is not None else _prepare_sale_metadata(
+		warehouse, customer, price_list, payment_mode
+	)
+	company = meta["company"]
+	company_currency = meta["company_currency"]
+	customer_currency = meta["customer_currency"]
+	price_list_currency = meta["price_list_currency"]
 
 	invoice_items = []
 	for row in cleaned_items:
@@ -440,12 +496,16 @@ def _create_sales_invoice(
 			item["rate"] = row["rate"]
 		invoice_items.append(item)
 
+	lock_result = lock_stock_coordinates(sale_bin_pairs(warehouse, cleaned_items))
+	posting_date = nowdate()
+	posting_time = nowtime()
+
 	invoice_payload = {
 		"doctype": "Sales Invoice",
 		"customer": customer,
-		"company": warehouse_row.company,
-		"posting_date": nowdate(),
-		"posting_time": nowtime(),
+		"company": company,
+		"posting_date": posting_date,
+		"posting_time": posting_time,
 		"set_posting_time": 1,
 		"update_stock": 1,
 		"set_warehouse": warehouse,
@@ -466,7 +526,6 @@ def _create_sales_invoice(
 		doc.flags.ignore_pricing_rule = True
 
 	doc.docstatus = 1
-	lock_result = lock_stock_coordinates(sale_bin_pairs(warehouse, cleaned_items))
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
 		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
@@ -477,16 +536,38 @@ def _create_sales_invoice(
 
 
 def _can_fast_sync_autopay_totals(doc, payable_total):
-	if len(getattr(doc, "payments", None) or ()) != 1:
+	payments = getattr(doc, "payments", None) or ()
+	if len(payments) != 1:
 		return False
 	conversion_rate = flt(getattr(doc, "conversion_rate", 1) or 1)
-	if abs(conversion_rate - 1.0) > 1e-6:
+	if abs(conversion_rate - 1.0) > 1e-9:
 		return False
-	if flt(getattr(doc, "total_advance", 0)) != 0 or flt(getattr(doc, "write_off_amount", 0)) != 0:
+	if (
+		flt(getattr(doc, "total_advance", 0)) != 0.0
+		or flt(getattr(doc, "write_off_amount", 0)) != 0.0
+		or flt(getattr(doc, "loyalty_amount", 0)) != 0.0
+	):
 		return False
 	if cint(getattr(doc, "is_return", 0)):
 		return False
-	return _sales_invoice_payments_match_total(doc, payable_total)
+
+	total = flt(payable_total)
+	payment_total = sum(flt(getattr(payment, "amount", 0)) for payment in payments)
+	paid_amount = flt(getattr(doc, "paid_amount", 0))
+	if abs(paid_amount - total) > 1e-9 or abs(payment_total - total) > 1e-9:
+		return False
+
+	base_payable_total = (
+		flt(getattr(doc, "base_rounded_total", 0))
+		or flt(getattr(doc, "base_grand_total", 0))
+		or total
+	)
+	if abs(base_payable_total - total) > 1e-9:
+		return False
+	raw_base_paid = getattr(doc, "base_paid_amount", None)
+	if raw_base_paid is not None and abs(flt(raw_base_paid) - base_payable_total) > 1e-9:
+		return False
+	return True
 
 
 def sync_counter_autopay_payment(doc, method=None):
@@ -568,7 +649,7 @@ def submit_sale(
 			"sale",
 			"Sales Invoice",
 			fingerprint,
-			lambda: _create_sales_invoice(
+			lambda prepared: _create_sales_invoice(
 				client_voucher_id,
 				warehouse,
 				customer,
@@ -576,7 +657,9 @@ def submit_sale(
 				cleaned_items,
 				payment_mode,
 				override_rate,
+				prepared=prepared,
 			),
+			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode),
 		)
 	)
 	_check_voucher_read_permission(doc)
@@ -624,20 +707,33 @@ def _transfer_response(doc, printer_type):
 	}
 
 
-def _create_direct_or_dispatch_transfer(
-	source_warehouse, target_warehouse, transfer_mode, cleaned_items
-):
+def _prepare_direct_transfer_metadata(source_warehouse, target_warehouse):
 	source_row = _validate_warehouse(source_warehouse, _("Source Warehouse"))
 	_validate_warehouse(target_warehouse, _("Target Warehouse"))
+	return {"company": source_row.company}
+
+
+def _create_direct_or_dispatch_transfer(
+	source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=None
+):
+	meta = prepared if prepared is not None else _prepare_direct_transfer_metadata(
+		source_warehouse, target_warehouse
+	)
+
+	lock_result = lock_stock_coordinates(
+		transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items)
+	)
+	posting_date = nowdate()
+	posting_time = nowtime()
 
 	doc = frappe.get_doc(
 		{
 			"doctype": "Stock Entry",
 			"stock_entry_type": "Material Transfer",
 			"purpose": "Material Transfer",
-			"company": source_row.company,
-			"posting_date": nowdate(),
-			"posting_time": nowtime(),
+			"company": meta["company"],
+			"posting_date": posting_date,
+			"posting_time": posting_time,
 			"set_posting_time": 1,
 			"from_warehouse": source_warehouse,
 			"to_warehouse": target_warehouse,
@@ -655,9 +751,6 @@ def _create_direct_or_dispatch_transfer(
 		}
 	)
 	doc.docstatus = 1
-	lock_result = lock_stock_coordinates(
-		transfer_bin_pairs(source_warehouse, target_warehouse, cleaned_items)
-	)
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
 		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
@@ -764,23 +857,23 @@ def _create_receive_transfer(
 	mapped.items = []
 	for row_data in new_rows:
 		mapped.append("items", row_data)
+	lock_stock_coordinates(transfer_bin_pairs(source_warehouse, target_warehouse, new_rows))
 	mapped.posting_date = nowdate()
 	mapped.posting_time = nowtime()
 	mapped.set_posting_time = 1
 	mapped.to_warehouse = target_warehouse
 	mapped.from_warehouse = source_warehouse
 	mapped.docstatus = 1
-	lock_stock_coordinates(transfer_bin_pairs(source_warehouse, target_warehouse, new_rows))
 	mapped.insert()
 	return mapped
 
 
 def _create_transfer(
-	source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items
+	source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items, prepared=None
 ):
 	if transfer_mode in {"direct", "dispatch"}:
 		return _create_direct_or_dispatch_transfer(
-			source_warehouse, target_warehouse, transfer_mode, cleaned_items
+			source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=prepared
 		)
 	if transfer_mode == "receive":
 		return _create_receive_transfer(
@@ -819,15 +912,27 @@ def submit_transfer(
 		items=cleaned_items,
 	)
 
+	prepare_fn = (
+		(lambda: _prepare_direct_transfer_metadata(source_warehouse, target_warehouse))
+		if transfer_mode in {"direct", "dispatch"}
+		else None
+	)
 	doc, _created = _execute_with_deadlock_retry(
 		lambda: _run_idempotent(
 			client_voucher_id,
 			"transfer",
 			"Stock Entry",
 			fingerprint,
-			lambda: _create_transfer(
-				source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items
+			(
+				(lambda prepared: _create_transfer(
+					source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items, prepared=prepared
+				))
+				if prepare_fn
+				else (lambda: _create_transfer(
+					source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items
+				))
 			),
+			prepare=prepare_fn,
 		)
 	)
 	_check_voucher_read_permission(doc)

@@ -16,6 +16,15 @@
    - `is_product_bundle` (50x-200x -> 1 bulk query)
    - `get_sre_reserved_qty_for_item_and_warehouse` (100x-400x -> 1 bulk query)
    - `get_pos_profile` (50x-200x -> 1x)
+
+Architecture guarantee (F02):
+   Every wrapped callable binds its captured `original` directly inside a closure
+   marked with `_khitmee_dispatcher = True` and is installed idempotently ONCE
+   under a lock. We NEVER clear global original references or uninstall wrappers
+   while other threads or lazily-imported caller modules may hold a reference.
+   When a thread has no active `threading.local()` context, the closure simply
+   delegates directly to `original(*args, **kwargs)`, making `NoneType` crashes,
+   `RecursionError`, and lazy-import worker poisoning architecturally impossible.
 """
 
 from contextlib import contextmanager
@@ -35,15 +44,9 @@ READ_CACHE_BATCH_SIZE = 500
 
 _DISPATCH_LOCK = threading.Lock()
 _THREAD_STATE = threading.local()
-_ACTIVE_REFCOUNT = 0
-_ORIGINAL_UPDATE_FUTURE_SLE = None
-_INSTALLED_MODULE = None
 
 _READ_CACHE_LOCK = threading.Lock()
 _READ_CACHE_STATE = threading.local()
-_READ_CACHE_REFCOUNT = 0
-_READ_CACHE_ORIGINALS = {}
-_READ_CACHE_PATCHES = []
 
 _ACCOUNTING_DIM_MODULE = "erpnext.accounts.doctype.accounting_dimension.accounting_dimension"
 _ACCOUNTING_DIM_CALLERS = (
@@ -331,37 +334,38 @@ def _should_skip_future_sle_update(
 	return True
 
 
-def _dispatch_update_qty_in_future_sle(
-	args,
-	allow_zero_rate=False,
-	allow_negative_stock=False,
-	via_landed_cost_voucher=False,
-	**kwargs,
-):
-	ctx = getattr(_THREAD_STATE, "context", None)
-	if _should_skip_future_sle_update(
-		ctx,
+def _make_future_sle_dispatcher(original):
+	def _dispatch_update_qty_in_future_sle(
 		args,
-		allow_zero_rate=allow_zero_rate,
-		allow_negative_stock=allow_negative_stock,
-		via_landed_cost_voucher=via_landed_cost_voucher,
-	):
-		return None
-
-	if ctx is not None and ctx.active:
-		ctx.fallback_count += 1
-
-	original = _ORIGINAL_UPDATE_FUTURE_SLE
-	if original is None:
-		stock_ledger = importlib.import_module("erpnext.stock.stock_ledger")
-		original = stock_ledger.update_qty_in_future_sle
-	return original(
-		args,
-		allow_zero_rate=allow_zero_rate,
-		allow_negative_stock=allow_negative_stock,
-		via_landed_cost_voucher=via_landed_cost_voucher,
+		allow_zero_rate=False,
+		allow_negative_stock=False,
+		via_landed_cost_voucher=False,
 		**kwargs,
-	)
+	):
+		ctx = getattr(_THREAD_STATE, "context", None)
+		if _should_skip_future_sle_update(
+			ctx,
+			args,
+			allow_zero_rate=allow_zero_rate,
+			allow_negative_stock=allow_negative_stock,
+			via_landed_cost_voucher=via_landed_cost_voucher,
+		):
+			return None
+
+		if ctx is not None and ctx.active:
+			ctx.fallback_count += 1
+
+		return original(
+			args,
+			allow_zero_rate=allow_zero_rate,
+			allow_negative_stock=allow_negative_stock,
+			via_landed_cost_voucher=via_landed_cost_voucher,
+			**kwargs,
+		)
+
+	_dispatch_update_qty_in_future_sle._khitmee_dispatcher = True
+	_dispatch_update_qty_in_future_sle._khitmee_original = original
+	return _dispatch_update_qty_in_future_sle
 
 
 def _try_import(module_name):
@@ -373,28 +377,12 @@ def _try_import(module_name):
 		return None
 
 
-def _acquire_dispatch_wrapper(stock_ledger_module):
-	global _ACTIVE_REFCOUNT, _ORIGINAL_UPDATE_FUTURE_SLE, _INSTALLED_MODULE
+def _ensure_future_sle_dispatcher_installed(stock_ledger_module):
 	with _DISPATCH_LOCK:
-		if _ACTIVE_REFCOUNT == 0:
-			_ORIGINAL_UPDATE_FUTURE_SLE = stock_ledger_module.update_qty_in_future_sle
-			_INSTALLED_MODULE = stock_ledger_module
-			stock_ledger_module.update_qty_in_future_sle = _dispatch_update_qty_in_future_sle
-		_ACTIVE_REFCOUNT += 1
-
-
-def _release_dispatch_wrapper():
-	global _ACTIVE_REFCOUNT, _ORIGINAL_UPDATE_FUTURE_SLE, _INSTALLED_MODULE
-	with _DISPATCH_LOCK:
-		_ACTIVE_REFCOUNT = max(_ACTIVE_REFCOUNT - 1, 0)
-		if _ACTIVE_REFCOUNT == 0 and _INSTALLED_MODULE is not None:
-			if (
-				getattr(_INSTALLED_MODULE, "update_qty_in_future_sle", None)
-				is _dispatch_update_qty_in_future_sle
-			):
-				_INSTALLED_MODULE.update_qty_in_future_sle = _ORIGINAL_UPDATE_FUTURE_SLE
-			_ORIGINAL_UPDATE_FUTURE_SLE = None
-			_INSTALLED_MODULE = None
+		current = getattr(stock_ledger_module, "update_qty_in_future_sle", None)
+		if current is None or getattr(current, "_khitmee_dispatcher", False):
+			return
+		stock_ledger_module.update_qty_in_future_sle = _make_future_sle_dispatcher(current)
 
 
 @contextmanager
@@ -431,14 +419,13 @@ def proven_empty_future_sle_fastpath(doc, locked_pairs, *, enabled=True):
 		proven_empty_pairs=proven_empty,
 	)
 
+	_ensure_future_sle_dispatcher_installed(stock_ledger_module)
 	prev_ctx = getattr(_THREAD_STATE, "context", None)
-	_acquire_dispatch_wrapper(stock_ledger_module)
 	_THREAD_STATE.context = ctx
 	try:
 		yield ctx
 	finally:
 		_THREAD_STATE.context = prev_ctx
-		_release_dispatch_wrapper()
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +441,15 @@ def _freeze_key_part(value):
 	if isinstance(value, set | frozenset):
 		return tuple(sorted(_freeze_key_part(v) for v in value))
 	return value
+
+
+def _safe_cache_key(args, kwargs):
+	try:
+		key = (_freeze_key_part(args), _freeze_key_part(kwargs))
+		hash(key)
+		return key
+	except TypeError:
+		return None
 
 
 def _prefetch_product_bundles(item_codes):
@@ -523,112 +519,119 @@ def _prefetch_sre_reserved_qty(locked_pairs):
 	return frozenset(ordered), reserved
 
 
-def _safe_cache_key(args, kwargs):
-	try:
-		key = (_freeze_key_part(args), _freeze_key_part(kwargs))
-		hash(key)
-		return key
-	except TypeError:
-		return None
+def _make_accounting_dims_dispatcher(original):
+	def _dispatch_get_accounting_dimensions(*args, **kwargs):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is None or not ctx.active:
+			return original(*args, **kwargs)
+
+		key = _safe_cache_key(args, kwargs)
+		if key is None:
+			ctx.misses += 1
+			return original(*args, **kwargs)
+		if key in ctx.accounting_dimensions:
+			ctx.hits += 1
+			return copy.deepcopy(ctx.accounting_dimensions[key])
+
+		ctx.misses += 1
+		result = original(*args, **kwargs)
+		ctx.accounting_dimensions[key] = copy.deepcopy(result)
+		return result
+
+	_dispatch_get_accounting_dimensions._khitmee_dispatcher = True
+	_dispatch_get_accounting_dimensions._khitmee_original = original
+	return _dispatch_get_accounting_dimensions
 
 
-def _dispatch_get_accounting_dimensions(*args, **kwargs):
-	original = _READ_CACHE_ORIGINALS.get("get_accounting_dimensions")
-	ctx = getattr(_READ_CACHE_STATE, "context", None)
-	if ctx is None or not ctx.active:
-		return original(*args, **kwargs)
+def _make_product_bundle_dispatcher(original):
+	def _dispatch_is_product_bundle(*args, **kwargs):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is None or not ctx.active:
+			return original(*args, **kwargs)
 
-	key = _safe_cache_key(args, kwargs)
-	if key is None:
+		if len(args) == 1 and not kwargs:
+			item_code = args[0]
+		elif not args and set(kwargs) == {"item_code"}:
+			item_code = kwargs["item_code"]
+		else:
+			ctx.misses += 1
+			return original(*args, **kwargs)
+
+		if not item_code:
+			return original(*args, **kwargs)
+
+		code = str(item_code).strip()
+		if code in ctx.prefetched_items:
+			ctx.hits += 1
+			return code in ctx.product_bundles
+		if code in ctx.extra_product_bundles:
+			ctx.hits += 1
+			return ctx.extra_product_bundles[code]
+
+		ctx.misses += 1
+		result = bool(original(*args, **kwargs))
+		ctx.extra_product_bundles[code] = result
+		return result
+
+	_dispatch_is_product_bundle._khitmee_dispatcher = True
+	_dispatch_is_product_bundle._khitmee_original = original
+	return _dispatch_is_product_bundle
+
+
+def _make_sre_reserved_qty_dispatcher(original):
+	def _dispatch_get_sre_reserved_qty(*args, **kwargs):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is None or not ctx.active:
+			return original(*args, **kwargs)
+
+		if len(args) == 2 and not kwargs:
+			item_code, warehouse = args[0], args[1]
+		elif len(args) == 1 and set(kwargs) == {"warehouse"}:
+			item_code, warehouse = args[0], kwargs["warehouse"]
+		elif not args and set(kwargs) == {"item_code", "warehouse"}:
+			item_code, warehouse = kwargs["item_code"], kwargs["warehouse"]
+		else:
+			ctx.misses += 1
+			return original(*args, **kwargs)
+
+		if not item_code or not warehouse:
+			return original(*args, **kwargs)
+
+		pair = (str(item_code).strip(), str(warehouse).strip())
+		if pair in ctx.prefetched_sre_pairs:
+			ctx.hits += 1
+			return float(ctx.sre_reserved_qty.get(pair, 0.0))
+
 		ctx.misses += 1
 		return original(*args, **kwargs)
-	if key in ctx.accounting_dimensions:
-		ctx.hits += 1
-		return copy.deepcopy(ctx.accounting_dimensions[key])
 
-	ctx.misses += 1
-	result = original(*args, **kwargs)
-	ctx.accounting_dimensions[key] = copy.deepcopy(result)
-	return result
+	_dispatch_get_sre_reserved_qty._khitmee_dispatcher = True
+	_dispatch_get_sre_reserved_qty._khitmee_original = original
+	return _dispatch_get_sre_reserved_qty
 
 
-def _dispatch_is_product_bundle(*args, **kwargs):
-	original = _READ_CACHE_ORIGINALS.get("is_product_bundle")
-	ctx = getattr(_READ_CACHE_STATE, "context", None)
-	if ctx is None or not ctx.active:
-		return original(*args, **kwargs)
+def _make_pos_profile_dispatcher(original):
+	def _dispatch_get_pos_profile(*args, **kwargs):
+		ctx = getattr(_READ_CACHE_STATE, "context", None)
+		if ctx is None or not ctx.active:
+			return original(*args, **kwargs)
 
-	if len(args) == 1 and not kwargs:
-		item_code = args[0]
-	elif not args and set(kwargs) == {"item_code"}:
-		item_code = kwargs["item_code"]
-	else:
+		key = _safe_cache_key(args, kwargs)
+		if key is None:
+			ctx.misses += 1
+			return original(*args, **kwargs)
+		if key in ctx.pos_profiles:
+			ctx.hits += 1
+			return copy.deepcopy(ctx.pos_profiles[key])
+
 		ctx.misses += 1
-		return original(*args, **kwargs)
+		result = original(*args, **kwargs)
+		ctx.pos_profiles[key] = copy.deepcopy(result)
+		return result
 
-	if not item_code:
-		return original(*args, **kwargs)
-
-	code = str(item_code).strip()
-	if code in ctx.prefetched_items:
-		ctx.hits += 1
-		return code in ctx.product_bundles
-	if code in ctx.extra_product_bundles:
-		ctx.hits += 1
-		return ctx.extra_product_bundles[code]
-
-	ctx.misses += 1
-	result = bool(original(*args, **kwargs))
-	ctx.extra_product_bundles[code] = result
-	return result
-
-
-def _dispatch_get_sre_reserved_qty(*args, **kwargs):
-	original = _READ_CACHE_ORIGINALS.get("get_sre_reserved_qty_for_item_and_warehouse")
-	ctx = getattr(_READ_CACHE_STATE, "context", None)
-	if ctx is None or not ctx.active:
-		return original(*args, **kwargs)
-
-	if len(args) == 2 and not kwargs:
-		item_code, warehouse = args[0], args[1]
-	elif len(args) == 1 and set(kwargs) == {"warehouse"}:
-		item_code, warehouse = args[0], kwargs["warehouse"]
-	elif not args and set(kwargs) == {"item_code", "warehouse"}:
-		item_code, warehouse = kwargs["item_code"], kwargs["warehouse"]
-	else:
-		ctx.misses += 1
-		return original(*args, **kwargs)
-
-	if not item_code or not warehouse:
-		return original(*args, **kwargs)
-
-	pair = (str(item_code).strip(), str(warehouse).strip())
-	if pair in ctx.prefetched_sre_pairs:
-		ctx.hits += 1
-		return float(ctx.sre_reserved_qty.get(pair, 0.0))
-
-	ctx.misses += 1
-	return original(*args, **kwargs)
-
-
-def _dispatch_get_pos_profile(*args, **kwargs):
-	original = _READ_CACHE_ORIGINALS.get("get_pos_profile")
-	ctx = getattr(_READ_CACHE_STATE, "context", None)
-	if ctx is None or not ctx.active:
-		return original(*args, **kwargs)
-
-	key = _safe_cache_key(args, kwargs)
-	if key is None:
-		ctx.misses += 1
-		return original(*args, **kwargs)
-	if key in ctx.pos_profiles:
-		ctx.hits += 1
-		return copy.deepcopy(ctx.pos_profiles[key])
-
-	ctx.misses += 1
-	result = original(*args, **kwargs)
-	ctx.pos_profiles[key] = copy.deepcopy(result)
-	return result
+	_dispatch_get_pos_profile._khitmee_dispatcher = True
+	_dispatch_get_pos_profile._khitmee_original = original
+	return _dispatch_get_pos_profile
 
 
 _READ_CACHE_TARGETS = (
@@ -636,61 +639,50 @@ _READ_CACHE_TARGETS = (
 		"get_accounting_dimensions",
 		_ACCOUNTING_DIM_MODULE,
 		_ACCOUNTING_DIM_CALLERS,
-		_dispatch_get_accounting_dimensions,
+		_make_accounting_dims_dispatcher,
 	),
 	(
 		"is_product_bundle",
 		_PRODUCT_BUNDLE_MODULE,
 		_PRODUCT_BUNDLE_CALLERS,
-		_dispatch_is_product_bundle,
+		_make_product_bundle_dispatcher,
 	),
 	(
 		"get_sre_reserved_qty_for_item_and_warehouse",
 		_SRE_MODULE,
 		_SRE_CALLERS,
-		_dispatch_get_sre_reserved_qty,
+		_make_sre_reserved_qty_dispatcher,
 	),
 	(
 		"get_pos_profile",
 		_POS_PROFILE_MODULE,
 		_POS_PROFILE_CALLERS,
-		_dispatch_get_pos_profile,
+		_make_pos_profile_dispatcher,
 	),
 )
 
 
-def _acquire_read_cache_wrappers():
-	global _READ_CACHE_REFCOUNT
+def _ensure_read_cache_dispatchers_installed():
 	with _READ_CACHE_LOCK:
-		if _READ_CACHE_REFCOUNT == 0:
-			_READ_CACHE_ORIGINALS.clear()
-			_READ_CACHE_PATCHES.clear()
-			for attr_name, canonical_mod_name, caller_mod_names, dispatcher in _READ_CACHE_TARGETS:
-				canonical_mod = _try_import(canonical_mod_name)
-				if canonical_mod is None or not hasattr(canonical_mod, attr_name):
-					continue
-				original = getattr(canonical_mod, attr_name)
-				if original is dispatcher:
-					continue
-				_READ_CACHE_ORIGINALS[attr_name] = original
-				for mod_name in caller_mod_names:
-					mod = canonical_mod if mod_name == canonical_mod_name else sys.modules.get(mod_name)
-					if mod is not None and getattr(mod, attr_name, None) is original:
-						setattr(mod, attr_name, dispatcher)
-						_READ_CACHE_PATCHES.append((mod, attr_name, original, dispatcher))
-		_READ_CACHE_REFCOUNT += 1
+		for attr_name, canonical_mod_name, caller_mod_names, factory in _READ_CACHE_TARGETS:
+			canonical_mod = _try_import(canonical_mod_name)
+			if canonical_mod is None or not hasattr(canonical_mod, attr_name):
+				continue
+			current = getattr(canonical_mod, attr_name)
+			if getattr(current, "_khitmee_dispatcher", False):
+				dispatcher = current
+				original = getattr(current, "_khitmee_original", None)
+			else:
+				original = current
+				dispatcher = factory(original)
+				setattr(canonical_mod, attr_name, dispatcher)
 
-
-def _release_read_cache_wrappers():
-	global _READ_CACHE_REFCOUNT
-	with _READ_CACHE_LOCK:
-		_READ_CACHE_REFCOUNT = max(_READ_CACHE_REFCOUNT - 1, 0)
-		if _READ_CACHE_REFCOUNT == 0:
-			for mod, attr_name, original, dispatcher in reversed(_READ_CACHE_PATCHES):
-				if getattr(mod, attr_name, None) is dispatcher:
-					setattr(mod, attr_name, original)
-			_READ_CACHE_PATCHES.clear()
-			_READ_CACHE_ORIGINALS.clear()
+			for mod_name in caller_mod_names:
+				if mod_name == canonical_mod_name:
+					continue
+				mod = sys.modules.get(mod_name)
+				if mod is not None and getattr(mod, attr_name, None) is original:
+					setattr(mod, attr_name, dispatcher)
 
 
 @contextmanager
@@ -718,11 +710,10 @@ def voucher_transaction_read_cache(doc=None, *, item_codes=None, locked_pairs=No
 		sre_reserved_qty=sre_reserved_qty,
 	)
 
+	_ensure_read_cache_dispatchers_installed()
 	prev_ctx = getattr(_READ_CACHE_STATE, "context", None)
-	_acquire_read_cache_wrappers()
 	_READ_CACHE_STATE.context = ctx
 	try:
 		yield ctx
 	finally:
 		_READ_CACHE_STATE.context = prev_ctx
-		_release_read_cache_wrappers()

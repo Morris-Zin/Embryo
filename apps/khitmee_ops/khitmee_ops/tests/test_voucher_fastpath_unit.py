@@ -183,7 +183,6 @@ class TestVoucherFastpath(unittest.TestCase):
 
 	def tearDown(self):
 		STOCK_LEDGER_MOD.update_qty_in_future_sle = self.upstream
-		self.assertEqual(voucher_fastpath._ACTIVE_REFCOUNT, 0)
 		self.assertIsNone(getattr(voucher_fastpath._THREAD_STATE, "context", None))
 
 	def test_find_pairs_uses_union_all_force_index_and_normalized_posting_datetime(self):
@@ -257,7 +256,20 @@ class TestVoucherFastpath(unittest.TestCase):
 		self.assertEqual(ctx.skipped_count, 1)
 		self.assertEqual(ctx.fallback_count, 1)
 		self.assertEqual(self.upstream_calls, [("ITEM-DIRTY", "WH-1", False)])
-		self.assertIs(STOCK_LEDGER_MOD.update_qty_in_future_sle, self.upstream)
+		self.assertTrue(getattr(STOCK_LEDGER_MOD.update_qty_in_future_sle, "_khitmee_dispatcher", False))
+		self.assertIs(STOCK_LEDGER_MOD.update_qty_in_future_sle._khitmee_original, self.upstream)
+		# Calling after exit delegates directly to upstream without skipping
+		STOCK_LEDGER_MOD.update_qty_in_future_sle(
+			{
+				"voucher_type": "Sales Invoice",
+				"voucher_no": "SI-0001",
+				"item_code": "ITEM-CLEAN",
+				"warehouse": "WH-1",
+				"posting_date": "2026-11-28",
+				"posting_time": "09:05:00",
+			}
+		)
+		self.assertEqual(len(self.upstream_calls), 2)
 
 	def test_ineligible_vouchers_never_activate_fastpath(self):
 		cases = [
@@ -287,9 +299,10 @@ class TestVoucherFastpath(unittest.TestCase):
 					self.assertTrue(ctx.active)
 					raise RuntimeError("simulated rollback")
 
-		self.assertEqual(voucher_fastpath._ACTIVE_REFCOUNT, 0)
 		self.assertIsNone(getattr(voucher_fastpath._THREAD_STATE, "context", None))
-		self.assertIs(STOCK_LEDGER_MOD.update_qty_in_future_sle, self.upstream)
+		# After rollback/exception, dispatcher delegates straight to upstream
+		STOCK_LEDGER_MOD.update_qty_in_future_sle({"item_code": "ITEM-1", "warehouse": "WH-1"})
+		self.assertEqual(self.upstream_calls, [("ITEM-1", "WH-1", False)])
 
 	def test_concurrent_threads_are_isolated_and_never_stomp_context(self):
 		doc_a = _sale_doc([{"item_code": "ITEM-A", "warehouse": "WH-1"}], name="SI-A")
@@ -368,8 +381,12 @@ class TestVoucherFastpath(unittest.TestCase):
 		self.assertEqual(ctx_results["a"], (1, 0))
 		self.assertEqual(ctx_results["b"], (1, 0))
 		self.assertEqual(self.upstream_calls, [("ITEM-A", "WH-1", False)])
-		self.assertEqual(voucher_fastpath._ACTIVE_REFCOUNT, 0)
-		self.assertIs(STOCK_LEDGER_MOD.update_qty_in_future_sle, self.upstream)
+		self.assertIsNone(getattr(voucher_fastpath._THREAD_STATE, "context", None))
+		# Never double-wraps on re-entry
+		first_dispatcher = STOCK_LEDGER_MOD.update_qty_in_future_sle
+		with patch.object(voucher_fastpath.frappe.db, "sql", return_value=[]):
+			with voucher_fastpath.proven_empty_future_sle_fastpath(doc_a, [("ITEM-A", "WH-1")]):
+				self.assertIs(STOCK_LEDGER_MOD.update_qty_in_future_sle, first_dispatcher)
 
 
 class TestVoucherTransactionReadCache(unittest.TestCase):
@@ -410,7 +427,6 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 		PACKED_ITEM_MOD.is_product_bundle = self.orig_bundle
 		SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse = self.orig_sre
 		GET_ITEM_DETAILS_MOD.get_pos_profile = self.orig_pos
-		self.assertEqual(voucher_fastpath._READ_CACHE_REFCOUNT, 0)
 		self.assertIsNone(getattr(voucher_fastpath._READ_CACHE_STATE, "context", None))
 
 	def test_read_cache_deduplicates_queries_and_returns_defensive_copies(self):
@@ -459,11 +475,25 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 				self.assertEqual(self.pos_calls, 1)
 				self.assertGreater(ctx.hits, 0)
 
-		# Restored after exit
-		self.assertIs(ACC_DIM_MOD.get_accounting_dimensions, self.orig_dims)
-		self.assertIs(PACKED_ITEM_MOD.is_product_bundle, self.orig_bundle)
-		self.assertIs(SRE_MOD.get_sre_reserved_qty_for_item_and_warehouse, self.orig_sre)
-		self.assertIs(GET_ITEM_DETAILS_MOD.get_pos_profile, self.orig_pos)
+		# After exit, dispatchers delegate directly to original callables (never NoneType crash)
+		before_dims = self.dim_calls
+		self.assertEqual(ACC_DIM_MOD.get_accounting_dimensions(), ["shop"])
+		self.assertEqual(self.dim_calls, before_dims + 1)
+
+	def test_lazy_import_during_context_never_poisons_worker_after_exit(self):
+		# Simulate a caller module lazily binding get_accounting_dimensions INSIDE the context
+		# and then invoking that bound reference AFTER the context exits (F02 regression).
+		with patch.object(voucher_fastpath.frappe.db, "sql", return_value=[]):
+			with voucher_fastpath.voucher_transaction_read_cache(item_codes=["ITEM-1"]):
+				lazily_bound_fn = ACC_DIM_MOD.get_accounting_dimensions
+				self.assertEqual(lazily_bound_fn(), ["shop"])
+				self.assertEqual(lazily_bound_fn(), ["shop"])
+				self.assertEqual(self.dim_calls, 1)
+
+		# After context exits, calling the lazily bound reference must call original cleanly!
+		self.assertEqual(lazily_bound_fn(), ["shop"])
+		self.assertEqual(lazily_bound_fn(), ["shop"])
+		self.assertEqual(self.dim_calls, 3)
 
 	def test_read_cache_thread_isolation_and_exception_cleanup(self):
 		barrier = threading.Barrier(2)
@@ -491,6 +521,8 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 				ACC_DIM_MOD.get_accounting_dimensions()
 				unwrapped_dims_count.append(self.dim_calls - before)
 				barrier.wait(timeout=3)
+				# Also call concurrently while cached_worker exits/raises
+				self.assertEqual(ACC_DIM_MOD.get_accounting_dimensions(), ["shop"])
 			except Exception as exc:
 				errors.append(exc)
 
@@ -503,10 +535,8 @@ class TestVoucherTransactionReadCache(unittest.TestCase):
 			t2.join(timeout=5)
 
 		self.assertEqual(errors, [])
-		# Unwrapped thread MUST bypass cached_worker's context and hit upstream
 		self.assertEqual(unwrapped_dims_count, [1])
-		self.assertEqual(voucher_fastpath._READ_CACHE_REFCOUNT, 0)
-		self.assertIs(ACC_DIM_MOD.get_accounting_dimensions, self.orig_dims)
+		self.assertIsNone(getattr(voucher_fastpath._READ_CACHE_STATE, "context", None))
 
 
 if __name__ == "__main__":

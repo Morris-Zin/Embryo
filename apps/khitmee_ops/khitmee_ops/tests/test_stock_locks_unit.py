@@ -94,6 +94,12 @@ from khitmee_ops.api import stock_locks
 
 
 class TestStockLocks(unittest.TestCase):
+	def setUp(self):
+		stock_locks.clear_transaction_stock_locks()
+
+	def tearDown(self):
+		stock_locks.clear_transaction_stock_locks()
+
 	def test_lock_stock_coordinates_locks_sorted_items_before_bins_in_batched_queries(self):
 		queries = []
 
@@ -202,7 +208,23 @@ class TestStockLocks(unittest.TestCase):
 		self.assertEqual(lock_fn.call_args_list[1].args, ([("ITEM-1", "WH-MAIN")],))
 		self.assertEqual(lock_fn.call_args_list[1].kwargs, {"item_codes": ["ITEM-1"]})
 
-	def test_hooks_wire_purchase_before_submit_without_overrides(self):
+	def test_hooks_wire_all_six_stock_doctypes_before_submit_without_overrides(self):
+		self.assertEqual(
+			hooks.doc_events["Sales Invoice"]["before_submit"],
+			"khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
+		)
+		self.assertEqual(
+			hooks.doc_events["Stock Entry"]["before_submit"],
+			"khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
+		)
+		self.assertEqual(
+			hooks.doc_events["Delivery Note"]["before_submit"],
+			"khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
+		)
+		self.assertEqual(
+			hooks.doc_events["Stock Reconciliation"]["before_submit"],
+			"khitmee_ops.api.stock_locks.lock_stock_voucher_before_submit",
+		)
 		self.assertEqual(
 			hooks.doc_events["Purchase Receipt"]["before_submit"],
 			"khitmee_ops.api.stock_locks.lock_purchase_receipt_stock",
@@ -213,6 +235,50 @@ class TestStockLocks(unittest.TestCase):
 		)
 		self.assertFalse(hasattr(hooks, "override_whitelisted_methods"))
 		self.assertFalse(hasattr(hooks, "override_doctype_class"))
+
+	def test_reentrant_before_submit_is_zero_sql_noop_and_clears_on_commit(self):
+		commit_callbacks = []
+		rollback_callbacks = []
+		sql_calls = []
+
+		def fake_sql(sql, params=None, **kwargs):
+			sql_calls.append(sql)
+			return []
+
+		fake_db = SimpleNamespace(
+			sql=fake_sql,
+			after_commit=SimpleNamespace(add=commit_callbacks.append),
+			after_rollback=SimpleNamespace(add=rollback_callbacks.append),
+		)
+		doc = {
+			"doctype": "Sales Invoice",
+			"update_stock": 1,
+			"set_warehouse": "WH-1",
+			"items": [{"item_code": "ITEM-1", "warehouse": "WH-1"}],
+		}
+		with patch.object(stock_locks.frappe, "db", fake_db):
+			# First lock (e.g. from _create_sales_invoice) executes 2 SQL queries (tabItem + tabBin)
+			stock_locks.lock_stock_coordinates([("ITEM-1", "WH-1")])
+			self.assertEqual(len(sql_calls), 2)
+			# Re-entrant before_submit hook on subset/equal coords executes 0 SQL!
+			stock_locks.lock_stock_voucher_before_submit(doc)
+			self.assertEqual(len(sql_calls), 2)
+			# Commit callback clears held locks so next transaction locks again
+			self.assertEqual(len(commit_callbacks), 1)
+			commit_callbacks[0]()
+			stock_locks.lock_stock_voucher_before_submit(doc)
+			self.assertEqual(len(sql_calls), 4)
+
+	def test_sales_invoice_without_update_stock_skips_before_submit_lock(self):
+		doc = {
+			"doctype": "Sales Invoice",
+			"update_stock": 0,
+			"set_warehouse": "WH-1",
+			"items": [{"item_code": "ITEM-1", "warehouse": "WH-1"}],
+		}
+		with patch.object(stock_locks, "lock_stock_coordinates", side_effect=AssertionError("must not lock")):
+			result = stock_locks.lock_stock_voucher_before_submit(doc)
+		self.assertEqual(result, {"items": [], "bins": [], "pairs": []})
 
 
 if __name__ == "__main__":
