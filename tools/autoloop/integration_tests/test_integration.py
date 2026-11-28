@@ -4,6 +4,7 @@ import base64
 import hashlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -203,8 +204,8 @@ class AddedTest(unittest.TestCase):
         return ("verify-pr-integrity", "--event-path", str(event), "--offline", "--mode", mode,
                 *(item for key, value in kwargs.items() for item in ("--" + key.replace("_", "-"), value)))
 
-    def test_legacy_revoked_auto_merge_approval_preserves_rejection(self):
-        repo, base = self.fixture("revoked", disabled=True, auto=True)
+    def ready_pr_fixture(self, name, *, auto=False):
+        repo, base = self.fixture(name, disabled=True, auto=auto)
         passed = self.command(repo, *self.check_args("--all-shards"), oracle=True)
         self.assertEqual(passed.returncode, 0, passed.stderr)
         submitted = self.command(repo, "submit-for-review", "--run-id", RUN, oracle=True)
@@ -212,9 +213,60 @@ class AddedTest(unittest.TestCase):
         _git(repo, "add", str(self.checkpoint(repo).relative_to(repo)))
         _git(repo, "commit", "-m", "record ready checkpoint")
         attestation = base64.b64encode(canonical_json_bytes({"a": compute_code_tree_sha256(repo, "HEAD", run_id=RUN)}))
-        args = self.ci_args(repo, base, mode="finalize", trusted_shard_results_b64=attestation.decode())
+        return repo, base, attestation.decode()
+
+    def test_legacy_revoked_auto_merge_approval_preserves_rejection(self):
+        repo, base, attestation = self.ready_pr_fixture("revoked", auto=True)
+        args = self.ci_args(repo, base, mode="finalize", trusted_shard_results_b64=attestation)
         result = self.compare_oracle(repo, args, expect=EXIT_POLICY_OR_INTEGRITY)
         self.assertIn("requires owner-applied 'allow-auto-merge'", result.stderr)
+
+    def test_ci_reports_shadow_divergence_from_trusted_finalize_without_failing(self):
+        for auto in (False, True):
+            with self.subTest(auto_merge=auto):
+                repo, base, attestation = self.ready_pr_fixture(f"ci-divergence-{auto}", auto=auto)
+                args = self.ci_args(
+                    repo, base, mode="finalize", trusted_shard_results_b64=attestation,
+                    candidate_checks_result="success",
+                )
+                expected = self.command(repo, *args, oracle=True)
+                step_output = repo.parent / "github-output.txt"
+                with patch.dict(os.environ, {"AUTOLOOP_LEGACY_INTEGRATED_OUTPUT": str(step_output)}):
+                    status, stdout, stderr = self.in_process(repo, *args)
+                self.assertEqual((status, stdout, stderr), (expected.returncode, expected.stdout, expected.stderr))
+                integration = step_output.read_text(encoding="utf-8").strip()
+                self.assertEqual(integration, "legacy_integrated_result=success")
+                finalize = "success" if status == 0 else "failure"
+
+                code, stdout, stderr = self.in_process(
+                    repo, *self.ci_args(repo, base), "--shadow-verification",
+                    "--legacy-integrated-result", integration.split("=", 1)[1],
+                    "--legacy-finalize-result", finalize,
+                )
+                self.assertEqual(code, 0, stderr)
+                result = json.loads(stdout)
+                self.assertFalse(result["shadow_integrated"]["ok"])
+                self.assertFalse(result["shadow_merge_eligibility"]["ok"])
+                self.assertIn("SHADOW-DIVERGENCE integrated: legacy=True verification=False", stderr)
+                merge_diverged = "SHADOW-DIVERGENCE merge_eligibility: legacy=True verification=False" in stderr
+                self.assertEqual(merge_diverged, not auto)
+
+        workflow = (REPO_ROOT / ".github/workflows/autoloop-gate.yml").read_text(encoding="utf-8")
+        _, shadow_step = workflow.split("- name: Report Phase 2 shadow verification", 1)
+        self.assertIn("continue-on-error: true", shadow_step)
+        self.assertIn("steps.trusted_finalize.outputs.legacy_integrated_result", shadow_step)
+        self.assertIn("steps.trusted_finalize.outcome", shadow_step)
+
+    def test_ci_integration_reporting_failure_cannot_change_finalize(self):
+        repo, base, attestation = self.ready_pr_fixture("ci-output-failure")
+        args = self.ci_args(
+            repo, base, mode="finalize", trusted_shard_results_b64=attestation, candidate_checks_result="success",
+        )
+        with patch.dict(os.environ, {"AUTOLOOP_LEGACY_INTEGRATED_OUTPUT": str(repo.parent)}):
+            code, output, error = self.in_process(repo, *args)
+        self.assertEqual(code, 0, error)
+        self.assertEqual(json.loads(output)["verdict"], "enrolled-pass")
+        self.assertIn("shadow_error: CI integrated result output", error)
 
     def signed_fixture(self, repo, base):
         run = load_run(repo, RUN)

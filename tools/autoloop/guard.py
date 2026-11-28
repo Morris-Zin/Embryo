@@ -1993,6 +1993,8 @@ def verify_pr_integrity(
     shadow_verification: bool = False,
     shadow_envelope: dict[str, Any] | None = None,
     shadow_evidence_path: Path | None = None,
+    shadow_legacy_outcomes: dict[str, bool] | None = None,
+    report_legacy_integration: Callable[[bool], None] | None = None,
 ) -> dict[str, Any]:
     """V3 trusted PR integrity verifier (read-only over Git blobs, zero candidate code execution)."""
     if mode not in ("preflight", "finalize"):
@@ -2375,6 +2377,7 @@ def verify_pr_integrity(
                 return checked_shadow_decision(verify_phase2(
                     repo, run_data, contract, obligation=target, head=resolved_head, base=resolved_base,
                     envelope=envelope, auto_merge_approved=auto_merge_approved,
+                    legacy_ok=(shadow_legacy_outcomes or {}).get(target),
                 ))
 
             for target in ("integrated", "merge_eligibility"):
@@ -2382,28 +2385,35 @@ def verify_pr_integrity(
         return result
 
     # --- Finalize Mode: Independent Shard Results, Review & Safeguard Artifacts ---
-    if candidate_checks_result is not None and candidate_checks_result != "success":
-        raise GuardError(
-            f"enrolled PR requires passing autoloop-candidate-checks (got {candidate_checks_result!r})"
-        )
-    if trusted_shard_results is None:
-        raise GuardError(
-            "enrolled PR finalize requires per-shard trusted_shard_results attestation matching FrozenContractV1"
-        )
-    shard_exec_verified = all(
-        trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
-    )
-    if not shard_exec_verified:
-        raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
-
-    for sid, rshard in run_shards.items():
-        if rshard.get("status") != "passed":
-            raise GuardError(f"shard {sid!r} is not passed (status={rshard.get('status')!r})")
-        if rshard.get("passed_code_tree_sha256") != actual_code_hash:
+    try:
+        if candidate_checks_result is not None and candidate_checks_result != "success":
             raise GuardError(
-                f"shard {sid!r} evidence stale: passed_code_tree_sha256={rshard.get('passed_code_tree_sha256')!r} "
-                f"!= actual {actual_code_hash!r}"
+                f"enrolled PR requires passing autoloop-candidate-checks (got {candidate_checks_result!r})"
             )
+        if trusted_shard_results is None:
+            raise GuardError(
+                "enrolled PR finalize requires per-shard trusted_shard_results attestation matching FrozenContractV1"
+            )
+        shard_exec_verified = all(
+            trusted_shard_results.get(sid) == actual_code_hash for sid in contract_shards
+        )
+        if not shard_exec_verified:
+            raise GuardError("trusted_shard_results missing or stale for one or more FrozenContractV1 shards")
+
+        for sid, rshard in run_shards.items():
+            if rshard.get("status") != "passed":
+                raise GuardError(f"shard {sid!r} is not passed (status={rshard.get('status')!r})")
+            if rshard.get("passed_code_tree_sha256") != actual_code_hash:
+                raise GuardError(
+                    f"shard {sid!r} evidence stale: passed_code_tree_sha256={rshard.get('passed_code_tree_sha256')!r} "
+                    f"!= actual {actual_code_hash!r}"
+                )
+    except GuardError:
+        if report_legacy_integration is not None:
+            run_shadow("CI integrated result output", lambda: report_legacy_integration(False))
+        raise
+    if report_legacy_integration is not None:
+        run_shadow("CI integrated result output", lambda: report_legacy_integration(True))
 
     # Verify terminal state & findings safeguarded
     if run_data.get("status") != "ready_to_merge":

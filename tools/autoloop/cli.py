@@ -831,6 +831,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vpi.add_argument("--offline", action="store_true")
     p_vpi.add_argument("--shadow-verification", action="store_true", help="Print the advisory Phase 2 decision")
     p_vpi.add_argument("--verification-evidence", type=Path, help="Offline signed coordinator evidence JSON")
+    for gate in ("integrated", "finalize"):
+        p_vpi.add_argument(f"--legacy-{gate}-result", choices=("success", "failure", "skipped", "cancelled"),
+                           help="Trusted CI step result for shadow comparison")
 
     # lease
     p_lease = sub.add_parser("lease", help="Acquire, renew, or release a cross-platform resource lease")
@@ -1200,6 +1203,20 @@ def main(argv: list[str] | None = None) -> int:
             if not args.offline and repo_slug:
                 client = GitHubAPIClient(repo_slug)
 
+            legacy_outcomes = {
+                obligation: outcome == "success"
+                for obligation, outcome in (
+                    ("integrated", args.legacy_integrated_result),
+                    ("merge_eligibility", args.legacy_finalize_result),
+                )
+                if outcome in ("success", "failure")
+            }
+            integrated_output = os.environ.get("AUTOLOOP_LEGACY_INTEGRATED_OUTPUT")
+
+            def report_legacy_integration(ok: bool) -> None:
+                with Path(integrated_output).open("a", encoding="utf-8", newline="\n") as output:
+                    output.write("legacy_integrated_result=success\n" if ok else "legacy_integrated_result=failure\n")
+
             result = verify_pr_integrity(
                 repo,
                 base_sha=base_sha,
@@ -1217,6 +1234,8 @@ def main(argv: list[str] | None = None) -> int:
                 pr_body=str(pr_body or ""),
                 shadow_verification=args.shadow_verification,
                 shadow_evidence_path=args.verification_evidence,
+                shadow_legacy_outcomes=legacy_outcomes,
+                report_legacy_integration=report_legacy_integration if integrated_output else None,
             )
             if args.github_output is not None:
                 shard_checks_list = result.get("shard_checks") or []
