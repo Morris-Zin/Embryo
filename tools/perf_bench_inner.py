@@ -105,8 +105,11 @@ def build_sale_payload(
     rng = random.Random(seed + line_count)
     items: list[dict[str, Any]] = []
     pool_len = len(items_pool)
-    for idx in range(line_count):
-        base = items_pool[(idx + rng.randrange(pool_len)) % pool_len] if pool_len > line_count else items_pool[idx % pool_len]
+    if pool_len >= line_count:
+        chosen = rng.sample(items_pool, line_count)
+    else:
+        chosen = [items_pool[idx % pool_len] for idx in range(line_count)]
+    for base in chosen:
         item_code = str(base.get("item_code") or base.get("name") or "")
         uom = str(base.get("stock_uom") or base.get("uom") or "Nos")
         items.append({"item_code": item_code, "qty": rng.randint(1, 3), "uom": uom})

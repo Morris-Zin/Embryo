@@ -1417,9 +1417,22 @@ def build_oracle_cache_key(
 class ParityOracleCache:
     """Self-contained hash-pinned stock-oracle cache for tools/perf_parity.py."""
 
-    def __init__(self, cache_dir):
+    def __init__(self, cache_dir, manifest_path=None):
         self.cache_dir = Path(cache_dir)
-        self.manifest_path = self.cache_dir / "manifest.json"
+        if manifest_path is not None:
+            resolved_manifest = Path(manifest_path).resolve(strict=False)
+            resolved_cache = self.cache_dir.resolve(strict=False)
+            try:
+                inside = resolved_manifest.is_relative_to(resolved_cache)
+            except AttributeError:
+                inside = str(resolved_manifest).startswith(str(resolved_cache) + os.sep)
+            if inside:
+                raise OracleCacheDriftError(
+                    f"external oracle manifest must be rooted outside oracle cache dir: {manifest_path}"
+                )
+            self.manifest_path = Path(manifest_path)
+        else:
+            self.manifest_path = self.cache_dir / "manifest.json"
 
     @staticmethod
     def _entry_core(entry):
@@ -1564,19 +1577,37 @@ class ParityOracleCache:
         return columns, rows
 
 
+FINGERPRINT_EXTRA_TABLES = (
+    "tabRepost Item Valuation",
+    "tabSales Invoice Item",
+    "tabDelivery Note",
+    "tabDelivery Note Item",
+    "tabPacked Item",
+    "tabProduct Bundle",
+    "tabItem",
+)
+
+
 def capture_db_fingerprint(frappe, site=None):
     counts = persisted_table_counts(frappe)
     si_meta = frappe.db.sql(
         "SELECT COUNT(*), MAX(modified), MAX(posting_date) FROM `tabSales Invoice` WHERE docstatus = 1"
     )[0]
     sle_meta = frappe.db.sql(
-        "SELECT COUNT(*), MAX(modified), MAX(posting_date) FROM `tabStock Ledger Entry` WHERE is_cancelled = 0"
+        "SELECT COUNT(*), MAX(modified), MAX(posting_date), MAX(creation), "
+        "SUM(stock_value_difference), SUM(actual_qty) "
+        "FROM `tabStock Ledger Entry` WHERE is_cancelled = 0"
     )[0]
+    table_watermarks = {}
+    for table in FINGERPRINT_EXTRA_TABLES:
+        row = frappe.db.sql(f"SELECT COUNT(*), MAX(modified) FROM `{table}`")[0]
+        table_watermarks[table] = [str(x) if x is not None else None for x in row]
     return canonical_oracle_sha256({
         "site": site or getattr(getattr(frappe, "local", None), "site", None) or "",
         "counts": counts,
         "sales_invoice_meta": [str(x) if x is not None else None for x in si_meta],
         "sle_meta": [str(x) if x is not None else None for x in sle_meta],
+        "table_watermarks": table_watermarks,
     })
 
 
@@ -1669,8 +1700,11 @@ def run_gp_parity(frappe, args):
     oracle_source_sha256 = None
     oracle_precision = None
     oracle_cache_dir = getattr(args, "oracle_cache_dir", None)
+    oracle_manifest = getattr(args, "oracle_manifest", None)
+    if oracle_manifest and not oracle_cache_dir:
+        raise OracleCacheDriftError("--oracle-manifest requires --oracle-cache-dir")
     if oracle_cache_dir:
-        oracle_cache = ParityOracleCache(oracle_cache_dir)
+        oracle_cache = ParityOracleCache(oracle_cache_dir, manifest_path=oracle_manifest)
         oracle_db_fingerprint = capture_db_fingerprint(frappe, getattr(args, "site", None))
         oracle_source_sha256 = capture_erpnext_gp_source_sha256()
         oracle_precision = capture_precision_settings(frappe)
@@ -2695,7 +2729,79 @@ def _strip_host_only_args(argv):
     return stripped
 
 
-def build_sidecar_command(backend, image, network, memory, inner_argv, name, env=(), oracle_cache_mount=None):
+def _parse_container_uid_gid(user_spec, default_uid=1000, default_gid=1000):
+    text = str(user_spec or "").strip()
+    if not text:
+        return default_uid, default_gid
+    parts = text.split(":", 1)
+    try:
+        uid = int(parts[0])
+        gid = int(parts[1]) if len(parts) > 1 and parts[1] else uid
+        return uid, gid
+    except ValueError:
+        return default_uid, default_gid
+
+
+def prepare_sidecar_oracle_cache_dir(
+    host_cache,
+    target_uid=1000,
+    target_gid=1000,
+    *,
+    is_posix=None,
+    geteuid=None,
+    chown_fn=None,
+    chmod_fn=None,
+    access_fn=None,
+):
+    """Ensure host oracle cache dir (and entries/) is writable by the sidecar container UID."""
+    cache_path = Path(host_cache).resolve()
+    entries_path = cache_path / "entries"
+    cache_path.mkdir(parents=True, exist_ok=True)
+    entries_path.mkdir(parents=True, exist_ok=True)
+    posix = (os.name != "nt") if is_posix is None else bool(is_posix)
+    if not posix:
+        return str(cache_path)
+
+    euid_fn = geteuid if geteuid is not None else getattr(os, "geteuid", lambda: target_uid)
+    chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
+    chmod = chmod_fn if chmod_fn is not None else os.chmod
+    access = access_fn if access_fn is not None else os.access
+
+    targets = [cache_path, entries_path]
+    manifest_file = cache_path / "manifest.json"
+    if manifest_file.is_file():
+        targets.append(manifest_file)
+
+    try:
+        if euid_fn() == 0 and chown is not None:
+            for item in targets:
+                chown(item, target_uid, target_gid)
+        else:
+            for item in targets:
+                chmod(item, 0o666 if item.is_file() else 0o777)
+    except OSError as exc:
+        raise OracleCacheDriftError(
+            f"failed to make oracle cache dir {cache_path} writable by UID {target_uid}: {exc}"
+        )
+
+    if not access(cache_path, os.W_OK) or not access(entries_path, os.W_OK):
+        raise OracleCacheDriftError(
+            f"oracle cache dir {cache_path} is not writable for sidecar UID {target_uid}"
+        )
+    return str(cache_path)
+
+
+def build_sidecar_command(
+    backend,
+    image,
+    network,
+    memory,
+    inner_argv,
+    name,
+    env=(),
+    oracle_cache_mount=None,
+    oracle_manifest_mount=None,
+):
     """Ephemeral oracle runner sharing the backend's image, mounts and network.
 
     The stock ERPNext Gross Profit oracle caches full Stock Ledger history per
@@ -2715,7 +2821,10 @@ def build_sidecar_command(backend, image, network, memory, inner_argv, name, env
     mount_args = []
     if oracle_cache_mount:
         host_dir, container_dir = oracle_cache_mount
-        mount_args = ["-v", f"{host_dir}:{container_dir}"]
+        mount_args += ["-v", f"{host_dir}:{container_dir}"]
+    if oracle_manifest_mount:
+        host_mdir, container_mdir = oracle_manifest_mount
+        mount_args += ["-v", f"{host_mdir}:{container_mdir}"]
     return [
         "docker", "run", "--rm", "-i",
         "--name", name,
@@ -2742,7 +2851,36 @@ def _inspect_backend(backend, template):
     ).strip()
 
 
+def _rewrite_cli_flag(argv, flag_name, new_value):
+    rewritten = []
+    skip_next = False
+    for token in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == flag_name:
+            skip_next = True
+            continue
+        if token.startswith(flag_name + "="):
+            continue
+        rewritten.append(token)
+    rewritten.extend([flag_name, new_value])
+    return rewritten
+
+
 def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
+    parsed_host = build_parser().parse_args(argv)
+    if parsed_host.oracle_manifest and not parsed_host.oracle_cache_dir:
+        print("refusing parity run: --oracle-manifest requires --oracle-cache-dir", file=sys.stderr)
+        return 3
+    if parsed_host.oracle_cache_dir and runner == "exec":
+        print(
+            "refusing parity run: --oracle-cache-dir cannot be combined with --runner exec "
+            "(bind-mounting host oracle cache requires --runner sidecar)",
+            file=sys.stderr,
+        )
+        return 3
+
     backend = f"{PROJECT}-backend-1"
     try:
         project = _inspect_backend(backend, '{{ index .Config.Labels "com.docker.compose.project" }}')
@@ -2767,6 +2905,7 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
                 backend, "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
             ).split()
             env = json.loads(_inspect_backend(backend, "{{json .Config.Env}}") or "[]")
+            container_user = _inspect_backend(backend, "{{.Config.User}}")
         except (OSError, subprocess.CalledProcessError, ValueError):
             print(f"could not inspect {backend} image/network for the oracle sidecar", file=sys.stderr)
             return 3
@@ -2776,26 +2915,48 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
             return 3
         name = f"{PROJECT}-parity-{int(time.time())}"
         oracle_cache_mount = None
-        parsed_host = build_parser().parse_args(argv)
+        oracle_manifest_mount = None
+        target_uid, target_gid = _parse_container_uid_gid(container_user)
         if parsed_host.oracle_cache_dir:
-            host_cache = str(Path(parsed_host.oracle_cache_dir).resolve())
-            Path(host_cache).mkdir(parents=True, exist_ok=True)
+            try:
+                host_cache = prepare_sidecar_oracle_cache_dir(
+                    parsed_host.oracle_cache_dir,
+                    target_uid=target_uid,
+                    target_gid=target_gid,
+                )
+            except OracleCacheDriftError as exc:
+                print(str(exc), file=sys.stderr)
+                return 3
             container_cache = "/tmp/khitmee-oracle-cache"
             oracle_cache_mount = (host_cache, container_cache)
-            rewritten = []
-            skip_next = False
-            for token in inner_argv:
-                if skip_next:
-                    skip_next = False
-                    continue
-                if token == "--oracle-cache-dir":
-                    skip_next = True
-                    continue
-                if token.startswith("--oracle-cache-dir="):
-                    continue
-                rewritten.append(token)
-            rewritten.extend(["--oracle-cache-dir", container_cache])
-            inner_argv = rewritten
+            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-cache-dir", container_cache)
+        if parsed_host.oracle_manifest:
+            manifest_path = Path(parsed_host.oracle_manifest).resolve(strict=False)
+            cache_path = Path(parsed_host.oracle_cache_dir).resolve(strict=False)
+            try:
+                inside = manifest_path.is_relative_to(cache_path)
+            except AttributeError:
+                inside = str(manifest_path).startswith(str(cache_path) + os.sep)
+            if inside:
+                print(
+                    f"refusing parity run: --oracle-manifest must be rooted outside --oracle-cache-dir ({manifest_path})",
+                    file=sys.stderr,
+                )
+                return 3
+            manifest_dir = manifest_path.parent
+            manifest_dir.mkdir(parents=True, exist_ok=True)
+            if os.name != "nt":
+                try:
+                    if getattr(os, "geteuid", lambda: target_uid)() == 0:
+                        os.chown(manifest_dir, target_uid, target_gid)
+                    else:
+                        os.chmod(manifest_dir, 0o777)
+                except OSError as exc:
+                    print(f"failed to prepare oracle manifest dir {manifest_dir}: {exc}", file=sys.stderr)
+                    return 3
+            container_mdir = "/tmp/khitmee-oracle-manifest"
+            oracle_manifest_mount = (str(manifest_dir), container_mdir)
+            inner_argv = _rewrite_cli_flag(inner_argv, "--oracle-manifest", f"{container_mdir}/{manifest_path.name}")
         command = build_sidecar_command(
             backend,
             image,
@@ -2805,6 +2966,7 @@ def host_exec(argv, runner="sidecar", sidecar_memory="1536m"):
             name,
             env=env,
             oracle_cache_mount=oracle_cache_mount,
+            oracle_manifest_mount=oracle_manifest_mount,
         )
     return subprocess.run(command, input=source).returncode
 
@@ -2836,6 +2998,11 @@ def build_parser():
         "--oracle-cache-dir",
         default=None,
         help="optional hash-pinned stock-oracle cache directory (fails closed on DB/source/precision/manifest drift)",
+    )
+    parser.add_argument(
+        "--oracle-manifest",
+        default=None,
+        help="optional external trust-root manifest path rooted outside --oracle-cache-dir",
     )
     parser.add_argument("--inside-backend", action="store_true", help=argparse.SUPPRESS)
     return parser
