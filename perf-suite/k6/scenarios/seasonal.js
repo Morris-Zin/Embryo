@@ -192,12 +192,12 @@ function phaseEvidenceFallback() {
   }
 }
 
-function noteManagerIterationError(label, rejectEvent, err, extra = {}) {
+function noteManagerIterationError(label, rejectEvent, err, extra = {}, phaseEvidence = null) {
   // Fold iterator exceptions into the same endpoint-specific terminal failure
   // evidence used by the evaluator. Otherwise a login/report exception would
   // increment the opaque errors counter without contributing to that endpoint's
   // attempted-request denominator.
-  const phase = phaseEvidenceFallback();
+  const phase = phaseEvidence || phaseEvidenceFallback();
   const endpointClass = {
     manager_summary_reject: 'manager_summary',
     manager_detail_reject: 'manager_detail',
@@ -312,34 +312,38 @@ function currentPhase() {
 }
 
 export function summaryWarehouseReader() {
+  const iterationPhase = currentPhase();
   try {
-    performSummaryReport(ensureState(), plan, currentPhase(), 'Warehouse', exactIteration());
+    performSummaryReport(ensureState(), plan, iterationPhase, 'Warehouse', exactIteration());
   } catch (err) {
-    noteManagerIterationError('warehouse summary reader', 'manager_summary_reject', err, { group_by: 'Warehouse', actor: 'summary_warehouse' });
+    noteManagerIterationError('warehouse summary reader', 'manager_summary_reject', err, { group_by: 'Warehouse', actor: 'summary_warehouse' }, iterationPhase);
   }
 }
 
 export function summaryMonthlyReader() {
+  const iterationPhase = currentPhase();
   try {
-    performSummaryReport(ensureState(), plan, currentPhase(), 'Monthly', exactIteration());
+    performSummaryReport(ensureState(), plan, iterationPhase, 'Monthly', exactIteration());
   } catch (err) {
-    noteManagerIterationError('monthly summary reader', 'manager_summary_reject', err, { group_by: 'Monthly', actor: 'summary_monthly' });
+    noteManagerIterationError('monthly summary reader', 'manager_summary_reject', err, { group_by: 'Monthly', actor: 'summary_monthly' }, iterationPhase);
   }
 }
 
 export function invoiceDetailReader() {
+  const iterationPhase = currentPhase();
   try {
-    performDetailReport(ensureState(), plan, currentPhase(), exactIteration());
+    performDetailReport(ensureState(), plan, iterationPhase, exactIteration());
   } catch (err) {
-    noteManagerIterationError('invoice detail reader', 'manager_detail_reject', err, { actor: 'detail_reader' });
+    noteManagerIterationError('invoice detail reader', 'manager_detail_reject', err, { actor: 'detail_reader' }, iterationPhase);
   }
 }
 
 export function fullYearExportWorker() {
+  const iterationPhase = currentPhase();
   try {
-    performExportCycle(ensureState(), plan, currentPhase());
+    performExportCycle(ensureState(), plan, iterationPhase);
   } catch (err) {
-    noteManagerIterationError('full-year export worker', 'export_reject', err, { actor: 'export_requester' });
+    noteManagerIterationError('full-year export worker', 'export_reject', err, { actor: 'export_requester' }, iterationPhase);
     sleep(5);
   }
 }
