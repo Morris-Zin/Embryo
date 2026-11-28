@@ -9,7 +9,7 @@
   ],
   "allowed_paths": [],
   "base_branch": "main",
-  "base_sha": "78666698e2ec4b9b6835414dcb79f6d46c8557fe",
+  "base_sha": "60f72730a23fbebbc449312592c8959b290abf5f",
   "contract_revision": 2,
   "contract_sha256": "ea3a75ad410c626b9433a85afcb7032bc81061d5040b4a9b6d3ab77520803838",
   "created_at": "2026-11-27T16:43:44Z",
@@ -404,6 +404,18 @@
       "finding_id": "cloud-cache-safeguard-shape",
       "layer": "layer_4_runtime_test",
       "status": "ready_to_merge"
+    },
+    {
+      "at": "2026-11-28T03:19:09Z",
+      "base_sha": "60f72730a23fbebbc449312592c8959b290abf5f",
+      "event": "refresh-base",
+      "status": "locked"
+    },
+    {
+      "at": "2026-11-28T03:19:16Z",
+      "event": "start-shard",
+      "shard": "verification",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -575,17 +587,17 @@
         "python -B -m unittest tools.test_fast_check_guardrails"
       ],
       "goal": "",
-      "has_passed_individually": true,
-      "last_green_sha": "94022e33a6dfa3d7dbba46fa9544dff239952b97",
-      "passed_code_tree_sha256": "a4fdcbec0a918c6273810cc9fa3b25a53188431fe4b837b0a477201d96113096",
+      "has_passed_individually": false,
+      "last_green_sha": "60f72730a23fbebbc449312592c8959b290abf5f",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/home/ubuntu/repos/Embryo"
     }
   },
-  "status": "ready_to_merge",
+  "status": "in_progress",
   "total_attempts": 1,
-  "updated_at": "2026-11-27T17:45:11Z"
+  "updated_at": "2026-11-28T03:19:16Z"
 }
