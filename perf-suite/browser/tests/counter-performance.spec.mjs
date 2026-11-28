@@ -308,6 +308,32 @@ test.describe("cashier counter performance regressions", () => {
     expect(preservedOptions, "arrow-key navigation should update selection state without rebuilding the autocomplete list").toBeGreaterThanOrEqual(2);
   });
 
+  test("scanner-style input undo redo restores selection and stops at native edit boundaries", async ({ page }) => {
+    await openAuthenticatedCounter(page);
+    const input = page.locator("#item-search");
+    await input.focus();
+    await input.pressSequentially("AB", { delay: 30 });
+    await input.selectText();
+    await input.pressSequentially("K", { delay: 30 });
+    await expect(input).toHaveValue("K");
+
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("AB");
+    await page.keyboard.press("Control+Shift+z");
+    await expect(input).toHaveValue("K");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("AB");
+    await page.keyboard.press("Control+y");
+    await expect(input).toHaveValue("K");
+
+    await input.pressSequentially("c", { delay: 30 });
+    await expect(input).toHaveValue("Kc");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("K");
+    await page.keyboard.press("Control+z");
+    await expect(input).toHaveValue("K");
+  });
+
   test("repeated scan-and-clear cycles do not retain invoice row memory", async ({ page }) => {
     await openAuthenticatedCounter(page);
     const cdp = await page.context().newCDPSession(page);
