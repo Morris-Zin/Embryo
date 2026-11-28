@@ -261,7 +261,7 @@ class CommitGuard:
         self.frappe = frappe
         self.original = None
 
-    def __enter__(self) -> "CommitGuard":
+    def __enter__(self) -> CommitGuard:
         self.original = self.frappe.db.commit
 
         def _guarded_commit(*args: Any, **kwargs: Any) -> None:
@@ -285,7 +285,7 @@ class SqlProfiler:
         self.total_ms = 0.0
         self.templates: dict[str, dict[str, Any]] = {}
 
-    def __enter__(self) -> "SqlProfiler":
+    def __enter__(self) -> SqlProfiler:
         self.original = self.frappe.db.sql
 
         def _wrapped_sql(*args: Any, **kwargs: Any) -> Any:
@@ -632,7 +632,8 @@ def run_inside_backend(args: argparse.Namespace) -> int:
                 with sql_prof:
                     gp_profiler.enable()
                     try:
-                        _cols, rows = fast_gp_execute(frappe._dict(dict(flt)))
+                        gp_result = fast_gp_execute(frappe._dict(dict(flt)))
+                        rows = gp_result[1] if isinstance(gp_result, (list, tuple)) and len(gp_result) >= 2 else []
                     finally:
                         gp_profiler.disable()
                 wall_ms = round((time.perf_counter() - t0) * 1000.0, 3)

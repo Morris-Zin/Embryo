@@ -259,7 +259,7 @@ def core_change_violations(names):
 
 
 def _git_safe_dir(root):
-	return Path(root).as_posix()
+	return str(root).replace("\\", "/")
 
 
 def _git_names(root, args):

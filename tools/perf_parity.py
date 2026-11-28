@@ -2771,12 +2771,16 @@ def prepare_sidecar_oracle_cache_dir(
         targets.append(manifest_file)
 
     try:
-        if euid_fn() == 0 and chown is not None:
+        caller_uid = euid_fn()
+        if caller_uid == 0 and chown is not None:
             for item in targets:
                 chown(item, target_uid, target_gid)
-        else:
-            for item in targets:
-                chmod(item, 0o666 if item.is_file() else 0o777)
+                chmod(item, 0o640 if item.is_file() else 0o750)
+        elif caller_uid != target_uid:
+            raise OracleCacheDriftError(
+                f"refusing to chmod world-writable oracle cache dir {cache_path} for sidecar UID {target_uid} "
+                f"(caller UID {caller_uid}); run as UID {target_uid} or root"
+            )
     except OSError as exc:
         raise OracleCacheDriftError(
             f"failed to make oracle cache dir {cache_path} writable by UID {target_uid}: {exc}"
@@ -2849,10 +2853,15 @@ def prepare_sidecar_oracle_manifest_dir(
         chown = chown_fn if chown_fn is not None else getattr(os, "chown", None)
         chmod = chmod_fn if chmod_fn is not None else os.chmod
         try:
-            if euid_fn() == 0 and chown is not None:
+            caller_uid = euid_fn()
+            if caller_uid == 0 and chown is not None:
                 chown(manifest_dir, target_uid, target_gid)
-            else:
-                chmod(manifest_dir, 0o777)
+                chmod(manifest_dir, 0o750)
+            elif caller_uid != target_uid:
+                raise OracleCacheDriftError(
+                    f"refusing to chmod world-writable oracle manifest dir {manifest_dir} for sidecar UID {target_uid} "
+                    f"(caller UID {caller_uid}); run as UID {target_uid} or root"
+                )
         except OSError as exc:
             raise OracleCacheDriftError(
                 f"failed to prepare oracle manifest dir {manifest_dir}: {exc}"

@@ -288,6 +288,38 @@ class TestExactFinancialComparator(unittest.TestCase):
         )
         self.assertTrue(any(m["kind"] == "null_mismatch" and m["field"] == "qty" for m in mismatches), mismatches)
 
+    def test_label_only_currency_columns_preserve_distinct_fields(self):
+        cols = [
+            {"label": "Selling Amount", "fieldtype": "Currency"},
+            {"label": "Buying Amount", "fieldtype": "Currency"},
+        ]
+        mismatches = fv.compare_financial_reports(
+            cols,
+            [[9999.0, 10.0]],
+            cols,
+            [[20.0, 10.0]],
+            currency_precision=3,
+        )
+        self.assertTrue(len(mismatches) > 0, mismatches)
+
+    def test_verify_all_accepts_perf_parity_cache_schema(self):
+        import perf_parity
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pc = perf_parity.ParityOracleCache(tmp)
+            key = {
+                "db_fingerprint": "fp-1",
+                "erpnext_source_sha256": "src-1",
+                "report": "Gross Profit",
+                "filters": {"company": "Khit Me Distribution"},
+                "user": "Administrator",
+                "precision_settings": {"currency_precision": 3, "float_precision": 2},
+            }
+            pc.put(key, [{"fieldname": "gross_profit", "fieldtype": "Currency"}], [{"gross_profit": 12.345}])
+            v = fv.StockOracleCache(tmp).verify_all()
+            self.assertTrue(v["ok"], v)
+            self.assertEqual(v["verified_entries"], 1)
+
 
 class TestOfflineRunner(unittest.TestCase):
     def test_offline_runner_executes_selected_groups_with_timings(self):
