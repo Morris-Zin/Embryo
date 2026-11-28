@@ -1,0 +1,73 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /fixtures/fixture-k6.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 6 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.846Z\",\"event\":\"measured_window_start\"}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.850Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"cashier_submit\",\"duration_ms\":1.749916}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.852Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"search\",\"duration_ms\":0.816606}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.853Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"login/bootstrap\",\"duration_ms\":0.71012}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.854Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"manager_summary\",\"duration_ms\":0.660807}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.855Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"manager_detail\",\"duration_ms\":0.680132}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.856Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"endpoint_class\":\"manager_export\",\"duration_ms\":0.695846}" source=console
+time="2026-11-28T18:01:05Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T18:01:05.857Z\",\"event\":\"measured_window_end\"}" source=console
+
+
+  █ THRESHOLDS 
+
+    http_reqs{endpoint_class:cashier_submit}
+    ✓ 'count>=0' count=1
+
+    http_reqs{endpoint_class:login/bootstrap}
+    ✓ 'count>=0' count=1
+
+    http_reqs{endpoint_class:manager_detail}
+    ✓ 'count>=0' count=1
+
+    http_reqs{endpoint_class:manager_export}
+    ✓ 'count>=0' count=1
+
+    http_reqs{endpoint_class:manager_summary}
+    ✓ 'count>=0' count=1
+
+    http_reqs{endpoint_class:search}
+    ✓ 'count>=0' count=1
+
+
+  █ TOTAL RESULTS 
+
+    HTTP
+    http_req_duration......................: avg=885.57µs min=660.8µs med=702.98µs max=1.74ms p(90)=1.28ms p(95)=1.51ms
+      { expected_response:true }...........: avg=885.57µs min=660.8µs med=702.98µs max=1.74ms p(90)=1.28ms p(95)=1.51ms
+    http_req_failed........................: 0.00%  0 out of 6
+    http_reqs..............................: 6      524.375737/s
+      { endpoint_class:cashier_submit }....: 1      87.395956/s
+      { endpoint_class:login/bootstrap }...: 1      87.395956/s
+      { endpoint_class:manager_detail }....: 1      87.395956/s
+      { endpoint_class:manager_export }....: 1      87.395956/s
+      { endpoint_class:manager_summary }...: 1      87.395956/s
+      { endpoint_class:search }............: 1      87.395956/s
+
+    EXECUTION
+    iteration_duration.....................: avg=1.7ms    min=1.03ms  med=1.14ms   max=4.15ms p(90)=2.92ms p(95)=3.54ms
+    iterations.............................: 6      524.375737/s
+
+    NETWORK
+    data_received..........................: 4.1 kB 355 kB/s
+    data_sent..............................: 870 B  76 kB/s
+
+
+
+
+running (00m00.0s), 0/1 VUs, 6 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m00.0s/10m0s  6/6 shared iters

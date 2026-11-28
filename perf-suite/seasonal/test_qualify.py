@@ -4,6 +4,7 @@ import unittest
 import subprocess
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent
 
@@ -367,6 +368,114 @@ class QualifyEntryPointTests(unittest.TestCase):
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
+    def test_attribution_coverage_scopes_rows_to_run_and_measured_window(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        start = module.parse_iso_time("2026-01-01T10:00:00Z")
+        end = module.parse_iso_time("2026-01-01T10:10:00Z")
+
+        def row(request_id, time):
+            return {"request_id": request_id, "endpoint_class": "search", "time": time, "join_status": "joined"}
+        nginx = [
+            row("run-a-vu1-1", "2026-01-01T10:00:20Z"),
+            row("run-a-vu1-2", "2026-01-01T10:09:40Z"),
+            row("run-a-copy-vu1-1", "2026-01-01T10:05:00Z"),
+            row("other-run-vu1-1", "2026-01-01T10:05:00Z"),
+            row("run-a-vu1-3", "2026-01-01T11:00:00Z"),
+        ]
+        scoped, _, out_of_run = module.scope_rows_to_run(nginx, {}, "run-a")
+        self.assertEqual(out_of_run, 2)
+        windowed, out_of_window = module.filter_rows_to_window(scoped, start, end)
+        self.assertEqual(out_of_window, 1)
+        self.assertEqual([row["request_id"] for row in windowed], ["run-a-vu1-1", "run-a-vu1-2"])
+        coverage = module.endpoint_coverage(windowed, {"search": 2})
+        self.assertEqual(coverage["problems"], [])
+        runner = (ROOT.parent / "k6" / "run_k6.sh").read_text(encoding="utf-8")
+        self.assertIn('--run-id "$RUN_ID"', runner)
+
+    def test_real_fixture_end_to_end_attribution_collector_writes_csv_and_summary(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixtures = ROOT / "fixtures" / "real"
+        lock_rows = chr(10).join([
+            "Innodb_row_lock_current_waits" + chr(9) + "0",
+            "Innodb_row_lock_time" + chr(9) + "0",
+            "Innodb_row_lock_time_avg" + chr(9) + "0",
+            "Innodb_row_lock_time_max" + chr(9) + "0",
+            "Innodb_row_lock_waits" + chr(9) + "0",
+            "",
+        ])
+
+        def snapshot(_docker_dir):
+            return {
+                "redis_cache_commandstats": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_queue_commandstats": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_cache_latency": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "redis_queue_latency": {"ok": True, "rc": 0, "stdout": "", "stderr": ""},
+                "db_innodb_row_locks": {"ok": True, "rc": 0, "stdout": lock_rows, "stderr": ""},
+            }
+
+        def fake_run(cmd, timeout=20):
+            text = " ".join(str(part) for part in cmd)
+            if "seasonal-attribution.log" in text:
+                return {"ok": True, "rc": 0, "stdout": (fixtures / "nginx-attribution.log").read_text(encoding="utf-8"), "stderr": ""}
+            if "logs" in text:
+                return {"ok": True, "rc": 0, "stdout": (fixtures / "gunicorn.log").read_text(encoding="utf-8"), "stderr": ""}
+            return {"ok": True, "rc": 0, "stdout": "", "stderr": ""}
+
+        old_snapshot, old_run = module.snapshot, module.run
+        module.snapshot, module.run = snapshot, fake_run
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                artifact = Path(td)
+                (artifact / "attribution-start.json").write_text(json.dumps(snapshot("")))
+                args = SimpleNamespace(
+                    artifact_dir=str(artifact), docker_dir="", k6_summary=str(fixtures / "k6-summary.json"),
+                    k6_log=str(fixtures / "k6-console.log"), run_id="fixture-run",
+                )
+                result = module.cmd_finish(args)
+                csv_text = (artifact / "request-attribution.csv").read_text(encoding="utf-8")
+                summary = json.loads((artifact / "attribution-summary.json").read_text(encoding="utf-8"))
+        finally:
+            module.snapshot, module.run = old_snapshot, old_run
+        self.assertEqual(result, 0)
+        self.assertIn("time,request_id,endpoint_class", csv_text.splitlines()[0])
+        self.assertEqual(csv_text.count("fixture-run-vu1-"), 6)
+        self.assertEqual(summary["k6_endpoint_request_counts"].get("search"), 1)
+        self.assertEqual(summary["endpoint_coverage"]["search"]["nginx_rows"], 1)
+        self.assertTrue(summary["endpoint_coverage"]["search"]["coverage_passed"])
+        self.assertTrue(summary["window_coverage"]["passed"], summary["window_coverage"]["problems"])
+        self.assertEqual(summary["collection_problems"], [])
+        self.assertTrue(summary["collection_passed"])
+
+    def test_real_k6_summary_direct_counter_shape_is_attribution_denominator(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixture_summary = json.loads((ROOT / "fixtures" / "real" / "k6-summary.json").read_text(encoding="utf-8"))
+        counts = module.k6_endpoint_counts(fixture_summary)
+        self.assertEqual(counts.get("search"), 1)
+        zero = module.endpoint_coverage([], {"search": 0}, required_classes=["search"])
+        self.assertIn("missing or zero k6 request denominator", " ".join(zero["problems"]))
+        missing = module.endpoint_coverage([], {}, required_classes=["search"])
+        self.assertIn("missing or zero k6 request denominator", " ".join(missing["problems"]))
+        legacy_shape = {"metrics": {"http_reqs{endpoint_class:search}": {"values": {"count": 7}}}}
+        self.assertEqual(module.k6_endpoint_counts(legacy_shape), {"search": 7})
+
+    def test_real_k6_console_fixture_window_markers_are_parsed(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixture = ROOT / "fixtures" / "real" / "k6-console.log"
+        start, end = module.measured_window_from_log(fixture)
+        self.assertIsNotNone(start)
+        self.assertIsNotNone(end)
+        self.assertGreater(end, start)
+        parsed_events = module.verify_run.parse_events(fixture)["events"]
+        self.assertEqual(sum(1 for event in parsed_events if event.get("event") == "search_complete"), 6)
+
     def test_failed_or_empty_db_lock_snapshot_fails_attribution_collection(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
         module = importlib.util.module_from_spec(spec)
@@ -472,6 +581,13 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "passed": True,
                 "attestation": "qualifying",
                 "problems": [],
+                "load_generator": {
+                    "checked": True,
+                    "distinct_from_guest": True,
+                    "declared_host_identity": "builder",
+                    "declared_address": "builder.example",
+                    "observed_address": "builder.example",
+                },
             },
         }.items():
             (artifact / name).write_text(json.dumps(value))
@@ -620,7 +736,7 @@ class QualifyEntryPointTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             valid_path = write_attestation(td)
-            valid = module.validate(valid_path, guest_evidence, generator_evidence, enforce_generator=True)
+            valid = module.validate(valid_path, guest_evidence, generator_evidence)
             self.assertTrue(valid["passed"], valid["problems"])
 
             # Red/green trust boundary: 1980 MiB visible memory is consistent
@@ -628,22 +744,46 @@ class QualifyEntryPointTests(unittest.TestCase):
             # alone cannot distinguish it from an oversized/undersized assignment.
             self.assertGreaterEqual(1980.0, 2048.0 * 0.9)
             oversized_path = write_attestation(td, guest_memory=2112)
-            oversized = module.validate(oversized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            oversized = module.validate(oversized_path, guest_evidence, generator_evidence)
             self.assertFalse(oversized["passed"])
             self.assertIn("exactly 2048 MiB", " ".join(oversized["problems"]))
             undersized_path = write_attestation(td, guest_memory=1984)
-            undersized = module.validate(undersized_path, guest_evidence, generator_evidence, enforce_generator=True)
+            undersized = module.validate(undersized_path, guest_evidence, generator_evidence)
             self.assertFalse(undersized["passed"])
 
             # A distinct Docker daemon ID on the same machine would pass the
             # round-3 daemon comparison; owner identity evidence must reject it.
             same_machine_path = write_attestation(td, generator_host="qualification-vm")
-            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence, enforce_generator=True)
+            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence)
             self.assertFalse(same_machine["passed"])
             self.assertIn("distinct from the guest", " ".join(same_machine["problems"]))
             mismatch_path = write_attestation(td, address="other-builder.example")
-            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence, enforce_generator=True)
+            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence)
             self.assertFalse(mismatch["passed"])
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["owner"] = 42
+            strict_path = Path(td) / "strict-owner.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_owner = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_owner["passed"])
+            self.assertIn("owner is not a non-empty string", " ".join(strict_owner["problems"]))
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["attested_at"] = "not-a-timestamp"
+            strict_path = Path(td) / "strict-time.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_time = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_time["passed"])
+            self.assertIn("ISO-8601", " ".join(strict_time["problems"]))
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["guest"]["vcpus"] = "2"
+            strict_path = Path(td) / "strict-vcpus.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_vcpus = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_vcpus["passed"])
+            self.assertIn("guest.vcpus is not an integer", " ".join(strict_vcpus["problems"]))
             self.assertIn("does not match owner-declared generator address", " ".join(mismatch["problems"]))
 
         decision = self.decision_module()
@@ -667,9 +807,28 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         self.assertIn("--environment-attestation PATH", source)
         self.assertIn("Owner environment attestation procedure:", source)
-        self.assertIn("--enforce-generator", source)
         self.assertTrue((ROOT / "environment-attestation.schema.json").is_file())
         self.assertTrue((ROOT / "environment-attestation.example.json").is_file())
+
+    def test_unchecked_environment_generator_never_qualifies(self):
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["load_generator"]["checked"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
+            self.assertIn("unchecked", " ".join(result["qualification_evidence_problems"]))
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            path = Path(td) / "environment-attestation.json"
+            data = json.loads(path.read_text())
+            data["load_generator"]["distinct_from_guest"] = False
+            path.write_text(json.dumps(data))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertEqual(result["qualified"], "NO-GO")
 
     def test_on_guest_load_generator_is_diagnostic_and_never_qualifies(self):
         spec = importlib.util.spec_from_file_location("load_generator_attestation", ROOT / "load_generator_attestation.py")

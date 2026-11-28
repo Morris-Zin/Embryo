@@ -14,14 +14,23 @@ import math
 import pathlib
 import re
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
+
+try:
+    import verify_run
+except ModuleNotFoundError:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import verify_run
 
 PROJECT = "khitmee-perf"
 # At least 95% of nginx upstream rows must join to a Gunicorn application
 # record. This allows a small amount of infrastructure/probe noise while
 # rejecting disjoint request-id streams or systematically unparsed app logs.
 MIN_JOIN_RATIO = 0.95
+EXPECTED_ENDPOINT_CLASSES = ["cashier_submit", "search", "login/bootstrap", "manager_summary", "manager_detail", "manager_export"]
+WINDOW_FILTER_TOLERANCE_SECONDS = 1.0
 
 
 def utcnow():
@@ -274,14 +283,19 @@ def parse_tag_selector(key):
 
 
 def metric_count(metric):
-    values = metric.get("values") if isinstance(metric, dict) else {}
-    if not isinstance(values, dict):
+    if not isinstance(metric, dict):
         return 0
-    for key in ("count", "value"):
-        try:
-            return int(values.get(key) or 0)
-        except (TypeError, ValueError):
-            pass
+    containers = [metric]
+    if isinstance(metric.get("values"), dict):
+        containers.append(metric["values"])
+    for container in containers:
+        for key in ("count", "value"):
+            if key not in container:
+                continue
+            try:
+                return int(container.get(key) or 0)
+            except (TypeError, ValueError):
+                pass
     return 0
 
 
@@ -299,10 +313,43 @@ def k6_endpoint_counts(summary):
     return counts
 
 
-def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO):
+def configured_run_id(k6_log):
+    try:
+        config = verify_run.parse_events(k6_log).get("config") or {}
+    except Exception:
+        return ""
+    return str(config.get("run_id") or "").strip()
+
+
+def scope_rows_to_run(nginx_rows, gunicorn_rows, run_id):
+    prefix = str(run_id or "").strip() + "-vu"
+    if not str(run_id or "").strip():
+        return [], {}, len(nginx_rows)
+    scoped_nginx = [row for row in nginx_rows if str(row.get("request_id") or "").startswith(prefix)]
+    scoped_gunicorn = {key: value for key, value in gunicorn_rows.items() if str(key).startswith(prefix)}
+    return scoped_nginx, scoped_gunicorn, len(nginx_rows) - len(scoped_nginx)
+
+
+def filter_rows_to_window(rows, measured_start, measured_end, tolerance_seconds=WINDOW_FILTER_TOLERANCE_SECONDS):
+    if measured_start is None or measured_end is None:
+        return rows, 0
+    start = measured_start.timestamp() - tolerance_seconds
+    end = measured_end.timestamp() + tolerance_seconds
+    scoped = []
+    excluded = 0
+    for row in rows:
+        stamp = parse_iso_time(row.get("time"))
+        if stamp is not None and start <= stamp.timestamp() <= end:
+            scoped.append(row)
+        else:
+            excluded += 1
+    return scoped, excluded
+
+
+def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO, required_classes=()):
     rows = {}
     problems = []
-    classes = sorted(set(expected_counts) | {row.get("endpoint_class") or "unclassified" for row in joined})
+    classes = sorted(set(required_classes) | set(expected_counts) | {row.get("endpoint_class") or "unclassified" for row in joined})
     for endpoint_class in classes:
         class_rows = [row for row in joined if (row.get("endpoint_class") or "unclassified") == endpoint_class]
         nginx_count = len(class_rows)
@@ -318,7 +365,10 @@ def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO):
             "joined_coverage_ratio": joined_ratio,
             "coverage_passed": bool(expected) and nginx_ratio is not None and joined_ratio is not None and nginx_ratio >= minimum_ratio and joined_ratio >= minimum_ratio,
         }
-        if expected:
+        if expected <= 0:
+            if endpoint_class in set(required_classes):
+                problems.append(f"{endpoint_class}: missing or zero k6 request denominator")
+        else:
             if nginx_ratio is None or nginx_ratio < minimum_ratio:
                 problems.append(f"{endpoint_class}: nginx rows cover {nginx_count}/{expected} k6 requests, below {minimum_ratio:.2f}")
             if joined_ratio is None or joined_ratio < minimum_ratio:
@@ -330,16 +380,10 @@ def measured_window_from_log(path):
     start = None
     end = None
     try:
-        lines = pathlib.Path(path).read_text(errors="replace").splitlines()
+        parsed = verify_run.parse_events(path)
     except Exception:
         return None, None
-    for line in lines:
-        if "KHITMEE_SEASONAL_EVENT" not in line:
-            continue
-        try:
-            event = json.loads(line.split("KHITMEE_SEASONAL_EVENT", 1)[1].strip())
-        except Exception:
-            continue
+    for event in parsed.get("events") or []:
         if event.get("event") == "measured_window_start":
             start = parse_iso_time(event.get("at"))
         elif event.get("event") == "measured_window_end":
@@ -437,12 +481,18 @@ def cmd_finish(args):
         start = json.loads((artifact / "attribution-start.json").read_text())
     except Exception:
         start = {}
-    nginx_rows = parse_nginx_log(artifact / "nginx-attribution.log")
-    gunicorn_rows = parse_gunicorn_log(artifact / "gunicorn.log")
-    joined, missing = join_rows(nginx_rows, gunicorn_rows)
+    raw_nginx_rows = parse_nginx_log(artifact / "nginx-attribution.log")
+    raw_gunicorn_rows = parse_gunicorn_log(artifact / "gunicorn.log")
+    measured_start, measured_end = measured_window_from_log(args.k6_log) if args.k6_log else (None, None)
+    run_id = str(getattr(args, "run_id", "") or "").strip() or configured_run_id(args.k6_log)
+    run_nginx_rows, run_gunicorn_rows, out_of_run_rows = scope_rows_to_run(raw_nginx_rows, raw_gunicorn_rows, run_id)
+    nginx_rows, out_of_window_rows = filter_rows_to_window(run_nginx_rows, measured_start, measured_end)
+    joined, missing = join_rows(nginx_rows, run_gunicorn_rows)
     with (artifact / "request-attribution.csv").open("w", newline="") as handle:
-        fieldnames = ["request_id", "endpoint_class", "method", "uri", "status", "request_time_ms", "upstream_connect_ms", "upstream_header_ms", "upstream_response_ms", "gunicorn_service_ms", "estimated_dispatch_to_entry_ms", "join_status"]
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        preferred = ["time", "request_id", "endpoint_class", "method", "uri", "status", "request_time_ms", "upstream_connect_ms", "upstream_header_ms", "upstream_response_ms", "gunicorn_service_ms", "estimated_dispatch_to_entry_ms", "join_status"]
+        present = sorted({key for row in joined for key in row.keys()})
+        fieldnames = [key for key in preferred if key in present] + [key for key in present if key not in preferred]
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="raise")
         writer.writeheader()
         writer.writerows(joined)
     joined_count = len(joined) - missing
@@ -451,12 +501,15 @@ def cmd_finish(args):
     except Exception:
         k6_summary = {}
     expected_counts = k6_endpoint_counts(k6_summary)
-    coverage = endpoint_coverage(joined, expected_counts)
-    measured_start, measured_end = measured_window_from_log(args.k6_log) if args.k6_log else (None, None)
+    coverage = endpoint_coverage(joined, expected_counts, required_classes=EXPECTED_ENDPOINT_CLASSES)
     window = nginx_window_coverage(nginx_rows, measured_start, measured_end)
     coverage_problems = []
     if not expected_counts:
         coverage_problems.append("k6 summary is missing per-endpoint-class http_reqs counts")
+    if not run_id:
+        coverage_problems.append("run-scoped request-id prefix is missing")
+    if run_id and not run_nginx_rows:
+        coverage_problems.append("no nginx attribution rows match the run-scoped request-id prefix")
     coverage_problems.extend(coverage["problems"])
     coverage_problems.extend(window["problems"])
     db_lock_snapshots = {
@@ -464,7 +517,7 @@ def cmd_finish(args):
         "end": db_lock_snapshot_status(end, "end"),
     }
     coverage_problems.extend(row["problem"] for row in db_lock_snapshots.values() if row["problem"])
-    status = collection_status(len(nginx_rows), len(gunicorn_rows), joined_count, coverage_problems)
+    status = collection_status(len(nginx_rows), len(run_gunicorn_rows), joined_count, coverage_problems)
     collection_passed = status["collection_passed"]
     collection_problems = status["collection_problems"]
     summary = {
@@ -474,8 +527,15 @@ def cmd_finish(args):
         "join_ratio": status["join_ratio"],
         "minimum_join_ratio": status["minimum_join_ratio"],
         "queue_time_semantics": "estimated_dispatch_to_entry_ms = nginx upstream_response_time minus Gunicorn service duration; includes transport/proxy dispatch and is not a true nginx upstream_queue_time",
+        "run_id": run_id,
+        "request_id_prefix": (run_id + "-vu") if run_id else "",
         "nginx_rows": len(nginx_rows),
-        "gunicorn_rows": len(gunicorn_rows),
+        "gunicorn_rows": len(run_gunicorn_rows),
+        "nginx_rows_raw": len(raw_nginx_rows),
+        "gunicorn_rows_raw": len(raw_gunicorn_rows),
+        "excluded_out_of_run_rows": out_of_run_rows,
+        "excluded_out_of_window_rows": out_of_window_rows,
+        "window_filter_tolerance_seconds": WINDOW_FILTER_TOLERANCE_SECONDS,
         "joined_rows": joined_count,
         "unjoined_nginx_rows": missing,
         "endpoint_classes": endpoint_summary(joined),
@@ -502,6 +562,7 @@ def main():
         child.add_argument("--docker-dir", required=True)
         child.add_argument("--k6-summary", default="")
         child.add_argument("--k6-log", default="")
+        child.add_argument("--run-id", default="")
         child.set_defaults(func=func)
     args = parser.parse_args()
     return args.func(args)
