@@ -45,8 +45,7 @@ def install_frappe_stub():
 
 FRAPPE = install_frappe_stub()
 
-from khitmee_ops.profit_summary import rebuilder, replay, store
-from khitmee_ops.profit_summary import query
+from khitmee_ops.profit_summary import budget, eligibility, export_service, query, rebuilder, replay, store
 from khitmee_ops.profit_summary.budget import MAX_SAFE_ABS_SUM, build_detail_preflight_query, evaluate_work_budget
 from khitmee_ops.profit_summary.eligibility import (
 	authorize_profit_request,
@@ -54,6 +53,19 @@ from khitmee_ops.profit_summary.eligibility import (
 	evaluate_summary_eligibility,
 )
 from khitmee_ops.setup import indexes
+
+
+def _bind_summary_frappe_stub():
+	sys.modules["frappe"] = FRAPPE
+	for module in (budget, eligibility, export_service, query, rebuilder, replay, store):
+		module.frappe = FRAPPE
+
+
+_bind_summary_frappe_stub()
+
+
+def setUpModule():
+	_bind_summary_frappe_stub()
 
 
 def contribution(
@@ -1122,6 +1134,75 @@ class TestPr12ReviewFixes(unittest.TestCase):
 		)
 		self.assertIn("(`si`.`name` = %s OR `si`.`return_against` = %s)", sql)
 		self.assertEqual(params.count("SI-9"), 4)
+
+	def test_preflight_scopes_customer_item_brand_item_group_and_sales_person_filters(self):
+		sql, params = build_detail_preflight_query(
+			{
+				"company": "C",
+				"from_date": "2026-01-01",
+				"to_date": "2026-12-31",
+				"customer": "CUST-1",
+				"item_code": "ITEM-1",
+				"brand": "Phsar Select",
+				"item_group": "Beverages",
+				"sales_person": "SP-1",
+				"group_by": "Sales Person",
+			},
+			cap=50,
+		)
+		self.assertIn("`si`.`customer` = %s", sql)
+		self.assertIn("`sii`.`item_code` = %s", sql)
+		self.assertIn("`sii`.`brand` = %s", sql)
+		self.assertIn("INNER JOIN `tabItem` AS `item` ON `item`.`name` = `sii`.`item_code`", sql)
+		self.assertIn("`item`.`item_group` = %s", sql)
+		self.assertIn("`st`.`sales_person` = %s", sql)
+		self.assertEqual(sql.count("LEFT JOIN `tabSales Team`"), 2)
+		self.assertEqual(params[-1], 51)
+		self.assertEqual(params.count("CUST-1"), 2)
+		self.assertEqual(params.count("ITEM-1"), 2)
+		self.assertEqual(params.count("Phsar Select"), 2)
+		self.assertEqual(params.count("Beverages"), 2)
+		self.assertEqual(params.count("SP-1"), 2)
+
+		def fake_cached_value(doctype, name, fields):
+			if doctype == "Item Group":
+				return (10, 25)
+			if doctype == "Sales Person":
+				return (1, 8)
+			return None
+
+		with patch.object(FRAPPE, "get_cached_value", side_effect=fake_cached_value, create=True):
+			sql_tree, params_tree = build_detail_preflight_query(
+				{
+					"company": "C",
+					"from_date": "2026-01-01",
+					"to_date": "2026-12-31",
+					"item_group": "All Item Groups",
+					"sales_person": "Sales Team",
+				},
+				cap=20,
+			)
+		self.assertIn("FROM `tabItem Group` AS `ig` WHERE `ig`.`lft` >= %s AND `ig`.`rgt` <= %s", sql_tree)
+		self.assertIn("FROM `tabSales Person` AS `sp` WHERE `sp`.`lft` >= %s AND `sp`.`rgt` <= %s", sql_tree)
+		self.assertEqual(params_tree, ["C", "2026-01-01", "2026-12-31", 10, 25, 1, 8, "C", "2026-01-01", "2026-12-31", 10, 25, 1, 8, 21])
+
+	def test_preflight_uses_covering_index_range_scan_and_straight_join_packed_drive(self):
+		sql, _params = build_detail_preflight_query(
+			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "warehouse": "W-1"},
+			cap=100,
+		)
+		self.assertIn("`si`.`is_return` IN (0, 1)", sql)
+		self.assertIn("FROM `tabSales Invoice` AS `si` FORCE INDEX (`khitmee_si_co_ds_ret_date`)", sql)
+		self.assertIn("STRAIGHT_JOIN `tabSales Invoice Item` AS `sii` FORCE INDEX (`khitmee_sii_parent_warehouse`)", sql)
+		self.assertIn("STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent_detail_docname` = `sii`.`name`", sql)
+
+		sql_narrow, _params_narrow = build_detail_preflight_query(
+			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "sales_invoice": "SI-9", "item_code": "ITEM-1", "warehouse": "W-1"},
+			cap=100,
+		)
+		self.assertNotIn("FORCE INDEX (`khitmee_si_co_ds_ret_date`)", sql_narrow)
+		self.assertNotIn("FORCE INDEX (`khitmee_sii_parent_warehouse`)", sql_narrow)
+		self.assertIn("`si`.`is_return` IN (0, 1)", sql_narrow)
 
 	def test_clean_report_without_replay_uses_site_precision(self):
 		# Devin: the empty replay batch's placeholder precision must not win.

@@ -310,9 +310,25 @@ def _duplicate_error(error):
 	return "duplicate" in message or "unique" in message or "1062" in message
 
 
-def enqueue_profit_csv_export(filters: dict) -> ExportEnqueueResult:
+def _whitelist():
+	if frappe is not None and hasattr(frappe, "whitelist"):
+		return frappe.whitelist()
+	return lambda function: function
+
+
+@_whitelist()
+def enqueue_profit_csv_export(filters: dict | str | None = None) -> ExportEnqueueResult:
 	_require_frappe()
-	return enqueue_profit_csv_export_for_user(filters, frappe.session.user, source="ui")
+	if isinstance(filters, str):
+		filters = json.loads(filters)
+	return enqueue_profit_csv_export_for_user(filters or {}, frappe.session.user, source="ui")
+
+
+@_whitelist()
+def download_profit_csv_export(export_log_name: str):
+	from khitmee_ops.api.profit_export import download_export
+
+	return download_export(export_log_name)
 
 
 def enqueue_profit_csv_export_for_user(
@@ -472,8 +488,17 @@ def _enforce_invoice_family_caps(data):
 		)
 
 
+def _scrub_column_label(label):
+	if frappe is not None and hasattr(frappe, "scrub"):
+		return frappe.scrub(label)
+	return str(label or "").replace(" ", "_").replace("-", "_").lower()
+
+
 def _column_fieldnames(columns):
-	return [str(column.get("fieldname") or column.get("label") or index) for index, column in enumerate(columns or [])]
+	return [
+		str(column.get("fieldname") or _scrub_column_label(column.get("label")) or index)
+		for index, column in enumerate(columns or [])
+	]
 
 
 def _column_headers(columns):

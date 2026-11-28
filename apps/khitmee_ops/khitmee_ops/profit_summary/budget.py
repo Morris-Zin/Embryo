@@ -108,6 +108,21 @@ def evaluate_work_budget(filters: dict, counts: BudgetInput) -> BudgetDecision:
 	}
 
 
+def _tree_lft_rgt(doctype: str, name: str):
+	if frappe is None or not hasattr(frappe, "get_cached_value"):
+		return None
+	lft_rgt = frappe.get_cached_value(doctype, name, ["lft", "rgt"])
+	if (
+		lft_rgt
+		and len(lft_rgt) == 2
+		and lft_rgt[0] is not None
+		and lft_rgt[1] is not None
+		and int(lft_rgt[1]) > int(lft_rgt[0]) + 1
+	):
+		return int(lft_rgt[0]), int(lft_rgt[1])
+	return None
+
+
 def build_detail_preflight_query(filters: dict, cap: int | None = None):
 	"""Build the bounded LIMIT(cap+1) Detail input-row probe.
 
@@ -123,9 +138,11 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 	where = [
 		"`si`.`company` = %s",
 		"`si`.`docstatus` = 1",
+		"`si`.`is_return` IN (0, 1)",
 		"`si`.`is_opening` != 'Yes'",
 		"`si`.`posting_date` BETWEEN %s AND %s",
 	]
+	filter_joins = []
 	sales_invoice = filters.get("sales_invoice")
 	if sales_invoice:
 		# Stock Gross Profit honours a selected invoice; count only its family.
@@ -133,51 +150,89 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		params.extend([sales_invoice, sales_invoice])
 	warehouse = filters.get("warehouse")
 	if warehouse:
-		lft_rgt = (
-			frappe.get_cached_value("Warehouse", warehouse, ["lft", "rgt"])
-			if frappe is not None and hasattr(frappe, "get_cached_value")
-			else None
-		)
-		if (
-			lft_rgt
-			and len(lft_rgt) == 2
-			and lft_rgt[0] is not None
-			and lft_rgt[1] is not None
-			and int(lft_rgt[1]) > int(lft_rgt[0]) + 1
-		):
+		lft_rgt = _tree_lft_rgt("Warehouse", warehouse)
+		if lft_rgt:
 			where.append(
 				"`sii`.`warehouse` IN ("
 				"SELECT `w`.`name` FROM `tabWarehouse` AS `w` WHERE `w`.`lft` >= %s AND `w`.`rgt` <= %s"
 				")"
 			)
-			params.extend([int(lft_rgt[0]), int(lft_rgt[1])])
+			params.extend([lft_rgt[0], lft_rgt[1]])
 		else:
 			where.append("`sii`.`warehouse` = %s")
 			params.append(warehouse)
+	customer = filters.get("customer")
+	if customer:
+		where.append("`si`.`customer` = %s")
+		params.append(customer)
+	item_code = filters.get("item_code")
+	if item_code:
+		where.append("`sii`.`item_code` = %s")
+		params.append(item_code)
+	brand = filters.get("brand")
+	if brand:
+		where.append("`sii`.`brand` = %s")
+		params.append(brand)
+	item_group = filters.get("item_group")
+	if item_group:
+		filter_joins.append("INNER JOIN `tabItem` AS `item` ON `item`.`name` = `sii`.`item_code`")
+		lft_rgt = _tree_lft_rgt("Item Group", item_group)
+		if lft_rgt:
+			where.append(
+				"`item`.`item_group` IN ("
+				"SELECT `ig`.`name` FROM `tabItem Group` AS `ig` WHERE `ig`.`lft` >= %s AND `ig`.`rgt` <= %s"
+				")"
+			)
+			params.extend([lft_rgt[0], lft_rgt[1]])
+		else:
+			where.append("`item`.`item_group` = %s")
+			params.append(item_group)
+	sales_person = filters.get("sales_person")
+	sales_team_join = (
+		"LEFT JOIN `tabSales Team` AS `st` ON `st`.`parent` = `si`.`name` AND `st`.`parenttype` = 'Sales Invoice'"
+	)
+	if sales_person:
+		filter_joins.append(sales_team_join)
+		lft_rgt = _tree_lft_rgt("Sales Person", sales_person)
+		if lft_rgt:
+			where.append(
+				"`st`.`sales_person` IN ("
+				"SELECT `sp`.`name` FROM `tabSales Person` AS `sp` WHERE `sp`.`lft` >= %s AND `sp`.`rgt` <= %s"
+				")"
+			)
+			params.extend([lft_rgt[0], lft_rgt[1]])
+		else:
+			where.append("`st`.`sales_person` = %s")
+			params.append(sales_person)
 
-	joins = []
+	group_joins = []
 	group_by = str(filters.get("group_by") or "").lower()
-	if group_by == "sales person":
-		joins.append("LEFT JOIN `tabSales Team` AS `st` ON `st`.`parent` = `si`.`name` AND `st`.`parenttype` = 'Sales Invoice'")
+	if group_by == "sales person" and not sales_person:
+		group_joins.append(sales_team_join)
 	if group_by == "payment term":
-		joins.append("LEFT JOIN `tabPayment Schedule` AS `ps` ON `ps`.`parent` = `si`.`name` AND `ps`.`parenttype` = 'Sales Invoice'")
+		group_joins.append("LEFT JOIN `tabPayment Schedule` AS `ps` ON `ps`.`parent` = `si`.`name` AND `ps`.`parenttype` = 'Sales Invoice'")
 
-	join_sql = "\n\t\t".join(joins)
+	si_index_hint = " FORCE INDEX (`khitmee_si_co_ds_ret_date`)" if not (sales_invoice or customer) else ""
+	sii_index_hint = " FORCE INDEX (`khitmee_sii_parent_warehouse`)" if (warehouse and not item_code) else ""
+	base_join_sql = "\n\t\t".join([*filter_joins, *group_joins])
+	packed_join_sql = "\n\t\t".join(filter_joins)
 	base_select = f"""
 		SELECT `sii`.`name` AS `input_row`
-		FROM `tabSales Invoice` AS `si`
-		INNER JOIN `tabSales Invoice Item` AS `sii` ON `sii`.`parent` = `si`.`name`
-		{join_sql}
+		FROM `tabSales Invoice` AS `si`{si_index_hint}
+		STRAIGHT_JOIN `tabSales Invoice Item` AS `sii`{sii_index_hint} ON `sii`.`parent` = `si`.`name`
+		{base_join_sql}
 		WHERE {' AND '.join(where)}
 	"""
 	packed_select = f"""
 		SELECT `pi`.`name` AS `input_row`
-		FROM `tabSales Invoice` AS `si`
-		INNER JOIN `tabSales Invoice Item` AS `sii` ON `sii`.`parent` = `si`.`name`
-		INNER JOIN `tabPacked Item` AS `pi` ON `pi`.`parenttype` = 'Sales Invoice'
+		FROM `tabSales Invoice` AS `si`{si_index_hint}
+		STRAIGHT_JOIN `tabSales Invoice Item` AS `sii`{sii_index_hint} ON `sii`.`parent` = `si`.`name`
+		STRAIGHT_JOIN `tabPacked Item` AS `pi` ON `pi`.`parent_detail_docname` = `sii`.`name`
 			AND `pi`.`parent` = `si`.`name`
+			AND `pi`.`parenttype` = 'Sales Invoice'
 			AND `pi`.`parent_item` = `sii`.`item_code`
 			AND `pi`.`docstatus` = 1
+		{packed_join_sql}
 		WHERE {' AND '.join(where)}
 	"""
 	sql = f"""

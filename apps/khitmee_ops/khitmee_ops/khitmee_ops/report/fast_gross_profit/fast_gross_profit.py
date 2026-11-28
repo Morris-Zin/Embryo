@@ -177,13 +177,17 @@ def invoice_descending_order_key(row):
 	return (
 		posting_date_sort_value(row.get("posting_date")),
 		posting_time_microseconds(row.get("posting_time")),
-		str(row.get("parent") or row.get("invoice") or ""),
 	)
 
 
+def invoice_tie_order_key(row):
+	return str(row.get("parent") or row.get("invoice") or "")
+
+
 def sort_invoice_rows_descending(rows):
-	"""Apply the export-safe posting date/time/invoice tie-break to one query phase."""
-	return sorted(rows or [], key=invoice_descending_order_key, reverse=True)
+	"""Apply posting date/time ordering with an ascending invoice tie-break."""
+	ordered = sorted(rows or [], key=invoice_tie_order_key)
+	return sorted(ordered, key=invoice_descending_order_key, reverse=True)
 
 
 def mark_query_phase(rows, query_phase):
@@ -295,7 +299,13 @@ def batched(values, size):
 
 
 def normalize_sle_key(item_code, warehouse, voucher_type, voucher_no, voucher_detail_no):
-	return tuple(str(value or "") for value in (item_code, warehouse, voucher_type, voucher_no, voucher_detail_no))
+	return (
+		item_code if type(item_code) is str else ("" if not item_code else str(item_code)),
+		warehouse if type(warehouse) is str else ("" if not warehouse else str(warehouse)),
+		voucher_type if type(voucher_type) is str else ("" if not voucher_type else str(voucher_type)),
+		voucher_no if type(voucher_no) is str else ("" if not voucher_no else str(voucher_no)),
+		voucher_detail_no if type(voucher_detail_no) is str else ("" if not voucher_detail_no else str(voucher_detail_no)),
+	)
 
 
 def build_matched_sle_query(keys, company):
