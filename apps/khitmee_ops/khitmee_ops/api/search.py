@@ -791,7 +791,6 @@ def get_counter_context(mode="sales", customer_query=None, customer_start=0):
 		"default_company": frappe.defaults.get_user_default("Company") or "",
 		"print_endpoint": frappe.conf.get("khitmee_print_endpoint") or "http://127.0.0.1:18421/print",
 		"print_token": frappe.conf.get("khitmee_print_token") or "",
-		"desktop_token": frappe.conf.get("khitmee_desktop_token") or "",
 		"shop_name": frappe.defaults.get_user_default("Company") or frappe.local.site,
 	}
 
