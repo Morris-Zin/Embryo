@@ -10,9 +10,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
+import re
+import shutil
 import subprocess
 import sys
+import sysconfig
 from tempfile import TemporaryDirectory
+import time
 from typing import Any
 
 # Allow running directly as `python tools/autoloop/cli.py ...` without PYTHONPATH tweaks.
@@ -28,6 +33,7 @@ from autoloop.guard import (
     advise_test_integrity,
     assert_safe_local_path,
     compute_code_tree_sha256,
+    contract_sha256,
     git_current_branch,
     git_is_ancestor,
     git_rev_parse,
@@ -220,6 +226,166 @@ def _parse_shard_checks(specs: list[str]) -> dict[str, list[str]]:
     return checks
 
 
+# This isolated CPython command only reads one named source file and compiles it
+# without importing or running candidate code. Every other frozen command stays fresh.
+_CACHEABLE_COMPILE = re.compile(
+    r'''python -I -S -B -c "(compile\(open\('([a-zA-Z0-9_./-]+\.py)','rb'\)\.read\(\),'\2','exec'\))"'''
+)
+
+
+def _compile_cache_inputs(command: str, worktree: Path) -> tuple | None:
+    from autoloop.verification import InputDigest
+
+    match = _CACHEABLE_COMPILE.fullmatch(command)
+    executable = shutil.which("python")
+    if not match or not executable or sys.implementation.name != "cpython":
+        return None
+    if any(not Path(entry).is_absolute() for entry in os.get_exec_path()):
+        return None
+    if os.name == "nt" and any((worktree / f"python{suffix}").exists() for suffix in (".exe", ".com", ".bat", ".cmd")):
+        return None
+    executable = Path(executable).resolve()
+    if executable != Path(sys.executable).resolve():
+        return None
+    script, relative = match.groups()
+    if relative.startswith((".", "/")) or set(relative.split("/")) & {"", ".", ".."}:
+        return None
+    source = assert_safe_local_path(worktree, worktree / relative, allow_missing_leaf=False)
+    if not source.is_file():
+        return None
+    runtime = Path(sysconfig.get_path("stdlib"))
+    library = sysconfig.get_config_var("LDLIBRARY")
+    libdir = Path(sysconfig.get_config_var("LIBDIR") or sys.base_prefix)
+    runtime_files = {
+        executable, *executable.parent.glob("python*.dll"), *runtime.glob("os.py"),
+        *(runtime / "encodings").rglob("*"), *executable.parent.glob("python*.zip"),
+        executable.parent / "pyvenv.cfg", executable.parent.parent / "pyvenv.cfg",
+    }
+    if library:
+        runtime_files.add(libdir / library)
+    installed = {
+        str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(runtime_files) if path.is_file()
+    }
+    environment = {name: os.environ[name] for name in ("SystemRoot",) if name in os.environ} if os.name == "nt" else {}
+    return (
+        (str(executable), "-I", "-S", "-B", "-c", script), environment,
+        contract_sha256({"version": sys.version, "runtime": installed, "dependencies": "isolated-no-site"}),
+        InputDigest(relative, hashlib.sha256(source.read_bytes()).hexdigest()),
+    )
+
+
+def _run_cacheable_check(
+    repo: Path, worktree: Path, run: dict[str, Any], shard: str, command: str,
+    head: str, tree: str, tooling: str, report: dict[str, Any],
+) -> subprocess.CompletedProcess[str] | None:
+    from autoloop.verification import CheckCache, CheckCacheKey, CheckOutcome, InputDigest, env_allowlist_digest
+
+    try:
+        inputs = _compile_cache_inputs(command, worktree)
+        if inputs is None:
+            return None
+        argv, environment, interpreter, source = inputs
+        cache = CheckCache()
+        broker = Broker(_broker_repo_id(repo))
+        key = CheckCacheKey(
+            tree, tooling, argv, interpreter, env_allowlist_digest(environment, tuple(environment)),
+            platform.platform(), str(worktree),
+            (source, InputDigest("frozen-contract", run["contract_sha256"]), InputDigest("run-base", run["base_sha"])),
+        )
+        key_digest = cache.key_digest(key)
+        report["eligible"] += 1
+        found = cache.lookup(key, broker.validate_execution_receipt, cacheable=True)
+        if found.hit and found.evidence is not None and found.outcome.exit_code == 0:
+            # This adapter only stores silent successes. Recheck the original
+            # publication before using its duration and accepting the hit.
+            receipt = broker.current_publication(run["run_id"], shard, "check-execution",
+                                                 cache_key_digest=key_digest)
+            if (receipt and receipt["receipt_id"] == found.evidence.original_receipt_id
+                    and found.outcome.output_digest == hashlib.sha256(b"").hexdigest()):
+                report["hits"] += 1
+                report["subprocess_seconds_avoided"] += receipt["duration_s"]
+                report["references"].append(asdict(found.evidence))
+                return subprocess.CompletedProcess(argv, 0, "")
+
+        prefix = contract_sha256({"run": run["run_id"], "shard": shard, "key": key_digest})
+        generation = 1
+        while broker.by_request(f"check:{prefix}:{generation}") is not None:
+            generation += 1
+        git = {"base": run["base_sha"], "head": head, "tree": tree}
+        reservation = broker.reserve(
+            run=run["run_id"], shard=shard, role="check-execution", generation=generation,
+            request_id=f"check:{prefix}:{generation}", request_digest=key_digest, brief_digest=key_digest,
+            task_class="deterministic-check", difficulty="routine", contract_revision=run["contract_revision"],
+            contract_hash=run["contract_sha256"], policy="check-cache-v1", epoch=str(run["contract_revision"]),
+            git=git, provider="local", model="cpython", settings={}, limits={}, expires_at=time.time() + 3600,
+            cache_key_digest=key_digest,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"SHADOW-CACHE fresh fallback: {exc}", file=sys.stderr)
+        return None
+
+    started = time.monotonic()
+    result = subprocess.run(argv, cwd=worktree, env=environment, stdin=subprocess.DEVNULL, capture_output=True,
+                            encoding="utf-8", errors="replace", check=False)
+    duration = time.monotonic() - started
+    result.stdout += result.stderr
+    try:
+        if git_rev_parse(worktree, "HEAD") != head or hashlib.sha256(
+            (worktree / source.path).read_bytes(),
+        ).hexdigest() != source.digest:
+            broker.revoke(reservation["reservation_id"], "check inputs changed during execution")
+            return result
+        output_digest = hashlib.sha256(result.stdout.encode()).hexdigest()
+        evidence = contract_sha256({"key": key_digest, "output": output_digest, "exit": result.returncode})
+        outcome = CheckOutcome(evidence, evidence, output_digest, result.returncode, int(time.time()))
+        receipt = broker.settle_execution(
+            reservation["reservation_id"], **asdict(outcome), duration_s=duration, git_before=git, git_after=git,
+        )
+        if result.returncode == 0 and not result.stdout:
+            cache.store(key, outcome, receipt["receipt_id"], broker.validate_execution_receipt, cacheable=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"SHADOW-CACHE result was not retained: {exc}", file=sys.stderr)
+    return result
+
+
+def _run_checks_with_cache(
+    repo: Path, worktree: Path, snapshot: Path, commands: list[tuple[str, str]], steps: dict[str, float],
+    args: argparse.Namespace, run: dict[str, Any], verified: dict[str, Any], tooling: dict[str, Any],
+) -> bool:
+    report: dict[str, Any] = {"hits": 0, "eligible": 0, "subprocess_seconds_avoided": 0.0, "references": []}
+    tooling["check_cache"] = report
+    try:
+        ran_fast_check = time_check_commands(
+            snapshot, worktree, [], steps, skip_fast_check=args.skip_fast_check, lint_scope=verified["lint_scope"],
+        )
+        for index, (shard, command) in enumerate(commands, 1):
+            started = time.monotonic()
+            try:
+                result = _run_cacheable_check(repo, worktree, run, shard, command, verified["head_sha"],
+                                              verified["code_tree_sha256"], tooling["sha256"], report)
+                if result is None:
+                    result = subprocess.run(
+                        command, cwd=worktree, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        encoding="utf-8", errors="replace", check=False,
+                    )
+                if result.stdout:
+                    print(result.stdout, end="", file=sys.stderr)
+                if result.returncode:
+                    raise CheckCommandError(
+                        f"{shard}-check-{index}", f"shard {shard!r} check {command!r} failed with exit {result.returncode}",
+                        result.stdout,
+                    )
+            finally:
+                steps[f"{shard} #{index}: {command}"] = round(time.monotonic() - started, 3)
+        return ran_fast_check
+    finally:
+        report["hit_rate"] = report["hits"] / report["eligible"] if report["eligible"] else 0.0
+        print(f"SHADOW-CACHE {report['hits']}/{report['eligible']} eligible hits "
+              f"({report['hit_rate']:.0%}), {report['subprocess_seconds_avoided']:.3f}s subprocess time avoided",
+              file=sys.stderr)
+
+
 def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     if bool(args.shard) == bool(args.all_shards):
         raise IllegalTransitionError("check requires exactly one of --shard <id> or --all-shards")
@@ -281,10 +447,15 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
             head = verified["head_sha"]
             tooling["static_lint"] = verified["static_lint"]
             stage = "check"
-            tooling["fast_check_ran"] = time_check_commands(
-                snapshot, worktree, commands, steps, skip_fast_check=args.skip_fast_check,
-                lint_scope=verified["lint_scope"],
-            )
+            if args.check_cache:
+                tooling["fast_check_ran"] = _run_checks_with_cache(
+                    repo, worktree, snapshot, commands, steps, args, run, verified, tooling,
+                )
+            else:
+                tooling["fast_check_ran"] = time_check_commands(
+                    snapshot, worktree, commands, steps, skip_fast_check=args.skip_fast_check,
+                    lint_scope=verified["lint_scope"],
+                )
             if git_rev_parse(worktree, "HEAD") != head:
                 raise GuardError("target checkout HEAD moved during check; run check again")
             passed = True
@@ -647,6 +818,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("--head-ref", default="HEAD")
     p_check.add_argument("--worktree", type=Path, default=None)
     p_check.add_argument("--skip-fast-check", action="store_true")
+    p_check.add_argument("--check-cache", action="store_true",
+                         help="Reuse attested successes of the allowlisted isolated CPython compile command")
     _add_verification_options(p_check)
     sub.add_parser("doctor", help="Diagnose Python, dev tools, uv, Docker, and Windows WSL without installing")
 
