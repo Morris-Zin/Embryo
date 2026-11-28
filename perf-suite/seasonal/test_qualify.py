@@ -351,8 +351,11 @@ class QualifyEntryPointTests(unittest.TestCase):
                 "required": True,
                 "exit_code": 0,
                 "app_tree_hash_expected": "b" * 40,
+                "pre_migration_app_tree_hash": "b" * 40,
+                "post_migration_app_tree_hash": "b" * 40,
                 "migrated_app_tree_hash": "b" * 40,
                 "tree_hash_verified": True,
+                "hash_algorithm": "git-tree-object-sha1",
             },
             "candidate-apps.json": {
                 "schema_version": "seasonal-candidate-apps-v1",
@@ -737,6 +740,59 @@ class QualifyEntryPointTests(unittest.TestCase):
             (Path(td) / "resource-proof-after.json").write_text(json.dumps(after_proof))
             result = module.decide(td, 0, "run-1", "acceptance")
             self.assertFalse(result["resource_window_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
+
+    def test_migration_tree_hash_comes_from_mounted_files_pre_and_post(self):
+        spec = importlib.util.spec_from_file_location("git_tree_hash", ROOT / "git_tree_hash.py")
+        hasher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hasher)
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            target = repo / "apps" / "khitmee_ops"
+            (target / "sub").mkdir(parents=True)
+            (target / "a.txt").write_bytes(b"hello" + bytes([10]))
+            (target / "sub" / "b.txt").write_bytes(b"world")
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"], check=True, stdout=subprocess.DEVNULL)
+            expected = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD:apps/khitmee_ops"], text=True).strip()
+            self.assertEqual(hasher.git_tree_hash(target), expected)
+            # Mutating a mounted file must change the same Git-compatible digest.
+            (target / "a.txt").write_bytes(b"mutated" + bytes([10]))
+            self.assertNotEqual(hasher.git_tree_hash(target), expected)
+
+        deploy = (ROOT / "deploy_candidate.py").read_text(encoding="utf-8")
+        pre_pos = deploy.index("pre-migration mounted tree hash")
+        migrate_pos = deploy.index("bench migrate for candidate tree")
+        post_pos = deploy.index("post-migration mounted tree hash")
+        marker_pos = deploy.index("record migrated candidate tree hash")
+        self.assertLess(pre_pos, migrate_pos)
+        self.assertLess(migrate_pos, post_pos)
+        self.assertLess(post_pos, marker_pos)
+        self.assertIn("expected_tree_hash == pre_migration_tree_hash == post_migration_tree_hash", deploy)
+        self.assertIn("read_only: true", (ROOT / "khitmee-migration-readonly.yaml").read_text(encoding="utf-8"))
+
+        module = self.decision_module()
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            migration["post_migration_app_tree_hash"] = "c" * 40
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
+            self.assertEqual(result["qualified"], "NO-GO")
+        with tempfile.TemporaryDirectory() as td:
+            self.write_decision_artifact(td)
+            migration_path = Path(td) / "candidate-migration.json"
+            migration = json.loads(migration_path.read_text())
+            # The round-3 marker shape proved only that the script read back
+            # its own expected input; it had no mounted-file pre/post digests.
+            for key in ("pre_migration_app_tree_hash", "post_migration_app_tree_hash", "hash_algorithm"):
+                migration.pop(key, None)
+            migration_path.write_text(json.dumps(migration))
+            result = module.decide(td, 0, "run-1", "acceptance")
+            self.assertFalse(result["migration_tree_hash_ok"])
             self.assertEqual(result["qualified"], "NO-GO")
 
     def test_full_acceptance_requires_guest_and_oracle_and_can_qualify(self):

@@ -215,7 +215,10 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     migration_tree_hash_ok = (
         migration.get('exit_code') == 0
         and migration.get('tree_hash_verified') is True
+        and migration.get('hash_algorithm') == 'git-tree-object-sha1'
         and migration.get('app_tree_hash_expected') == candidate.get('app_tree_hash')
+        and migration.get('pre_migration_app_tree_hash') == candidate.get('app_tree_hash')
+        and migration.get('post_migration_app_tree_hash') == candidate.get('app_tree_hash')
         and migration.get('migrated_app_tree_hash') == candidate.get('app_tree_hash')
     )
     candidate_apps_ok = (
