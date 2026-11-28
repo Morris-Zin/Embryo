@@ -196,6 +196,16 @@ compose() {
     "$@"
 }
 
+compose_transient() {
+  docker compose \
+    --project-name "$PROJECT_NAME" \
+    --project-directory "$DOCKER_DIR" \
+    --env-file "$ENV_FILE" \
+    "${COMPOSE_FILE_ARGS[@]}" \
+    -f "$DOCKER_DIR/khitmee-migration-transient.yaml" \
+    "$@"
+}
+
 sync_khitmee_ops() {
   local source_dir="$REPO_ROOT/apps/khitmee_ops"
   local target_dir="/srv/khitmee-perf/apps/khitmee_ops"
@@ -267,26 +277,83 @@ site_has_app() {
   compose exec -T backend bench --site "$SITE_NAME" list-apps --format text < /dev/null 2>/dev/null | awk -v app="$app" '$1 == app { found=1 } END { exit !found }'
 }
 
+read_khitmee_ops_migrated_tree_hash() {
+  compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY' 2>/dev/null
+import sys
+
+import frappe
+
+frappe.init(site=sys.argv[1], sites_path="/home/frappe/frappe-bench/sites")
+frappe.connect()
+try:
+    try:
+        rows = frappe.db.sql("SELECT tree_hash FROM `__khitmee_ops_migration_state` WHERE name='state'")
+    except Exception:
+        rows = []
+    print(rows[0][0] if rows else "")
+finally:
+    frappe.destroy()
+PY
+}
+
+record_khitmee_ops_migrated_tree_hash() {
+  local tree_hash="$1"
+  compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" "$tree_hash" <<'PY'
+import sys
+
+import frappe
+
+frappe.init(site=sys.argv[1], sites_path="/home/frappe/frappe-bench/sites")
+frappe.connect()
+try:
+    frappe.db.sql("""
+        CREATE TABLE IF NOT EXISTS `__khitmee_ops_migration_state` (
+          `name` varchar(32) NOT NULL PRIMARY KEY,
+          `tree_hash` varchar(64) NOT NULL,
+          `migrated_at` datetime(6) NOT NULL
+        ) ENGINE=InnoDB
+    """)
+    frappe.db.sql(
+        """
+        INSERT INTO `__khitmee_ops_migration_state` (`name`, `tree_hash`, `migrated_at`)
+        VALUES ('state', %(tree_hash)s, UTC_TIMESTAMP(6))
+        ON DUPLICATE KEY UPDATE `tree_hash`=VALUES(`tree_hash`), `migrated_at`=VALUES(`migrated_at`)
+        """,
+        {"tree_hash": sys.argv[2]},
+    )
+    frappe.db.commit()
+finally:
+    frappe.destroy()
+PY
+}
+
 run_khitmee_ops_migration_if_needed() {
   [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
-  [[ "${KHITMEE_OPS_SYNC_CHANGED:-0}" == "1" ]] || return 0
 
   local evidence_file="/srv/khitmee-perf/startup-migrations.log"
-  local occurred_at status tree_hash
-  occurred_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local occurred_at status tree_hash migrated_hash
   tree_hash="${KHITMEE_OPS_TREE_HASH:-unknown}"
+  migrated_hash="$(read_khitmee_ops_migrated_tree_hash | tail -n 1 | tr -d '\r')"
+  if [[ -n "$tree_hash" && "$tree_hash" != "unknown" && "$migrated_hash" == "$tree_hash" ]]; then
+    echo "khitmee_ops migrations already match deployed tree hash $tree_hash."
+    return 0
+  fi
+
+  occurred_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$(dirname "$evidence_file")"
 
-  echo "khitmee_ops tree changed; running bench migrate outside the measured window..."
+  echo "khitmee_ops deployed tree differs from the fixture migration state; running bench migrate outside the measured window..."
   status=success
-  if ! compose run --rm --no-deps -T backend bench --site "$SITE_NAME" migrate < /dev/null; then
-    status=failed
+  if ! compose_transient run --rm --no-deps -T backend bench --site "$SITE_NAME" migrate < /dev/null; then
+    status=migrate_failed
+  elif [[ "$tree_hash" != "unknown" ]] && ! record_khitmee_ops_migrated_tree_hash "$tree_hash" < /dev/null; then
+    status=marker_failed
   fi
-  printf '{"at":"%s","site":"%s","profile":"%s","tree_sha256":"%s","reason":"khitmee_ops tree changed","status":"%s"}\n' \
-    "$occurred_at" "$SITE_NAME" "$PROFILE" "$tree_hash" "$status" >> "$evidence_file"
+  printf '{"at":"%s","site":"%s","profile":"%s","tree_sha256":"%s","prior_tree_sha256":"%s","reason":"fixture migration state mismatch","status":"%s"}\n' \
+    "$occurred_at" "$SITE_NAME" "$PROFILE" "$tree_hash" "$migrated_hash" "$status" >> "$evidence_file"
 
   if [[ "$status" != "success" ]]; then
-    echo "bench migrate failed after khitmee_ops changed; see $evidence_file" >&2
+    echo "bench migrate or migration-state recording failed after khitmee_ops changed; see $evidence_file" >&2
     return 1
   fi
   echo "Recorded startup migration in $evidence_file"
@@ -296,7 +363,7 @@ ensure_khitmee_ops_database_objects() {
   [[ "$WITH_KHITMEE_OPS" == "1" ]] || return 0
 
   echo "Ensuring khitmee_ops composite indexes and fast report settings..."
-  if ! compose exec -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
+  if ! compose_transient run --rm --no-deps -T -w /home/frappe/frappe-bench/sites backend /home/frappe/frappe-bench/env/bin/python - "$SITE_NAME" <<'PY_KHITMEE_ENSURE'
 import sys
 
 import frappe

@@ -71,8 +71,13 @@ memory_max = read_text(slice_path / "memory.max")
 swap_max = read_text(slice_path / "memory.swap.max")
 cpuset_effective = read_text(slice_path / "cpuset.cpus.effective")
 cpuset_cpus = expand_cpuset(cpuset_effective) if cpuset_effective else set()
+online_spec = read_text(Path("/sys/devices/system/cpu/online"))
+online_cpus = expand_cpuset(online_spec) if online_spec else set()
+dedicated_mode = bool(cpuset_cpus) and cpuset_cpus == online_cpus
+mode = "dedicated-guest" if dedicated_mode else "exclusive-cpuset"
 
 print(f"parent={slice_path}")
+print(f"mode={mode}")
 print(f"cpuset.cpus.effective={cpuset_effective}")
 print(f"cpu.max={cpu_max}")
 print(f"memory.max={memory_max}")
@@ -88,40 +93,41 @@ if memory_max != expected_memory_max:
 if swap_max != expected_swap_max:
     parent_errors.append(f"memory.swap.max is {swap_max!r}, expected {expected_swap_max!r}")
 
-cgroup_root = Path("/sys/fs/cgroup")
-for sibling in (cgroup_root / "init.scope", cgroup_root / "system.slice", cgroup_root / "user.slice", cgroup_root / "non-systemd"):
-    effective = read_text(sibling / "cpuset.cpus.effective")
-    if not effective:
-        parent_errors.append(f"{sibling} has no readable cpuset.cpus.effective")
-        continue
-    overlap = sorted(cpuset_cpus & expand_cpuset(effective))
-    if overlap:
-        parent_errors.append(f"{sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
+if not dedicated_mode:
+    cgroup_root = Path("/sys/fs/cgroup")
+    for sibling in (cgroup_root / "init.scope", cgroup_root / "system.slice", cgroup_root / "user.slice", cgroup_root / "non-systemd"):
+        effective = read_text(sibling / "cpuset.cpus.effective")
+        if not effective:
+            parent_errors.append(f"{sibling} has no readable cpuset.cpus.effective")
+            continue
+        overlap = sorted(cpuset_cpus & expand_cpuset(effective))
+        if overlap:
+            parent_errors.append(f"{sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
 
-# The named scopes cover systemd and WSL interop, but fail closed if any other
-# populated top-level cgroup can still schedule on the guest CPUs.
-for sibling in cgroup_root.iterdir():
-    if not sibling.is_dir() or sibling.name == slice_name:
-        continue
-    effective = read_text(sibling / "cpuset.cpus.effective")
-    if not effective:
-        continue
-    overlap = sorted(cpuset_cpus & expand_cpuset(effective))
-    if not overlap:
-        continue
-    populated = False
-    for path in (sibling, *sibling.rglob("*")):
-        if path.is_dir() and scope_procs(path):
-            populated = True
-            break
-    if populated:
-        parent_errors.append(f"populated cgroup {sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
+    # The named scopes cover systemd and WSL interop, but fail closed if any other
+    # populated top-level cgroup can still schedule on the guest CPUs.
+    for sibling in cgroup_root.iterdir():
+        if not sibling.is_dir() or sibling.name == slice_name:
+            continue
+        effective = read_text(sibling / "cpuset.cpus.effective")
+        if not effective:
+            continue
+        overlap = sorted(cpuset_cpus & expand_cpuset(effective))
+        if not overlap:
+            continue
+        populated = False
+        for path in (sibling, *sibling.rglob("*")):
+            if path.is_dir() and scope_procs(path):
+                populated = True
+                break
+        if populated:
+            parent_errors.append(f"populated cgroup {sibling} overlaps exclusive guest CPUs {overlap}: {effective}")
 if parent_errors:
     fail("; ".join(parent_errors))
 
 try:
     id_output = subprocess.check_output(
-        ["docker", "ps", "-a", "--filter", f"name={project_name}", "--format", "{{.ID}}"],
+        ["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project_name}", "--format", "{{.ID}}"],
         text=True,
         stderr=subprocess.PIPE,
     )
@@ -179,6 +185,21 @@ def process_tree(root):
         stack.extend(children.get(pid, []))
     return result
 
+
+service_counts = {}
+for container in inspected:
+    service_counts[service_name(container.get("Name", ""))] = service_counts.get(service_name(container.get("Name", "")), 0) + 1
+count_failures = []
+for service in sorted(expected_services):
+    count = service_counts.get(service, 0)
+    if count != 1:
+        count_failures.append(f"{service}: found {count}, expected exactly 1")
+unexpected = sorted(set(service_counts) - set(expected_services))
+for service in unexpected:
+    count_failures.append(f"{service}: unexpected service")
+if count_failures:
+    fail("container cardinality mismatch: " + "; ".join(count_failures))
+
 failures = []
 running_checked = 0
 for container in inspected:
@@ -204,6 +225,11 @@ for container in inspected:
         problems.append(f"Memory={host_config.get('Memory')}, expected {expected_memory_bytes}")
     if expected["shares"] is not None and int(host_config.get("CpuShares") or 0) != expected["shares"]:
         problems.append(f"CpuShares={host_config.get('CpuShares')}, expected {expected['shares']}")
+    if service == "configurator":
+        if status != "exited" or int(state.get("ExitCode") or 0) != 0:
+            problems.append(f"configurator status={status!r} exit_code={state.get('ExitCode')!r}, expected one successful exit")
+    elif status != "running" or pid <= 0:
+        problems.append(f"long-lived service status={status!r} pid={pid}, expected exactly one running instance")
 
     membership = "not-live"
     pid_count = 0
@@ -253,7 +279,8 @@ for container in inspected:
 
 if failures:
     fail(f"{len(failures)} container(s) are outside or inconsistent with {slice_name}")
-if running_checked == 0:
-    fail("no running containers were checked")
-print(f"PASS: {len(container_ids)} containers belong to {slice_name} ({running_checked} running process trees verified)")
+expected_running = len(expected_services) - 1
+if running_checked != expected_running:
+    fail(f"checked {running_checked} running process trees, expected {expected_running}")
+print(f"PASS[{mode}]: {len(container_ids)} containers belong to {slice_name} ({running_checked} running process trees verified)")
 PY
