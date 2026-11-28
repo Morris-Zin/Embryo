@@ -380,11 +380,12 @@ class QualifyEntryPointTests(unittest.TestCase):
         nginx = [
             row("run-a-vu1-1", "2026-01-01T10:00:20Z"),
             row("run-a-vu1-2", "2026-01-01T10:09:40Z"),
+            row("run-a-copy-vu1-1", "2026-01-01T10:05:00Z"),
             row("other-run-vu1-1", "2026-01-01T10:05:00Z"),
             row("run-a-vu1-3", "2026-01-01T11:00:00Z"),
         ]
         scoped, _, out_of_run = module.scope_rows_to_run(nginx, {}, "run-a")
-        self.assertEqual(out_of_run, 1)
+        self.assertEqual(out_of_run, 2)
         windowed, out_of_window = module.filter_rows_to_window(scoped, start, end)
         self.assertEqual(out_of_window, 1)
         self.assertEqual([row["request_id"] for row in windowed], ["run-a-vu1-1", "run-a-vu1-2"])

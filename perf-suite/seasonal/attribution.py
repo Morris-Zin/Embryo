@@ -322,7 +322,7 @@ def configured_run_id(k6_log):
 
 
 def scope_rows_to_run(nginx_rows, gunicorn_rows, run_id):
-    prefix = str(run_id or "").strip() + "-"
+    prefix = str(run_id or "").strip() + "-vu"
     if not str(run_id or "").strip():
         return [], {}, len(nginx_rows)
     scoped_nginx = [row for row in nginx_rows if str(row.get("request_id") or "").startswith(prefix)]
@@ -528,7 +528,7 @@ def cmd_finish(args):
         "minimum_join_ratio": status["minimum_join_ratio"],
         "queue_time_semantics": "estimated_dispatch_to_entry_ms = nginx upstream_response_time minus Gunicorn service duration; includes transport/proxy dispatch and is not a true nginx upstream_queue_time",
         "run_id": run_id,
-        "request_id_prefix": (run_id + "-") if run_id else "",
+        "request_id_prefix": (run_id + "-vu") if run_id else "",
         "nginx_rows": len(nginx_rows),
         "gunicorn_rows": len(run_gunicorn_rows),
         "nginx_rows_raw": len(raw_nginx_rows),
