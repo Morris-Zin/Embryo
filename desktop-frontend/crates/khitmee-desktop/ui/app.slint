@@ -1437,11 +1437,10 @@ component InvoiceDetailScreen inherits Rectangle {
         Text { x: 20px; y: root.totals-top + 168px; width: 240px; height: 26px; text: "Time Sheet List"; visible: root.detail-status == "Draft"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; accessible-label: "Time Sheet List"; }
     }
 
-    Flickable {
+    Rectangle {
         visible: root.detail-error-text == "" && root.detail-active-tab != 0;
         x: root.content-x; y: 126px; width: root.content-width; height: parent.height - 126px;
-        content-width: root.content-width; content-height: 620px;
-        Rectangle { x: 0px; y: 0px; width: root.content-width; height: 620px; background: #ffffff; }
+        background: #ffffff;
 
         if root.detail-active-tab == 1: Rectangle {
             width: parent.width; height: parent.height;
@@ -1472,6 +1471,26 @@ component InvoiceDetailScreen inherits Rectangle {
             for heading[index] in ["Customer PO Details", "Accounting Details", "Print Settings", "Subscription", "Additional Info"]: Text {
                 x: 20px; y: 14px + index * 46px; width: 260px; height: 28px; text: heading; accessible-label: heading; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center;
             }
+        }
+        if root.detail-active-tab == 5: Rectangle {
+            width: parent.width; height: parent.height;
+            Text { x: 20px; y: 14px; width: 250px; height: 26px; text: "Payment"; accessible-label: "Payment"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 300px; y: 14px; width: 250px; height: 26px; text: "Reference"; accessible-label: "Reference"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 580px; y: 14px; width: 250px; height: 26px; text: "Returns"; accessible-label: "Returns"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Rectangle { x: 20px; y: 48px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Payment Entry"; accessible-label: "Payment Entry"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 20px; y: 86px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Payment Request"; accessible-label: "Payment Request"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 20px; y: 124px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Journal Entry"; accessible-label: "Journal Entry"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 20px; y: 162px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Invoice Discounting"; accessible-label: "Invoice Discounting"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 20px; y: 200px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Dunning"; accessible-label: "Dunning"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 300px; y: 48px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Timesheet"; accessible-label: "Timesheet"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 300px; y: 86px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Delivery Note"; accessible-label: "Delivery Note"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 300px; y: 124px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Sales Order"; accessible-label: "Sales Order"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 300px; y: 162px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "POS Invoice"; accessible-label: "POS Invoice"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 580px; y: 48px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Sales Invoice"; accessible-label: "Sales Invoice"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Text { x: 20px; y: 268px; width: 250px; height: 26px; text: "Subscription"; accessible-label: "Subscription connections"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Text { x: 300px; y: 268px; width: 250px; height: 26px; text: "Internal Transfers"; accessible-label: "Internal Transfers"; color: Design.text; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+            Rectangle { x: 20px; y: 302px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Auto Repeat"; accessible-label: "Auto Repeat"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
+            Rectangle { x: 300px; y: 302px; width: 168px; height: 30px; background: #f8fafc; border-color: #e4e7ec; border-width: 1px; border-radius: 6px; Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Purchase Invoice"; accessible-label: "Purchase Invoice"; color: Design.text; font-size: 12px; vertical-alignment: center; } }
         }
     }
 }

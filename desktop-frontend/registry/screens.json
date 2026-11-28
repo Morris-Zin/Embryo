@@ -584,7 +584,8 @@
         "evidence/journeys/invoice-detail-missing-customer-validation.json",
         "evidence/journeys/invoice-detail-negative-rate-validation.json",
         "evidence/journeys/invoice-detail-empty-items-validation.json",
-        "evidence/journeys/invoice-detail-checkbox-fields.json"
+        "evidence/journeys/invoice-detail-checkbox-fields.json",
+        "evidence/visual/invoice-detail-connections-fixed.png"
       ],
       "failures": [
         "detail tabs and remaining document actions pending",

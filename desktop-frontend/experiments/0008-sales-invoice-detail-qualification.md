@@ -103,3 +103,9 @@ The new due-date validation harness caught real native/server-integration defect
 - Added real checkbox controls, browser-dependent visibility for POS/return/posting-edit fields, editable scan barcode input, and scroll-aware native extraction so off-screen Flickable content is compared against browser document content fairly.
 - `invoice-detail-checkbox-fields.json` now passes with zero differential failures after catching and fixing POS/return dependent-field mismatches.
 - The editable draft save/submit regression still passes with zero differential failures under the expanded field comparison.
+
+## Tab rendering repair milestone (2026-11-28)
+
+- Final UI-driven verification found that non-Details tabs were visually blank or severely clipped even though accessibility-only tab navigation evidence passed. The alternate-tab viewport was repaired, and Connections content was implemented with browser-equivalent Payment/Reference/Returns/Subscription/Internal Transfers grouping.
+- Final visual retest passed for Connections; Details, Payments, Address & Contact, Terms, More Info, Connections, and return-to-Details render without overlap in the maximized native window.
+- Remaining honest gap: tab content is primarily display/navigation parity, not full field-level editing or linked-document action parity.
