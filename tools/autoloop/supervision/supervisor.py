@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from collections.abc import Iterable, Mapping
 
@@ -54,7 +53,7 @@ def next_action(
             ActionKind.ESCALATE,
             "oscillation",
             "repeated-blocker-set-without-new-evidence",
-            tuple(sorted(_ids_for_themes(normalized_findings, oscillating))),
+            oscillating,
         )
 
     clarification = _select_clarification(active, normalized_history, normalized_budget, normalized_contract)
@@ -83,14 +82,13 @@ def next_action(
 def detect_oscillation(
     findings: Iterable[Finding | Mapping[str, Any]], history: Iterable[Mapping[str, Any]]
 ) -> tuple[str, ...]:
-    """Return canonical themes whose blocker set recurred with identical evidence.
+    """Return finding IDs whose complete blocker/evidence set recurred unchanged.
 
     A review round is the maximal contiguous batch of ``record-finding`` events
-    in canonical event order.  The round signature is the set of
-    ``(canonical_theme, evidence_id)`` pairs newly reported in that batch.  Any
-    pair in the latest batch that also appeared in an earlier batch is a
-    recurring blocker set without new evidence.  Changed evidence IDs therefore
-    prevent the oscillation result, as required by the ADR.
+    in checkpoint order.  The round signature is the complete set of
+    ``(finding_id, evidence_id_or_digest)`` pairs newly reported in that batch.
+    Only an exact repeat of that complete set is oscillation.  Partial overlap,
+    an additional blocker, or changed evidence selects iteration instead.
     """
 
     normalized_findings = tuple(_coerce_finding(item) for item in _finding_values(findings))
@@ -98,9 +96,9 @@ def detect_oscillation(
     if len(signatures) < 2:
         return ()
     latest = signatures[-1]
-    earlier = set().union(*(set(signature) for signature in signatures[:-1])) if len(signatures) > 1 else set()
-    repeated = sorted(set(latest) & earlier)
-    return tuple(sorted(theme for theme, _evidence in repeated))
+    if latest not in signatures[:-1]:
+        return ()
+    return tuple(sorted(finding_id for finding_id, _evidence in latest))
 
 
 def review_round_signatures(
@@ -125,16 +123,19 @@ def review_round_signatures(
         entries: set[tuple[str, str]] = set()
         for event in batch:
             fid = str(event.get("finding_id") or "")
+            if not fid:
+                continue
             finding = normalized_findings.get(fid)
             if finding is not None and (not finding.blocking or finding.disposition == Disposition.FALSE_POSITIVE.value):
                 continue
-            theme = str(event.get("canonical_theme") or event.get("theme") or (finding.canonical_theme if finding else fid))
             evidence = str(
                 event.get("evidence_id")
+                or event.get("evidence_digest")
                 or event.get("evidence")
+                or (getattr(finding, "evidence_digest", None) if finding else "")
                 or (finding.evidence_id if finding else "")
             )
-            entries.add((theme, evidence))
+            entries.add((fid, evidence))
         if entries:
             signatures.append(tuple(sorted(entries)))
     return tuple(signatures)
@@ -202,16 +203,8 @@ def _coerce_finding(item: Finding | Mapping[str, Any]) -> Finding:
 
 
 def _ordered_events(history: tuple[dict, ...]) -> tuple[dict, ...]:
-    return tuple(sorted((dict(event) for event in history), key=_event_key))
-
-
-def _event_key(event: Mapping[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        str(event.get("at") or ""),
-        str(event.get("event") or ""),
-        str(event.get("finding_id") or event.get("shard") or ""),
-        json.dumps(event, sort_keys=True, separators=(",", ":"), default=str),
-    )
+    indexed = enumerate(dict(event) for event in history)
+    return tuple(event for _index, event in sorted(indexed, key=lambda item: (str(item[1].get("at") or ""), item[0])))
 
 
 def _required(finding: Finding, contract: SupervisionContract) -> bool:
@@ -368,8 +361,3 @@ def _fix_induced_themes(findings: tuple[Finding, ...], history: tuple[dict, ...]
         elif event.get("event") == "record-finding" and theme in resolved:
             recurring.add(theme)
     return recurring
-
-
-def _ids_for_themes(findings: tuple[Finding, ...], themes: tuple[str, ...]) -> tuple[str, ...]:
-    wanted = set(themes)
-    return tuple(finding.finding_id for finding in findings if finding.canonical_theme in wanted)
