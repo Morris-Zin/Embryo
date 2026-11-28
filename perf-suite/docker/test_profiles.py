@@ -316,7 +316,7 @@ class ProfileBudgetTest(unittest.TestCase):
         self.assertTrue(assessment["violations"])
         joined = "\n".join(assessment["violations"])
         self.assertIn("steady-state memory", joined)
-        self.assertIn("missing CPU limits", joined)
+        self.assertAlmostEqual(2.0, assessment["total_cpus"])
         self.assertIn("db memory 920 MiB exceeds ADR allocation 512 MiB", joined)
         self.assertIn("backend memory 576 MiB exceeds ADR allocation 544 MiB", joined)
         self.assertIn("frontend memory 120 MiB exceeds ADR allocation 24 MiB", joined)
