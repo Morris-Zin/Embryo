@@ -27,15 +27,15 @@ const plan = new SharedArray('seasonal_plan', function () {
 })[0];
 const settings = plan.settings;
 
-function arrivalScenario(segment, execName, rate, preAllocatedVus, maxVus) {
+function arrivalScenario(segment, execName, rate, preAllocatedVUs, maxVUs) {
   return {
     executor: 'constant-arrival-rate',
     rate: rate.rate,
     timeUnit: rate.timeUnit,
     duration: segment.duration,
     startTime: formatDurationSeconds(segment.startSeconds),
-    preAllocatedVus,
-    maxVUs: maxVus,
+    preAllocatedVUs,
+    maxVUs,
     gracefulStop: '30s',
     exec: execName,
   };

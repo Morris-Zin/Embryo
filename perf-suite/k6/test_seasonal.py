@@ -1,6 +1,7 @@
 import base64
 import json
 import math
+import re
 import shutil
 import subprocess
 import sys
@@ -1109,6 +1110,54 @@ console.log(JSON.stringify({
 
 
 class SeasonalStaticContractTests(unittest.TestCase):
+    def test_constant_arrival_scenarios_use_canonical_k6_option_casing(self):
+        scenario_dir = ROOT / "scenarios"
+        bad_key = re.compile(r"(?:^|[{\s])(preAllocatedVus|maxVus|timeunit|time_unit|gracefulstop|graceful_stop|starttime|start_time|maxduration|max_duration)\s*:")
+        for path in scenario_dir.glob("*.js"):
+            source = path.read_text(encoding="utf-8")
+            self.assertIsNone(bad_key.search(source), f"mis-cased k6 option in {path.name}")
+        seasonal = (scenario_dir / "seasonal.js").read_text(encoding="utf-8")
+        constant_arrivals = seasonal.count("executor: 'constant-arrival-rate'")
+        self.assertGreaterEqual(constant_arrivals, 4)
+        self.assertEqual(constant_arrivals, len(re.findall(r"^\s+preAllocatedVUs(?:\s*:|,)", seasonal, re.MULTILINE)))
+        self.assertEqual(constant_arrivals, len(re.findall(r"^\s+maxVUs(?:\s*:|,)", seasonal, re.MULTILINE)))
+        self.assertNotIn("preAllocatedVus,", seasonal)
+        for canonical in ("timeUnit", "startTime", "gracefulStop"):
+            self.assertIn(canonical, seasonal)
+
+    def test_detail_first_row_identity_uses_real_same_day_invoice_identifiers(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        start = runtime.index("function firstRowIdentity")
+        end = runtime.index("export function performDetailReport", start)
+        function_source = runtime[start:end]
+        script = function_source + r"""
+const displayed = {
+  parent_invoice: '',
+  indent: 0,
+  posting_date: '2026-06-15',
+  warehouse: 'Shop 1',
+  item_code: 'ITEM-001',
+  qty: 10,
+};
+const first = Object.assign({ sales_invoice: 'ACC-SINV-2026-0001' }, displayed);
+const second = Object.assign({ sales_invoice: 'ACC-SINV-2026-0002' }, displayed);
+const child = Object.assign({ sales_invoice: 'ITEM-001', parent_invoice: 'ACC-SINV-2026-0001', indent: 1 }, displayed);
+console.log(JSON.stringify({
+  sameDayInvoicesDiffer: firstRowIdentity(first) !== firstRowIdentity(second),
+  childDiffersFromParent: firstRowIdentity(child) !== firstRowIdentity(first),
+  firstIdentity: firstRowIdentity(first),
+}));
+"""
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("node is unavailable")
+        result = subprocess.run([node, "--input-type=module", "-"], input=script, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["sameDayInvoicesDiffer"])
+        self.assertTrue(payload["childDiffersFromParent"])
+        self.assertIn("ACC-SINV-2026-0001", payload["firstIdentity"])
+
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
         self.assertIn("iterationInTest", source)

@@ -36,8 +36,18 @@ def resource_window_comparison(before, after):
             continue
         if old.get('id') != new.get('id'):
             problems.append(f'{service}: container identity changed {old.get("id")} -> {new.get("id")}')
-        if int(old.get('restart_count') or 0) != int(new.get('restart_count') or 0):
-            problems.append(f'{service}: restart count changed {old.get("restart_count")} -> {new.get("restart_count")}')
+        old_restart = old.get('restart_count')
+        new_restart = new.get('restart_count')
+        if old_restart is None or new_restart is None:
+            problems.append(f'{service}: restart counter evidence missing in one resource proof')
+        else:
+            try:
+                restart_changed = int(old_restart) != int(new_restart)
+            except (TypeError, ValueError):
+                restart_changed = True
+                problems.append(f'{service}: restart counter evidence is not numeric')
+            if restart_changed:
+                problems.append(f'{service}: restart count changed {old_restart} -> {new_restart}')
         if bool(old.get('oom_killed')) != bool(new.get('oom_killed')):
             problems.append(f'{service}: OOM state changed {old.get("oom_killed")} -> {new.get("oom_killed")}')
     return {'passed': not problems, 'problems': problems}
@@ -82,6 +92,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_before = load_json(artifact / 'guest-attestation-before.json')
     guest_after = load_json(artifact / 'guest-attestation-after.json')
     oracle = load_json(artifact / 'oracle-evidence.json')
+    fixture_restore = load_json(artifact / 'fixture-restore.json')
     k6_log = artifact / 'k6.log'
 
     # Parse only the public config event; requiring the whole file keeps a missing
@@ -112,7 +123,7 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
     guest_ok = guest_before.get('passed') is True and guest_after.get('passed') is True
     guest_stable = all(
         guest_before.get(key) == guest_after.get(key)
-        for key in ('cpuset_cpus_effective', 'cpu_max', 'memory_max_bytes', 'memory_swap_max')
+        for key in ('cpuset_cpus_effective', 'cpu_max', 'memory_max_bytes', 'memory_swap_max', 'online_cpu_count', 'nproc_count', 'guest_mem_total_bytes', 'guest_swap_total_bytes')
     ) if guest_before and guest_after else False
     guest_attestation_ok = guest_ok and guest_stable
 
@@ -146,6 +157,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         evidence_problems.append('ADR guest envelope attestation missing, failed, or changed')
     if not oracle_ok:
         evidence_problems.append(oracle_problem)
+    fixture_restore_ok = (
+        fixture_restore.get('passed') is True
+        and len(str(fixture_restore.get('fixture_sha256') or '')) == 64
+        and fixture_restore.get('archive_format') == 'cold-named-volume-tar/v1'
+        and len(str(fixture_restore.get('fixture_manifest_sha256') or '')) == 64
+    )
+    if not fixture_restore_ok:
+        evidence_problems.append('verified cold-volume fixture restore/manifest evidence missing or failed')
     if not candidate.get('app_commit_sha') or not candidate.get('app_tree_hash'):
         evidence_problems.append('candidate commit/tree evidence missing')
     if migration.get('exit_code') != 0:
@@ -192,6 +211,14 @@ def decide(artifact_dir, workload_exit, run_id, seasonal_profile, preflight=Fals
         'resource_budget_problems_before': before.get('budget_problems', []),
         'resource_budget_problems_after': after.get('budget_problems', []),
         'workload_exit': workload_exit,
+        'fixture_sha256': fixture_restore.get('fixture_sha256'),
+        'fixture_archive': fixture_restore.get('archive'),
+        'fixture_archive_format': fixture_restore.get('archive_format'),
+        'fixture_manifest_path': fixture_restore.get('fixture_manifest_path'),
+        'fixture_manifest_sha256': fixture_restore.get('fixture_manifest_sha256'),
+        'fixture_restore_passed': fixture_restore.get('passed') is True,
+        'fixture_evidence_ok': fixture_restore_ok,
+        'fixture_restore_artifact': str(artifact / 'fixture-restore.json'),
         'app_checkout': candidate.get('app_checkout'),
         'app_ref': candidate.get('app_ref'),
         'app_commit_sha': candidate.get('app_commit_sha'),

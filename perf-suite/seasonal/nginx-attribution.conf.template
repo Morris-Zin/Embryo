@@ -1,14 +1,30 @@
-log_format seasonal_attribution escape=json '{"time":"$time_iso8601","method":"$request_method","uri":"$request_uri","status":"$status","request_time":"$request_time","upstream_connect_time":"$upstream_connect_time","upstream_header_time":"$upstream_header_time","upstream_response_time":"$upstream_response_time","upstream_addr":"$upstream_addr","request_id":"$http_x_k6_request_id","endpoint_class":"$http_x_k6_endpoint_class","bytes_sent":"$bytes_sent"}';
+log_format seasonal_attribution escape=json '{"time":"$time_iso8601","method":"$request_method","uri":"$request_uri","status":"$status","request_time":"$request_time","upstream_connect_time":"$upstream_connect_time","upstream_header_time":"$upstream_header_time","upstream_response_time":"$upstream_response_time","upstream_addr":"$upstream_addr","upstream_pool":"$upstream_pool","request_id":"$http_x_k6_request_id","endpoint_class":"$http_x_k6_endpoint_class","bytes_sent":"$bytes_sent"}';
+
+upstream cashier-server {
+	server cashier:8000 fail_timeout=0;
+	keepalive 8;
+	keepalive_timeout 55s;
+}
 
 upstream backend-server {
 	server ${BACKEND} fail_timeout=0;
-	keepalive 32;
+	keepalive 16;
 	keepalive_timeout 55s;
 }
 
 upstream socketio-server {
 	server ${SOCKETIO} fail_timeout=0;
 }
+
+# ADR-0004 admission classes. The server-name key makes voucher/search/general
+# capacities shared across clients on this site; login rate remains per client.
+limit_conn_zone $server_name zone=adr4_cashier_write:1m;
+limit_conn_zone $server_name zone=adr4_cashier_search:1m;
+limit_conn_zone $server_name zone=adr4_general:1m;
+limit_conn_zone $server_name zone=adr4_login_conn:1m;
+limit_req_zone $binary_remote_addr zone=adr4_login_rate:1m rate=12r/m;
+limit_conn_status 429;
+limit_req_status 429;
 
 # Preserve HTTPS only when deployed behind a trusted upstream proxy.
 map "${TRUST_UPSTREAM_FORWARDED_PROTO}:$http_x_forwarded_proto" $proxy_x_forwarded_proto {
@@ -26,12 +42,17 @@ server {
 	proxy_buffer_size 128k;
 	proxy_buffers 4 256k;
 	proxy_busy_buffers_size 256k;
+	proxy_request_buffering on;
+	proxy_next_upstream off;
+	client_body_buffer_size 256k;
 
 	include /etc/nginx/snippets/security_headers.conf;
 
 	set_real_ip_from ${UPSTREAM_REAL_IP_ADDRESS};
 	real_ip_header ${UPSTREAM_REAL_IP_HEADER};
 	real_ip_recursive ${UPSTREAM_REAL_IP_RECURSIVE};
+
+	set $upstream_pool static;
 
 	location ~ ^/assets/khitmee_ops/(.*)$ {
 		include /etc/nginx/snippets/security_headers.conf;
@@ -58,6 +79,7 @@ server {
 	}
 
 	location /socket.io {
+		set $upstream_pool socketio;
 		proxy_http_version 1.1;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
@@ -68,8 +90,119 @@ server {
 		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
 		proxy_set_header Origin $proxy_x_forwarded_proto://${FRAPPE_SITE_NAME_HEADER};
 		proxy_set_header Host $host;
+		proxy_next_upstream off;
 
 		proxy_pass http://socketio-server;
+	}
+
+	# Cashier writes: custom idempotent submit methods and stock savedocs used
+	# by purchase receipt/invoice confirmation. Two concurrent voucher writes.
+	location ~ ^/api/method/khitmee_ops\.api\.vouchers\.[A-Za-z0-9_]+$ {
+		limit_except POST { deny all; }
+		limit_conn adr4_cashier_write 2;
+		set $upstream_pool cashier;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Forwarded-SSL "";
+		proxy_set_header X-Forwarded-Protocol "";
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_set_header Connection "";
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
+		proxy_redirect off;
+		proxy_pass http://cashier-server;
+	}
+
+	location = /api/method/frappe.desk.form.save.savedocs {
+		limit_except POST { deny all; }
+		limit_conn adr4_cashier_write 2;
+		set $upstream_pool cashier;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Forwarded-SSL "";
+		proxy_set_header X-Forwarded-Protocol "";
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_set_header Connection "";
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
+		proxy_redirect off;
+		proxy_pass http://cashier-server;
+	}
+
+	# Permission-aware purchase recovery reads are limited to Purchase Receipt
+	# and Purchase Invoice resource list/document GETs. nginx may match either
+	# the percent-encoded or decoded form of the space in the doctype.
+	location ~ "^/api/resource/Purchase(?:%20| )(Receipt|Invoice)(?:/[^/?]+)?/?$" {
+		limit_except GET HEAD { deny all; }
+		limit_conn adr4_cashier_search 1;
+		set $upstream_pool cashier;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Forwarded-SSL "";
+		proxy_set_header X-Forwarded-Protocol "";
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_set_header Connection "";
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
+		proxy_redirect off;
+		proxy_pass http://cashier-server;
+	}
+
+	# One concurrent cashier item search.
+	location = /api/method/khitmee_ops.api.search.search_items {
+		limit_except GET HEAD { deny all; }
+		limit_conn adr4_cashier_search 1;
+		set $upstream_pool cashier;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Forwarded-SSL "";
+		proxy_set_header X-Forwarded-Protocol "";
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_set_header Connection "";
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
+		proxy_redirect off;
+		proxy_pass http://cashier-server;
+	}
+
+	# Login is separately concurrency- and rate-limited, then sent to the
+	# general pool. Excess requests fail promptly as 429 and remain visible in
+	# the access log status field.
+	location = /api/method/login {
+		limit_except POST { deny all; }
+		limit_conn adr4_login_conn 4;
+		limit_req zone=adr4_login_rate burst=6 nodelay;
+		set $upstream_pool general;
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Forwarded-SSL "";
+		proxy_set_header X-Forwarded-Protocol "";
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_set_header Connection "";
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
+		proxy_redirect off;
+		proxy_pass http://backend-server;
 	}
 
 	location / {
@@ -88,6 +221,8 @@ server {
 	}
 
 	location @webserver {
+		limit_conn adr4_general 1;
+		set $upstream_pool general;
 		proxy_http_version 1.1;
 		proxy_set_header X-Forwarded-For $remote_addr;
 		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
@@ -98,6 +233,8 @@ server {
 		proxy_set_header X-Use-X-Accel-Redirect True;
 		proxy_set_header Connection "";
 		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_request_buffering on;
+		proxy_next_upstream off;
 		proxy_redirect off;
 
 		proxy_pass http://backend-server;
@@ -107,11 +244,9 @@ server {
 	sendfile on;
 	keepalive_timeout 15;
 	client_max_body_size ${CLIENT_MAX_BODY_SIZE};
-	client_body_buffer_size 16K;
 	client_header_buffer_size 1k;
 
 	# enable gzip compression
-	# based on https://mattstauffer.co/blog/enabling-gzip-on-nginx-servers-including-laravel-forge
 	gzip on;
 	gzip_static on;
 	gzip_http_version 1.1;
@@ -136,5 +271,4 @@ server {
 		text/css
 		text/plain
 		text/x-component;
-		# text/html is always compressed by HttpGzipModule
 }

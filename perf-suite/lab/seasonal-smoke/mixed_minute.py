@@ -25,7 +25,7 @@ import seasonal_driver as driver
 import seasonal_telemetry as telemetry
 import verify_run as verifier
 
-FIXTURE = "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+FIXTURE = "0e9188bff3dbbfca937ae88451e2738c8da4d8780308e657cf58eb9c8af8e3dd"
 K6 = "ae93e9a5782805b8c816cd2997dbf9af448df56bd7733a4ea7d2d4e6632e9410"
 K6_WINDOWS = "6b68dbae8de12ae761da8722f1a182ee3ff47fe68e829b89e74a2796ded83fcb"
 ACTORS = "aff3b15acb83d6699162fff77dd32d3815f1177a6dfdfdf403208df1cef48633"

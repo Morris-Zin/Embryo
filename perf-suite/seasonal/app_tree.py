@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -55,7 +54,7 @@ def materialize(checkout, ref, output_dir):
 
     destination = pathlib.Path(output_dir).resolve()
     if destination.exists():
-        shutil.rmtree(destination)
+        raise RuntimeError(f"materialize destination already exists; refusing to remove it: {destination}")
     destination.mkdir(parents=True)
     with tempfile.TemporaryDirectory(prefix="khitmee-app-tree-") as archive_dir:
         archive_name = pathlib.Path(archive_dir) / "tree.tar"
