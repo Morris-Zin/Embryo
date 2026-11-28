@@ -59,18 +59,16 @@ class HistoricalReviewReplayTest(unittest.TestCase):
         self.assertEqual(finding.disposition, Disposition.OPEN.value)
         self.assertIsNone(finding.resolution)
 
-    def test_shuffled_findings_and_history_produce_identical_actions(self):
+    def test_shuffled_findings_produce_identical_actions_with_authoritative_history(self):
         round_fixture = FIXTURE["rounds"][1]
         imported = import_run_state(round_fixture["state"])
         baseline = next_action(imported.findings, imported.history, {}, {})
         for seed in range(10):
             rng = random.Random(seed)
             findings = list(imported.findings)
-            history = list(imported.history)
             rng.shuffle(findings)
-            rng.shuffle(history)
-            self.assertEqual(next_action(findings, history, {}, {}), baseline)
-            self.assertEqual(next_action(findings, history, {}, {}).to_dict(), baseline.to_dict())
+            self.assertEqual(next_action(findings, imported.history, {}, {}), baseline)
+            self.assertEqual(next_action(findings, imported.history, {}, {}).to_dict(), baseline.to_dict())
 
 
 class ReviewRulePrecedenceTest(unittest.TestCase):
@@ -88,6 +86,57 @@ class ReviewRulePrecedenceTest(unittest.TestCase):
         self.assertEqual(action.method, "oscillation")
         self.assertEqual(action.reason, "repeated-blocker-set-without-new-evidence")
         self.assertEqual(action.finding_ids, (finding["finding_id"],))
+
+    def test_partial_blocker_overlap_with_a_new_blocker_iterates_instead_of_escalating(self):
+        findings = [
+            open_finding("blocker-a", status="open"),
+            open_finding("blocker-b", status="resolved", resolution="fixed in round one"),
+            open_finding("blocker-c", status="open"),
+        ]
+        history = [
+            {"at": "2026-11-28T00:00:00Z", "event": "record-finding", "finding_id": "blocker-a", "evidence": "evidence-a"},
+            {"at": "2026-11-28T00:00:01Z", "event": "record-finding", "finding_id": "blocker-b", "evidence": "evidence-b"},
+            {"at": "2026-11-28T00:01:00Z", "event": "resolve-finding", "finding_id": "blocker-a"},
+            {"at": "2026-11-28T00:01:01Z", "event": "resolve-finding", "finding_id": "blocker-b"},
+            {"at": "2026-11-28T00:02:00Z", "event": "record-finding", "finding_id": "blocker-a", "evidence": "evidence-a"},
+            {"at": "2026-11-28T00:02:01Z", "event": "record-finding", "finding_id": "blocker-c", "evidence": "evidence-c"},
+        ]
+
+        action = next_action(findings, history, {}, {})
+
+        self.assertEqual(action.kind, ActionKind.ITERATE)
+        self.assertEqual(action.reason, "fix-induced-blocker")
+        self.assertEqual(action.finding_ids, ("blocker-a", "blocker-c"))
+
+    def test_partial_blocker_overlap_with_new_evidence_iterates_instead_of_escalating(self):
+        findings = [open_finding("blocker-a"), open_finding("blocker-b")]
+        history = [
+            {"at": "2026-11-28T00:00:00Z", "event": "record-finding", "finding_id": "blocker-a", "evidence": "evidence-a"},
+            {"at": "2026-11-28T00:00:01Z", "event": "record-finding", "finding_id": "blocker-b", "evidence": "evidence-b-round-1"},
+            {"at": "2026-11-28T00:01:00Z", "event": "resolve-finding", "finding_id": "blocker-a"},
+            {"at": "2026-11-28T00:01:01Z", "event": "resolve-finding", "finding_id": "blocker-b"},
+            {"at": "2026-11-28T00:02:00Z", "event": "record-finding", "finding_id": "blocker-a", "evidence": "evidence-a"},
+            {"at": "2026-11-28T00:02:01Z", "event": "record-finding", "finding_id": "blocker-b", "evidence": "evidence-b-round-2"},
+        ]
+
+        action = next_action(findings, history, {}, {})
+
+        self.assertEqual(action.kind, ActionKind.ITERATE)
+        self.assertEqual(action.finding_ids, ("blocker-a", "blocker-b"))
+
+    def test_exact_repeat_uses_append_order_when_timestamps_tie(self):
+        finding = open_finding("timestamp-tie-blocker")
+        history = [
+            {"at": "2026-11-28T00:00:00Z", "event": "record-finding", "finding_id": "timestamp-tie-blocker", "evidence": "same-evidence"},
+            {"at": "2026-11-28T00:00:00Z", "event": "resolve-finding", "finding_id": "timestamp-tie-blocker"},
+            {"at": "2026-11-28T00:00:00Z", "event": "record-finding", "finding_id": "timestamp-tie-blocker", "evidence": "same-evidence"},
+        ]
+
+        action = next_action([finding], history, {}, {})
+
+        self.assertEqual(action.kind, ActionKind.ESCALATE)
+        self.assertEqual(action.method, "oscillation")
+        self.assertEqual(action.finding_ids, ("timestamp-tie-blocker",))
 
     def test_same_blocker_with_new_evidence_does_not_escalate_as_oscillation(self):
         finding = open_finding("restart-count-reads-wrong-field")

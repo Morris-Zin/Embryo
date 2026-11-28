@@ -149,16 +149,8 @@ def _extract_path(summary: str) -> tuple[str | None, int | None]:
 
 
 def _ordered_events(history: tuple[dict, ...]) -> tuple[dict, ...]:
-    return tuple(sorted((dict(event) for event in history), key=_event_key))
-
-
-def _event_key(event: Mapping[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        str(event.get("at") or ""),
-        str(event.get("event") or ""),
-        str(event.get("finding_id") or event.get("shard") or ""),
-        json.dumps(event, sort_keys=True, separators=(",", ":"), default=str),
-    )
+    indexed = enumerate(dict(event) for event in history)
+    return tuple(event for _index, event in sorted(indexed, key=lambda item: (str(item[1].get("at") or ""), item[0])))
 
 
 def _project_raw_findings(raw_findings: Mapping[str, Any], history: tuple[dict, ...]) -> dict[str, dict[str, Any]]:
