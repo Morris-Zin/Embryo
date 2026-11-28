@@ -487,9 +487,7 @@ class SeasonalEvaluatorTests(unittest.TestCase):
         self.assertIn("endpoint_class: 'manager_summary'", (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8"))
         for worker in ("summaryWarehouseReader", "summaryMonthlyReader", "invoiceDetailReader", "fullYearExportWorker"):
             start = scenario.index(f"export function {worker}()")
-            body = scenario[start:scenario.index("
-}
-", start)]
+            body = scenario[start:scenario.index(chr(10) + "}" + chr(10), start)]
             self.assertIn("const iterationPhase = currentPhase();", body)
             self.assertIn("}, iterationPhase);", body)
             self.assertNotIn("plan, currentPhase()", body)
