@@ -572,13 +572,14 @@
         "evidence/journeys/invoice-list-permission-denied.json",
         "evidence/visual/invoice-detail-composite-list.png",
         "evidence/visual/invoice-detail-composite-detail.png",
-        "experiments/0008-sales-invoice-detail-qualification.md"
+        "experiments/0008-sales-invoice-detail-qualification.md",
+        "evidence/benchmarks/invoice-detail-comparison.json"
       ],
       "failures": [
         "comprehensive server-side validation matrix pending",
         "detail tabs and remaining document actions pending",
         "form focus-order and comprehensive visual-state evidence pending",
-        "performance evidence pending"
+        "comprehensive performance evidence pending"
       ],
       "acceptance": {
         "visual_max_failed_pixel_ratio": 0.0,
