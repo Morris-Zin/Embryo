@@ -41,7 +41,10 @@ struct PilotState {
     runtime_config: Option<ErpRuntimeConfig>,
     erp_client: Option<ErpClient>,
     invoice_detail_doc: Option<serde_json::Value>,
+    invoice_detail_fields: Vec<DetailField>,
+    invoice_detail_items: Vec<InvoiceDetailItem>,
     invoice_detail_dirty: bool,
+    invoice_detail_editing_index: i32,
 }
 
 #[derive(Clone)]
@@ -742,6 +745,7 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                     ),
             })
             .collect::<Vec<_>>();
+            state.invoice_detail_fields = fields.clone();
             app.set_invoice_detail_fields(Rc::new(VecModel::from(fields)).into());
             let items = doc
                 .get("items")
@@ -759,11 +763,19 @@ fn refresh_invoice_detail(app: &AppWindow, state: &mut PilotState, invoice_name:
                                 rate_text: detail_money(row, "rate").into(),
                                 amount_text: detail_money(row, "amount").into(),
                                 warehouse: detail_string(row, "warehouse").into(),
+                                editable: detail_number(&doc, "docstatus") == 0.0,
+                                item_code: item_code.clone().into(),
+                                qty_value: format!("{:.3}", detail_number(row, "qty")).into(),
+                                rate_value: money(detail_number(row, "rate")).into(),
+                                amount_value: money(detail_number(row, "amount")).into(),
                             }
                         })
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
+            state.invoice_detail_editing_index = -1;
+            app.set_invoice_detail_editing_index(-1);
+            state.invoice_detail_items = items.clone();
             app.set_invoice_detail_items(Rc::new(VecModel::from(items)).into());
             app.set_status_text(format!("Loaded Sales Invoice {invoice_name}").into());
         }
@@ -837,6 +849,115 @@ fn edit_invoice_detail_field(app: &AppWindow, state: &mut PilotState, label: &st
     state.invoice_detail_dirty = true;
     app.set_invoice_detail_dirty(true);
     app.set_status_text(format!("Edited {label}; save before submitting.").into());
+}
+
+fn refresh_detail_item_model(app: &AppWindow, state: &PilotState) {
+    app.set_invoice_detail_items(
+        Rc::new(VecModel::from(state.invoice_detail_items.clone())).into(),
+    );
+    app.set_invoice_detail_fields(
+        Rc::new(VecModel::from(state.invoice_detail_fields.clone())).into(),
+    );
+}
+
+fn detail_field_mut<'a>(fields: &'a mut [DetailField], label: &str) -> Option<&'a mut DetailField> {
+    fields
+        .iter_mut()
+        .find(|field| field.label.as_str() == label)
+}
+
+fn set_detail_numeric_fields(state: &mut PilotState, doc: &serde_json::Value) {
+    let updates = [
+        ("Total Quantity", qty(detail_number(doc, "total_qty"))),
+        ("Total (USD)", detail_money(doc, "total")),
+        ("Grand Total (USD)", detail_money(doc, "grand_total")),
+        ("Rounded Total (USD)", detail_money(doc, "rounded_total")),
+        (
+            "Outstanding Amount (USD)",
+            detail_money(doc, "outstanding_amount"),
+        ),
+    ];
+    for (label, value) in updates {
+        if let Some(field) = detail_field_mut(&mut state.invoice_detail_fields, label) {
+            field.value = value.into();
+        }
+    }
+}
+
+fn open_invoice_detail_item(app: &AppWindow, state: &mut PilotState, index: i32) {
+    if app.get_invoice_detail_status() != "Draft" {
+        return;
+    }
+    if index >= 0 && (index as usize) < state.invoice_detail_items.len() {
+        state.invoice_detail_editing_index = index;
+        app.set_invoice_detail_editing_index(index);
+    }
+}
+
+fn edit_invoice_detail_item_qty(app: &AppWindow, state: &mut PilotState, index: i32, value: &str) {
+    if app.get_invoice_detail_status() != "Draft" || index < 0 {
+        return;
+    }
+    let Ok(new_qty) = value.trim().parse::<f64>() else {
+        return;
+    };
+    if new_qty <= 0.0 {
+        app.set_status_text("Quantity must be greater than zero.".into());
+        return;
+    }
+    let Some(doc) = state.invoice_detail_doc.as_mut() else {
+        return;
+    };
+    let mut updated_amount = None;
+    if let Some(row) = doc
+        .get_mut("items")
+        .and_then(|rows| rows.as_array_mut())
+        .and_then(|rows| rows.get_mut(index as usize))
+    {
+        let amount = new_qty * detail_number(row, "rate");
+        row["qty"] = serde_json::json!(new_qty);
+        row["amount"] = serde_json::json!(amount);
+        updated_amount = Some(amount);
+    }
+    let Some(amount) = updated_amount else {
+        return;
+    };
+    let total_qty = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|item| detail_number(item, "qty"))
+                .sum::<f64>()
+        })
+        .unwrap_or(new_qty);
+    let total = doc
+        .get("items")
+        .and_then(|rows| rows.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|item| detail_number(item, "amount"))
+                .sum::<f64>()
+        })
+        .unwrap_or(amount);
+    doc["total_qty"] = serde_json::json!(total_qty);
+    doc["total"] = serde_json::json!(total);
+    doc["net_total"] = serde_json::json!(total);
+    doc["grand_total"] = serde_json::json!(total);
+    doc["rounded_total"] = serde_json::json!(total);
+    doc["outstanding_amount"] = serde_json::json!(total);
+    let doc_snapshot = doc.clone();
+    if let Some(item) = state.invoice_detail_items.get_mut(index as usize) {
+        item.qty_text = qty(new_qty).into();
+        item.amount_text = format!("$ {}", money(amount)).into();
+        item.qty_value = format!("{new_qty:.3}").into();
+        item.amount_value = money(amount).into();
+    }
+    set_detail_numeric_fields(state, &doc_snapshot);
+    state.invoice_detail_dirty = true;
+    app.set_invoice_detail_dirty(true);
+    refresh_detail_item_model(app, state);
+    app.set_status_text("Edited item quantity; save before submitting.".into());
 }
 
 fn save_invoice_detail(app: &AppWindow, state: &mut PilotState, submit: bool) {
@@ -1253,7 +1374,10 @@ fn main() -> Result<(), slint::PlatformError> {
         runtime_config: runtime_config.clone(),
         erp_client: None,
         invoice_detail_doc: None,
+        invoice_detail_fields: Vec::new(),
+        invoice_detail_items: Vec::new(),
         invoice_detail_dirty: false,
+        invoice_detail_editing_index: -1,
     }));
 
     let app = AppWindow::new()?;
@@ -1693,6 +1817,26 @@ fn main() -> Result<(), slint::PlatformError> {
             let app = app.unwrap();
             let mut state = state.borrow_mut();
             edit_invoice_detail_field(&app, &mut state, label.as_str(), value.as_str());
+        }
+    });
+
+    app.on_invoice_detail_item_open({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |index| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            open_invoice_detail_item(&app, &mut state, index);
+        }
+    });
+
+    app.on_invoice_detail_item_qty_edited({
+        let app = app.as_weak();
+        let state = state.clone();
+        move |index, value| {
+            let app = app.unwrap();
+            let mut state = state.borrow_mut();
+            edit_invoice_detail_item_qty(&app, &mut state, index, value.as_str());
         }
     });
 
