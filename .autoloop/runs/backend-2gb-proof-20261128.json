@@ -63,41 +63,6 @@
     ],
     "shard:autoloop_meta": [
       {
-        "at": "2026-11-28T12:34:08Z",
-        "head_sha": "ea7409afdfed8b75ec54d5555232a58edf4ef67a",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 5.035,
-          "fast_check.py/autoloop_lint": 2.824,
-          "fast_check.py/bash": 0.192,
-          "fast_check.py/compose": 0.206,
-          "fast_check.py/guardrails": 3.026,
-          "fast_check.py/javascript": 0.134,
-          "fast_check.py/knip": 2.191,
-          "fast_check.py/python": 4.932,
-          "fast_check.py/ruff_and_dev_deps": 0.116,
-          "fast_check.py/zizmor_workflows": 0.368
-        }
-      },
-      {
-        "at": "2026-11-28T12:39:47Z",
-        "head_sha": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131",
-        "passed": true,
-        "steps": {
-          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.528,
-          "fast_check.py": 6.584,
-          "fast_check.py/autoloop_lint": 1.573,
-          "fast_check.py/bash": 0.377,
-          "fast_check.py/compose": 0.562,
-          "fast_check.py/guardrails": 1.167,
-          "fast_check.py/javascript": 0.113,
-          "fast_check.py/knip": 1.63,
-          "fast_check.py/python": 6.492,
-          "fast_check.py/ruff_and_dev_deps": 0.094,
-          "fast_check.py/zizmor_workflows": 0.324
-        }
-      },
-      {
         "at": "2026-11-28T13:05:33Z",
         "head_sha": "bace59fe5c81cc84e0fa53fe863b1741d8c384bc",
         "passed": true,
@@ -149,6 +114,42 @@
           "fast_check.py/python": 4.355,
           "fast_check.py/ruff_and_dev_deps": 0.061,
           "fast_check.py/zizmor_workflows": 0.285
+        }
+      },
+      {
+        "at": "2026-11-28T13:24:05Z",
+        "head_sha": "ee6c35a499079a5716c8cef016d2601d479e322e",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 11.793,
+          "fast_check.py": 4.504,
+          "fast_check.py/autoloop_lint": 2.369,
+          "fast_check.py/bash": 0.108,
+          "fast_check.py/compose": 0.199,
+          "fast_check.py/guardrails": 2.521,
+          "fast_check.py/javascript": 0.054,
+          "fast_check.py/knip": 1.219,
+          "fast_check.py/python": 4.417,
+          "fast_check.py/ruff_and_dev_deps": 0.08,
+          "fast_check.py/zizmor_workflows": 0.316
+        }
+      },
+      {
+        "at": "2026-11-28T13:40:32Z",
+        "head_sha": "545e1d3c01f381e71d1967673ab89428139ecad6",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.465,
+          "fast_check.py": 6.501,
+          "fast_check.py/autoloop_lint": 1.412,
+          "fast_check.py/bash": 0.531,
+          "fast_check.py/compose": 0.504,
+          "fast_check.py/guardrails": 1.072,
+          "fast_check.py/javascript": 0.047,
+          "fast_check.py/knip": 0.868,
+          "fast_check.py/python": 6.421,
+          "fast_check.py/ruff_and_dev_deps": 0.043,
+          "fast_check.py/zizmor_workflows": 0.256
         }
       }
     ],
@@ -206,6 +207,27 @@
           "fast_check.py/python": 2.038,
           "fast_check.py/ruff_and_dev_deps": 0.046,
           "fast_check.py/zizmor_workflows": 0.297
+        }
+      },
+      {
+        "at": "2026-11-28T13:35:19Z",
+        "head_sha": "904e6c4246380c27eb16ddf8d99e9e1fcba2070d",
+        "passed": true,
+        "steps": {
+          "cashier_correctness #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py": 0.13,
+          "cashier_correctness #2: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py": 0.074,
+          "cashier_correctness #3: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_voucher_fastpath_unit.py": 0.081,
+          "cashier_correctness #4: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py": 0.112,
+          "fast_check.py": 2.964,
+          "fast_check.py/autoloop_lint": 2.777,
+          "fast_check.py/bash": 0.115,
+          "fast_check.py/compose": 0.175,
+          "fast_check.py/guardrails": 2.873,
+          "fast_check.py/javascript": 0.059,
+          "fast_check.py/knip": 1.342,
+          "fast_check.py/python": 2.051,
+          "fast_check.py/ruff_and_dev_deps": 0.047,
+          "fast_check.py/zizmor_workflows": 0.293
         }
       }
     ],
@@ -266,23 +288,6 @@
       }
     ],
     "shard:report_paths": [
-      {
-        "at": "2026-11-28T12:34:18Z",
-        "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
-        "passed": false,
-        "steps": {
-          "fast_check.py": 2.666,
-          "fast_check.py/autoloop_lint": 1.867,
-          "fast_check.py/bash": 0.156,
-          "fast_check.py/compose": 0.198,
-          "fast_check.py/guardrails": 2.533,
-          "fast_check.py/javascript": 0.042,
-          "fast_check.py/knip": 1.552,
-          "fast_check.py/python": 2.565,
-          "fast_check.py/ruff_and_dev_deps": 0.15,
-          "fast_check.py/zizmor_workflows": 0.342
-        }
-      },
       {
         "at": "2026-11-28T12:35:51Z",
         "head_sha": "1efc5d44071699c065ca1f495790193c3f444929",
@@ -352,6 +357,24 @@
           "fast_check.py/zizmor_workflows": 0.338,
           "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.507
         }
+      },
+      {
+        "at": "2026-11-28T13:23:22Z",
+        "head_sha": "351b943548b7dc2413e757af8c7b2d8c4d202ce0",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.923,
+          "fast_check.py/autoloop_lint": 2.67,
+          "fast_check.py/bash": 0.175,
+          "fast_check.py/compose": 0.24,
+          "fast_check.py/guardrails": 2.819,
+          "fast_check.py/javascript": 0.098,
+          "fast_check.py/knip": 1.638,
+          "fast_check.py/python": 2.014,
+          "fast_check.py/ruff_and_dev_deps": 0.119,
+          "fast_check.py/zizmor_workflows": 0.319,
+          "report_paths #1: python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_*.py": 0.445
+        }
       }
     ],
     "shard:runtime_profile": [
@@ -390,6 +413,24 @@
           "fast_check.py/zizmor_workflows": 0.382,
           "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.047
         }
+      },
+      {
+        "at": "2026-11-28T13:32:28Z",
+        "head_sha": "4de061c828055e860fa9b3b9239584f675d7989e",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.748,
+          "fast_check.py/autoloop_lint": 2.559,
+          "fast_check.py/bash": 0.101,
+          "fast_check.py/compose": 0.216,
+          "fast_check.py/guardrails": 2.652,
+          "fast_check.py/javascript": 0.06,
+          "fast_check.py/knip": 1.292,
+          "fast_check.py/python": 1.858,
+          "fast_check.py/ruff_and_dev_deps": 0.061,
+          "fast_check.py/zizmor_workflows": 0.315,
+          "runtime_profile #1: python -B -m unittest discover -s perf-suite/docker -p test_*.py": 0.048
+        }
       }
     ],
     "shard:seasonal_harness": [
@@ -410,45 +451,63 @@
           "fast_check.py/zizmor_workflows": 0.306,
           "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.157
         }
+      },
+      {
+        "at": "2026-11-28T13:21:19Z",
+        "head_sha": "4b9fe44edb27c6b57a657c436a07d26e3e9bf6c4",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.967,
+          "fast_check.py/autoloop_lint": 2.851,
+          "fast_check.py/bash": 0.13,
+          "fast_check.py/compose": 0.202,
+          "fast_check.py/guardrails": 2.285,
+          "fast_check.py/javascript": 0.076,
+          "fast_check.py/knip": 1.257,
+          "fast_check.py/python": 2.112,
+          "fast_check.py/ruff_and_dev_deps": 0.046,
+          "fast_check.py/zizmor_workflows": 0.315,
+          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.205
+        }
+      },
+      {
+        "at": "2026-11-28T13:35:06Z",
+        "head_sha": "0e932a72dfe09fa99d011b7c4ecbb21025fdc2dc",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.861,
+          "fast_check.py/autoloop_lint": 2.619,
+          "fast_check.py/bash": 0.171,
+          "fast_check.py/compose": 0.195,
+          "fast_check.py/guardrails": 2.75,
+          "fast_check.py/javascript": 0.051,
+          "fast_check.py/knip": 1.506,
+          "fast_check.py/python": 2.091,
+          "fast_check.py/ruff_and_dev_deps": 0.039,
+          "fast_check.py/zizmor_workflows": 0.302,
+          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.213
+        }
+      },
+      {
+        "at": "2026-11-28T13:41:01Z",
+        "head_sha": "896106a859080a280159bfb6ea8d0b7b8a42a8ba",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 2.788,
+          "fast_check.py/autoloop_lint": 2.551,
+          "fast_check.py/bash": 0.121,
+          "fast_check.py/compose": 0.213,
+          "fast_check.py/guardrails": 2.688,
+          "fast_check.py/javascript": 0.047,
+          "fast_check.py/knip": 1.207,
+          "fast_check.py/python": 2.134,
+          "fast_check.py/ruff_and_dev_deps": 0.033,
+          "fast_check.py/zizmor_workflows": 0.281,
+          "seasonal_harness #1: python -B -m unittest discover -s perf-suite/k6 -p test_*.py": 0.244
+        }
       }
     ],
     "shard:verify_tooling": [
-      {
-        "at": "2026-11-28T12:25:08Z",
-        "head_sha": "eed3d4a073ad6ba47b4f94c53f57ee0ed67667c8",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 3.691,
-          "fast_check.py/autoloop_lint": 1.587,
-          "fast_check.py/bash": 0.923,
-          "fast_check.py/compose": 0.481,
-          "fast_check.py/guardrails": 1.186,
-          "fast_check.py/javascript": 0.039,
-          "fast_check.py/knip": 0.942,
-          "fast_check.py/python": 3.604,
-          "fast_check.py/ruff_and_dev_deps": 0.035,
-          "fast_check.py/zizmor_workflows": 0.288,
-          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.883
-        }
-      },
-      {
-        "at": "2026-11-28T12:35:47Z",
-        "head_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 3.685,
-          "fast_check.py/autoloop_lint": 1.514,
-          "fast_check.py/bash": 0.59,
-          "fast_check.py/compose": 0.508,
-          "fast_check.py/guardrails": 1.141,
-          "fast_check.py/javascript": 0.07,
-          "fast_check.py/knip": 0.912,
-          "fast_check.py/python": 3.603,
-          "fast_check.py/ruff_and_dev_deps": 0.046,
-          "fast_check.py/zizmor_workflows": 0.273,
-          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.358
-        }
-      },
       {
         "at": "2026-11-28T12:36:36Z",
         "head_sha": "8bad8a96e622fb1ba0d1f67bbb3d0541f4e8e0ec",
@@ -500,6 +559,42 @@
           "fast_check.py/zizmor_workflows": 0.264,
           "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 4.822
         }
+      },
+      {
+        "at": "2026-11-28T13:28:48Z",
+        "head_sha": "a5ca1d34876a2aaee0aae876b5ae6571ab5a2296",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.845,
+          "fast_check.py/autoloop_lint": 2.305,
+          "fast_check.py/bash": 0.559,
+          "fast_check.py/compose": 0.485,
+          "fast_check.py/guardrails": 1.027,
+          "fast_check.py/javascript": 0.068,
+          "fast_check.py/knip": 0.884,
+          "fast_check.py/python": 3.763,
+          "fast_check.py/ruff_and_dev_deps": 0.042,
+          "fast_check.py/zizmor_workflows": 0.26,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.222
+        }
+      },
+      {
+        "at": "2026-11-28T13:40:43Z",
+        "head_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 3.645,
+          "fast_check.py/autoloop_lint": 2.431,
+          "fast_check.py/bash": 0.677,
+          "fast_check.py/compose": 0.464,
+          "fast_check.py/guardrails": 1.128,
+          "fast_check.py/javascript": 0.049,
+          "fast_check.py/knip": 0.862,
+          "fast_check.py/python": 3.56,
+          "fast_check.py/ruff_and_dev_deps": 0.052,
+          "fast_check.py/zizmor_workflows": 0.266,
+          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.388
+        }
       }
     ]
   },
@@ -533,19 +628,23 @@
     "cache-child-ownership-follows-links": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "cache-child-ownership-follows-links",
+      "fix_summary": "a5ca1d3: cache prep opens root and children with O_NOFOLLOW/dir_fd, verifies type/owner/link count, applies fchown/fchmod via descriptors; symlink and hardlink regressions leave outside targets untouched.",
       "opened_at": "2026-11-28T13:17:18Z",
+      "resolved_at": "2026-11-28T13:28:48Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Oracle cache prep chowns/chmods children by pathname; a symlinked child lets root-run prep modify files outside the cache dir (perf_parity.py:2853)."
     },
     "cashier-only-ignores-actor-failure": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "cashier-only-ignores-actor-failure",
+      "fix_summary": "0e932a7: single CASHIER_REQUIRED_GATE_NAMES shared by CLI and evaluate_events includes actor separation; regression test_cashier_only_cli_verdict_uses_shared_actor_gate.",
       "opened_at": "2026-11-28T13:17:18Z",
+      "resolved_at": "2026-11-28T13:35:07Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "CLI cashier-only verdict omits the actor-separation gate; CLI exits success with a failing actor gate (evaluate_seasonal.py:1329)."
     },
     "fastpath-must-keep-upstream-validation": {
@@ -562,37 +661,45 @@
     "gross-profit-percent-precision": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "gross-profit-percent-precision",
+      "fix_summary": "a5ca1d3: typed per-field GP precision map (gross_profit_% at currency precision, sourced from installed gross_profit.py) shared by live+offline comparators; unknown numeric fields compare exactly; 30.001 vs 30.000 regression.",
       "opened_at": "2026-11-28T13:17:17Z",
+      "resolved_at": "2026-11-28T13:28:48Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Live GP comparator compares gross_profit_% at float precision while GP computes it at currency precision; 30.001 vs 30.000 passes (tools/fast_verify.py:599)."
     },
     "invoice-cap-counts-unrelated-packed-items": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "invoice-cap-counts-unrelated-packed-items",
+      "fix_summary": "351b943: paged/CSV Invoice auxiliary reads scoped by (parent, bundle code); DN pack rows never consume the rendered-tree cap; SQLite regression with 5,001 unrelated packed rows renders exact header+line; true oversized bundles still reject.",
       "opened_at": "2026-11-28T13:17:17Z",
+      "resolved_at": "2026-11-28T13:23:32Z",
       "severity": "P2",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Invoice batch loader counts all packed rows of a referenced Delivery Note, so a one-line invoice can raise InvoiceBatchTooLarge (fast_gross_profit.py:1949)."
     },
     "k6-compact-context-breaks-june-scenarios": {
       "evidence": "Codex PR review thread PRRT_kwDOV8jMGc69EGH_ on PR #19",
       "finding_id": "k6-compact-context-breaks-june-scenarios",
+      "fix_summary": "896106a: compact wire context kept; pickItem/warehouse rows reconstruct item objects for legacy June consumers; regression test_june_iteration_builders_accept_compact_manifest_context.",
       "opened_at": "2026-11-28T13:18:42Z",
+      "resolved_at": "2026-11-28T13:41:01Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Compact manifest context breaks june_sustained/june_burst_2x: inStockItemsFor returns entry.items (gone) and pickItem returns strings; buildLines/searchTermForItem throw (perf-suite/k6/lib/payloads.js:65)"
     },
     "k6-shared-context-before-default-warehouses": {
       "evidence": "Codex PR review thread PRRT_kwDOV8jMGc69EGIC on PR #19",
       "finding_id": "k6-shared-context-before-default-warehouses",
+      "fix_summary": "896106a: SharedArray initializer runs after DEFAULT_WAREHOUSES; regression test_array_only_manifest_initializes_after_default_warehouses.",
       "opened_at": "2026-11-28T13:18:42Z",
+      "resolved_at": "2026-11-28T13:41:01Z",
       "severity": "P2",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "SharedArray initializer calls buildContextFromRoot before DEFAULT_WAREHOUSES is initialized; array-only manifests throw ReferenceError (perf-suite/k6/lib/payloads.js:88)"
     },
     "lease-split-brain": {
@@ -617,13 +724,26 @@
       "status": "fixed_pending_review",
       "summary": "Parity sidecar setup changed permissions on the shared /tmp directory."
     },
+    "parity-crashes-on-pending-gp": {
+      "evidence": "cashier phase6 full-parity.log, grouped-gp-diagnostic.log",
+      "finding_id": "parity-crashes-on-pending-gp",
+      "fix_summary": "748115b: shared typed classifier tools/perf_gp_result.py (computed/pending/gated) used by parity and bench; pending/gated recorded as explicit FAIL with reason plus oracle totals; summary separates fixture-not-ready, budget gates and mismatches; regressions for 3-field pending, gated, normal.",
+      "opened_at": "2026-11-28T13:30:44Z",
+      "resolved_at": "2026-11-28T13:39:16Z",
+      "severity": "P1",
+      "source": "gate_failure",
+      "status": "fixed_pending_review",
+      "summary": "perf_parity --require-db stops when Fast Gross Profit returns a 3-field pending/gated response (missing summary days): verifier unpacks 2 fields and aborts before invoking the stock oracle for that case; must classify pending explicitly and fail closed with a clear reason"
+    },
     "post-run-resource-failure-ignored": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "post-run-resource-failure-ignored",
+      "fix_summary": "0e932a7: post-run proof exit captured and required; pre/post measurement+budget pass, identical container IDs, restart counts and OOM state required; regression test_postrun_resource_identity_restart_and_oom_delta_invalidates_qualification.",
       "opened_at": "2026-11-28T13:17:17Z",
+      "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Post-run resource proof failure is suppressed; final predicate reads only within_budget, restarts/OOM after last sample ignored (qualify_2gb.sh:402)."
     },
     "report-columns-have-fieldname-or-key": {
@@ -640,28 +760,34 @@
     "resource-lease-splits-across-clones": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "resource-lease-splits-across-clones",
+      "fix_summary": "ee6c35a: resource leases use one host-wide authority (Windows %ProgramData%\\autoloop\\locks, Linux /var/lock/autoloop, WSL delegates to Windows CLI); stack leases keyed by compose project + docker endpoint; checkpoint mutexes stay per git common dir; two-clone contention test.",
       "opened_at": "2026-11-28T13:17:18Z",
+      "resolved_at": "2026-11-28T13:24:05Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Lease dir is per Git common dir; two clones on one host can both hold khitmee-perf/host-timing for the same Docker project (leases.py:148)."
     },
     "sale-basket-latency-masked": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "sale-basket-latency-masked",
+      "fix_summary": "0e932a7: sale/10, sale/50, sale/200 gated independently in every core phase; zero-sample class fails; lab acceptance emits per-class p95; regressions in test_seasonal and lab driver.",
       "opened_at": "2026-11-28T13:17:18Z",
+      "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "Seasonal latency gate pools sale p95; a failing 50-line class passes (evaluate_seasonal.py:145)."
     },
     "smoke-can-qualify-as-2gb": {
       "evidence": "Astra deep review of PR #19 @5c04ede",
       "finding_id": "smoke-can-qualify-as-2gb",
+      "fix_summary": "0e932a7: qualification_decision.py separates workload_passed/qualification_evidence/qualified; qualified=GO requires acceptance profile >=3600s, managers, guest attestation (2-CPU cpuset, cpu.max, memory.max, no swap, membership), paired oracle evidence, candidate+migration evidence; regression test_smoke_workload_pass_can_never_qualify_as_2gb.",
       "opened_at": "2026-11-28T13:17:17Z",
+      "resolved_at": "2026-11-28T13:35:06Z",
       "severity": "P1",
       "source": "review",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "qualify_2gb.sh can emit verdict=GO, qualification_evidence=true for a smoke or cashier-only run without acceptance profile, guest envelope attestation, or oracle evidence (qualify_2gb.sh:410)."
     },
     "stock-row-locks-only-in-stock-locks": {
@@ -1349,6 +1475,292 @@
       "fixed_by": null,
       "source": "review",
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:21:19Z",
+      "code_tree_sha256": "15f0401900c262024fd5172f94313a83214acd3c56b84a407c0b628ea1f7765a",
+      "event": "shard-passed",
+      "shard": "seasonal_harness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:23:22Z",
+      "code_tree_sha256": "013a3c161dbcbb8b7c0a159e34f693e5aa3db4a808a94c228f24d59a9564d7b0",
+      "event": "shard-passed",
+      "shard": "report_paths",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:23:32Z",
+      "event": "resolve-finding",
+      "finding_id": "invoice-cap-counts-unrelated-packed-items"
+    },
+    {
+      "at": "2026-11-28T13:24:05Z",
+      "code_tree_sha256": "198e2ccf745205968b529c2a04e6c988240b28851040bb0743fb69f6306030b6",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:24:05Z",
+      "event": "resolve-finding",
+      "finding_id": "resource-lease-splits-across-clones"
+    },
+    {
+      "at": "2026-11-28T13:28:48Z",
+      "code_tree_sha256": "a4385c2501d3d9a3524081c89014b4645a4f287fb0943c33d19ac0379b661cbc",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "fastpath-must-keep-upstream-validation": 1,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 7
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:28:48Z",
+      "event": "resolve-finding",
+      "finding_id": "gross-profit-percent-precision"
+    },
+    {
+      "at": "2026-11-28T13:28:48Z",
+      "event": "resolve-finding",
+      "finding_id": "cache-child-ownership-follows-links"
+    },
+    {
+      "at": "2026-11-28T13:30:44Z",
+      "event": "record-finding",
+      "finding_id": "parity-crashes-on-pending-gp",
+      "fixed_by": null,
+      "source": "gate_failure",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:32:11Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "7c2dd1053fb23117b285ba008675db3884ae76f2",
+      "shard": "runtime_profile",
+      "signature": "verify-untampered::UNKNOWN::hash_15743d1b7e35",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:32:28Z",
+      "code_tree_sha256": "917ddc2be2e9f82cb0bab4dd68064f90b78bc67d1297bdb5a79a50397a32c950",
+      "event": "shard-passed",
+      "shard": "runtime_profile",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:35:06Z",
+      "code_tree_sha256": "638cc82fd1508887ab08bf0ce78d2e3d1f2b516ad0e102cfb1423eba818e2567",
+      "event": "shard-passed",
+      "shard": "seasonal_harness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:35:06Z",
+      "event": "resolve-finding",
+      "finding_id": "smoke-can-qualify-as-2gb"
+    },
+    {
+      "at": "2026-11-28T13:35:06Z",
+      "event": "resolve-finding",
+      "finding_id": "post-run-resource-failure-ignored"
+    },
+    {
+      "at": "2026-11-28T13:35:06Z",
+      "event": "resolve-finding",
+      "finding_id": "sale-basket-latency-masked"
+    },
+    {
+      "at": "2026-11-28T13:35:07Z",
+      "event": "resolve-finding",
+      "finding_id": "cashier-only-ignores-actor-failure"
+    },
+    {
+      "at": "2026-11-28T13:35:19Z",
+      "code_tree_sha256": "60f4cfec8c6a384e3c3015e483dfb3bc608d18106809b0def4919466c647387b",
+      "event": "shard-passed",
+      "shard": "cashier_correctness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 9
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:39:16Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
+      "shard": "verify_tooling",
+      "signature": "verify-untampered::UNKNOWN::tools/perf_bench_inner.py",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:39:16Z",
+      "event": "resolve-finding",
+      "finding_id": "parity-crashes-on-pending-gp"
+    },
+    {
+      "at": "2026-11-28T13:40:32Z",
+      "code_tree_sha256": "4bc2a31b87372a13dd6ca70d369fb0bb41d9670a81a78b66561df2f00e2fcd96",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:40:43Z",
+      "code_tree_sha256": "95449f8965e1a5ab5702aee285e5e85ee7e9736128abe73bac57aff2e617fbd8",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "fastpath-must-keep-upstream-validation": 1,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 7
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:41:01Z",
+      "code_tree_sha256": "734a81bc80d2a8f19fd232303f268ff60d1cc40a22605718e92ace1801a884b4",
+      "event": "shard-passed",
+      "shard": "seasonal_harness",
+      "static_lint": {
+        "base_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {
+          "bench-results-typed-gated": 1,
+          "fastpath-must-keep-upstream-validation": 1,
+          "no-chmod-on-operator-paths": 2,
+          "wsl-scripts-lf": 6
+        },
+        "warning_count": 10
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T13:41:01Z",
+      "event": "resolve-finding",
+      "finding_id": "k6-compact-context-breaks-june-scenarios"
+    },
+    {
+      "at": "2026-11-28T13:41:01Z",
+      "event": "resolve-finding",
+      "finding_id": "k6-shared-context-before-default-warehouses"
     }
   ],
   "issue_number": null,
@@ -1396,17 +1808,16 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
+      "last_green_sha": "545e1d3c01f381e71d1967673ab89428139ecad6",
+      "passed_code_tree_sha256": "4bc2a31b87372a13dd6ca70d369fb0bb41d9670a81a78b66561df2f00e2fcd96",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
-        "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
-        },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
         "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
           "head_counts": {},
           "warning_count": 0
         }
@@ -1414,7 +1825,7 @@
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "0230837e7b1038c9c1dbe199548212b0f72eba38",
+      "trusted_policy_pass_sha": "545e1d3c01f381e71d1967673ab89428139ecad6",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/autoloop_meta"
     },
@@ -1441,25 +1852,36 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "f1a7f8886d9b33586c8162f9d607998e30f9b059",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
+      "last_green_sha": "904e6c4246380c27eb16ddf8d99e9e1fcba2070d",
+      "passed_code_tree_sha256": "60f4cfec8c6a384e3c3015e483dfb3bc608d18106809b0def4919466c647387b",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
+          "autoloop_meta": "ee6c35a499079a5716c8cef016d2601d479e322e",
+          "verify_tooling": "a5ca1d34876a2aaee0aae876b5ae6571ab5a2296"
         },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
+        "sha256": "b19697243afd04c33bcc236697be2f44082d5fd252f843ecc92565887ebb5439",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 9
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "f1a7f8886d9b33586c8162f9d607998e30f9b059",
+      "trusted_policy_pass_sha": "904e6c4246380c27eb16ddf8d99e9e1fcba2070d",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/cashier_correctness"
     },
@@ -1509,8 +1931,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "c20aab9301831b31d264c7437bbc45201f1e3d98",
-      "passed_code_tree_sha256": "5d9c81e92907724e1f58f7ac57d22601e0489c8ab827358d7d7465f8a8e477eb",
+      "last_green_sha": "351b943548b7dc2413e757af8c7b2d8c4d202ce0",
+      "passed_code_tree_sha256": "013a3c161dbcbb8b7c0a159e34f693e5aa3db4a808a94c228f24d59a9564d7b0",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
@@ -1539,7 +1961,7 @@
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "c20aab9301831b31d264c7437bbc45201f1e3d98",
+      "trusted_policy_pass_sha": "351b943548b7dc2413e757af8c7b2d8c4d202ce0",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/report_paths"
     },
@@ -1556,25 +1978,37 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
+      "last_green_sha": "4de061c828055e860fa9b3b9239584f675d7989e",
+      "passed_code_tree_sha256": "917ddc2be2e9f82cb0bab4dd68064f90b78bc67d1297bdb5a79a50397a32c950",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
+          "autoloop_meta": "ee6c35a499079a5716c8cef016d2601d479e322e",
+          "verify_tooling": "a5ca1d34876a2aaee0aae876b5ae6571ab5a2296"
         },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
+        "sha256": "b19697243afd04c33bcc236697be2f44082d5fd252f843ecc92565887ebb5439",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "c4f4887c49f6ecd725c5edc1608cf9d5079e03c1",
+      "trusted_policy_pass_sha": "4de061c828055e860fa9b3b9239584f675d7989e",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/runtime_profile"
     },
@@ -1592,25 +2026,37 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "345ca6a07f2214a1a2bf40179a237b501610374b",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
+      "last_green_sha": "896106a859080a280159bfb6ea8d0b7b8a42a8ba",
+      "passed_code_tree_sha256": "734a81bc80d2a8f19fd232303f268ff60d1cc40a22605718e92ace1801a884b4",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
+          "autoloop_meta": "545e1d3c01f381e71d1967673ab89428139ecad6",
+          "verify_tooling": "748115bf4df2d83bc42a68be5039b5feab66982b"
         },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
+        "sha256": "95be500d51cc69c6c725c9111814a0db3e5ac68f19a834c71a6a11c916af72bc",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 10
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "345ca6a07f2214a1a2bf40179a237b501610374b",
+      "trusted_policy_pass_sha": "896106a859080a280159bfb6ea8d0b7b8a42a8ba",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/seasonal_harness"
     },
@@ -1625,30 +2071,39 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "3fd5f1862605beae3cf8be3993388e9f8363f686",
-      "passed_code_tree_sha256": "05dca97dce6d19984cf24b2ae7f7d08c4f598131eee8ef929537454c33268600",
+      "last_green_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
+      "passed_code_tree_sha256": "95449f8965e1a5ab5702aee285e5e85ee7e9736128abe73bac57aff2e617fbd8",
       "passed_tooling": {
         "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
         "fast_check_ran": true,
         "policy_shas": {
-          "autoloop_meta": "0230837e7b1038c9c1dbe199548212b0f72eba38",
-          "verify_tooling": "3fd5f1862605beae3cf8be3993388e9f8363f686"
+          "autoloop_meta": "545e1d3c01f381e71d1967673ab89428139ecad6"
         },
-        "sha256": "d11c19ab35c040f0f4db3baa8538d12359e7409244ff6f1a4ce149e27701b85f",
+        "sha256": "30c7e57e9d3eaaf7241cd1a606c99ab942826d6aced11ff9a9fce33a2b28ec8b",
         "static_lint": {
-          "head_counts": {},
-          "warning_count": 0
+          "base_counts": {
+            "bench-results-typed-gated": 1,
+            "fastpath-must-keep-upstream-validation": 1,
+            "no-chmod-on-operator-paths": 2,
+            "wsl-scripts-lf": 6
+          },
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {
+            "fastpath-must-keep-upstream-validation": 1,
+            "wsl-scripts-lf": 6
+          },
+          "warning_count": 7
         }
       },
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
-      "trusted_policy_pass_sha": "3fd5f1862605beae3cf8be3993388e9f8363f686",
+      "trusted_policy_pass_sha": "748115bf4df2d83bc42a68be5039b5feab66982b",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T13:18:42Z"
+  "updated_at": "2026-11-28T13:41:01Z"
 }
