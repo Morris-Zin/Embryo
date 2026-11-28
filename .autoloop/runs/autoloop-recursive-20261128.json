@@ -87,6 +87,26 @@
         }
       }
     ],
+    "shard:supervision": [
+      {
+        "at": "2026-11-28T16:20:10Z",
+        "head_sha": "f47da12f74e818d9ba86a29389bf897d9957b48d",
+        "passed": true,
+        "steps": {
+          "fast_check.py": 4.742,
+          "fast_check.py/autoloop_lint": 4.08,
+          "fast_check.py/bash": 0.29,
+          "fast_check.py/compose": 0.235,
+          "fast_check.py/guardrails": 4.083,
+          "fast_check.py/javascript": 0.085,
+          "fast_check.py/knip": 2.445,
+          "fast_check.py/python": 4.657,
+          "fast_check.py/ruff_and_dev_deps": 0.115,
+          "fast_check.py/zizmor_workflows": 0.319,
+          "supervision #1: python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision": 0.061
+        }
+      }
+    ],
     "shard:verification": [
       {
         "at": "2026-11-28T16:01:38Z",
@@ -225,6 +245,26 @@
       "code_tree_sha256": "a045ef9a42c79402987b898efb9eff13ca24ef4d4943893b64498695df885a08",
       "event": "shard-passed",
       "shard": "admission",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:20:03Z",
+      "branch": null,
+      "event": "start-shard",
+      "shard": "supervision",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T16:20:10Z",
+      "code_tree_sha256": "1e1032c3e97ba867dc66707a0d38f9e202a9e419ab402e15c0f9d5e97b505b8c",
+      "event": "shard-passed",
+      "shard": "supervision",
       "static_lint": {
         "base_counts": {},
         "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
@@ -447,13 +487,32 @@
         "python -B -m unittest discover -t tools -p test_*.py -s tools/autoloop/supervision"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "f47da12f74e818d9ba86a29389bf897d9957b48d",
+      "passed_code_tree_sha256": "1e1032c3e97ba867dc66707a0d38f9e202a9e419ab402e15c0f9d5e97b505b8c",
+      "passed_tooling": {
+        "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+        "fast_check_ran": true,
+        "policy_shas": {
+          "admission": "08681fd01d119406df8c1f42573c83be98e3ac39",
+          "profile": "0491ea278225107eac64dadce640a8c63428e865",
+          "receipts": "00a7c98bb460e029ac9896d5cb3b1708125bc5a2",
+          "verification": "37275c867a31abd019fa7692dc67d7cd176ce3e3"
+        },
+        "sha256": "e7884df71bc2e14d15118742eade7192106a1fe7710888e573fa6bead5b7af2c",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "0e5ab4a23da80728b6e82f0bf1b60d91206af78b",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
+      "trusted_policy_pass_sha": "f47da12f74e818d9ba86a29389bf897d9957b48d",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "/root/gate/wt/supervision"
     },
     "verification": {
       "allowed_paths": [
@@ -492,5 +551,5 @@
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T16:11:42Z"
+  "updated_at": "2026-11-28T16:20:10Z"
 }
