@@ -6,13 +6,35 @@
     "tools/perf_eval_ledger.py",
     "tools/autoloop/**",
     ".autoloop/rules/**",
-    ".devin/skills/autoloop/**"
+    ".devin/skills/autoloop/**",
+    ".gitattributes"
   ],
   "allowed_paths": [],
   "base_branch": "main",
   "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-  "contract_revision": 1,
-  "contract_sha256": "895ad79ae3f388336a1d4088c0e6ae79dfe0f7498e10db4ff3e8f09019bc1ee7",
+  "check_timings": {
+    "shard:verify_tooling": [
+      {
+        "at": "2026-11-28T11:52:57Z",
+        "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 37.971,
+          "fast_check.py/autoloop_lint": 2.211,
+          "fast_check.py/bash": 37.755,
+          "fast_check.py/compose": 0.01,
+          "fast_check.py/guardrails": 1.54,
+          "fast_check.py/javascript": 0.121,
+          "fast_check.py/knip": 4.815,
+          "fast_check.py/python": 30.52,
+          "fast_check.py/ruff_and_dev_deps": 0.065,
+          "fast_check.py/zizmor_workflows": 0.355
+        }
+      }
+    ]
+  },
+  "contract_revision": 2,
+  "contract_sha256": "2d30d9cd2b5db3a25e8c93ff7e2bfed3ea272b24c8a43deea2127169e2d39a64",
   "created_at": "2026-11-28T11:25:07Z",
   "dead_ends": [],
   "findings": {},
@@ -35,6 +57,50 @@
       "contract_sha256": "895ad79ae3f388336a1d4088c0e6ae79dfe0f7498e10db4ff3e8f09019bc1ee7",
       "event": "lock",
       "status": "locked"
+    },
+    {
+      "at": "2026-11-28T11:25:12Z",
+      "event": "start-shard",
+      "shard": "cashier_correctness",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:29:14Z",
+      "event": "start-shard",
+      "shard": "report_paths",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:39:04Z",
+      "event": "start-shard",
+      "shard": "verify_tooling",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:40:18Z",
+      "code_tree_sha256": "96589d9a238313ff3fe8fd9614f91094cf7fa141fb6c2c6be79d1e0e78b54494",
+      "event": "shard-passed",
+      "shard": "verify_tooling",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:42:03Z",
+      "event": "request-contract-change",
+      "id": "amend-1",
+      "shard": "autoloop_meta"
+    },
+    {
+      "at": "2026-11-28T11:42:04Z",
+      "contract_revision": 2,
+      "decision": "approve",
+      "event": "resolve-contract-change",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T11:51:18Z",
+      "event": "start-shard",
+      "shard": "autoloop_meta",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -73,7 +139,8 @@
         ".autoloop/rules/**",
         ".devin/skills/autoloop/**",
         ".claude/skills/autoloop/**",
-        ".agents/skills/autoloop/**"
+        ".agents/skills/autoloop/**",
+        ".gitattributes"
       ],
       "attempts": 0,
       "checks": [
@@ -84,9 +151,9 @@
       "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "status": "in_progress",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-62d7ec79-76849b25871cdeac"
     },
     "cashier_correctness": {
       "allowed_paths": [
@@ -114,9 +181,9 @@
       "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "status": "in_progress",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-20dd3b60-9299b5289449d668"
     },
     "docs": {
       "allowed_paths": [
@@ -170,9 +237,9 @@
       "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
       "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "status": "in_progress",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-bf512f2a-b5272381dd2f3a0f"
     },
     "runtime_profile": {
       "allowed_paths": [
@@ -225,16 +292,17 @@
         "python -B -m unittest discover -s tools -p test_*.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-      "passed_code_tree_sha256": null,
+      "has_passed_individually": true,
+      "last_green_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
+      "passed_code_tree_sha256": "96589d9a238313ff3fe8fd9614f91094cf7fa141fb6c2c6be79d1e0e78b54494",
       "pending_dead_end_sig": null,
-      "status": "locked",
+      "retry_scope": null,
+      "status": "passed",
       "worker_strikes": 0,
-      "worktree_path": null
+      "worktree_path": "C:/Users/User/.t3/worktrees/Khitmee-ERPNext/t3-a5085a3b-08bdc57dedd1d37e"
     }
   },
-  "status": "locked",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T11:25:07Z"
+  "updated_at": "2026-11-28T11:52:57Z"
 }
