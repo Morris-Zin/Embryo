@@ -487,6 +487,14 @@ class QualifyEntryPointTests(unittest.TestCase):
 
             # A distinct Docker daemon ID on the same machine would pass the
             # round-3 daemon comparison; owner identity evidence must reject it.
+            same_machine_path = write_attestation(td, generator_host="qualification-vm")
+            same_machine = module.validate(same_machine_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(same_machine["passed"])
+            self.assertIn("distinct from the guest", " ".join(same_machine["problems"]))
+            mismatch_path = write_attestation(td, address="other-builder.example")
+            mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence, enforce_generator=True)
+            self.assertFalse(mismatch["passed"])
+            self.assertIn("does not match owner-declared generator address", " ".join(mismatch["problems"]))
 
         decision = self.decision_module()
         with tempfile.TemporaryDirectory() as td:
@@ -509,6 +517,7 @@ class QualifyEntryPointTests(unittest.TestCase):
         source = (ROOT / "qualify_2gb.sh").read_text(encoding="utf-8")
         self.assertIn("--environment-attestation PATH", source)
         self.assertIn("Owner environment attestation procedure:", source)
+        self.assertIn("--enforce-generator", source)
         self.assertTrue((ROOT / "environment-attestation.schema.json").is_file())
         self.assertTrue((ROOT / "environment-attestation.example.json").is_file())
 
