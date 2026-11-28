@@ -2494,7 +2494,6 @@ def run_voucher_parity(frappe, args):
 
         forced_key = idempotency_key("sale", "parity-forced-exception", user=frappe.session.user)
         idempotency_keys.append(forced_key)
-        frappe.db.sql("SAVEPOINT khitmee_perf_parity_lock")
         try:
             try:
                 vouchers._run_idempotent(
@@ -2511,7 +2510,7 @@ def run_voucher_parity(frappe, args):
                 raise ParityFailure("idempotency lock was not released after a forced exception")
             vouchers._release_lock(probe)
         finally:
-            frappe.db.sql("ROLLBACK TO SAVEPOINT khitmee_perf_parity_lock")
+            frappe.db.rollback()
         emit("PARITY_IDEMPOTENCY_LOCK", {"released_after_forced_exception": True})
 
         persisted_sales = count_names(frappe, "Sales Invoice", sale_names)
