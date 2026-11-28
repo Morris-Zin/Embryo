@@ -13,65 +13,79 @@
   "findings": {
     "F01-future-sle-repeatable-read-corruption": {
       "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "fix_summary": "Prepared master lookups before rollback+lock, captured posting_date/posting_time after lock_stock_coordinates(), and attached re-entrant before_submit locks to all 6 stock doctypes in hooks.py.",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:49Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P0",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "proven_empty_future_sle_fastpath can read a stale REPEATABLE READ MVCC snapshot opened before lock_stock_coordinates() and capture posting_time before locking; native Desk stock doctypes also lack before_submit stock locks."
     },
     "F02-voucher-fastpath-multithread-and-lazy-import-crash": {
       "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "fix_summary": "Replaced global teardown dicts with idempotent closure-bound dispatchers capturing original callables permanently per attribute, eliminating NoneType/RecursionError/lazy-import worker poisoning.",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:49Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P0",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "voucher_fastpath.py global dicts cleared on release can poison lazily-imported modules or race with concurrent threads under Gunicorn --threads=12."
     },
     "F03-perf-parity-oracle-cache-sidecar-permissions": {
       "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "fix_summary": "Failed closed when --oracle-cache-dir is combined with --runner exec and added prepare_sidecar_oracle_cache_dir() to ensure UID 1000 sidecar write permissions.",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P1",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "tools/perf_parity.py creates --oracle-cache-dir with host umask causing PermissionError in UID 1000 sidecar, and fails to reject --oracle-cache-dir with --runner exec."
     },
     "F04-perf-parity-db-fingerprint-misses-valuation-mutations": {
       "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "fix_summary": "Extended capture_db_fingerprint() with Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, plus external --oracle-manifest trust root.",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P1",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "capture_db_fingerprint() omits Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, allowing stale oracle cache hits after valuation reposts."
     },
     "F05-autopay-fastpath-loose-tolerance-and-loyalty": {
       "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "fix_summary": "Enforced <=1e-9 exact equality on paid_amount, payment_total, base_paid_amount, and base_payable_total plus loyalty_amount==0 guard before skipping 2nd calculate_taxes_and_totals().",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P2",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "_can_fast_sync_autopay_totals() allows 0.005 tolerance (5 units at precision=3) and omits loyalty_amount == 0 and base_paid_amount parity checks."
     },
     "F06-validate-items-permission-fastpath-gaps": {
       "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "fix_summary": "Added has_permission hook check, if_owner role permission fail-closed check, and applicable_for='Item' User Permission check to _item_permission_restrictions_active().",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:50Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P2",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "_item_permission_restrictions_active() skips has_permission hooks for Item, if_owner role permissions, and User Permissions with applicable_for='Item'."
     },
     "F07-perf-bench-inner-duplicate-sale-items": {
       "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "fix_summary": "Changed build_sale_payload() to use rng.sample() without replacement when pool_len >= line_count so 10/50/200-line benchmark sales have distinct item_codes.",
       "opened_at": "2026-11-28T07:13:38Z",
+      "resolved_at": "2026-11-28T07:20:51Z",
       "reviewer": "gemini-4-neon-high",
       "severity": "P2",
       "stage": "deep",
-      "status": "open",
+      "status": "fixed_pending_review",
       "summary": "build_sale_payload() samples items with replacement, creating duplicate item_codes on 50/200-line sales and silently disabling proven_empty_future_sle_fastpath during inner-loop benchmarks."
     }
   },
@@ -151,6 +165,62 @@
       "stage": "deep",
       "status": "in_progress",
       "verdict": "reject"
+    },
+    {
+      "at": "2026-11-28T07:20:42Z",
+      "code_tree_sha256": "b6f0d7a1c3c1bfa77914f0fde5d38dfe6630204fd2dab40bf48914c9e1c7e364",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:45Z",
+      "code_tree_sha256": "122737a1bcb54dff37ffaebc158b1394b9966c56ed3cbded247ff561dc522ff9",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:48Z",
+      "code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T07:20:49Z",
+      "event": "resolve-finding",
+      "finding_id": "F01-future-sle-repeatable-read-corruption"
+    },
+    {
+      "at": "2026-11-28T07:20:49Z",
+      "event": "resolve-finding",
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty"
+    },
+    {
+      "at": "2026-11-28T07:20:50Z",
+      "event": "resolve-finding",
+      "finding_id": "F06-validate-items-permission-fastpath-gaps"
+    },
+    {
+      "at": "2026-11-28T07:20:51Z",
+      "event": "resolve-finding",
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items"
     }
   ],
   "issue_number": null,
@@ -219,11 +289,11 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "1686cd3a29cee152841eab52cb28051e67cb85d4",
-      "passed_code_tree_sha256": null,
+      "last_green_sha": "c4ca21adf8fddda72d76ef82e7b3c3c74121a960",
+      "passed_code_tree_sha256": "122737a1bcb54dff37ffaebc158b1394b9966c56ed3cbded247ff561dc522ff9",
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-cashier-backend"
     },
@@ -245,11 +315,11 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "7239f15f52f75dcaf4aa39f98d9c0a918c6e92c0",
-      "passed_code_tree_sha256": null,
+      "last_green_sha": "747e8db706deef6d320d37a4a1bd9204810ed01f",
+      "passed_code_tree_sha256": "b6f0d7a1c3c1bfa77914f0fde5d38dfe6630204fd2dab40bf48914c9e1c7e364",
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-fast-verify"
     },
@@ -275,15 +345,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "526f053d3bb796008ac31ad179dcf163769087f3",
-      "passed_code_tree_sha256": null,
+      "passed_code_tree_sha256": "9248b79d3027758f4ab07d561b531c8fa1764ffa51d7f19ad4061e9149fbcac4",
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-manager-parity"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T07:13:38Z"
+  "updated_at": "2026-11-28T07:20:51Z"
 }
