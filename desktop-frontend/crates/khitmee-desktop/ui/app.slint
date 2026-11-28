@@ -1556,7 +1556,7 @@ export component AppWindow inherits Window {
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
-        navigate(screen) => { current-screen = screen; root.screen-navigated(screen); }
+        navigate(screen) => { if screen != current-screen { current-screen = screen; root.screen-navigated(screen); } }
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }
@@ -1588,7 +1588,7 @@ export component AppWindow inherits Window {
         total-qty-text: root.total-qty-text;
         subtotal-text: root.subtotal-text;
         clear-scan-after-accept <=> root.clear-scan-after-accept;
-        navigate(screen) => { current-screen = screen; root.screen-navigated(screen); }
+        navigate(screen) => { if screen != current-screen { current-screen = screen; root.screen-navigated(screen); } }
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }
