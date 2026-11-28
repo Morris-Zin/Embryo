@@ -11,6 +11,7 @@ if str(APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(APP_ROOT))
 
 import khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit as fast_gross_profit
+from khitmee_ops.khitmee_ops.report.fast_gross_profit import invoice_batches
 from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	FastGrossProfitGenerator,
 	SI_IDX,
@@ -1725,6 +1726,99 @@ except Exception:
 	standard_execute = None
 	fast_execute = None
 	HAS_BENCH_DATABASE = False
+
+
+class TestInvoicePageOracleParity(unittest.TestCase):
+	def test_concatenated_pages_match_unpaged_stock_rows_for_each_actor_and_return_toggle(self):
+		# Stock emits main invoices first and then linked returns whose original is
+		# outside that actor's visible result. A linked return still adjusts a visible
+		# original when the standalone-return toggle is off.
+		def family(name, amount, buying, qty):
+			return [
+				{"sales_invoice": name, "indent": 0, "parent_invoice": "", "selling_amount": amount, "buying_amount": buying},
+				{"sales_invoice": "ITEM", "indent": 1, "parent_invoice": name, "qty": qty,
+				 "selling_amount": amount, "buying_amount": buying},
+			]
+
+		families = {
+			"SI-A": family("SI-A", 75, 49, 3),
+			"SI-HIDDEN": family("SI-HIDDEN", 50, 31, 2),
+			"RET-STANDALONE": family("RET-STANDALONE", -10, -6, -1),
+			"RET-HIDDEN-ORIGINAL": family("RET-HIDDEN-ORIGINAL", -25, -15, -1),
+		}
+		columns = [{"fieldname": "sales_invoice"}]
+		cases = (
+			("Administrator", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
+			("Administrator", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
+			("restricted@example.test", 0, ("SI-A", "RET-HIDDEN-ORIGINAL"), 50, 34, 32),
+			("restricted@example.test", 1, ("SI-A", "RET-STANDALONE", "RET-HIDDEN-ORIGINAL"), 40, 28, 30),
+		)
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE invoice (name, posting_time, is_return, return_against, hidden);
+			INSERT INTO invoice VALUES
+				('SI-A', 10, 0, NULL, 0),
+				('SI-HIDDEN', 10, 0, NULL, 1),
+				('RET-STANDALONE', 8, 1, NULL, 0),
+				('RET-ABSORBED-A', 9, 1, 'SI-A', 0),
+				('RET-HIDDEN-ORIGINAL', 11, 1, 'SI-HIDDEN', 0);
+			"""
+		)
+		session = types.SimpleNamespace(user="Administrator")
+
+		def scoped_keys(filters, invoice_ids, *, count_rows):
+			self.assertIsNone(invoice_ids)
+			for phase, name in db.execute(
+				"""
+				WITH visible AS (SELECT * FROM invoice WHERE hidden = 0 OR ? = 'Administrator'),
+				main AS (SELECT * FROM visible WHERE is_return = 0 OR (? AND return_against IS NULL))
+				SELECT phase, name FROM (
+					SELECT 1 AS phase, name, posting_time FROM main
+					UNION ALL
+					SELECT 0, name, posting_time FROM visible WHERE is_return = 1 AND return_against IS NOT NULL
+						AND return_against NOT IN (SELECT name FROM main)
+				) ORDER BY phase DESC, posting_time DESC, name ASC
+				""",
+				(session.user, filters.include_returned_invoices),
+			):
+				yield phase, name, len(families[name]) if count_rows else 0
+
+		def render_batch(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			self.assertTrue(all((name != "RET-HIDDEN-ORIGINAL") == (invoice_phase == 1) for name in invoice_ids))
+			self.assertLessEqual(len(invoice_ids), 2)
+			rows = [dict(row) for name in invoice_ids for row in families[name]]
+			buying = sum(row["buying_amount"] for row in rows if row["indent"] == 1)
+			selling = sum(row["selling_amount"] for row in rows if row["indent"] == 1)
+			return columns, [*rows, fast_gross_profit.invoice_total_row(filters, selling, buying)]
+
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, session=session, db=types.SimpleNamespace(get_default=lambda field: 3)
+		)
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(
+			fast_gross_profit, "validate_date_range"
+		), patch.object(fast_gross_profit, "run_detail_gross_profit", side_effect=render_batch), patch.object(
+			invoice_batches, "_invoice_keys", side_effect=scoped_keys
+		), patch.object(invoice_batches, "INVOICE_KEY_BATCH_SIZE", 2):
+			for actor, include_returns, names, selling, buying, margin in cases:
+				for page_size in (2, 3):
+					with self.subTest(actor=actor, include_returns=include_returns, page_size=page_size), patch.object(
+						invoice_batches, "INVOICE_PAGE_SIZE", page_size
+					):
+						session.user = actor
+						filters = {"group_by": "Invoice", "include_returned_invoices": include_returns, "currency": "MMK"}
+						stock_rows = [row for name in names for row in families[name]] + [{
+							"sales_invoice": "Total", "qty": None, "avg._selling_rate": None, "valuation_rate": None,
+							"selling_amount": selling, "buying_amount": buying, "gross_profit": selling - buying,
+							"gross_profit_%": margin, "currency": "MMK",
+						}]
+						paged_rows = []
+						for page in range(1, (len(stock_rows) - 1) // page_size + 3):
+							for page_columns, rows in invoice_batches.iter_invoice_detail_batches(filters, page=page):
+								self.assertEqual(page_columns, columns)
+								paged_rows.extend(rows)
+						self.assertEqual(paged_rows, stock_rows)
 
 
 class TestFastGrossProfitERPNextParity(unittest.TestCase):
