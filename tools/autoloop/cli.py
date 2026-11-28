@@ -24,6 +24,7 @@ from autoloop.guard import (
     CheckCommandError,
     GitHubAPIClient,
     GuardError,
+    advise_test_integrity,
     assert_safe_local_path,
     compute_code_tree_sha256,
     git_current_branch,
@@ -150,6 +151,7 @@ def _run_check(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
                 )
         commands.extend((shard_id, cmd) for cmd in contract["shards"][shard_id]["checks"])
 
+    advise_test_integrity(worktree, run["base_sha"], requested, now=utc_now())
     with TemporaryDirectory(prefix="autoloop-tooling-") as temp:
         snapshot = Path(temp)
         tooling = materialize_tooling(repo, snapshot, run, contract, checking_shard=args.shard)
@@ -343,6 +345,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_review_next = sub.add_parser("review-next", help="Print the advisory next review action")
     p_review_next.add_argument("--run-id", required=True)
+
+    from autoloop.proofs import ProofMode
+
+    p_proof = sub.add_parser("red-proof", help="Run a counterexample and good control against two gates")
+    p_proof.add_argument("--run-id", required=True)
+    p_proof.add_argument("--finding-id", required=True)
+    p_proof.add_argument("--bound-tree-digest", required=True)
+    p_proof.add_argument("--head-ref", default="HEAD")
+    p_proof.add_argument("--mode", choices=[mode.value for mode in ProofMode], required=True)
+    p_proof.add_argument("--expected-diagnostic", required=True)
+    for name in ("old-gate", "new-gate", "counterexample", "control", "output-dir"):
+        p_proof.add_argument(f"--{name}", type=Path, required=name != "output-dir")
+    p_proof.add_argument("--timeout-seconds", type=float, default=5.0)
 
     # init
     p_init = sub.add_parser("init", help="Initialize a new /autoloop run in draft state")
@@ -622,6 +637,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             contract = {**(state.get("review_supervision") or {}), "checks_valid": checks_valid}
             _emit(next_action(imported.findings, imported.history, state.get("review_budget"), contract).to_dict())
+        elif cmd == "red-proof":
+            from autoloop.proofs import ProofMode, ProofVerdict, RedProofSpec, run_red_proof, write_proof_record
+
+            load_run(repo, args.run_id)
+            actual_tree = compute_code_tree_sha256(repo, args.head_ref, run_id=args.run_id)
+            proof = run_red_proof(RedProofSpec(
+                finding_id=args.finding_id, bound_tree_digest=args.bound_tree_digest, actual_tree_digest=actual_tree,
+                mode=ProofMode(args.mode), expected_diagnostic=args.expected_diagnostic,
+                old_gate=args.old_gate, new_gate=args.new_gate, counterexample=args.counterexample,
+                control=args.control, timeout_seconds=args.timeout_seconds,
+            ))
+            result = proof.to_dict()
+            if args.output_dir is not None:
+                result["record_path"] = str(write_proof_record(proof, args.output_dir))
+            _emit(result)
+            return EXIT_OK if proof.verdict is ProofVerdict.PASS else EXIT_ERROR
         elif cmd == "init":
             lessons = matching_lessons(repo, args.paths)
             models = json.loads(args.models_json) if args.models_json else {}

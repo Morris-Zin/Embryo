@@ -540,6 +540,35 @@ def git_read_blob(repo: Path, tree_ish: str, path: str) -> bytes | None:
     return proc.stdout
 
 
+def advise_test_integrity(repo: Path, base: str, head: str, *, now: str) -> None:
+    """Report protected test changes from committed trees without affecting the legacy gate."""
+    from .proofs import ProtectedKind, evaluate_integrity, trusted_manifest_for_files
+
+    try:
+        kinds = {}
+        for change in git_diff_tree_entries(repo, base, head):
+            path = Path(change.path)
+            if path.suffix not in (".py", ".js", ".mjs", ".ts", ".jsx", ".tsx"):
+                continue
+            if path.name in {"fast_check.py", "perf_parity.py", "perf_eval_ledger.py"}:
+                kinds[change.path] = ProtectedKind.EVALUATOR
+            elif "tests" in path.parts or path.name.startswith("test_") or ".test." in path.name or ".spec." in path.name:
+                kinds[change.path] = ProtectedKind.TEST
+        if not kinds:
+            return
+        base_files = git_read_tree_blobs(repo, base, tree_entries=[
+            entry for entry in git_ls_tree(repo, base) if entry.path in kinds
+        ])
+        candidate = git_read_tree_blobs(repo, head, tree_entries=[
+            entry for entry in git_ls_tree(repo, head) if entry.path in kinds
+        ])
+        report = evaluate_integrity(base_files, candidate, trusted_manifest_for_files(base_files, kinds), now=now)
+        for violation in report.violations:
+            print(f"SHADOW-INTEGRITY {violation.rule_id} {violation.path}: {violation.message}", file=sys.stderr)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"SHADOW-INTEGRITY unavailable: {exc}", file=sys.stderr)
+
+
 def git_is_ancestor(repo: Path, ancestor_sha: str, descendant_sha: str) -> bool:
     proc = _run_git(repo, ["merge-base", "--is-ancestor", ancestor_sha, descendant_sha], check=False)
     if proc.returncode == 0:
