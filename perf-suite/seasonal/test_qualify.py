@@ -663,6 +663,30 @@ class QualifyEntryPointTests(unittest.TestCase):
             mismatch_path = write_attestation(td, address="other-builder.example")
             mismatch = module.validate(mismatch_path, guest_evidence, generator_evidence)
             self.assertFalse(mismatch["passed"])
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["owner"] = 42
+            strict_path = Path(td) / "strict-owner.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_owner = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_owner["passed"])
+            self.assertIn("owner is not a non-empty string", " ".join(strict_owner["problems"]))
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["attested_at"] = "not-a-timestamp"
+            strict_path = Path(td) / "strict-time.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_time = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_time["passed"])
+            self.assertIn("ISO-8601", " ".join(strict_time["problems"]))
+
+            strict_data = json.loads(valid_path.read_text())
+            strict_data["guest"]["vcpus"] = "2"
+            strict_path = Path(td) / "strict-vcpus.json"
+            strict_path.write_text(json.dumps(strict_data))
+            strict_vcpus = module.validate(strict_path, guest_evidence, generator_evidence)
+            self.assertFalse(strict_vcpus["passed"])
+            self.assertIn("guest.vcpus is not an integer", " ".join(strict_vcpus["problems"]))
             self.assertIn("does not match owner-declared generator address", " ".join(mismatch["problems"]))
 
         decision = self.decision_module()

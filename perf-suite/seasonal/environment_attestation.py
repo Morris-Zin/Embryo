@@ -11,6 +11,7 @@ import argparse
 import json
 import pathlib
 import sys
+from datetime import datetime
 from urllib.parse import urlparse
 
 SCHEMA_VERSION = "seasonal-environment-attestation-v1"
@@ -35,21 +36,59 @@ def endpoint_host(endpoint):
     return (urlparse(str(endpoint or "")).hostname or "").strip().lower()
 
 
+def iso_timestamp(value):
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return True
+    except ValueError:
+        return False
+
+
+def exact_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def non_empty_string(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
 def shape_problems(data):
     problems = []
+    if not isinstance(data, dict):
+        return ["environment attestation root is not an object"], {}, {}
+    if set(data) != {"schema_version", "attested_at", "owner", "guest", "load_generator"}:
+        problems.append("environment attestation root fields do not exactly match the declared schema")
     if data.get("schema_version") != SCHEMA_VERSION:
         problems.append("environment attestation schema_version is missing or unsupported")
-    for key in ("attested_at", "owner"):
-        if not str(data.get(key) or "").strip():
-            problems.append(f"environment attestation missing {key}")
+    if not iso_timestamp(data.get("attested_at")):
+        problems.append("environment attestation attested_at is not an ISO-8601 timestamp string")
+    if not non_empty_string(data.get("owner")):
+        problems.append("environment attestation owner is not a non-empty string")
     guest = data.get("guest") if isinstance(data.get("guest"), dict) else {}
     generator = data.get("load_generator") if isinstance(data.get("load_generator"), dict) else {}
-    for key in ("host_identity", "vm_identity", "vcpus", "assigned_memory_mib", "swap_mib"):
+    if not isinstance(data.get("guest"), dict):
+        problems.append("environment attestation guest is not an object")
+    elif set(guest) != {"host_identity", "vm_identity", "vcpus", "assigned_memory_mib", "swap_mib"}:
+        problems.append("environment attestation guest fields do not exactly match the declared schema")
+    if not isinstance(data.get("load_generator"), dict):
+        problems.append("environment attestation load_generator is not an object")
+    elif set(generator) != {"host_identity", "address"}:
+        problems.append("environment attestation load_generator fields do not exactly match the declared schema")
+    for key in ("host_identity", "vm_identity"):
+        if key in guest and not non_empty_string(guest.get(key)):
+            problems.append(f"environment attestation guest.{key} is not a non-empty string")
+    for key in ("vcpus", "assigned_memory_mib", "swap_mib"):
         if key not in guest:
             problems.append(f"environment attestation missing guest.{key}")
+        elif not exact_int(guest.get(key)):
+            problems.append(f"environment attestation guest.{key} is not an integer")
     for key in ("host_identity", "address"):
         if key not in generator:
             problems.append(f"environment attestation missing load_generator.{key}")
+        elif not non_empty_string(generator.get(key)):
+            problems.append(f"environment attestation load_generator.{key} is not a non-empty string")
     return problems, guest, generator
 
 
