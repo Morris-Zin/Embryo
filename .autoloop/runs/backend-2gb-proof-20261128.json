@@ -17,24 +17,6 @@
   "check_timings": {
     "shard:autoloop_meta": [
       {
-        "at": "2026-11-28T11:58:26Z",
-        "head_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
-        "passed": true,
-        "steps": {
-          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 8.863,
-          "fast_check.py": 3.021,
-          "fast_check.py/autoloop_lint": 1.362,
-          "fast_check.py/bash": 0.281,
-          "fast_check.py/compose": 0.204,
-          "fast_check.py/guardrails": 2.263,
-          "fast_check.py/javascript": 0.046,
-          "fast_check.py/knip": 1.184,
-          "fast_check.py/python": 2.931,
-          "fast_check.py/ruff_and_dev_deps": 0.101,
-          "fast_check.py/zizmor_workflows": 0.338
-        }
-      },
-      {
         "at": "2026-11-28T12:19:22Z",
         "head_sha": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
         "passed": true,
@@ -102,6 +84,24 @@
           "fast_check.py/python": 4.932,
           "fast_check.py/ruff_and_dev_deps": 0.116,
           "fast_check.py/zizmor_workflows": 0.368
+        }
+      },
+      {
+        "at": "2026-11-28T12:39:47Z",
+        "head_sha": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131",
+        "passed": true,
+        "steps": {
+          "autoloop_meta #1: python -B -m unittest tools/autoloop/test_autoloop.py": 10.528,
+          "fast_check.py": 6.584,
+          "fast_check.py/autoloop_lint": 1.573,
+          "fast_check.py/bash": 0.377,
+          "fast_check.py/compose": 0.562,
+          "fast_check.py/guardrails": 1.167,
+          "fast_check.py/javascript": 0.113,
+          "fast_check.py/knip": 1.63,
+          "fast_check.py/python": 6.492,
+          "fast_check.py/ruff_and_dev_deps": 0.094,
+          "fast_check.py/zizmor_workflows": 0.324
         }
       }
     ],
@@ -277,24 +277,6 @@
     ],
     "shard:verify_tooling": [
       {
-        "at": "2026-11-28T11:57:36Z",
-        "head_sha": "d2f2d708a4006597f4bc5359c76c494ef5bd156d",
-        "passed": true,
-        "steps": {
-          "fast_check.py": 4.332,
-          "fast_check.py/autoloop_lint": 1.481,
-          "fast_check.py/bash": 0.855,
-          "fast_check.py/compose": 0.484,
-          "fast_check.py/guardrails": 1.115,
-          "fast_check.py/javascript": 0.043,
-          "fast_check.py/knip": 0.977,
-          "fast_check.py/python": 4.224,
-          "fast_check.py/ruff_and_dev_deps": 0.03,
-          "fast_check.py/zizmor_workflows": 0.301,
-          "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.544
-        }
-      },
-      {
         "at": "2026-11-28T12:23:47Z",
         "head_sha": "b5d54ba2c39522a3ebdc9f3c508efa0ea46646f6",
         "passed": false,
@@ -364,6 +346,23 @@
           "fast_check.py/zizmor_workflows": 0.273,
           "verify_tooling #1: python -B -m unittest discover -s tools -p test_*.py": 5.358
         }
+      },
+      {
+        "at": "2026-11-28T12:36:36Z",
+        "head_sha": "8bad8a96e622fb1ba0d1f67bbb3d0541f4e8e0ec",
+        "passed": false,
+        "steps": {
+          "fast_check.py": 4.677,
+          "fast_check.py/autoloop_lint": 1.66,
+          "fast_check.py/bash": 0.527,
+          "fast_check.py/compose": 0.566,
+          "fast_check.py/guardrails": 1.248,
+          "fast_check.py/javascript": 0.05,
+          "fast_check.py/knip": 1.052,
+          "fast_check.py/python": 4.564,
+          "fast_check.py/ruff_and_dev_deps": 0.057,
+          "fast_check.py/zizmor_workflows": 0.305
+        }
       }
     ]
   },
@@ -371,7 +370,96 @@
   "contract_sha256": "2603ef38bc628cdbdbc32bb7fc21617ddf79c4ba27877b6634de2a807515a14d",
   "created_at": "2026-11-28T11:25:07Z",
   "dead_ends": [],
-  "findings": {},
+  "findings": {
+    "bench-results-typed-gated": {
+      "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "finding_id": "bench-results-typed-gated",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "opened_at": "2026-11-28T12:40:06Z",
+      "resolved_at": "2026-11-28T12:40:06Z",
+      "severity": "P1",
+      "source": "gate_failure",
+      "status": "fixed_pending_review",
+      "summary": "A gated Fast Gross Profit response was recorded as a successful latency sample."
+    },
+    "fastpath-must-keep-upstream-validation": {
+      "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "finding_id": "fastpath-must-keep-upstream-validation",
+      "fixed_by": "5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "opened_at": "2026-11-28T12:40:06Z",
+      "resolved_at": "2026-11-28T12:40:06Z",
+      "severity": "P0",
+      "source": "inherited_review",
+      "status": "fixed_pending_review",
+      "summary": "Counter sales skipped ERPNext's reserved-stock validation on the future SLE fast path."
+    },
+    "lease-split-brain": {
+      "evidence": "git commit 5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+      "finding_id": "lease-split-brain",
+      "fixed_by": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+      "opened_at": "2026-11-28T12:40:07Z",
+      "resolved_at": "2026-11-28T12:40:07Z",
+      "severity": "P1",
+      "source": "incident",
+      "status": "fixed_pending_review",
+      "summary": "Windows and WSL workers could hold independent leases for the same resource."
+    },
+    "no-chmod-on-operator-paths": {
+      "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "finding_id": "no-chmod-on-operator-paths",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "opened_at": "2026-11-28T12:40:06Z",
+      "resolved_at": "2026-11-28T12:40:06Z",
+      "severity": "P1",
+      "source": "incident",
+      "status": "fixed_pending_review",
+      "summary": "Parity sidecar setup changed permissions on the shared /tmp directory."
+    },
+    "report-columns-have-fieldname-or-key": {
+      "evidence": "git commit 2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "finding_id": "report-columns-have-fieldname-or-key",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "opened_at": "2026-11-28T12:40:06Z",
+      "resolved_at": "2026-11-28T12:40:06Z",
+      "severity": "P1",
+      "source": "inherited_review",
+      "status": "fixed_pending_review",
+      "summary": "Financial comparison collapsed report columns with a label and no fieldname."
+    },
+    "stock-row-locks-only-in-stock-locks": {
+      "evidence": "git commit 5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "finding_id": "stock-row-locks-only-in-stock-locks",
+      "fixed_by": "5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "opened_at": "2026-11-28T12:40:06Z",
+      "resolved_at": "2026-11-28T12:40:06Z",
+      "severity": "P1",
+      "source": "incident",
+      "status": "fixed_pending_review",
+      "summary": "Late locking of bundle components could deadlock with other stock postings."
+    },
+    "test-stubs-restored": {
+      "evidence": "git commit 4242c8205586251c588135f4a6c8bdd60491c511",
+      "finding_id": "test-stubs-restored",
+      "fixed_by": "4242c8205586251c588135f4a6c8bdd60491c511",
+      "opened_at": "2026-11-28T12:40:07Z",
+      "resolved_at": "2026-11-28T12:40:07Z",
+      "severity": "P1",
+      "source": "gate_failure",
+      "status": "fixed_pending_review",
+      "summary": "Shared framework stub attributes leaked from one offline test suite into another."
+    },
+    "wsl-scripts-lf": {
+      "evidence": "git commit 89eaa8563e469435e202b59a19da7016a0758ae4",
+      "finding_id": "wsl-scripts-lf",
+      "fixed_by": "89eaa8563e469435e202b59a19da7016a0758ae4",
+      "opened_at": "2026-11-28T12:40:07Z",
+      "resolved_at": "2026-11-28T12:40:07Z",
+      "severity": "P1",
+      "source": "gate_failure",
+      "status": "fixed_pending_review",
+      "summary": "WSL failed to execute scripts checked out with CRLF line endings."
+    }
+  },
   "goal": "Prove the Khitmee backend sustains the 1-hour seasonal workload (100 and 125 vouchers/min plus managers) on a 2 vCPU / 2 GiB capped guest with exact stock-ERPNext parity; stock ERPNext/Frappe remains the untouched oracle. Integrates PR17 changes.",
   "grill_summary": "Integrates PR17 (merged into branch; PR17 need not merge). Base main. Oracle: stock ERPNext/Frappe never edited; mismatches reported with root cause. Acceptance: 1h seasonal (100/125 vouchers/min + managers) on 2vCPU/2GiB capped guest, p95 budgets, no OOM, no duplicate postings, exact parity. Architecture per ADR 0002 (GPT-6.2 Astra): keep transactional getseries, shrink post-naming work. Rust only for measured CPU-bound pure batch steps. Workers: SWE-2.1 standard / GPT-6.2 Sol. Review: deep (Astra) + cloud. Merge: auto.",
   "history": [
@@ -626,6 +714,101 @@
         "warning_count": 0
       },
       "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:36:22Z",
+      "check_name": "verify-untampered",
+      "event": "check-failed",
+      "head_sha": "0619601f88eca9a43e50a926e25747214a3f4855",
+      "shard": "verify_tooling",
+      "signature": "verify-untampered::UNKNOWN::.autoloop/lessons/backend-2gb-proof-20261128-fe65530cdeb045329b1b9882440e8f69.json",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:36:36Z",
+      "check_name": "fast_check.py",
+      "event": "check-failed",
+      "head_sha": "8bad8a96e622fb1ba0d1f67bbb3d0541f4e8e0ec",
+      "shard": "verify_tooling",
+      "signature": "fast_check.py::AssertionError::tools/test_khitmee_gate.py:test_make_job_translates_windows_inputs_for_linux_worker",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:39:47Z",
+      "code_tree_sha256": "ffc102d29c437ef32064eb9472cc3ea5a67c17ac5a7b24ba642e51c1b5b6c7d6",
+      "event": "shard-passed",
+      "shard": "autoloop_meta",
+      "static_lint": {
+        "base_counts": {},
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "head_counts": {},
+        "warning_count": 0
+      },
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:06Z",
+      "event": "record-finding",
+      "finding_id": "fastpath-must-keep-upstream-validation",
+      "fixed_by": "5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "source": "inherited_review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:06Z",
+      "event": "record-finding",
+      "finding_id": "stock-row-locks-only-in-stock-locks",
+      "fixed_by": "5c38bd716e3f337eaff52e68ced016d392ced97f",
+      "source": "incident",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:06Z",
+      "event": "record-finding",
+      "finding_id": "no-chmod-on-operator-paths",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "source": "incident",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:06Z",
+      "event": "record-finding",
+      "finding_id": "report-columns-have-fieldname-or-key",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "source": "inherited_review",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:06Z",
+      "event": "record-finding",
+      "finding_id": "bench-results-typed-gated",
+      "fixed_by": "2c2db72806b3e8785ac9e308e317f129cf137a1f",
+      "source": "gate_failure",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:07Z",
+      "event": "record-finding",
+      "finding_id": "wsl-scripts-lf",
+      "fixed_by": "89eaa8563e469435e202b59a19da7016a0758ae4",
+      "source": "gate_failure",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:07Z",
+      "event": "record-finding",
+      "finding_id": "test-stubs-restored",
+      "fixed_by": "4242c8205586251c588135f4a6c8bdd60491c511",
+      "source": "gate_failure",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T12:40:07Z",
+      "event": "record-finding",
+      "finding_id": "lease-split-brain",
+      "fixed_by": "5dd94f0ac08747f5c73324bf66891d9a68f5f287",
+      "source": "incident",
+      "status": "in_progress"
     }
   ],
   "issue_number": null,
@@ -672,12 +855,25 @@
         "python -B -m unittest tools/autoloop/test_autoloop.py"
       ],
       "goal": "",
-      "has_passed_individually": false,
-      "last_green_sha": "29fc9f0590a3701579772271655ee79ea8ccf1d6",
-      "passed_code_tree_sha256": null,
-      "pending_dead_end_sig": "fast_check.py::AssertionError::tools/autoloop/test_autoloop.py:test_current_memory_hooks_stub_matches_the_legacy_baseline",
+      "has_passed_individually": true,
+      "last_green_sha": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131",
+      "passed_code_tree_sha256": "ffc102d29c437ef32064eb9472cc3ea5a67c17ac5a7b24ba642e51c1b5b6c7d6",
+      "passed_tooling": {
+        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+        "fast_check_ran": true,
+        "policy_shas": {},
+        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
+        "static_lint": {
+          "base_counts": {},
+          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
+          "head_counts": {},
+          "warning_count": 0
+        }
+      },
+      "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "in_progress",
+      "status": "passed",
+      "trusted_policy_pass_sha": "d7c1e24ee3b40653ebbe6ed35abf3b3455b12131",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/autoloop_meta"
     },
@@ -877,30 +1073,17 @@
         "python -B -m unittest discover -s tools -p test_*.py"
       ],
       "goal": "",
-      "has_passed_individually": true,
+      "has_passed_individually": false,
       "last_green_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
-      "passed_code_tree_sha256": "6c08a6bf33375aa627f77baf4ad7cd8af443e80f84488868125c6bf9b056c737",
-      "passed_tooling": {
-        "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-        "fast_check_ran": true,
-        "policy_shas": {},
-        "sha256": "fd1388d24d5f11f6c059c3a776649fc7b193a0dbf72f6dc8a4be1e2a6367cf31",
-        "static_lint": {
-          "base_counts": {},
-          "base_sha": "4d94c718987dafedf87938c56a51f0bba4e5d9f8",
-          "head_counts": {},
-          "warning_count": 0
-        }
-      },
-      "pending_dead_end_sig": null,
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": "fast_check.py::AssertionError::tools/test_khitmee_gate.py:test_make_job_translates_windows_inputs_for_linux_worker",
       "retry_scope": null,
-      "status": "passed",
-      "trusted_policy_pass_sha": "5b0d690bfd8e6214387456a3a179759574ecc995",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "/root/gate/wt/verify_tooling"
     }
   },
   "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T12:35:51Z"
+  "updated_at": "2026-11-28T12:40:07Z"
 }
