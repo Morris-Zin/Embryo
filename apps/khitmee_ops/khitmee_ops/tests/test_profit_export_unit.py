@@ -18,7 +18,7 @@ if str(APP_ROOT) not in sys.path:
 
 from khitmee_ops.api import profit_export
 from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit
-from khitmee_ops.profit_summary import export_service
+from khitmee_ops.profit_summary import budget, export_service
 
 
 class FakePermissionError(Exception):
@@ -217,8 +217,10 @@ class ExportServiceTestCase(unittest.TestCase):
 		self.fake, self.state, self.installed_modules = install_fake_frappe(self.export_root)
 		self.old_service_frappe = export_service.frappe
 		self.old_api_frappe = profit_export.frappe
+		self.old_budget_frappe = budget.frappe
 		export_service.frappe = self.fake
 		profit_export.frappe = self.fake
+		budget.frappe = self.fake
 
 		self.authorize_patcher = patch.object(export_service, "authorize_profit_request", return_value=None)
 		self.fingerprint_patcher = patch.object(export_service, "compute_permission_fingerprint", return_value="fp")
@@ -245,6 +247,7 @@ class ExportServiceTestCase(unittest.TestCase):
 	def restore_modules(self):
 		export_service.frappe = self.old_service_frappe
 		profit_export.frappe = self.old_api_frappe
+		budget.frappe = self.old_budget_frappe
 		for name in list(sys.modules):
 			if name == "frappe" or name.startswith("frappe."):
 				if name in self.module_snapshot and self.module_snapshot[name] is not None:
@@ -340,6 +343,71 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 			written = list(csv.reader(csv_file))
 		self.assertEqual(row_count, 4)
 		self.assertEqual([row[0] for row in written], ["Invoice", "SI-MAIN-2", "SI-MAIN-1", "SI-UNABSORBED-RETURN", "Total"])
+
+	def test_invoice_csv_writer_uses_query_report_fieldname_fallback(self):
+		columns = [
+			{"fieldname": "sales_invoice", "label": "Sales Invoice"},
+			{"label": "Brand", "fieldtype": "Link", "options": "Brand", "width": 100},
+			{"label": "Net Unit-Price", "fieldtype": "Currency"},
+			{},
+		]
+		rows = [{"sales_invoice": "ACC-SINV-2026-317799", "brand": "Phsar Select", "net_unit_price": 7, "3": "x"}]
+		path = os.path.join(self.tempdir, "profit-brand.csv")
+		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)):
+			row_count = export_service.write_profit_csv({"group_by": "Invoice"}, path)
+
+		with open(path, newline="", encoding="utf-8") as csv_file:
+			written = list(csv.reader(csv_file))
+		self.assertEqual(row_count, 1)
+		self.assertEqual(
+			written,
+			[["Sales Invoice", "Brand", "Net Unit-Price", ""], ["ACC-SINV-2026-317799", "Phsar Select", "7", "x"]],
+		)
+
+	def test_invoice_sort_uses_ascending_invoice_tie_break(self):
+		rows = [
+			{"parent": "ACC-SINV-2026-317777", "posting_date": "2026-11-25", "posting_time": "10:00:00"},
+			{"parent": "ACC-SINV-2026-317776", "posting_date": "2026-11-25", "posting_time": "10:00:00"},
+		]
+
+		ordered = fast_gross_profit.sort_invoice_rows_descending(rows)
+
+		self.assertEqual(
+			[row["parent"] for row in ordered],
+			["ACC-SINV-2026-317776", "ACC-SINV-2026-317777"],
+		)
+
+	def test_export_service_exposes_whitelisted_enqueue_json_and_download_delegation(self):
+		result = export_service.enqueue_profit_csv_export(json.dumps({"company": "Company", "from_date": "2026-01-01"}))
+		self.assertFalse(result["deduplicated"])
+		self.assertEqual(result["status"], "Queued")
+
+		self.make_log()
+		self.write_artifact(b"Sales Invoice,Brand\nSI-1,Phsar Select\n")
+		response = export_service.download_profit_csv_export("EXP-TEST")
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), b"Sales Invoice,Brand\nSI-1,Phsar Select\n")
+
+		self.fake.set_user("other")
+		forbidden = export_service.download_profit_csv_export("EXP-TEST")
+		self.assertEqual(forbidden.status_code, 403)
+
+		whitelisted = []
+
+		def record_whitelist(*args, **kwargs):
+			def decorator(function):
+				whitelisted.append(function.__name__)
+				return function
+
+			return decorator
+
+		self.fake.whitelist = record_whitelist
+		importlib.reload(export_service)
+		try:
+			self.assertIn("enqueue_profit_csv_export", whitelisted)
+			self.assertIn("download_profit_csv_export", whitelisted)
+		finally:
+			export_service.frappe = self.fake
 
 	def test_worker_renames_before_single_completion_commit_and_preserves_user(self):
 		doc = self.make_log(status="Queued", artifact_published=0, exported_invoice_sha256=None)

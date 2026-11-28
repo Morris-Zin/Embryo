@@ -1332,9 +1332,70 @@ class TestTwoPhaseInvoiceOrdering(unittest.TestCase):
 			fast_gross_profit.frappe = old_frappe
 
 		self.assertEqual(len(prepare_calls), 3)
-		self.assertEqual([row.parent for row in generator.si_list], ["SI-Z", "SI-A", "SI-RET"])
+		self.assertEqual([row.parent for row in generator.si_list], ["SI-A", "SI-Z", "SI-RET"])
 		self.assertEqual([row._khitmee_query_phase for row in generator.si_list], [1, 1, 0])
 		self.assertTrue(all(row._khitmee_first_seen_key.startswith(f"{row._khitmee_query_phase}|") for row in generator.si_list))
+
+	def test_sort_invoice_rows_descending_uses_ascending_tie_break_and_preserves_item_order(self):
+		rows = [
+			AttrDict(parent="ACC-SINV-2026-317777", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-1"),
+			AttrDict(parent="ACC-SINV-2026-317777", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-2"),
+			AttrDict(parent="ACC-SINV-2026-317776", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-A"),
+			AttrDict(parent="ACC-SINV-2026-317776", posting_date="2026-11-25", posting_time="10:00:00", item_code="ITEM-B"),
+			AttrDict(invoice="ACC-SINV-2026-317778", posting_date="2026-11-25", posting_time="10:00:00.000500", item_code="ITEM-NEWER"),
+		]
+
+		ordered = fast_gross_profit.sort_invoice_rows_descending(rows)
+
+		self.assertEqual(
+			[(row.get("parent") or row.get("invoice"), row.get("item_code")) for row in ordered],
+			[
+				("ACC-SINV-2026-317778", "ITEM-NEWER"),
+				("ACC-SINV-2026-317776", "ITEM-A"),
+				("ACC-SINV-2026-317776", "ITEM-B"),
+				("ACC-SINV-2026-317777", "ITEM-1"),
+				("ACC-SINV-2026-317777", "ITEM-2"),
+			],
+		)
+
+	def test_group_items_by_invoice_preserves_ascending_tie_break_and_contiguous_children(self):
+		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+		generator.product_bundles = {}
+		generator.get_invoice_row = lambda row: AttrDict(
+			indent=0.0, parent_invoice="", invoice_or_item=row.parent, posting_date=row.posting_date
+		)
+		generator.si_list = fast_gross_profit.sort_invoice_rows_descending(
+			[
+				AttrDict(parent="SI-2", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-2A"),
+				AttrDict(parent="SI-1", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-1A"),
+				AttrDict(parent="SI-1", posting_date="2026-11-25", posting_time="10:00:00", item_code="I-1B"),
+			]
+		)
+
+		generator.group_items_by_invoice()
+
+		self.assertEqual(
+			[(row.indent, row.invoice_or_item, row.parent_invoice) for row in generator.si_list],
+			[
+				(0.0, "SI-1", ""),
+				(1.0, "I-1A", "SI-1"),
+				(1.0, "I-1B", "SI-1"),
+				(0.0, "SI-2", ""),
+				(1.0, "I-2A", "SI-2"),
+			],
+		)
+
+	def test_normalize_sle_key_inline_matches_string_coercion_for_all_types(self):
+		class StrSub(str):
+			pass
+
+		self.assertEqual(
+			normalize_sle_key("ITEM-1", None, 0, False, 42),
+			("ITEM-1", "", "", "", "42"),
+		)
+		key = normalize_sle_key(StrSub("ITEM-1"), "", "Sales Invoice", "SI-1", "ROW-1")
+		self.assertEqual(key, ("ITEM-1", "", "Sales Invoice", "SI-1", "ROW-1"))
+		self.assertTrue(all(type(part) is str for part in key))
 
 
 class TestReturnedInvoiceContractFixes(unittest.TestCase):
