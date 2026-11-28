@@ -1357,6 +1357,10 @@ console.log(JSON.stringify({
         self.assertGreaterEqual(auth.count("tagsWithEndpointClass"), 5)
         self.assertIn("event: 'measured_window_start'", scenario)
         self.assertIn("event: 'measured_window_end'", scenario)
+        self.assertIn("http_reqs{endpoint_class:${endpointClass}}", scenario)
+        self.assertIn("'search'", scenario)
+        self.assertIn("count>=0", scenario)
+        self.assertIn("Object.assign(endpointAttributionThresholds(), phaseThresholds())", scenario)
         self.assertIn('--k6-summary "$K6_SUMMARY"', runner)
         self.assertIn('--k6-log "$K6_LOG"', runner)
 

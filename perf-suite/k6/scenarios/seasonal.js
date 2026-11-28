@@ -110,6 +110,18 @@ function buildScenarios() {
   return scenarios;
 }
 
+function endpointAttributionThresholds() {
+  // k6 materializes tagged submetrics only when a threshold references them.
+  // These non-failing counts make the load generator's own per-class HTTP
+  // request totals available in the exported summary for attribution coverage.
+  const classes = ['cashier_submit', 'search', 'login/bootstrap', 'manager_summary', 'manager_detail', 'manager_export', 'unclassified'];
+  const thresholds = {};
+  classes.forEach((endpointClass) => {
+    thresholds[`http_reqs{endpoint_class:${endpointClass}}`] = ['count>=0'];
+  });
+  return thresholds;
+}
+
 function phaseThresholds() {
   const thresholds = {};
   ['baseline', 'margin', 'recovery'].forEach((phase) => {
@@ -132,7 +144,7 @@ export const options = {
   setupTimeout: '60s',
   teardownTimeout: '30s',
   scenarios: buildScenarios(),
-  thresholds: phaseThresholds(),
+  thresholds: Object.assign(endpointAttributionThresholds(), phaseThresholds()),
 };
 
 let session;
