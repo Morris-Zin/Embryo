@@ -63,13 +63,14 @@ cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-base
 
 # candidate
-cd /path/to/worktree/desktop-frontend
-git checkout e0913ee84280fbb4a646d1003c83595f6f81e596
+cd /path/to/worktree
+git checkout devin/1764435290-native-frontend-speed
+cd desktop-frontend
 cargo build -p khitmee-desktop --locked
 cp target/debug/khitmee-desktop /tmp/khitmee-desktop-opt
 ```
 
-Run the committed comparison harness from the candidate worktree root (`e0913ee` contains the harness and has the same production code as the final parity-fix revision):
+Run the committed comparison harness from the candidate worktree root (the PR branch contains the harness fixture-isolation fix; harness/docs changes do not alter production code):
 
 ```bash
 cd /path/to/worktree
