@@ -219,6 +219,8 @@ def build_detail_preflight_query(filters: dict, cap: int | None = None):
 		{base_join_sql}
 		WHERE {' AND '.join(where)}
 	"""
+	# ERPNext's invoice tree expands the entire packed group for each matching
+	# invoice line. The packed item's source detail ID is used for valuation.
 	packed_select = f"""
 		SELECT `pi`.`name` AS `input_row`
 		FROM `tabSales Invoice` AS `si`{si_index_hint}

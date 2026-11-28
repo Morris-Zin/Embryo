@@ -80,6 +80,19 @@ SII_IDX = "khitmee_sii_parent_warehouse"
 SII_JOIN = "JOIN `tabSales Invoice Item` ON"
 
 
+class InvoiceBatchTooLarge(Exception):
+	pass
+
+
+def invoice_phase_filter(invoice, phase, filters):
+	if phase == 0:
+		return (invoice.is_return == 1) & invoice.return_against.isnotnull()
+	main = invoice.is_return == 0
+	if filters.get("include_returned_invoices"):
+		main |= (invoice.is_return == 1) & invoice.return_against.isnull()
+	return main
+
+
 def inject_sii_force_index(sql, index_name=SII_IDX):
 	"""Inject the Sales Invoice Item join hint, failing closed if upstream SQL changes shape."""
 	join_count = sql.count(SII_JOIN)
@@ -1143,31 +1156,33 @@ def format_invoice_rows_inplace(columns, gross_profit_data, filters, group_wise_
 		data.append(src)
 
 	gross_profit_data.si_list.clear()
+	data.append(invoice_total_row(filters, total_base_amount, total_buying_amount))
+
+
+def invoice_total_row(filters, total_base_amount, total_buying_amount):
 	total_gross_profit = flt(
 		total_base_amount + abs(total_buying_amount)
 		if total_buying_amount < 0
 		else total_base_amount - total_buying_amount,
 	)
 	currency_precision = cint(frappe.db.get_default("currency_precision")) or 3
-	data.append(
-		frappe._dict(
-			{
-				"sales_invoice": "Total",
-				"qty": None,
-				"avg._selling_rate": None,
-				"valuation_rate": None,
-				"selling_amount": total_base_amount,
-				"buying_amount": total_buying_amount,
-				"gross_profit": total_gross_profit,
-				"gross_profit_%": flt(
-					(total_gross_profit / abs(total_base_amount)) * 100.0,
-					currency_precision,
-				)
-				if total_base_amount
-				else 0,
-				"currency": filters.currency,
-			}
-		)
+	return frappe._dict(
+		{
+			"sales_invoice": "Total",
+			"qty": None,
+			"avg._selling_rate": None,
+			"valuation_rate": None,
+			"selling_amount": total_base_amount,
+			"buying_amount": total_buying_amount,
+			"gross_profit": total_gross_profit,
+			"gross_profit_%": flt(
+				(total_gross_profit / abs(total_base_amount)) * 100.0,
+				currency_precision,
+			)
+			if total_base_amount
+			else 0,
+			"currency": filters.currency,
+		}
 	)
 
 
@@ -1249,7 +1264,12 @@ def _enforce_detail_budget_if_requested(filters, invoice_ids, enforce_budget):
 
 
 def run_detail_gross_profit(
-	filters: dict, *, invoice_ids: list[str] | tuple[str, ...] | None = None, enforce_budget: bool = False
+	filters: dict,
+	*,
+	invoice_ids: list[str] | tuple[str, ...] | None = None,
+	enforce_budget: bool = False,
+	invoice_phase: int | None = None,
+	invoice_row_limit: int | None = None,
 ) -> tuple[list[dict], list]:
 	"""Run the low-level detail report directly; this never delegates to ``query_profit``."""
 	if standard_gross_profit is None:
@@ -1264,7 +1284,12 @@ def run_detail_gross_profit(
 			"Company", report_filters.company, "default_currency"
 		)
 
-	gross_profit_data = FastGrossProfitGenerator(report_filters, invoice_ids=scoped_invoice_ids)
+	if invoice_phase is None:
+		gross_profit_data = FastGrossProfitGenerator(report_filters, invoice_ids=scoped_invoice_ids)
+	else:
+		gross_profit_data = FastGrossProfitGenerator(
+			report_filters, invoice_ids=scoped_invoice_ids, invoice_phase=invoice_phase, invoice_row_limit=invoice_row_limit
+		)
 	return _render_detail_result(gross_profit_data, report_filters)
 
 
@@ -1502,7 +1527,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	accesses are replaced.
 	"""
 
-	def __init__(self, filters=None, *, invoice_ids=None):
+	def __init__(self, filters=None, *, invoice_ids=None, invoice_phase=None, invoice_row_limit=None):
 		self._matched_sles = {}
 		self._sle_predecessors = {}
 		self._sle_pair_exists = {}
@@ -1516,6 +1541,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		self._warehouse_scope = None
 		self._active_repost_item_valuations = None
 		self._scoped_invoice_ids = _normalise_invoice_ids(invoice_ids)
+		self._invoice_phase = invoice_phase
+		self._invoice_row_limit = invoice_row_limit
 		self._valuation_source_by_row_id = {}
 		super().__init__(filters)
 
@@ -1743,6 +1770,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 	def load_invoice_items(self):
 		SalesInvoice = frappe.qb.DocType("Sales Invoice")
+		if (phase := getattr(self, "_invoice_phase", None)) is not None:
+			query = self.prepare_invoice_query().where(invoice_phase_filter(SalesInvoice, phase, self.filters))
+			rows = self._run_invoice_query(query.limit(self._invoice_row_limit + 1))
+			if len(rows) > self._invoice_row_limit:
+				raise InvoiceBatchTooLarge()
+			self.si_list = mark_query_phase(sort_invoice_rows_descending(rows), phase)
+			return
 		invoice_query = self.prepare_invoice_query().where(SalesInvoice.is_return == 0)
 		self.si_list = sort_invoice_rows_descending(
 			self._run_invoice_query(invoice_query, semijoin_kind="normal")
@@ -1800,18 +1834,24 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		pending = [invoice for invoice in invoices if invoice not in self._linked_dn_parent_invoices]
 		for invoice_chunk in batched(pending, 1000):
 			placeholders = ", ".join(["%s"] * len(invoice_chunk))
+			row_limit = getattr(self, "_invoice_row_limit", None)
+			limit_sql = "LIMIT %s" if row_limit is not None else ""
+			query_params = [*invoice_chunk, row_limit + 1] if row_limit is not None else invoice_chunk
 			rows = frappe.db.sql(
 				f"""
 				SELECT DISTINCT parent
 				FROM `tabDelivery Note Item`
 				WHERE docstatus = 1 AND against_sales_invoice IN ({placeholders})
+				{limit_sql}
 				""",
-				invoice_chunk,
+				query_params,
 				as_dict=True,
 			)
 			self._linked_dn_parents.update(
 				row.get("parent") if hasattr(row, "get") else row[0] for row in rows
 			)
+			if row_limit is not None and len(self._linked_dn_parents) > row_limit:
+				raise InvoiceBatchTooLarge()
 			self._linked_dn_parent_invoices.update(invoice_chunk)
 		return sorted(parent for parent in self._linked_dn_parents if parent)
 
@@ -1854,9 +1894,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		returned_invoices = []
 		for parent_chunk in batched(parents, 1000):
-			returned_invoices.extend(
-				self._run_invoice_query(self._build_returned_invoice_query(parent_chunk)) or []
-			)
+			query = self._build_returned_invoice_query(parent_chunk)
+			row_limit = getattr(self, "_invoice_row_limit", None)
+			if row_limit is not None:
+				query = query.limit(row_limit - len(returned_invoices) + 1)
+			returned_invoices.extend(self._run_invoice_query(query) or [])
+			if row_limit is not None and len(returned_invoices) > row_limit:
+				raise InvoiceBatchTooLarge()
 
 		self.returned_invoices = frappe._dict()
 		self.legacy_returned_invoices = frappe._dict()
@@ -1875,19 +1919,18 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		if not invoices:
 			return {}
 
-		packed_parent_items = set(
-			frappe.db.sql_list(
-				"SELECT DISTINCT parent_item FROM `tabPacked Item` "
-				"WHERE parenttype = 'Sales Invoice' AND docstatus = 1"
+		packed_row_limit = getattr(self, "_invoice_row_limit", None)
+		bundle_invoices = invoices
+		if packed_row_limit is None:
+			packed_parent_items = set(
+				frappe.db.sql_list(
+					"SELECT DISTINCT parent_item FROM `tabPacked Item` "
+					"WHERE parenttype = 'Sales Invoice' AND docstatus = 1"
+				)
 			)
-		)
-		bundle_invoices = sorted(
-			{
-				row.parent
-				for row in self.si_list
-				if row.get("parent") and row.get("item_code") in packed_parent_items
-			}
-		)
+			bundle_invoices = sorted(
+				{row.parent for row in self.si_list if row.get("item_code") in packed_parent_items and row.get("parent")}
+			)
 
 		delivery_notes = {row.delivery_note for row in self.si_list if row.get("delivery_note")}
 		if self._has_submitted_delivery_note_items():
@@ -1908,6 +1951,9 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			clauses.append(f"(parenttype = 'Delivery Note' AND parent IN ({placeholders}))")
 			params.extend(delivery_notes)
 
+		limit_sql = "LIMIT %s" if packed_row_limit is not None else ""
+		if packed_row_limit is not None:
+			params.append(packed_row_limit + 1)
 		rows = frappe.db.sql(
 			"""
 			SELECT
@@ -1923,10 +1969,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 				serial_and_batch_bundle
 			FROM `tabPacked Item`
 			WHERE docstatus = 1 AND ({clauses})
-			""".format(clauses=" OR ".join(clauses)),
+			{limit_sql}
+			""".format(clauses=" OR ".join(clauses), limit_sql=limit_sql),
 			params,
 			as_dict=True,
 		)
+		if packed_row_limit is not None and len(rows) > packed_row_limit:
+			raise InvoiceBatchTooLarge()
 
 		for row in rows:
 			self.product_bundles.setdefault(row.parenttype, frappe._dict()).setdefault(
@@ -2002,6 +2051,12 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		"""Turn the line list into invoice headers followed by their contiguous child rows."""
 		grouped = OrderedDict()
 		product_bundles = self.product_bundles.get("Sales Invoice", {})
+		row_limit = getattr(self, "_invoice_row_limit", None)
+		if row_limit is not None:
+			expanded = len(self.si_list) + len({row.parent for row in self.si_list})
+			expanded += sum(len(product_bundles.get(row.parent, {}).get(row.item_code, ())) for row in self.si_list)
+			if expanded > row_limit:
+				raise InvoiceBatchTooLarge()
 
 		for row in self.si_list:
 			bucket = grouped.get(row.parent)
@@ -2082,7 +2137,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 		if row.get("dn_detail"):
 			parenttype, parent, item_row = "Delivery Note", row.get("delivery_note"), row.get("dn_detail")
 
-		if (str(item_code), str(warehouse)) in self._tie_pairs:
+		if (str(item_code), str(warehouse)) in self._tie_pairs and not getattr(self, "_invoice_row_limit", None):
 			return self._classify_tie_history_sle_source(
 				row, item_code, warehouse, parenttype, parent, item_row
 			)
@@ -2219,7 +2274,7 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 	def _preload_stock_ledger_data(self):
 		keys = self._collect_stock_ledger_keys()
-		if not (self.filters.get("from_date") and self.filters.get("to_date")):
+		if getattr(self, "_invoice_row_limit", None) or not (self.filters.get("from_date") and self.filters.get("to_date")):
 			for chunk in batched(keys, 100):
 				self._fetch_sle_chunk(chunk)
 			self._preload_average_buying_rates()
@@ -2714,7 +2769,13 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			return
 
 		sql, params = build_matched_sle_query(keys, self.filters.company)
+		row_limit = getattr(self, "_invoice_row_limit", None)
+		if row_limit is not None:
+			sql += " LIMIT %s"
+			params.append(row_limit + 1)
 		rows = frappe.db.sql(sql, params, as_dict=True)
+		if row_limit is not None and len(rows) > row_limit:
+			raise InvoiceBatchTooLarge()
 
 		matched = {}
 		key_order = []
@@ -2754,6 +2815,16 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 			self._tie_pair_history[pair] = frappe.db.sql(sql, params, as_dict=True)
 		return self._tie_pair_history[pair]
 
+	def _stream_tied_pair_match(self, key):
+		item_code, warehouse, parenttype, parent, item_row = key
+		sql, params = build_pair_history_query(item_code, warehouse, self.filters.company)
+		with frappe.db.unbuffered_cursor():
+			ledger = iter(frappe.db.sql(sql, params, as_dict=True, as_iterator=True))
+			for sle in ledger:
+				if (sle.voucher_type, sle.voucher_no, sle.voucher_detail_no) == (parenttype, parent, item_row):
+					return sle, next(ledger, None)
+		return None, None
+
 	def get_stock_ledger_entries(self, item_code, warehouse):
 		"""Return the pair existence signal ERPNext's control flow needs.
 
@@ -2768,6 +2839,8 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		pair = (str(item_code), str(warehouse))
 		if pair in self._tie_pairs:
+			if getattr(self, "_invoice_row_limit", None):
+				return [True]
 			return self._pair_history(item_code, warehouse)
 
 		if pair not in self._sle_pair_exists:
@@ -2785,20 +2858,19 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 	def calculate_buying_amount_from_sle(self, row, my_sle, parenttype, parent, item_row, item_code):
 		warehouse = row.get("delivered_warehouse") or row.get("warehouse")
 		pair = (str(item_code), str(warehouse))
-		if pair in self._tie_pairs:
+		key = normalize_sle_key(item_code, warehouse, parenttype, parent, item_row)
+		if key not in self._matched_sles and pair not in self._tie_pairs:
+			self._fetch_sle_chunk([key])
+		if pair in self._tie_pairs and getattr(self, "_invoice_row_limit", None):
+			matched, predecessor = self._stream_tied_pair_match(key)
+			self._matched_sles[key] = matched
+			self._sle_predecessors[key] = predecessor
+		elif pair in self._tie_pairs:
 			# Ambiguous (posting_datetime, creation) ties need upstream's ordered-list
 			# tie handling; use the full ordered history for this pair.
 			return self._upstream_calculate_buying_amount_from_sle(
 				row, self._pair_history(item_code, warehouse), parenttype, parent, item_row, item_code
 			)
-
-		key = normalize_sle_key(item_code, warehouse, parenttype, parent, item_row)
-		if key not in self._matched_sles:
-			self._fetch_sle_chunk([key])
-			if pair in self._tie_pairs:
-				return self._upstream_calculate_buying_amount_from_sle(
-					row, self._pair_history(item_code, warehouse), parenttype, parent, item_row, item_code
-				)
 
 		matched = self._matched_sles.get(key)
 		predecessor = self._sle_predecessors.get(key)

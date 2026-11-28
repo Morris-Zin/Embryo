@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import sys
 import types
 import unittest
@@ -1399,6 +1400,63 @@ class TestTwoPhaseInvoiceOrdering(unittest.TestCase):
 
 
 class TestReturnedInvoiceContractFixes(unittest.TestCase):
+	def test_return_lookup_preserves_per_invoice_row_order_and_visibility_across_batch_sizes(self):
+		parents = [f"SI-{index:04d}" for index in range(260)]
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE invoice (name, customer, posting_order);
+			CREATE TABLE returned (name, return_against, item_code, sales_invoice_item, qty, base_amount);
+			INSERT INTO returned VALUES
+				('R1', 'SI-0000', 'ITEM', 'LINE-1', -1, -10.50),
+				('R2', 'SI-0000', 'ITEM', 'LINE-1', -2, -21.00),
+				('R3', 'SI-0000', 'ITEM', NULL, -1, -10.25),
+				('R4', 'SI-0259', 'ITEM', NULL, -1, -10.75),
+				('R5', 'SI-0259', 'ITEM', 'LINE-2', -2, -21.50);
+			"""
+		)
+		db.executemany(
+			"INSERT INTO invoice VALUES (?, ?, ?)",
+			[(name, "restricted" if index < 259 else "hidden", index) for index, name in enumerate(parents)],
+		)
+
+		def run_returns(parent_chunk):
+			placeholders = ", ".join("?" for _ in parent_chunk)
+			rows = db.execute(
+				f"SELECT * FROM returned WHERE return_against IN ({placeholders})",
+				parent_chunk,
+			)
+			fields = [description[0] for description in rows.description]
+			return [AttrDict(zip(fields, row)) for row in rows]
+
+		batched = fast_gross_profit.batched
+		for visibility, expected_parents in (("%", {"SI-0000", "SI-0259"}), ("restricted", {"SI-0000"})):
+			generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
+			generator.si_list = [
+				AttrDict(parent=name)
+				for (name,) in db.execute(
+					"SELECT name FROM invoice WHERE customer LIKE ? ORDER BY posting_order DESC", (visibility,)
+				)
+			]
+			generator._build_returned_invoice_query = tuple
+			generator._run_invoice_query = run_returns
+			with patch.object(fast_gross_profit, "frappe", types.SimpleNamespace(_dict=AttrDict)):
+				baseline = None
+				for size in (len(parents), 16, 64, 256):
+					with self.subTest(visibility=visibility, size=size), patch.object(
+						fast_gross_profit, "batched", lambda values, _: batched(values, size)
+					):
+						generator.get_returned_invoice_items()
+						actual = (generator.returned_invoices, generator.legacy_returned_invoices)
+						if baseline is None:
+							baseline = actual
+						self.assertEqual(actual, baseline)
+						self.assertEqual(set(actual[0]), expected_parents)
+						self.assertEqual(set(actual[1]), expected_parents)
+						self.assertEqual([row.name for row in actual[0]["SI-0000"]["LINE-1"]], ["R1", "R2"])
+						self.assertEqual([row.name for row in actual[1]["SI-0000"]["ITEM"]], ["R3"])
+
 	def test_returned_invoice_parents_are_fetched_in_chunks_of_one_thousand(self):
 		queries = []
 

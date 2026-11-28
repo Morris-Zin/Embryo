@@ -17,7 +17,7 @@ if str(APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(APP_ROOT))
 
 from khitmee_ops.api import profit_export
-from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit
+from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit, invoice_batches
 from khitmee_ops.profit_summary import budget, export_service
 
 
@@ -328,21 +328,27 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(second["export_log_name"], first["export_log_name"])
 
 	def test_invoice_csv_writer_preserves_phase_one_then_phase_zero_then_total_order(self):
-		columns = [{"fieldname": "sales_invoice", "label": "Invoice"}]
+		columns = [
+			{"fieldname": "sales_invoice", "label": "Invoice"},
+			{"fieldname": "selling_amount", "label": "Selling"},
+		]
 		rows = [
-			{"sales_invoice": "SI-MAIN-2"},
-			{"sales_invoice": "SI-MAIN-1"},
-			{"sales_invoice": "SI-UNABSORBED-RETURN"},
-			{"sales_invoice": "Total"},
+			{"sales_invoice": "SI-MAIN-2", "selling_amount": 100, "indent": 1},
+			{"sales_invoice": "SI-MAIN-1", "selling_amount": 2.5, "indent": 1},
+			{"sales_invoice": "SI-UNABSORBED-RETURN", "selling_amount": -7.5, "indent": 1},
 		]
 		path = os.path.join(self.tempdir, "profit.csv")
-		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)):
-			row_count = export_service.write_profit_csv({"group_by": "Invoice"}, path)
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", return_value=[(columns, rows[:2]), (columns, rows[2:])]), patch.object(
+			fast_gross_profit, "invoice_total_row",
+			side_effect=lambda filters, selling, buying: {"sales_invoice": "Total", "selling_amount": selling},
+		):
+			row_count = export_service.write_profit_csv({"group_by": "Invoice", "currency": "MMK"}, path)
 
 		with open(path, newline="", encoding="utf-8") as csv_file:
 			written = list(csv.reader(csv_file))
 		self.assertEqual(row_count, 4)
 		self.assertEqual([row[0] for row in written], ["Invoice", "SI-MAIN-2", "SI-MAIN-1", "SI-UNABSORBED-RETURN", "Total"])
+		self.assertEqual(written[-1], ["Total", "95.0"])
 
 	def test_invoice_csv_writer_uses_query_report_fieldname_fallback(self):
 		columns = [
@@ -353,15 +359,17 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		]
 		rows = [{"sales_invoice": "ACC-SINV-2026-317799", "brand": "Phsar Select", "net_unit_price": 7, "3": "x"}]
 		path = os.path.join(self.tempdir, "profit-brand.csv")
-		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)):
-			row_count = export_service.write_profit_csv({"group_by": "Invoice"}, path)
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", return_value=[(columns, rows)]), patch.object(
+			fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"},
+		):
+			row_count = export_service.write_profit_csv({"group_by": "Invoice", "currency": "MMK"}, path)
 
 		with open(path, newline="", encoding="utf-8") as csv_file:
 			written = list(csv.reader(csv_file))
-		self.assertEqual(row_count, 1)
+		self.assertEqual(row_count, 2)
 		self.assertEqual(
 			written,
-			[["Sales Invoice", "Brand", "Net Unit-Price", ""], ["ACC-SINV-2026-317799", "Phsar Select", "7", "x"]],
+			[["Sales Invoice", "Brand", "Net Unit-Price", ""], ["ACC-SINV-2026-317799", "Phsar Select", "7", "x"], ["Total", "", "", ""]],
 		)
 
 	def test_invoice_sort_uses_ascending_invoice_tie_break(self):
@@ -414,9 +422,11 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.restricted.return_value = True
 		self.fake.set_user("worker-runner")
 		columns = [{"fieldname": "sales_invoice", "label": "Invoice"}]
-		rows = [{"sales_invoice": "SI-1"}, {"sales_invoice": "Total"}]
+		rows = [{"sales_invoice": "SI-1"}]
 
-		with patch.object(export_service, "run_detail_gross_profit", return_value=(columns, rows)) as runner:
+		with patch.object(invoice_batches, "iter_invoice_detail_batches", return_value=[(columns, rows)]) as runner, patch.object(
+			fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"}
+		), patch.object(self.fake, "get_cached_value", return_value="MMK", create=True):
 			export_service.run_profit_csv_export(doc["name"])
 
 		self.assertEqual(self.fake.session.user, "worker-runner")
@@ -434,6 +444,53 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		plain_sql = [call[0] for call in self.fake.db.sql_calls]
 		self.assertIn("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ", plain_sql)
 		self.assertIn("START TRANSACTION", plain_sql)
+
+	def test_invoice_pages_slice_ordered_rows_across_family_and_return_phase_boundaries(self):
+		filters = {"group_by": "Invoice"}
+		columns = [{"fieldname": "sales_invoice"}]
+		families = {
+			"A": [{"sales_invoice": "A"}, {"sales_invoice": "A.1"}, {"sales_invoice": "A.2"}],
+			"B": [{"sales_invoice": "B"}, {"sales_invoice": "B.1"}],
+			"R": [{"sales_invoice": "R"}, {"sales_invoice": "R.1"}],
+		}
+		keys = [(1, "A", 3), (1, "B", 2), (0, "R", 2)]
+		calls = []
+
+		def render(report_filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			calls.append((invoice_phase, tuple(invoice_ids)))
+			return columns, [row for name in invoice_ids for row in families[name]] + [{"sales_invoice": "Total"}]
+
+		def names(page):
+			return [
+				row["sales_invoice"]
+				for _, data in invoice_batches.iter_invoice_detail_batches(filters, page=page)
+				for row in data
+			]
+
+		with patch.object(invoice_batches, "INVOICE_PAGE_SIZE", 4), patch.object(
+			invoice_batches, "_invoice_keys", return_value=keys
+		), patch.object(fast_gross_profit, "validate_date_range"), patch.object(
+			fast_gross_profit, "run_detail_gross_profit", side_effect=render
+		), patch.object(fast_gross_profit, "invoice_total_row", return_value={"sales_invoice": "Total"}):
+			self.assertEqual(names(1), ["A", "A.1", "A.2", "B"])
+			self.assertEqual(calls, [(1, ("A", "B"))])
+			self.assertEqual(names(2), ["B.1", "R", "R.1", "Total"])
+			self.assertEqual(names(3), [])
+
+	def test_invoice_stream_splits_over_budget_batches_before_emitting_rows(self):
+		def render(filters, *, invoice_ids, invoice_phase, invoice_row_limit):
+			if len(invoice_ids) > 1:
+				raise fast_gross_profit.InvoiceBatchTooLarge()
+			return [], [{"sales_invoice": invoice_ids[0]}, {"sales_invoice": "Total"}]
+
+		with patch.object(fast_gross_profit, "run_detail_gross_profit", side_effect=render) as runner:
+			batches = list(invoice_batches._render_invoice_batch({"group_by": "Invoice"}, 1, ["A", "B"]))
+
+		self.assertEqual(batches, [([], [{"sales_invoice": "A"}]), ([], [{"sales_invoice": "B"}])])
+		self.assertEqual(
+			[call.kwargs["invoice_row_limit"] for call in runner.call_args_list],
+			[invoice_batches.INVOICE_BATCH_ROWS, invoice_batches.MAX_SINGLE_FAMILY_ROWS, invoice_batches.MAX_SINGLE_FAMILY_ROWS],
+		)
 
 	def test_cleanup_deletes_artifacts_but_preserves_publish_flag_and_digest(self):
 		path = self.write_artifact()

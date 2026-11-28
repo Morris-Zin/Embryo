@@ -24,7 +24,6 @@ class ExportEnqueueResult(TypedDict):
 EXPORT_DOCTYPE = "Khitmee Profit Export Log"
 EXPORT_DIRECTORY = "khitmee_profit_exports"
 RESTRICTED_EXPORT_MAX_INVOICES = 5000
-MAX_SINGLE_FAMILY_ROWS = 5000
 MAX_EXPORT_GROUPS = 50000
 EXPORT_FLUSH_LINES = 2000
 
@@ -83,7 +82,7 @@ def canonical_filters(filters):
 	return {
 		str(key): _json_value(value)
 		for key, value in sorted(filters.items())
-		if value not in (None, "", [], {})
+		if key != "invoice_page" and value not in (None, "", [], {})
 	}
 
 
@@ -465,29 +464,6 @@ def _claim_export(export_log_name) -> bool:
 	return True
 
 
-def _family_key(row):
-	if row.get("sales_invoice") == "Total":
-		return None
-	if row.get("indent") == 0 or row.get("indent") == 0.0:
-		return row.get("sales_invoice")
-	return row.get("parent_invoice") or row.get("sales_invoice")
-
-
-def _enforce_invoice_family_caps(data):
-	counts = {}
-	for row in data:
-		if not hasattr(row, "get"):
-			continue
-		key = _family_key(row)
-		if key:
-			counts[key] = counts.get(key, 0) + 1
-	oversized = [key for key, count in counts.items() if count > MAX_SINGLE_FAMILY_ROWS]
-	if oversized:
-		raise frappe.ValidationError(
-			f"Profit export family row cap exceeded for {oversized[0]} ({MAX_SINGLE_FAMILY_ROWS} rows)"
-		)
-
-
 def _scrub_column_label(label):
 	if frappe is not None and hasattr(frappe, "scrub"):
 		return frappe.scrub(label)
@@ -541,12 +517,53 @@ def _row_values(row, fieldnames):
 	return [_csv_value(row)]
 
 
-# The export worker materializes the whole report before writing, so cap its input
-# up front instead of letting a year-long Invoice export exhaust the long worker.
+# Other groupings still use the materialized report and retain their input cap.
 MAX_EXPORT_INPUT_ROWS = 50_000
 
 
+def _write_invoice_csv(filters, path, invoice_ids):
+	from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
+		_copy_report_filters,
+		invoice_total_row,
+	)
+	from khitmee_ops.khitmee_ops.report.fast_gross_profit.invoice_batches import (
+		invoice_detail_columns,
+		iter_invoice_detail_batches,
+	)
+
+	filters = _copy_report_filters({**filters, "group_by": "Invoice"})
+	total_base_amount = total_buying_amount = 0
+	row_count = 0
+	with open(path, "w", newline="", encoding="utf-8") as csv_file:
+		writer = csv.writer(csv_file)
+		fieldnames = None
+		for columns, data in iter_invoice_detail_batches(filters, invoice_ids=invoice_ids):
+			if fieldnames is None:
+				writer.writerow(_column_headers(columns))
+				fieldnames = _column_fieldnames(columns)
+			for row in data:
+				if row.get("indent") == 1:
+					total_base_amount += row.get("selling_amount") or 0.0
+					total_buying_amount += row.get("buying_amount") or 0.0
+				writer.writerow(_row_values(row, fieldnames))
+				row_count += 1
+			csv_file.flush()
+		if fieldnames is None:
+			columns = invoice_detail_columns(filters)
+			writer.writerow(_column_headers(columns))
+			fieldnames = _column_fieldnames(columns)
+		if not filters.currency:
+			filters.currency = frappe.get_cached_value("Company", filters.company, "default_currency")
+		total = invoice_total_row(filters, total_base_amount, total_buying_amount)
+		writer.writerow(_row_values(total, fieldnames))
+	return row_count + 1
+
+
 def write_profit_csv(filters, path, *, invoice_ids=None):
+	group_by = (filters or {}).get("group_by") or "Invoice"
+	if group_by == "Invoice":
+		return _write_invoice_csv(filters or {}, path, invoice_ids)
+
 	if invoice_ids is None:
 		from khitmee_ops.profit_summary.budget import preflight_detail_input_rows
 
@@ -556,11 +573,8 @@ def write_profit_csv(filters, path, *, invoice_ids=None):
 				f"Profit export input cap exceeded ({MAX_EXPORT_INPUT_ROWS} invoice lines); narrow the date range"
 			)
 	columns, data = run_detail_gross_profit(filters, invoice_ids=invoice_ids, enforce_budget=False)
-	group_by = (filters or {}).get("group_by") or "Invoice"
-	if group_by != "Invoice" and max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:
+	if max(len(data) - 1, 0) > MAX_EXPORT_GROUPS:
 		raise frappe.ValidationError(f"Profit export group cap exceeded ({MAX_EXPORT_GROUPS} groups)")
-	if group_by == "Invoice":
-		_enforce_invoice_family_caps(data)
 
 	fieldnames = _column_fieldnames(columns)
 	row_count = 0
