@@ -1886,14 +1886,23 @@ class FastGrossProfitGenerator(_BaseGrossProfitGenerator):
 
 		if self.filters.company:
 			query = query.where(si.company == self.filters.company)
-		if (scope := getattr(self, "_export_scope", None)) is not None and scope.match_conditions:
+		if match_conditions := self._get_linked_return_match_conditions():
 			from pypika.terms import LiteralValue
 
 			# Use the requester's Sales Invoice predicate in its own table scope.
 			# Match permissions independently of the report's selected original IDs.
-			visible = frappe.qb.from_(si).select(si.name).where(LiteralValue(f"({scope.match_conditions})"))
+			visible = frappe.qb.from_(si).select(si.name).where(LiteralValue(f"({match_conditions})"))
 			query = query.where(si.name.isin(visible))
 		return query
+
+	def _get_linked_return_match_conditions(self):
+		if (scope := getattr(self, "_export_scope", None)) is not None:
+			return scope.match_conditions
+		if not hasattr(self, "_linked_return_match_conditions"):
+			from khitmee_ops.profit_summary.eligibility import restricted_sales_invoice_match_conditions
+
+			self._linked_return_match_conditions = restricted_sales_invoice_match_conditions(self.filters.company)
+		return self._linked_return_match_conditions
 
 	def get_returned_invoice_items(self):
 		parents = sorted({row.parent for row in self.si_list if row.get("parent")})

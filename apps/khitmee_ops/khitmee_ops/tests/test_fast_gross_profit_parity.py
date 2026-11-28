@@ -15,7 +15,7 @@ if str(APP_ROOT) not in sys.path:
 
 import khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit as fast_gross_profit
 from khitmee_ops.khitmee_ops.report.fast_gross_profit import invoice_batches
-from khitmee_ops.profit_summary import export_service
+from khitmee_ops.profit_summary import eligibility, export_service
 from khitmee_ops.khitmee_ops.report.fast_gross_profit.fast_gross_profit import (
 	FastGrossProfitGenerator,
 	SI_IDX,
@@ -1134,7 +1134,7 @@ class FakeQBQuery:
 
 
 class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
-	def test_export_return_lookup_checks_return_visibility_separately_from_original_ids(self):
+	def _lookup_linked_returns(self, group, actor, predicate, *, export=False):
 		db = sqlite3.connect(":memory:")
 		self.addCleanup(db.close)
 		db.executescript("""
@@ -1145,37 +1145,64 @@ class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
 				('RET-SHOWN', 'SI-1', 'ITEM', 'LINE-1', -1, -25),
 				('RET-HIDDEN', 'SI-1', 'ITEM', 'LINE-1', -2, -50);
 		""")
-		predicate = "`tabSales Invoice`.`customer` = 'visible'"
-		scope = export_service._ExportInvoiceScope(predicate)
+		scope = export_service._ExportInvoiceScope(predicate) if export else None
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
 		generator.si_list = [AttrDict(parent="SI-1")]
-		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31", sales_invoice="SI-1")
+		generator.filters = AttrDict(
+			company="Company", from_date="2026-01-01", to_date="2026-01-31", sales_invoice="SI-1", group_by=group,
+		)
 		generator._scoped_invoice_ids = ("SI-1",)
 		generator._export_scope = scope
 
 		def run_returns(query):
 			self.assertEqual(query.wheres[1].value, ("return_against", ["SI-1"]))
-			name_field, allowed_invoices = query.wheres[-1].value
-			self.assertEqual(name_field, "name")
-			self.assertEqual(allowed_invoices.table.table_name, "Sales Invoice")
-			self.assertEqual(allowed_invoices.wheres, [f"({predicate})"])
+			match_filter = ""
+			if len(query.wheres) == 4:
+				name_field, allowed_invoices = query.wheres[-1].value
+				self.assertEqual(name_field, "name")
+				self.assertEqual(allowed_invoices.table.table_name, "Sales Invoice")
+				self.assertEqual(allowed_invoices.wheres, [f"({predicate})"])
+				match_filter = f"AND name IN (SELECT name FROM `tabSales Invoice` WHERE {allowed_invoices.wheres[0]})"
 			cursor = db.execute(
 				f"""SELECT name, return_against, item_code, sales_invoice_item, qty, base_amount
-				FROM returned WHERE return_against = ?
-				AND name IN (SELECT name FROM `tabSales Invoice` WHERE {allowed_invoices.wheres[0]})""",
+				FROM returned WHERE return_against = ? {match_filter} ORDER BY name""",
 				("SI-1",),
 			)
 			fields = [column[0] for column in cursor.description]
 			return [AttrDict(zip(fields, row, strict=True)) for row in cursor]
 
 		generator._run_invoice_query = run_returns
-		frappe_stub = types.SimpleNamespace(_dict=AttrDict, qb=types.SimpleNamespace(DocType=FakeQBTable, from_=FakeQBQuery))
-		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.dict(
+		frappe_stub = types.SimpleNamespace(
+			_dict=AttrDict, qb=types.SimpleNamespace(DocType=FakeQBTable, from_=FakeQBQuery),
+			session=types.SimpleNamespace(user=actor),
+			permissions=types.SimpleNamespace(build_match_conditions=lambda doctype, user: predicate),
+		)
+		with patch.object(fast_gross_profit, "frappe", frappe_stub), patch.object(eligibility, "frappe", frappe_stub), patch.dict(
 			sys.modules, {"pypika.terms": types.SimpleNamespace(LiteralValue=lambda sql: sql)}
 		):
 			generator.get_returned_invoice_items()
-		self.assertEqual(scope.invoice_names, {"RET-SHOWN"})
-		self.assertEqual([row.base_amount for row in generator.returned_invoices["SI-1"]["LINE-1"]], [-25])
+		if scope is not None:
+			self.assertEqual(scope.invoice_names, {"RET-SHOWN"})
+		return [(row.name, row.qty, row.base_amount) for row in generator.returned_invoices["SI-1"]["LINE-1"]]
+
+	def test_restricted_interactive_groups_and_csv_fold_only_visible_linked_returns(self):
+		predicate = "`tabSales Invoice`.`customer` = 'visible'"
+		for group in ("Invoice", "Warehouse", "Monthly"):
+			for export in (False, True):
+				with self.subTest(group=group, export=export):
+					self.assertEqual(
+						self._lookup_linked_returns(group, "restricted@example.test", predicate, export=export),
+						[("RET-SHOWN", -1, -25)],
+					)
+
+	def test_unrestricted_linked_return_inputs_match_stock(self):
+		stock = [("RET-HIDDEN", -2, -50), ("RET-SHOWN", -1, -25)]
+		for actor, predicate in (
+			("Administrator", ""), ("unrestricted@example.test", ""),
+			("company@example.test", "`tabSales Invoice`.`company` = 'Company'"),
+		):
+			with self.subTest(actor=actor):
+				self.assertEqual(self._lookup_linked_returns("Invoice", actor, predicate), stock)
 
 	def test_empty_invoice_scope_skips_returned_invoice_query(self):
 		generator = FastGrossProfitGenerator.__new__(FastGrossProfitGenerator)
@@ -1206,6 +1233,7 @@ class TestPass3ReturnedInvoiceScoping(unittest.TestCase):
 		generator.si_list = [AttrDict(parent="SI-2"), AttrDict(parent="SI-1"), AttrDict(parent=None)]
 		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
 		generator._hints_enabled = lambda: True
+		generator._linked_return_match_conditions = ""
 		generator._run_invoice_query = lambda query: []
 
 		old_frappe = fast_gross_profit.frappe
@@ -1549,6 +1577,7 @@ class TestReturnedInvoiceContractFixes(unittest.TestCase):
 		generator.si_list = [AttrDict(parent=f"SI-{index:04d}") for index in range(1001)]
 		generator.filters = AttrDict(company="Company", from_date="2026-01-01", to_date="2026-01-31")
 		generator._hints_enabled = lambda: False
+		generator._linked_return_match_conditions = ""
 		generator._run_invoice_query = lambda query: []
 
 		old_frappe = fast_gross_profit.frappe
@@ -1934,6 +1963,8 @@ class TestInvoicePageOracleParity(unittest.TestCase):
 		cases = (
 			("Administrator", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
 			("Administrator", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
+			("unrestricted@example.test", 0, ("SI-A", "SI-HIDDEN"), 125, 80, 36),
+			("unrestricted@example.test", 1, ("SI-A", "SI-HIDDEN", "RET-STANDALONE"), 115, 74, 35.652),
 			("restricted@example.test", 0, ("SI-A", "RET-HIDDEN-ORIGINAL"), 50, 34, 32),
 			("restricted@example.test", 1, ("SI-A", "RET-STANDALONE", "RET-HIDDEN-ORIGINAL"), 40, 28, 30),
 		)
@@ -1956,7 +1987,7 @@ class TestInvoicePageOracleParity(unittest.TestCase):
 			self.assertIsNone(invoice_ids)
 			for phase, name in db.execute(
 				"""
-				WITH visible AS (SELECT * FROM invoice WHERE hidden = 0 OR ? = 'Administrator'),
+				WITH visible AS (SELECT * FROM invoice WHERE hidden = 0 OR ?),
 				main AS (SELECT * FROM visible WHERE is_return = 0 OR (? AND return_against IS NULL))
 				SELECT phase, name FROM (
 					SELECT 1 AS phase, name, posting_time FROM main
@@ -1965,7 +1996,7 @@ class TestInvoicePageOracleParity(unittest.TestCase):
 						AND return_against NOT IN (SELECT name FROM main)
 				) ORDER BY phase DESC, posting_time DESC, name ASC
 				""",
-				(session.user, filters.include_returned_invoices),
+				(session.user in {"Administrator", "unrestricted@example.test"}, filters.include_returned_invoices),
 			):
 				yield phase, name, len(families[name]) if count_rows else 0
 

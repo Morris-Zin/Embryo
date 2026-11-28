@@ -3,11 +3,11 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Literal, TypedDict
 
+from khitmee_ops.profit_summary.eligibility import company_only_match_conditions, sales_invoice_match_conditions
 from khitmee_ops.profit_summary.store import batched
 
 try:
@@ -114,13 +114,7 @@ def _frappe_permissions():
 
 
 def build_sales_invoice_match_conditions():
-	try:
-		from frappe.desk.reportview import build_match_conditions
-	except (ImportError, ModuleNotFoundError, AttributeError) as error:
-		if frappe is not None:
-			raise RuntimeError("Sales Invoice match conditions are unavailable") from error
-		return ""
-	return build_match_conditions("Sales Invoice") or ""
+	return sales_invoice_match_conditions(frappe.session.user)
 
 
 def _permission_names(user_permissions, doctype):
@@ -179,38 +173,6 @@ def compute_permission_fingerprint(filters, user):
 	return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def _strip_outer_parentheses(condition):
-	condition = condition.strip()
-	while condition.startswith("(") and condition.endswith(")"):
-		depth = 0
-		encloses_all = True
-		for index, character in enumerate(condition):
-			if character == "(":
-				depth += 1
-			elif character == ")":
-				depth -= 1
-				if depth == 0 and index != len(condition) - 1:
-					encloses_all = False
-					break
-		if not encloses_all:
-			break
-		condition = condition[1:-1].strip()
-	return condition
-
-
-def is_company_only_match_condition(match_conditions, company):
-	condition = " ".join(str(match_conditions or "").split()).strip().rstrip(";")
-	if not condition:
-		return True
-	condition = _strip_outer_parentheses(condition).replace("`", "")
-	pattern = re.compile(
-		r"^(?:(?:tabSales Invoice)\.)?company\s*=\s*(['\"])(?P<company>.*?)\1$",
-		flags=re.IGNORECASE,
-	)
-	match = pattern.match(condition)
-	return bool(match and match.group("company") == str(company or ""))
-
-
 def has_restricted_match_conditions(filters, user):
 	previous_user = frappe.session.user
 	frappe.set_user(user)
@@ -218,9 +180,7 @@ def has_restricted_match_conditions(filters, user):
 		match_conditions = build_sales_invoice_match_conditions() or ""
 	finally:
 		frappe.set_user(previous_user)
-	return bool(match_conditions) and not is_company_only_match_condition(
-		match_conditions, (filters or {}).get("company")
-	)
+	return not company_only_match_conditions(match_conditions, (filters or {}).get("company"))
 
 
 def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MAX_INVOICES, invoice_names=None):

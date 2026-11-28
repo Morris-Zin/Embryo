@@ -19,7 +19,7 @@ from khitmee_ops.profit_summary.budget import (
 	evaluate_work_budget,
 	preflight_detail_input_rows,
 )
-from khitmee_ops.profit_summary.eligibility import authorize_profit_request, evaluate_summary_eligibility
+from khitmee_ops.profit_summary.eligibility import _bound_user, authorize_profit_request, evaluate_summary_eligibility
 
 
 class RowContribution(TypedDict):
@@ -823,6 +823,13 @@ def _query_summary_in_snapshot(filters: dict, eligibility: dict) -> QueryProfitR
 
 def query_profit(filters: dict, user: str | None = None) -> QueryProfitResult:
 	"""Canonical profit entrypoint enforcing auth, freshness, budget, and parity order."""
+	if user is not None:
+		with _bound_user(user):
+			return _query_profit_for_session(filters, user)
+	return _query_profit_for_session(filters, user)
+
+
+def _query_profit_for_session(filters, user):
 	filters = dict(filters or {})
 	if filters.get("group_by") != "Invoice":
 		filters.pop("invoice_page", None)

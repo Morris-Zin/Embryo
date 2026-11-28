@@ -19,7 +19,7 @@ if str(APP_ROOT) not in sys.path:
 
 from khitmee_ops.api import profit_export
 from khitmee_ops.khitmee_ops.report.fast_gross_profit import fast_gross_profit, invoice_batches
-from khitmee_ops.profit_summary import budget, export_service
+from khitmee_ops.profit_summary import budget, eligibility, export_service
 
 
 class FakePermissionError(Exception):
@@ -252,9 +252,11 @@ class ExportServiceTestCase(unittest.TestCase):
 		self.old_service_frappe = export_service.frappe
 		self.old_api_frappe = profit_export.frappe
 		self.old_budget_frappe = budget.frappe
+		self.old_eligibility_frappe = eligibility.frappe
 		export_service.frappe = self.fake
 		profit_export.frappe = self.fake
 		budget.frappe = self.fake
+		eligibility.frappe = self.fake
 
 		self.authorize_patcher = patch.object(export_service, "authorize_profit_request", return_value=None)
 		self.fingerprint_patcher = patch.object(export_service, "compute_permission_fingerprint", return_value="fp")
@@ -282,6 +284,7 @@ class ExportServiceTestCase(unittest.TestCase):
 		export_service.frappe = self.old_service_frappe
 		profit_export.frappe = self.old_api_frappe
 		budget.frappe = self.old_budget_frappe
+		eligibility.frappe = self.old_eligibility_frappe
 		for name in list(sys.modules):
 			if name == "frappe" or name.startswith("frappe."):
 				if name in self.module_snapshot and self.module_snapshot[name] is not None:

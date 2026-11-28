@@ -29,9 +29,8 @@ def collect_replay_contributions(filters: dict, invoice_ids) -> dict:
 	"""Replay Set B invoice families under the complete user request.
 
 	`invoice_ids=[]` is an immediate empty return with zero database queries. The
-	worker-4 extractor owns the three distinct stock sets (`visible_main_rows`,
-	`suppression_invoice_ids`, and unmasked `in_date_return_details`); passing the
-	unmodified filters here is the complete-request handoff that preserves them.
+	extractor resolves visible main rows, suppression and in-date return details
+	with the complete filters and the session actor's visibility.
 	"""
 	ordered_ids = tuple(sorted(dict.fromkeys(invoice_ids or ())))
 	if not ordered_ids:

@@ -923,6 +923,35 @@ class TestClaimCursorEligibilityAndHooks(unittest.TestCase):
 
 
 class TestCleanOnlyQueryIntegration(unittest.TestCase):
+	def test_restricted_grouped_reports_use_actor_scoped_detail_instead_of_shared_summary(self):
+		actor = "restricted@example.test"
+		predicate = "`tabSales Invoice`.`customer` = 'visible'"
+		previous = FRAPPE.session.user
+		seen = []
+
+		def match_conditions(doctype, user=None):
+			return predicate if user == actor else ""
+
+		def detail(filters):
+			seen.append((filters["group_by"], FRAPPE.session.user))
+			return [], [{"selling_amount": 75}]
+
+		filters = {"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-02", "currency": "MMK"}
+		with patch.object(FRAPPE.permissions, "build_match_conditions", side_effect=match_conditions), patch.object(
+			query, "authorize_profit_request"
+		), patch.object(store, "verify_repost_triggers_installed", return_value=(True, [])), patch.object(
+			store, "get_shop_day_groups", side_effect=AssertionError("Restricted rows cannot use the shared summary")
+		), patch.object(query, "preflight_detail_input_rows", return_value=1), patch.object(
+			query, "_fast_gross_profit_module", return_value=SimpleNamespace(run_detail_gross_profit=detail)
+		):
+			for group in ("Warehouse", "Monthly"):
+				with self.subTest(group=group):
+					result = query.query_profit({**filters, "group_by": group}, user=actor)
+					self.assertEqual(result["mode"], "detail")
+					self.assertEqual(result["eligibility"]["reason"], "match_conditions_not_company_only")
+					self.assertEqual(FRAPPE.session.user, previous)
+		self.assertEqual(seen, [("Warehouse", actor), ("Monthly", actor)])
+
 	def test_clean_past_only_stored_reads_dirty_replacement_and_future_live_days(self):
 		states = {
 			"2026-01-01": {
