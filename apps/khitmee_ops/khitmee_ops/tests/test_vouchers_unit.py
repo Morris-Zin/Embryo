@@ -2,7 +2,9 @@ import json
 import sys
 import types
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -87,7 +89,7 @@ def _install_frappe_and_erpnext_stubs():
 
 _install_frappe_and_erpnext_stubs()
 
-from khitmee_ops.api import stock_locks, vouchers
+from khitmee_ops.api import profit_export, stock_locks, vouchers
 from khitmee_ops.api.payloads import (
 	idempotency_key,
 	make_receipt_payload,
@@ -995,6 +997,146 @@ class TestReceiptPayloadShape(unittest.TestCase):
 				total=0,
 				footer="",
 			)
+
+
+class ProfitExportDownloadTestCase(unittest.TestCase):
+	def setUp(self):
+		self.service = profit_export.export_service
+		self.user = "owner@example.com"
+		self.filters = {"company": "Company", "from_date": "2026-11-01", "to_date": "2026-11-30"}
+		now = datetime(2026, 11, 28, 12)
+		self.doc = {
+			"name": "EXP-TEST",
+			"requested_by": self.user,
+			"filters_json": json.dumps(self.filters),
+			"filters_hash": self.service.compute_filters_hash(self.filters),
+			"export_uuid": "11111111-2222-3333-4444-555555555555",
+			"permission_fingerprint": "fingerprint",
+			"status": "Completed",
+			"artifact_published": 1,
+			"exported_invoice_sha256": "published-digest",
+			"expires_at": now + timedelta(hours=1),
+		}
+		self.actor = SimpleNamespace(user=self.user)
+		frappe = SimpleNamespace(
+			session=self.actor,
+			db=SimpleNamespace(get_value=Mock(return_value=1)),
+			get_doc=Mock(return_value=self.doc),
+			conf={"encryption_key": "test-snapshot-signing-key"},
+		)
+		private_dir = Path(self.enterContext(TemporaryDirectory()))
+		csv_path = private_dir / "snapshot.csv"
+		self.snapshot = b"invoice,amount\nSI-1,10\n"
+		csv_path.write_bytes(self.snapshot)
+		self.enterContext(patch.object(profit_export, "frappe", frappe))
+		self.enterContext(patch.object(profit_export, "_now", return_value=now))
+		self.enterContext(patch.object(self.service, "frappe", frappe))
+		self.authorize = self.enterContext(patch.object(self.service, "authorize_profit_request"))
+		self.enterContext(
+			patch.object(self.service, "compute_permission_fingerprint", return_value="fingerprint")
+		)
+		self.enterContext(patch.object(self.service, "has_restricted_match_conditions", return_value=True))
+		self.enterContext(patch.object(self.service, "get_export_paths", return_value=(None, str(csv_path))))
+		digest_result = ("published-digest", ["SI-1"], False)
+		self.digest = self.enterContext(
+			patch.object(self.service, "compute_exported_invoice_digest", return_value=digest_result)
+		)
+
+	def download(self):
+		return profit_export.download_export(self.doc["name"])
+
+
+class TestProfitExportDownload(ProfitExportDownloadTestCase):
+	def test_restricted_published_export_checks_scope_before_streaming_snapshot(self):
+		with patch.object(
+			self.service, "exported_invoice_scope_is_current", return_value=True, create=True
+		) as scope:
+			response = self.download()
+
+		self.authorize.assert_called_once_with(self.filters, self.user, require_export=True)
+		scope.assert_called_once_with(self.doc, self.filters, self.user)
+		self.digest.assert_not_called()
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), self.snapshot)
+
+	def test_scope_check_error_fails_closed(self):
+		with patch.object(
+			self.service, "exported_invoice_scope_is_current", side_effect=OSError, create=True
+		):
+			self.assertEqual(self.download().status_code, 403)
+		self.digest.assert_not_called()
+
+	def test_non_owner_is_rejected_before_scope_check(self):
+		self.actor.user = "other@example.com"
+		with patch.object(self.service, "exported_invoice_scope_is_current", create=True) as scope:
+			self.assertEqual(self.download().status_code, 403)
+		self.authorize.assert_not_called()
+		scope.assert_not_called()
+
+
+@unittest.skipUnless(
+	hasattr(profit_export.export_service, "exported_invoice_scope_is_current"),
+	"ADR 0004 scope helper is supplied by the report_paths integration",
+)
+class TestProfitExportDownloadScope(ProfitExportDownloadTestCase):
+	def write_scope(self):
+		_, scope_path = self.service._export_scope_paths(self.doc["export_uuid"])
+		self.service._write_export_scope(scope_path, self.doc, self.doc["exported_invoice_sha256"], ["SI-1"])
+		return Path(scope_path)
+
+	def test_new_matching_invoice_preserves_downloaded_snapshot(self):
+		self.write_scope()
+		visible_names = ["SI-1", "SI-POSTED-LATER"]
+		self.digest.return_value = ("new-digest", visible_names, False)
+
+		def select_visible(filters, user, *, limit, invoice_names):
+			return [name for name in visible_names if name in invoice_names], False
+
+		with patch.object(
+			self.service, "select_accessible_invoice_names", side_effect=select_visible
+		) as select:
+			response = self.download()
+
+		select.assert_called_once_with(self.filters, self.user, limit=1, invoice_names=["SI-1"])
+		self.digest.assert_not_called()
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.get_data(), self.snapshot)
+
+	def test_revoked_captured_invoice_denies_download(self):
+		self.write_scope()
+		with patch.object(
+			self.service, "select_accessible_invoice_names", return_value=([], False)
+		) as select:
+			self.assertEqual(self.download().status_code, 403)
+
+		select.assert_called_once_with(self.filters, self.user, limit=1, invoice_names=["SI-1"])
+		self.digest.assert_not_called()
+
+	def test_tampered_manifest_denies_download_without_digest_fallback(self):
+		scope_path = self.write_scope()
+		manifest = json.loads(scope_path.read_bytes())
+		manifest["scope"]["invoice_names"] = ["SI-OTHER"]
+		scope_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+		with patch.object(self.service, "select_accessible_invoice_names") as select:
+			self.assertEqual(self.download().status_code, 403)
+		select.assert_not_called()
+		self.digest.assert_not_called()
+
+	def test_legacy_export_requires_exact_untruncated_digest(self):
+		for digest, truncated, status in (
+			("published-digest", False, 200),
+			("changed-digest", False, 403),
+			("published-digest", True, 403),
+		):
+			with self.subTest(digest=digest, truncated=truncated):
+				self.digest.reset_mock()
+				self.digest.return_value = (digest, ["SI-1"], truncated)
+				response = self.download()
+				self.digest.assert_called_once_with(self.filters, self.user)
+				self.assertEqual(response.status_code, status)
+				if status == 200:
+					self.assertEqual(response.get_data(), self.snapshot)
 
 
 if __name__ == "__main__":
