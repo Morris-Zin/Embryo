@@ -1,0 +1,37 @@
+# Alternative runtime-profile shard shape: two Gunicorn workers with one thread
+# each. Memory and CPU caps are identical to runtime-gunicorn-1x12 so the two
+# runtime shapes can be compared under the same 2 vCPU / 2 GiB envelope.
+services:
+  configurator:
+    mem_limit: 48m
+    cpus: 0.05
+  db:
+    cpus: 0.70
+  backend:
+    cpus: 0.75
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=1
+      - --workers=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --keep-alive=65
+      - --preload
+      - --max-requests=1500
+      - --max-requests-jitter=300
+      - frappe.app:application
+  queue:
+    cpus: 0.15
+  scheduler:
+    cpus: 0.05
+  redis-cache:
+    cpus: 0.05
+  redis-queue:
+    cpus: 0.05
+  websocket:
+    cpus: 0.05
+  frontend:
+    cpus: 0.15

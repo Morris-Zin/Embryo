@@ -11,17 +11,80 @@ function seedManifestUrls() {
   return candidates;
 }
 
-const seedManifest = new SharedArray('seed_manifest', function () {
+function loadSeedManifest() {
   const paths = seedManifestUrls();
   const failures = [];
   for (let index = 0; index < paths.length; index += 1) {
     try {
-      return [JSON.parse(open(paths[index]))];
+      return JSON.parse(open(paths[index]));
     } catch (err) {
       failures.push(`${paths[index]} (${err})`);
     }
   }
   throw new Error(`Unable to load seed manifest. Tried: ${failures.join('; ')}`);
+}
+
+function compactSeasonalContext(full) {
+  const inStock = {};
+  const stocked = {};
+  Object.keys(full.inStock).forEach((warehouseKey) => {
+    const entry = full.inStock[warehouseKey];
+    const itemCodes = [];
+    const quantities = [];
+    const uoms = [];
+    entry.items.forEach((item) => {
+      itemCodes.push(item.item_code);
+      quantities.push(item.qty);
+      uoms.push(item.uom);
+      stocked[item.item_code] = true;
+    });
+    inStock[warehouseKey] = {
+      warehouse: entry.warehouse,
+      count: itemCodes.length,
+      item_codes: itemCodes,
+      quantities,
+      uoms,
+    };
+  });
+  const firstRate = {};
+  full.items.forEach((item) => {
+    if (stocked[item.item_code] && firstRate[item.item_code] === undefined) {
+      firstRate[item.item_code] = item.rate;
+    }
+  });
+  const catalogCodes = Object.keys(firstRate).sort();
+  const catalogRates = [];
+  const catalogHasRate = [];
+  catalogCodes.forEach((code) => {
+    catalogRates.push(firstRate[code] === undefined ? 0 : firstRate[code]);
+    catalogHasRate.push(firstRate[code] !== undefined);
+  });
+  return {
+    raw: { seed_id: full.raw && full.raw.seed_id, site_name: full.raw && full.raw.site_name },
+    items: catalogCodes.slice(),
+    inStock,
+    warehouses: full.warehouses,
+    priceLists: full.priceLists,
+    customers: full.customers,
+    suppliers: full.suppliers,
+    uoms: full.uoms,
+    company: full.company,
+    catalogCodes,
+    catalogRates,
+    catalogHasRate,
+    reportWindow: full.reportWindow,
+    defaultPriceList: full.defaultPriceList,
+    defaultCustomer: full.defaultCustomer,
+    defaultSupplier: full.defaultSupplier,
+    defaultUom: full.defaultUom,
+    paymentMode: full.paymentMode,
+    defaultCurrency: full.defaultCurrency,
+    defaultCashAccount: full.defaultCashAccount,
+  };
+}
+
+const sharedManifestContext = new SharedArray('seed_manifest_context', function () {
+  return [compactSeasonalContext(buildContextFromRoot(loadSeedManifest()))];
 });
 
 const DEFAULT_WAREHOUSES = [
@@ -243,8 +306,8 @@ function manifestItems(root) {
   return derived;
 }
 
-function buildContext() {
-  const root = Array.isArray(seedManifest[0]) ? { items: seedManifest[0] } : seedManifest[0] || {};
+function buildContextFromRoot(rawRoot) {
+  const root = Array.isArray(rawRoot) ? { items: rawRoot } : rawRoot || {};
   const expectedSite = String(__ENV.SITE_NAME || 'bench-loadtest.localhost');
   if (root.site_name && String(root.site_name) !== expectedSite) {
     throw new Error(
@@ -258,11 +321,18 @@ function buildContext() {
   const warehouses = firstList(root.warehouses, root.warehouse_list, root.shops, root.locations)
     .map(normalizeWarehouse)
     .filter(Boolean);
-  const priceLists = scalarList(root.price_lists || root.priceLists, ['Standard Selling']);
+  const priceLists = scalarList(root.price_lists || root.priceLists, [textValue(root.price_list, 'Standard Selling')]);
   const customers = scalarList(root.customers || root.customer_list, ['Walk-in Customer']);
+  const suppliers = scalarList(root.suppliers || root.supplier_list, []);
   const uoms = scalarList(root.uoms || root.units, ['Nos']);
   const company = textValue(root.company, root.company_name, warehouses.find((warehouse) => warehouse.company)?.company, 'Khitmee');
   const reportWindowRaw = root.report_window || root.reportWindow || {};
+  const catalogLookup = {};
+  items.forEach((item) => {
+    if (catalogLookup[item.item_code] === undefined) {
+      catalogLookup[item.item_code] = item;
+    }
+  });
 
   return {
     raw: root,
@@ -271,21 +341,26 @@ function buildContext() {
     warehouses: warehouses.length ? warehouses : DEFAULT_WAREHOUSES.slice(),
     priceLists,
     customers,
+    suppliers,
     uoms,
     company,
+    catalogLookup,
     reportWindow: {
       from_date: textValue(reportWindowRaw.from_date, reportWindowRaw.fromDate),
       to_date: textValue(reportWindowRaw.to_date, reportWindowRaw.toDate),
+      final_voucher_date: textValue(reportWindowRaw.final_voucher_date, reportWindowRaw.finalVoucherDate),
     },
     defaultPriceList: textValue(root.default_price_list, root.price_list, priceLists[0], 'Standard Selling'),
     defaultCustomer: textValue(root.default_customer, customers[0], 'Walk-in Customer'),
+    defaultSupplier: textValue(root.default_supplier, suppliers[0]),
     defaultUom: textValue(root.default_uom, uoms[0], 'Nos'),
+    paymentMode: textValue(root.payment_mode, root.paymentMode, 'Cash'),
     defaultCurrency: textValue(root.currency, root.company_currency, root.default_currency, 'USD'),
     defaultCashAccount: textValue(root.cash_account, root.cashAccount),
   };
 }
 
-export const manifestContext = buildContext();
+export const manifestContext = sharedManifestContext[0];
 
 const zipfCache = {};
 
@@ -458,7 +533,13 @@ function capQtyForStock(item, desired) {
 
 export function buildLines(options = {}) {
   const distribution = Boolean(options.distribution);
-  const count = options.count || configuredLineCount(distribution);
+  const hasExplicitCount = options.count !== undefined || options.lineCount !== undefined;
+  const count = Number(
+    options.count !== undefined ? options.count : options.lineCount !== undefined ? options.lineCount : configuredLineCount(distribution)
+  );
+  if (!Number.isFinite(count) || count < 1 || Math.floor(count) !== count) {
+    throw new Error(`Voucher line count must be a positive integer, got ${count}`);
+  }
   const includeRates = options.includeRates !== false;
   const lines = [];
   const seen = {};
@@ -482,6 +563,9 @@ export function buildLines(options = {}) {
   }
   if (!lines.length) {
     throw new Error('Unable to build a voucher with at least one item line.');
+  }
+  if (hasExplicitCount && lines.length !== count) {
+    throw new Error(`Unable to build ${count} distinct item lines; only ${lines.length} unique lines were available.`);
   }
   return lines;
 }
@@ -515,6 +599,7 @@ export function buildKhitmeeSalePayload(options = {}) {
       distribution: warehouseRole(warehouse) === 'distribution',
       contention: options.contention,
       warehouse,
+      lineCount: options.lineCount,
     }),
     payment_mode: options.paymentMode || __ENV.PAYMENT_MODE || 'Cash',
     printer_type: options.printerType || __ENV.PRINTER_TYPE || 'voucher',
@@ -534,6 +619,7 @@ export function buildKhitmeeTransferPayload(options = {}) {
       contention: options.contention,
       includeRates: false,
       warehouse: sourceWarehouse,
+      lineCount: options.lineCount,
     }),
     printer_type: options.printerType || __ENV.PRINTER_TYPE || 'voucher',
   };
@@ -556,6 +642,7 @@ function salesInvoiceDocument(options = {}) {
     distribution: warehouseRole(warehouse) === 'distribution',
     contention: options.contention,
     warehouse,
+    lineCount: options.lineCount,
   });
   const parentName = nextLocalName('new-sales-invoice');
   return {
@@ -615,6 +702,7 @@ function stockEntryDocument(options = {}) {
     contention: options.contention,
     includeRates: false,
     warehouse: sourceWarehouse,
+    lineCount: options.lineCount,
   });
   const parentName = nextLocalName('new-stock-entry');
   return {
