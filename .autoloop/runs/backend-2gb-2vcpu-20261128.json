@@ -10,7 +10,71 @@
   "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
   "created_at": "2026-11-28T05:40:30Z",
   "dead_ends": [],
-  "findings": {},
+  "findings": {
+    "F01-future-sle-repeatable-read-corruption": {
+      "finding_id": "F01-future-sle-repeatable-read-corruption",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P0",
+      "stage": "deep",
+      "status": "open",
+      "summary": "proven_empty_future_sle_fastpath can read a stale REPEATABLE READ MVCC snapshot opened before lock_stock_coordinates() and capture posting_time before locking; native Desk stock doctypes also lack before_submit stock locks."
+    },
+    "F02-voucher-fastpath-multithread-and-lazy-import-crash": {
+      "finding_id": "F02-voucher-fastpath-multithread-and-lazy-import-crash",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P0",
+      "stage": "deep",
+      "status": "open",
+      "summary": "voucher_fastpath.py global dicts cleared on release can poison lazily-imported modules or race with concurrent threads under Gunicorn --threads=12."
+    },
+    "F03-perf-parity-oracle-cache-sidecar-permissions": {
+      "finding_id": "F03-perf-parity-oracle-cache-sidecar-permissions",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P1",
+      "stage": "deep",
+      "status": "open",
+      "summary": "tools/perf_parity.py creates --oracle-cache-dir with host umask causing PermissionError in UID 1000 sidecar, and fails to reject --oracle-cache-dir with --runner exec."
+    },
+    "F04-perf-parity-db-fingerprint-misses-valuation-mutations": {
+      "finding_id": "F04-perf-parity-db-fingerprint-misses-valuation-mutations",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P1",
+      "stage": "deep",
+      "status": "open",
+      "summary": "capture_db_fingerprint() omits Repost Item Valuation, SLE value/qty aggregates, and SII/DN/Packed/Bundle/Item metadata, allowing stale oracle cache hits after valuation reposts."
+    },
+    "F05-autopay-fastpath-loose-tolerance-and-loyalty": {
+      "finding_id": "F05-autopay-fastpath-loose-tolerance-and-loyalty",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P2",
+      "stage": "deep",
+      "status": "open",
+      "summary": "_can_fast_sync_autopay_totals() allows 0.005 tolerance (5 units at precision=3) and omits loyalty_amount == 0 and base_paid_amount parity checks."
+    },
+    "F06-validate-items-permission-fastpath-gaps": {
+      "finding_id": "F06-validate-items-permission-fastpath-gaps",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P2",
+      "stage": "deep",
+      "status": "open",
+      "summary": "_item_permission_restrictions_active() skips has_permission hooks for Item, if_owner role permissions, and User Permissions with applicable_for='Item'."
+    },
+    "F07-perf-bench-inner-duplicate-sale-items": {
+      "finding_id": "F07-perf-bench-inner-duplicate-sale-items",
+      "opened_at": "2026-11-28T07:13:38Z",
+      "reviewer": "gemini-4-neon-high",
+      "severity": "P2",
+      "stage": "deep",
+      "status": "open",
+      "summary": "build_sale_payload() samples items with replacement, creating duplicate item_codes on 50/200-line sales and silently disabling proven_empty_future_sle_fastpath during inner-loop benchmarks."
+    }
+  },
   "goal": "Optimize Khitmee backend for full seasonal load on 2GiB RAM / 2 vCPU VPS while dramatically accelerating exact parity verification and dev inner-loop velocity",
   "grill_summary": "Full-stack 3-shard swarm from origin/main (84667da): (1) fast_verify accelerates exact oracle parity and inner-loop rollback-safe profiling; (2) cashier_backend optimizes write-path CPU/SQL, deadlock-safe Bin/Item locking, search latency, and 2GiB/2vCPU runtime profile while keeping ERPNext core untouched and single global invoice naming series; (3) manager_parity productionizes PR #16 ordered invoice detail and full-year CSV export parity into khitmee_ops. Coordinator=Neon High, Workers=Neon Medium, Deep Reviewer=Neon High, merge_mode=human.",
   "history": [
@@ -75,6 +139,18 @@
       "code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
       "event": "all-shards-passed",
       "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T07:03:35Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T07:13:38Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "in_progress",
+      "verdict": "reject"
     }
   ],
   "issue_number": null,
@@ -101,7 +177,15 @@
     "cloud": false,
     "deep": true
   },
-  "reviews": [],
+  "reviews": [
+    {
+      "at": "2026-11-28T07:13:38Z",
+      "code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "reject"
+    }
+  ],
   "run_id": "backend-2gb-2vcpu-20261128",
   "safeguards": [],
   "schema_version": 1,
@@ -136,10 +220,10 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "1686cd3a29cee152841eab52cb28051e67cb85d4",
-      "passed_code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-cashier-backend"
     },
@@ -162,10 +246,10 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "7239f15f52f75dcaf4aa39f98d9c0a918c6e92c0",
-      "passed_code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-fast-verify"
     },
@@ -191,15 +275,15 @@
       "goal": "",
       "has_passed_individually": true,
       "last_green_sha": "526f053d3bb796008ac31ad179dcf163769087f3",
-      "passed_code_tree_sha256": "46c5a40a47b31a1bebb6623faa8e38f2b36617cbb46dab3d7dd0ad84782c3150",
+      "passed_code_tree_sha256": null,
       "pending_dead_end_sig": null,
       "retry_scope": null,
-      "status": "passed",
+      "status": "in_progress",
       "worker_strikes": 0,
       "worktree_path": "E:\\khitmee-wt-manager-parity"
     }
   },
-  "status": "gate_passed",
+  "status": "in_progress",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T06:56:12Z"
+  "updated_at": "2026-11-28T07:13:38Z"
 }
