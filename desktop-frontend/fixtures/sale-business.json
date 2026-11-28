@@ -1,15 +1,1 @@
-{
-  "warehouse": "Dist Hub 1 - KMD",
-  "customer": "KM-CUST-0001",
-  "price_list": "Standard Selling",
-  "items": [
-    {
-      "item_code": "KM-00001",
-      "qty": 1,
-      "uom": "Nos",
-      "rate": 18.46
-    }
-  ],
-  "payment_mode": null,
-  "printer_type": "voucher"
-}
+{"warehouse":"Dist Hub 1 - KMD","customer":"KM-CUST-0001","price_list":"Standard Selling","items":[{"item_code":"KM-00001","qty":1,"uom":"Nos","rate":18.46}],"payment_mode":null,"printer_type":"voucher"}

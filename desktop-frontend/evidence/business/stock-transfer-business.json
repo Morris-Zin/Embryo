@@ -1,13 +1,1 @@
-{
-  "schemaVersion": 1,
-  "generatedAt": "2026-11-27T14:33:05Z",
-  "passed": true,
-  "failures": [],
-  "authoritative": {
-    "firstStatus": 200,
-    "secondStatus": 200,
-    "voucherNo": "MAT-STE-2026-00232",
-    "replayVoucherNo": "MAT-STE-2026-00232"
-  },
-  "nativeOutcomePath": "desktop-frontend\\evidence\\native-transfer-business-outcome.json"
-}
+{"schemaVersion":1,"generatedAt":"2026-11-27T14:33:05Z","passed":true,"failures":[],"authoritative":{"firstStatus":200,"secondStatus":200,"voucherNo":"MAT-STE-2026-00232","replayVoucherNo":"MAT-STE-2026-00232"},"nativeOutcomePath":"desktop-frontend\\evidence\\native-transfer-business-outcome.json"}

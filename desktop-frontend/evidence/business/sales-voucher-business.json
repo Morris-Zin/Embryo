@@ -1,13 +1,1 @@
-{
-  "schemaVersion": 1,
-  "generatedAt": "2026-11-27T14:33:04Z",
-  "passed": true,
-  "failures": [],
-  "authoritative": {
-    "firstStatus": 200,
-    "secondStatus": 200,
-    "voucherNo": "ACC-SINV-2026-04923",
-    "replayVoucherNo": "ACC-SINV-2026-04923"
-  },
-  "nativeOutcomePath": "desktop-frontend\\evidence\\native-sale-business-outcome.json"
-}
+{"schemaVersion":1,"generatedAt":"2026-11-27T14:33:04Z","passed":true,"failures":[],"authoritative":{"firstStatus":200,"secondStatus":200,"voucherNo":"ACC-SINV-2026-04923","replayVoucherNo":"ACC-SINV-2026-04923"},"nativeOutcomePath":"desktop-frontend\\evidence\\native-sale-business-outcome.json"}

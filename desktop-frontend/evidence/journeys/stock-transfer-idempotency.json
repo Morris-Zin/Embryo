@@ -1,17 +1,1 @@
-{
-  "schemaVersion": 1,
-  "passed": true,
-  "clientVoucherId": "native-proof-95042b67557345ab849e2ca5133504f0",
-  "initialStatuses": [
-    200,
-    200
-  ],
-  "voucherAttempts": [
-    "MAT-STE-2026-00245",
-    "MAT-STE-2026-00245"
-  ],
-  "distinctVouchers": [
-    "MAT-STE-2026-00245"
-  ],
-  "oracle": "all concurrent/replayed attempts for one client_voucher_id must resolve to the same voucher"
-}
+{"schemaVersion":1,"passed":true,"clientVoucherId":"native-proof-95042b67557345ab849e2ca5133504f0","initialStatuses":[200,200],"voucherAttempts":["MAT-STE-2026-00245","MAT-STE-2026-00245"],"distinctVouchers":["MAT-STE-2026-00245"],"oracle":"all concurrent/replayed attempts for one client_voucher_id must resolve to the same voucher"}
