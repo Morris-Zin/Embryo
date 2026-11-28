@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 import types
 import unittest
@@ -249,6 +250,45 @@ class TestBudget(unittest.TestCase):
 			{"company": "C", "from_date": "2026-01-01", "to_date": "2026-01-31", "group_by": "Payment Term"}
 		)
 		self.assertIn("tabPayment Schedule", sql)
+
+	def test_detail_preflight_counts_the_whole_packed_group_for_each_repeated_bundle_line(self):
+		filters = {
+			"company": "C",
+			"from_date": "2026-01-01",
+			"to_date": "2026-01-31",
+			"group_by": "Invoice",
+			"sales_invoice": "SI-1",
+		}
+		db = sqlite3.connect(":memory:")
+		self.addCleanup(db.close)
+		db.executescript(
+			"""
+			CREATE TABLE `tabSales Invoice` (name, company, docstatus, is_return, is_opening, posting_date, return_against);
+			CREATE TABLE `tabSales Invoice Item` (name, parent, item_code);
+			CREATE TABLE `tabPacked Item` (name, parent, parenttype, parent_item, parent_detail_docname, docstatus);
+			INSERT INTO `tabSales Invoice` VALUES ('SI-1', 'C', 1, 0, 'No', '2026-01-15', NULL);
+			INSERT INTO `tabSales Invoice Item` VALUES ('line-1', 'SI-1', 'bundle'), ('line-2', 'SI-1', 'bundle');
+			"""
+		)
+		db.executemany(
+			"INSERT INTO `tabPacked Item` VALUES (?, ?, ?, ?, ?, ?)",
+			[
+				(f"{line}-component-{component}", "SI-1", "Sales Invoice", "bundle", line, 1)
+				for line in ("line-1", "line-2")
+				for component in range(3)
+			]
+			+ [
+				("delivery-component", "SI-1", "Delivery Note", "bundle", "line-1", 1),
+				("draft-component", "SI-1", "Sales Invoice", "bundle", "line-1", 0),
+				("other-bundle-component", "SI-1", "Sales Invoice", "other-bundle", "line-1", 1),
+			],
+		)
+
+		for cap, expected in ((100, 14), (10, 11)):
+			with self.subTest(cap=cap):
+				sql, params = build_detail_preflight_query(filters, cap)
+				sql = sql.replace("STRAIGHT_JOIN", "JOIN").replace("%s", "?")
+				self.assertEqual(db.execute(sql, params).fetchone(), (expected,))
 
 
 class TestPrecisionAndOrdering(unittest.TestCase):
