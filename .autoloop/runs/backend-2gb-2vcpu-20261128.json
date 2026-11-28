@@ -1,0 +1,157 @@
+{
+  "allow_policy_paths": [
+    "tools/perf_parity.py",
+    "tools/fast_check.py"
+  ],
+  "allowed_paths": [],
+  "base_branch": "main",
+  "base_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
+  "contract_revision": 1,
+  "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
+  "created_at": "2026-11-28T05:40:30Z",
+  "dead_ends": [],
+  "findings": {},
+  "goal": "Optimize Khitmee backend for full seasonal load on 2GiB RAM / 2 vCPU VPS while dramatically accelerating exact parity verification and dev inner-loop velocity",
+  "grill_summary": "Full-stack 3-shard swarm from origin/main (84667da): (1) fast_verify accelerates exact oracle parity and inner-loop rollback-safe profiling; (2) cashier_backend optimizes write-path CPU/SQL, deadlock-safe Bin/Item locking, search latency, and 2GiB/2vCPU runtime profile while keeping ERPNext core untouched and single global invoice naming series; (3) manager_parity productionizes PR #16 ordered invoice detail and full-year CSV export parity into khitmee_ops. Coordinator=Neon High, Workers=Neon Medium, Deep Reviewer=Neon High, merge_mode=human.",
+  "history": [
+    {
+      "at": "2026-11-28T05:40:30Z",
+      "event": "init",
+      "status": "draft"
+    },
+    {
+      "at": "2026-11-28T05:40:31Z",
+      "event": "complete-grill",
+      "status": "grilled"
+    },
+    {
+      "at": "2026-11-28T05:40:31Z",
+      "contract_revision": 1,
+      "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
+      "event": "lock",
+      "status": "locked"
+    }
+  ],
+  "issue_number": null,
+  "last_integrated_branch": null,
+  "last_integrated_detached": null,
+  "last_integrated_sha": null,
+  "last_integrated_worktree": null,
+  "limits": {
+    "max_replan_count": 1,
+    "max_safeguard_prose_lines": 15,
+    "max_total_attempts": 8,
+    "max_worker_strikes": 3
+  },
+  "merge_mode": "human",
+  "models": {
+    "coordinator": "gemini-4-neon-high",
+    "reviewer": "gemini-4-neon-high",
+    "workers": "gemini-4-neon-medium"
+  },
+  "pending_contract_amendments": [],
+  "pr_number": null,
+  "replan_count": 0,
+  "reviewers": {
+    "cloud": false,
+    "deep": true
+  },
+  "reviews": [],
+  "run_id": "backend-2gb-2vcpu-20261128",
+  "safeguards": [],
+  "schema_version": 1,
+  "shards": {
+    "cashier_backend": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/api/vouchers.py",
+        "apps/khitmee_ops/khitmee_ops/api/search.py",
+        "apps/khitmee_ops/khitmee_ops/api/stock_locks.py",
+        "apps/khitmee_ops/khitmee_ops/api/voucher_fastpath.py",
+        "apps/khitmee_ops/khitmee_ops/api/memory.py",
+        "apps/khitmee_ops/khitmee_ops/hooks.py",
+        "apps/khitmee_ops/khitmee_ops/setup/indexes.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_vouchers_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_search_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_stock_locks_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_voucher_fastpath_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_indexes_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_memory_hooks_unit.py",
+        "perf-suite/docker/profile-2gb.yaml",
+        "perf-suite/docker/nginx-2gb.conf",
+        "runtime-config/**"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_vouchers_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_search_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_stock_locks_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_indexes_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_memory_hooks_unit.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "fast_verify": {
+      "allowed_paths": [
+        "tools/fast_verify.py",
+        "tools/perf_bench_inner.py",
+        "tools/test_fast_verify.py",
+        "tools/perf_parity.py",
+        "tools/test_perf_parity_comparator.py",
+        "tools/fast_check.py",
+        "tools/test_fast_check_guardrails.py",
+        "perf-suite/lab/offload-followup/manager/**",
+        ".autoloop/experiments/backend-2gb-2vcpu-20261128-*.md"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest tools.test_fast_verify tools.test_perf_parity_comparator tools.test_fast_check_guardrails"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    },
+    "manager_parity": {
+      "allowed_paths": [
+        "apps/khitmee_ops/khitmee_ops/khitmee_ops/report/fast_gross_profit/**",
+        "apps/khitmee_ops/khitmee_ops/profit_summary/**",
+        "apps/khitmee_ops/khitmee_ops/api/profit_export.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_fast_gross_profit_parity.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_export_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_oracle_parity.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_summary_unit.py",
+        "apps/khitmee_ops/khitmee_ops/tests/test_profit_reconcile_unit.py"
+      ],
+      "attempts": 0,
+      "checks": [
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_fast_gross_profit_parity.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_export_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_summary_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_reconcile_unit.py",
+        "python -B -m unittest discover -s apps/khitmee_ops/khitmee_ops/tests -t apps/khitmee_ops -p test_profit_oracle_parity.py"
+      ],
+      "goal": "",
+      "has_passed_individually": false,
+      "last_green_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
+      "passed_code_tree_sha256": null,
+      "pending_dead_end_sig": null,
+      "status": "locked",
+      "worker_strikes": 0,
+      "worktree_path": null
+    }
+  },
+  "status": "locked",
+  "total_attempts": 0,
+  "updated_at": "2026-11-28T05:40:31Z"
+}
