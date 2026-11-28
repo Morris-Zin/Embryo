@@ -80,4 +80,19 @@ The remaining sustained heap growth is dominated by bounded/intentional or brows
 
 Profiler-guided experiments not retained: cloning a static row template did not improve script/layout time; `content-visibility` on table rows or cells did not reduce layout because internal table boxes still participate in table layout; CSS-grid row emulation only reduced 100-row layout by about 6% and was not worth table-semantics risk; replacing the search input flattened node counts but did not remove editor undo retention.
 
+## Fourth iteration: compounding DOM-write reductions
+
+A modern-web guidance review confirmed the useful remaining levers were batching DOM writes and applying containment only to self-contained layout regions. The lines panel was already contained, while table rows/cells are not independent layout containers, so the earlier `content-visibility` rejection remains correct. The compounding safe changes were narrower: warehouse/customer options are now built in `DocumentFragment`s and installed with `replaceChildren`, invoice row field lookups are cached per row in a `WeakMap`, and totals/submit DOM writes are skipped when unchanged.
+
+Same-day isolated-stack comparison (normal profile):
+
+| measurement | before | current | change |
+|---|---:|---:|---:|
+| Page-load mutation records | 251 | 187 | -25.5% |
+| Page-load script duration | 1.65 ms | 1.33 ms | -19.4% |
+| Page-load task duration | 28.8 ms | 25.68 ms | -10.8% |
+| 200-line scan script+layout | 362.29 ms | 359.69 ms | -0.7% (within run noise) |
+
+The scan path was already dominated by necessary table row layout rather than select initialization; the main compounding win is therefore lower initialization mutation volume plus lower recurring row-update query cost, not another large scan-layout reduction.
+
 Regression evidence: `bash tools/khitmee-dev.sh browser-perf-check` passed 10/10 Playwright assertions, and `bash tools/khitmee-dev.sh fast-check` passed Python, JavaScript, Bash, Compose, and knip gates.

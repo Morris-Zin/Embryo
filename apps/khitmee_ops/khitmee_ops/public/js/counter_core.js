@@ -147,10 +147,11 @@
 
 		function fillSelect(select, rows, labeler, value) {
 			if (!select || !rows) return;
-			select.innerHTML = "";
+			const fragment = document.createDocumentFragment();
 			rows.forEach(function (row) {
-				select.appendChild(option(labeler(row), row.name));
+				fragment.appendChild(option(labeler(row), row.name));
 			});
+			select.replaceChildren(fragment);
 			if (value) select.value = value;
 		}
 
@@ -164,10 +165,12 @@
 		function refillCustomers(rows, append) {
 			if (!els.customer) return;
 			const selected = els.customer.value;
-			if (!append) els.customer.innerHTML = "";
+			const fragment = document.createDocumentFragment();
 			rows.forEach(function (row) {
-				els.customer.appendChild(option(row.customer_name || row.name, row.name));
+				fragment.appendChild(option(row.customer_name || row.name, row.name));
 			});
+			if (!append) els.customer.replaceChildren(fragment);
+			else els.customer.appendChild(fragment);
 			if (selected) {
 				if (!els.customer.querySelector('option[value="' + selected + '"]')) {
 					els.customer.insertBefore(option(selected, selected), els.customer.firstChild);
@@ -477,15 +480,33 @@
 			return tr;
 		}
 
+		const lineRowRefs = new WeakMap();
+		function refsForLineRow(tr) {
+			let refs = lineRowRefs.get(tr);
+			if (!refs) {
+				refs = {
+					itemCode: tr.querySelector("strong"),
+					itemName: tr.querySelector(".line-item span"),
+					qtyInput: tr.querySelector("input"),
+					uom: tr.querySelector(".line-uom"),
+					rate: tr.querySelector(".line-rate"),
+					amount: tr.querySelector(".line-amount"),
+				};
+				lineRowRefs.set(tr, refs);
+			}
+			return refs;
+		}
+
 		function updateLineRow(tr, line, index) {
 			if (!tr) return;
 			tr.dataset.index = index;
-			const itemCode = tr.querySelector("strong");
-			const itemName = tr.querySelector(".line-item span");
-			const qtyInput = tr.querySelector("input");
-			const uom = tr.querySelector(".line-uom");
-			const rate = tr.querySelector(".line-rate");
-			const amount = tr.querySelector(".line-amount");
+			const refs = refsForLineRow(tr);
+			const itemCode = refs.itemCode;
+			const itemName = refs.itemName;
+			const qtyInput = refs.qtyInput;
+			const uom = refs.uom;
+			const rate = refs.rate;
+			const amount = refs.amount;
 			const qtyText = String(line.qty);
 			const uomText = line.uom || "";
 			const rateText = config.showRates ? formatMoney(line.rate) : "—";
@@ -525,9 +546,12 @@
 				totalQty += line.qty;
 				subtotal += lineTotal(line);
 			});
-			els.totalQty.textContent = formatQty(totalQty);
-			els.subtotal.textContent = config.showRates ? formatMoney(subtotal) : formatQty(totalQty);
-			els.submit.disabled = !state.lines.length || state.submitting;
+			const totalQtyText = formatQty(totalQty);
+			const subtotalText = config.showRates ? formatMoney(subtotal) : totalQtyText;
+			const submitDisabled = !state.lines.length || state.submitting;
+			if (els.totalQty.textContent !== totalQtyText) els.totalQty.textContent = totalQtyText;
+			if (els.subtotal.textContent !== subtotalText) els.subtotal.textContent = subtotalText;
+			if (els.submit.disabled !== submitDisabled) els.submit.disabled = submitDisabled;
 		}
 
 		function resetLines() {
