@@ -365,6 +365,14 @@ class TestParallelUnittestSelection(unittest.TestCase):
 		self.assertEqual(command[command.index("-j") + 1], "4")
 		self.assertEqual(command[command.index("-s") + 1], "/repo/tools")
 
+	def test_windows_paths_normalize_to_posix_for_unittest_and_git(self):
+		from pathlib import PureWindowsPath
+
+		win_root = PureWindowsPath(r"C:\work\Khitmee-ERPNext")
+		self.assertEqual(fc._git_safe_dir(win_root), "C:/work/Khitmee-ERPNext")
+		command = fc.unittest_parallel_command(Path("C:/work/Khitmee-ERPNext"))
+		self.assertEqual(command[command.index("-s") + 1], "C:/work/Khitmee-ERPNext/tools")
+
 	def test_financial_and_seeder_suites_keep_sequential_discovery(self):
 		self.assertEqual(fc.PYTHON_TEST_SERIAL_SUITES, (
 			"apps/khitmee_ops/khitmee_ops/tests",
