@@ -35,6 +35,7 @@ struct PilotState {
     outgoing_stock_entry: String,
     customer: String,
     payment_mode: String,
+    print_format: String,
     price_list: String,
     print_endpoint: String,
     print_token: String,
@@ -1938,6 +1939,7 @@ fn main() -> Result<(), slint::PlatformError> {
         outgoing_stock_entry: String::new(),
         customer: String::new(),
         payment_mode: String::new(),
+        print_format: "voucher".into(),
         price_list,
         print_endpoint,
         print_token,
@@ -2223,6 +2225,13 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    app.on_print_format_selected({
+        let state = state.clone();
+        move |value| {
+            state.borrow_mut().print_format = if value == "a4" { "a4".into() } else { "voucher".into() };
+        }
+    });
+
     app.on_screen_navigated({
         let app = app.as_weak();
         let state = state.clone();
@@ -2264,7 +2273,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             let sales_mode = app.get_current_screen() != 1;
-            let (items, client_voucher_id, warehouse, customer, target_warehouse, transfer_mode, outgoing_stock_entry, price_list, payment_mode) = {
+            let (items, client_voucher_id, warehouse, customer, target_warehouse, transfer_mode, outgoing_stock_entry, price_list, payment_mode, print_format) = {
                 let state = state.borrow();
                 if sales_mode && state.warehouse.is_empty() {
                     app.set_status_text("Choose a shop warehouse.".into());
@@ -2309,13 +2318,14 @@ fn main() -> Result<(), slint::PlatformError> {
                     state.outgoing_stock_entry.clone(),
                     state.price_list.clone(),
                     state.payment_mode.clone(),
+                    state.print_format.clone(),
                 )
             };
             app.set_status_text("Submitting voucher…".into());
             let result = ErpClient::login(&config.base_url, &config.username, &config.password)
                 .and_then(|client| {
                     if sales_mode {
-                        client.submit_sale(&client_voucher_id, &warehouse, &customer, &price_list, &items, (!payment_mode.is_empty()).then_some(payment_mode.as_str()), "voucher")
+                        client.submit_sale(&client_voucher_id, &warehouse, &customer, &price_list, &items, (!payment_mode.is_empty()).then_some(payment_mode.as_str()), &print_format)
                     } else {
                         client.submit_transfer(&client_voucher_id, &warehouse, &target_warehouse, &transfer_mode, (!outgoing_stock_entry.trim().is_empty()).then_some(outgoing_stock_entry.trim()), &items, "voucher")
                     }

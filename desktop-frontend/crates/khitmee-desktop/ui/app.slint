@@ -119,6 +119,7 @@ component PrintRadio inherits Rectangle {
     in property <string> text;
     in property <string> value: "";
     in property <bool> checked;
+    callback clicked();
     background: #ffffff;
     border-color: Design.line;
     border-width: 1px;
@@ -157,6 +158,7 @@ component PrintRadio inherits Rectangle {
         font-size: 14px;
         vertical-alignment: center;
     }
+    TouchArea { clicked => { root.clicked(); } }
 }
 
 component PanelBox inherits Rectangle {
@@ -286,6 +288,7 @@ component CounterScreen inherits FocusScope {
     in property <[string]> payment-options;
     in property <[string]> target-warehouse-options;
     in property <[string]> transfer-mode-options;
+    in property <string> print-format: "voucher";
     in property <length> initial-scroll-offset: 0px;
     in-out property <length> content-y: 0px;
     property <length> side-width: (root.width - 72px) * 0.39;
@@ -311,6 +314,7 @@ component CounterScreen inherits FocusScope {
     callback warehouse-selected(string);
     callback customer-selected(string);
     callback payment-selected(string);
+    callback print-format-selected(string);
     callback target-warehouse-selected(string);
     callback transfer-mode-selected(string);
     callback outgoing-stock-entry-edited(string);
@@ -410,8 +414,8 @@ component CounterScreen inherits FocusScope {
             selected(value) => { root.payment-selected(value); }
         }
         Text { visible: root.sales-mode; x: root.field-right-x; y: 234px; text: "Print format"; color: Design.muted; font-size: 13px; font-weight: 700; }
-        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 258px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: true; value: "voucher"; }
-        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 304px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: false; value: "a4"; }
+        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 258px; width: 143.0625px; height: 42px; text: "Voucher 80mm"; checked: root.print-format == "voucher"; value: "voucher"; clicked => { root.print-format-selected("voucher"); } }
+        PrintRadio { visible: root.sales-mode; x: root.field-right-x; y: 304px; width: 107.828125px; height: 42px; text: "Canon A4"; checked: root.print-format == "a4"; value: "a4"; clicked => { root.print-format-selected("a4"); } }
 
         Text { visible: !root.sales-mode; x: root.field-right-x; y: 67px; text: "Target warehouse"; color: Design.muted; font-size: 13px; font-weight: 700; }
         ComboBox {
@@ -1498,10 +1502,12 @@ export component AppWindow inherits Window {
     in-out property <bool> clear-scan-after-accept: false;
     in-out property <bool> search-open: false;
     in-out property <int> active-search-index: 0;
+    in-out property <string> print-format: "voucher";
 
     callback warehouse-selected(string);
     callback customer-selected(string);
     callback payment-selected(string);
+    callback print-format-selected(string);
     callback target-warehouse-selected(string);
     callback transfer-mode-selected(string);
     callback outgoing-stock-entry-edited(string);
@@ -1540,6 +1546,7 @@ export component AppWindow inherits Window {
         warehouse-options: root.warehouse-options;
         customer-options: root.customer-options;
         payment-options: root.payment-options;
+        print-format <=> root.print-format;
         initial-scroll-offset: current-screen == 4 ? 43px : 0px;
         search-results: root.search-results;
         voucher-lines: root.voucher-lines;
@@ -1553,6 +1560,7 @@ export component AppWindow inherits Window {
         warehouse-selected(value) => { root.warehouse-selected(value); }
         customer-selected(value) => { root.customer-selected(value); }
         payment-selected(value) => { root.payment-selected(value); }
+        print-format-selected(value) => { root.print-format-selected(value); }
         search-edited(text) => { root.search-edited(text); }
         sales-scan-accepted(text) => { root.sales-scan-accepted(text); }
         choose-item(code) => { root.choose-item(code); }
