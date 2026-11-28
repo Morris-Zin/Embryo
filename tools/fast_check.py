@@ -92,6 +92,21 @@ READ_CACHE_PATCH_JUSTIFICATION = (
 	"thread-local single-transaction read-only metadata cache; outside the voucher transaction "
 	"the wrapper delegates directly to the captured ERPNext original"
 )
+LOCKED_BIN_PATCH_JUSTIFICATION = (
+	"inside the voucher transaction returns only Bin names already found by the ordered "
+	"stock_locks acquisition; any miss or call outside the transaction delegates to the "
+	"captured ERPNext original, which still creates missing Bins"
+)
+SCHEMA_FILTER_PATCH_JUSTIFICATION = (
+	"caches ordered DocField filter results for the posting transaction only and delegates "
+	"all filtering to the captured unmodified Frappe Document._filter"
+)
+INVOICE_SERIES_PATH = "apps/khitmee_ops/khitmee_ops/api/invoice_series.py"
+INVOICE_SERIES_PATCH_JUSTIFICATION = (
+	"default-OFF experiment khitmee_independent_invoice_series (ADR 0002/0003): stock naming "
+	"still selects the rule and parses prefix/width; only the terminal counter commit and "
+	"audited-number reuse change, and only when the owner enables the site flag"
+)
 MONKEY_PATCH_ALLOWLIST = {
 	VOUCHER_FASTPATH_PATH + ":erpnext.stock.stock_ledger.update_qty_in_future_sle": FUTURE_SLE_PATCH_JUSTIFICATION,
 	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.doctype.accounting_dimension.accounting_dimension.get_accounting_dimensions": READ_CACHE_PATCH_JUSTIFICATION,
@@ -110,6 +125,17 @@ MONKEY_PATCH_ALLOWLIST = {
 	VOUCHER_FASTPATH_PATH + ":erpnext.stock.doctype.stock_entry.stock_entry.get_sre_reserved_qty_for_item_and_warehouse": READ_CACHE_PATCH_JUSTIFICATION,
 	VOUCHER_FASTPATH_PATH + ":erpnext.stock.get_item_details.get_pos_profile": READ_CACHE_PATCH_JUSTIFICATION,
 	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.doctype.sales_invoice.sales_invoice.get_pos_profile": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.doctype.accounting_dimension.accounting_dimension.get_checks_for_pl_and_bs_accounts": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.doctype.gl_entry.gl_entry.get_checks_for_pl_and_bs_accounts": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.doctype.payment_ledger_entry.payment_ledger_entry.get_checks_for_pl_and_bs_accounts": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.accounts.general_ledger.get_checks_for_pl_and_bs_accounts": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.stock.doctype.packed_item.packed_item.get_product_bundle_items": READ_CACHE_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.stock.stock_ledger.get_or_make_bin": LOCKED_BIN_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":erpnext.stock.utils.get_or_make_bin": LOCKED_BIN_PATCH_JUSTIFICATION,
+	VOUCHER_FASTPATH_PATH + ":document._filter": SCHEMA_FILTER_PATCH_JUSTIFICATION,
+	INVOICE_SERIES_PATH + ":naming.NamingSeries.generate_next_name": INVOICE_SERIES_PATCH_JUSTIFICATION,
+	INVOICE_SERIES_PATH + ":naming.revert_series_if_last": INVOICE_SERIES_PATCH_JUSTIFICATION,
+	INVOICE_SERIES_PATH + ":delete_doc.revert_series_if_last": INVOICE_SERIES_PATCH_JUSTIFICATION,
 }
 
 SELECT_STAR_RE = re.compile(r"\bselect\s+\*\s+from\b", re.IGNORECASE)
