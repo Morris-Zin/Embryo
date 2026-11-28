@@ -29,6 +29,7 @@ PROJECT = "khitmee-perf"
 # record. This allows a small amount of infrastructure/probe noise while
 # rejecting disjoint request-id streams or systematically unparsed app logs.
 MIN_JOIN_RATIO = 0.95
+EXPECTED_ENDPOINT_CLASSES = ["cashier_submit", "search", "login/bootstrap", "manager_summary", "manager_detail", "manager_export"]
 
 
 def utcnow():
@@ -281,14 +282,17 @@ def parse_tag_selector(key):
 
 
 def metric_count(metric):
-    values = metric.get("values") if isinstance(metric, dict) else {}
-    if not isinstance(values, dict):
+    if not isinstance(metric, dict):
         return 0
-    for key in ("count", "value"):
-        try:
-            return int(values.get(key) or 0)
-        except (TypeError, ValueError):
-            pass
+    containers = [metric]
+    if isinstance(metric.get("values"), dict):
+        containers.append(metric["values"])
+    for container in containers:
+        for key in ("count", "value"):
+            try:
+                return int(container.get(key) or 0)
+            except (TypeError, ValueError):
+                pass
     return 0
 
 
@@ -306,10 +310,10 @@ def k6_endpoint_counts(summary):
     return counts
 
 
-def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO):
+def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO, required_classes=()):
     rows = {}
     problems = []
-    classes = sorted(set(expected_counts) | {row.get("endpoint_class") or "unclassified" for row in joined})
+    classes = sorted(set(required_classes) | set(expected_counts) | {row.get("endpoint_class") or "unclassified" for row in joined})
     for endpoint_class in classes:
         class_rows = [row for row in joined if (row.get("endpoint_class") or "unclassified") == endpoint_class]
         nginx_count = len(class_rows)
@@ -325,7 +329,10 @@ def endpoint_coverage(joined, expected_counts, minimum_ratio=MIN_JOIN_RATIO):
             "joined_coverage_ratio": joined_ratio,
             "coverage_passed": bool(expected) and nginx_ratio is not None and joined_ratio is not None and nginx_ratio >= minimum_ratio and joined_ratio >= minimum_ratio,
         }
-        if expected:
+        if expected <= 0:
+            if endpoint_class in set(required_classes):
+                problems.append(f"{endpoint_class}: missing or zero k6 request denominator")
+        else:
             if nginx_ratio is None or nginx_ratio < minimum_ratio:
                 problems.append(f"{endpoint_class}: nginx rows cover {nginx_count}/{expected} k6 requests, below {minimum_ratio:.2f}")
             if joined_ratio is None or joined_ratio < minimum_ratio:
@@ -452,7 +459,7 @@ def cmd_finish(args):
     except Exception:
         k6_summary = {}
     expected_counts = k6_endpoint_counts(k6_summary)
-    coverage = endpoint_coverage(joined, expected_counts)
+    coverage = endpoint_coverage(joined, expected_counts, required_classes=EXPECTED_ENDPOINT_CLASSES)
     measured_start, measured_end = measured_window_from_log(args.k6_log) if args.k6_log else (None, None)
     window = nginx_window_coverage(nginx_rows, measured_start, measured_end)
     coverage_problems = []

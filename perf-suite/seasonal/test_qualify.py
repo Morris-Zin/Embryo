@@ -367,6 +367,20 @@ class QualifyEntryPointTests(unittest.TestCase):
             early_end = [window_rows[0], row("search", True, "2026-01-01T10:08:00Z", 1)]
             self.assertFalse(module.nginx_window_coverage(early_end, start, end)["passed"])
 
+    def test_real_k6_summary_direct_counter_shape_is_attribution_denominator(self):
+        spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixture_summary = json.loads((ROOT / "fixtures" / "real" / "k6-summary.json").read_text(encoding="utf-8"))
+        counts = module.k6_endpoint_counts(fixture_summary)
+        self.assertEqual(counts.get("search"), 4)
+        zero = module.endpoint_coverage([], {"search": 0}, required_classes=["search"])
+        self.assertIn("missing or zero k6 request denominator", " ".join(zero["problems"]))
+        missing = module.endpoint_coverage([], {}, required_classes=["search"])
+        self.assertIn("missing or zero k6 request denominator", " ".join(missing["problems"]))
+        legacy_shape = {"metrics": {"http_reqs{endpoint_class:search}": {"values": {"count": 7}}}}
+        self.assertEqual(module.k6_endpoint_counts(legacy_shape), {"search": 7})
+
     def test_real_k6_console_fixture_window_markers_are_parsed(self):
         spec = importlib.util.spec_from_file_location("attribution", ROOT / "attribution.py")
         module = importlib.util.module_from_spec(spec)
