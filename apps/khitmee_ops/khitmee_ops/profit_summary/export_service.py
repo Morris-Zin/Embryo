@@ -8,6 +8,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Literal, TypedDict
 
+from khitmee_ops.profit_summary.store import batched
+
 try:
 	import frappe
 except ImportError:  # pragma: no cover - offline unit tests install a frappe stub
@@ -235,13 +237,6 @@ def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MA
 			if filters.get(field):
 				conditions.append(condition)
 				params.append(filters[field])
-	else:
-		# Report eligibility was checked inside the snapshot. Download rechecks visibility for these names.
-		if not invoice_names:
-			return [], False
-		placeholders = ", ".join(["%s"] * len(invoice_names))
-		conditions.append(f"`name` IN ({placeholders})")
-		params.extend(invoice_names)
 
 	previous_user = frappe.session.user
 	frappe.set_user(user)
@@ -252,21 +247,32 @@ def select_accessible_invoice_names(filters, user, *, limit=RESTRICTED_EXPORT_MA
 	if match_conditions:
 		conditions.append(f"({match_conditions})")
 
-	sql_limit = int(limit) + 1
-	rows = frappe.db.sql(
-		"""
-		SELECT `name`
-		FROM `tabSales Invoice`
-		WHERE {conditions}
-		ORDER BY `name` ASC
-		LIMIT {sql_limit}
-		""".format(conditions=" AND ".join(conditions), sql_limit=sql_limit),
-		params,
-		as_dict=True,
-	)
-	names = [str(row.get("name") if hasattr(row, "get") else row[0]) for row in rows]
-	truncated = len(names) > limit
-	return names[:limit], truncated
+	# Report eligibility was checked inside the snapshot. Download rechecks visibility for captured names.
+	chunks = (None,) if invoice_names is None else batched(sorted(set(invoice_names)), EXPORT_SCOPE_CHECK_BATCH_SIZE)
+	names = []
+	for chunk in chunks:
+		batch_conditions, batch_params = conditions, params
+		sql_limit = limit + 1 - len(names)
+		if chunk is not None:
+			placeholders = ", ".join(["%s"] * len(chunk))
+			batch_conditions = [*conditions, f"`name` IN ({placeholders})"]
+			batch_params = [*params, *chunk]
+			sql_limit = min(sql_limit, len(chunk) + 1)
+		rows = frappe.db.sql(
+			"""
+			SELECT `name`
+			FROM `tabSales Invoice`
+			WHERE {conditions}
+			ORDER BY `name` ASC
+			LIMIT {sql_limit}
+			""".format(conditions=" AND ".join(batch_conditions), sql_limit=sql_limit),
+			batch_params,
+			as_dict=True,
+		)
+		names.extend(str(row.get("name") if hasattr(row, "get") else row[0]) for row in rows)
+		if len(names) > limit:
+			return names[:limit], True
+	return names, False
 
 
 def invoice_names_sha256(invoice_names):
@@ -376,12 +382,8 @@ def exported_invoice_scope_is_current(doc, filters, user):
 		return False
 	if hashlib.sha256(_scope_json(names)).hexdigest() != payload["invoice_names_sha256"]:
 		return False
-	for start in range(0, len(names), EXPORT_SCOPE_CHECK_BATCH_SIZE):
-		batch = names[start : start + EXPORT_SCOPE_CHECK_BATCH_SIZE]
-		visible, truncated = select_accessible_invoice_names(filters, user, limit=len(batch), invoice_names=batch)
-		if truncated or set(visible) != set(batch):
-			return False
-	return True
+	visible, truncated = select_accessible_invoice_names(filters, user, limit=len(names), invoice_names=names)
+	return not truncated and set(visible) == set(names)
 
 
 def _export_result(doc, *, deduplicated):

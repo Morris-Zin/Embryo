@@ -118,7 +118,12 @@ class FakeDB:
 		if "FROM `tabDocShare`" in query:
 			return list(self.state.docshares)
 		if "FROM `tabSales Invoice`" in query:
-			return [{"name": name} for name in self.state.invoice_names]
+			names = self.state.invoice_names
+			if "`name` IN (" in query:
+				placeholders = query.split("`name` IN (", 1)[1].split(")", 1)[0]
+				bound_names = set(params[-placeholders.count("%s"):])
+				names = sorted(bound_names.intersection(names))
+			return [{"name": name} for name in names]
 		return []
 
 	def commit(self):
@@ -758,22 +763,18 @@ class TestDownloadPrecedence(ExportServiceTestCase):
 		filters = json.loads(doc["filters_json"])
 		doc["filters_hash"] = export_service.compute_filters_hash(filters)
 		_, scope_path = export_service._export_scope_paths(doc["export_uuid"])
-		export_service._write_export_scope(scope_path, doc, "digest", {"SI-1", "SI-2", "SI-3"})
-		accessible = {"SI-1", "SI-2", "SI-3", "SI-POSTED-AFTER-SNAPSHOT"}
+		batch_size = export_service.EXPORT_SCOPE_CHECK_BATCH_SIZE
+		captured = [f"SI-{index:05d}" for index in range(batch_size + 17)]
+		export_service._write_export_scope(scope_path, doc, "digest", captured)
+		self.state.invoice_names = [*captured, "SI-POSTED-AFTER-SNAPSHOT"]
 
-		def scope_lookup(filters, user, *, limit, invoice_names):
-			self.assertEqual(user, "owner")
-			self.assertEqual(limit, len(invoice_names))
-			self.assertLessEqual(limit, 2)
-			return sorted(accessible.intersection(invoice_names)), False
+		self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		queries = [(sql, params) for sql, params, _ in self.fake.db.sql_calls if "FROM `tabSales Invoice`" in sql]
+		self.assertEqual([params for _, params in queries], [["Company", *captured[:batch_size]], ["Company", *captured[batch_size:]]])
+		self.assertEqual([sql.count("%s") - 1 for sql, _ in queries], [batch_size, 17])
 
-		with patch.object(export_service, "EXPORT_SCOPE_CHECK_BATCH_SIZE", 2), patch.object(
-			export_service, "select_accessible_invoice_names", side_effect=scope_lookup
-		) as lookup:
-			self.assertTrue(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
-			self.assertEqual([call.kwargs["invoice_names"] for call in lookup.call_args_list], [["SI-1", "SI-2"], ["SI-3"]])
-			accessible.remove("SI-3")
-			self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
+		self.state.invoice_names.remove(captured[-1])
+		self.assertFalse(export_service.exported_invoice_scope_is_current(doc, filters, "owner"))
 		self.digest.assert_not_called()
 
 	def test_signed_scope_rejects_tampering_and_replay_against_another_export(self):
