@@ -469,8 +469,9 @@ def _resolve_warehouse(frappe: Any, logical_name: str) -> str:
 
 
 def _profile_rollback_action(frappe: Any, savepoint: str, fn: Any, top_n: int = 8) -> dict[str, Any]:
+    """Profile one write action under CommitGuard and roll back cleanly via frappe.db.rollback()."""
+    _ = savepoint
     rss_before = current_rss_mib()
-    frappe.db.sql(f"SAVEPOINT {savepoint}")
     profiler = cProfile.Profile()
     sql_prof = SqlProfiler(frappe)
     t0 = time.perf_counter()
@@ -496,7 +497,7 @@ def _profile_rollback_action(frappe: Any, savepoint: str, fn: Any, top_n: int = 
             "cprofile_self_top": extract_cprofile_hotspots(profiler, limit=top_n, sort_by="tottime"),
         }
     finally:
-        frappe.db.sql(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        frappe.db.rollback()
         cache = getattr(getattr(frappe, "local", None), "document_cache", None)
         if hasattr(cache, "clear"):
             cache.clear()

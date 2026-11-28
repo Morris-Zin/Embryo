@@ -396,6 +396,44 @@ class TestPerfBenchInnerHelpers(unittest.TestCase):
             with self.assertRaises(pbi.SafetyGuardError):
                 frappe.db.commit()
 
+    def test_profile_rollback_action_tolerates_inner_db_rollback_without_savepoint(self):
+        class RollbackTrackingDB:
+            def __init__(self):
+                self.queries = []
+                self.rollbacks = 0
+
+            def sql(self, query, *args, **kwargs):
+                self.queries.append(query)
+                if "SAVEPOINT" in str(query).upper():
+                    raise AssertionError("SAVEPOINT must not be used in _profile_rollback_action")
+                return [(1,)]
+
+            def rollback(self):
+                self.rollbacks += 1
+
+        class FakeLocal:
+            def __init__(self):
+                self.document_cache = {"Sales Invoice": {"SINV-1": {}}}
+
+        class FakeFrappe:
+            def __init__(self):
+                self.db = RollbackTrackingDB()
+                self.local = FakeLocal()
+
+        frappe = FakeFrappe()
+
+        def inner_action():
+            # Simulates vouchers._run_idempotent calling frappe.db.rollback() before lock.
+            frappe.db.rollback()
+            frappe.db.sql("SELECT 1")
+
+        metrics = pbi._profile_rollback_action(frappe, "ignored_savepoint", inner_action, top_n=4)
+        self.assertEqual(frappe.db.rollbacks, 2)
+        self.assertEqual(metrics["sql_count"], 1)
+        self.assertEqual(frappe.local.document_cache, {})
+        self.assertIn("top_sql_templates", metrics)
+        self.assertIn("cprofile_self_top", metrics)
+
     def test_normalize_sql_template_collapses_literals_and_truncates(self):
         tpl = pbi.normalize_sql_template("SELECT  * \n FROM `tabSLE` WHERE item_code = 'KM-001' AND qty > 12.5 AND id IN (%s, %s, %s)")
         self.assertEqual(tpl, "SELECT * FROM `tabSLE` WHERE item_code = ? AND qty > ? AND id IN (?...)")
