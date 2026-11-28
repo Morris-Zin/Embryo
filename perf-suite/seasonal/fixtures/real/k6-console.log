@@ -1,0 +1,51 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /fixtures/fixture-k6.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 4 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.692Z\",\"event\":\"measured_window_start\"}" source=console
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.696Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"duration_ms\":1.539551}" source=console
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.698Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"duration_ms\":1.098594}" source=console
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.699Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"duration_ms\":0.893199}" source=console
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.700Z\",\"event\":\"search_complete\",\"phase\":\"baseline\",\"duration_ms\":0.870817}" source=console
+time="2026-11-28T17:53:04Z" level=info msg="KHITMEE_SEASONAL_EVENT {\"at\":\"2026-11-28T17:53:04.701Z\",\"event\":\"measured_window_end\"}" source=console
+
+
+  █ THRESHOLDS 
+
+    http_reqs{endpoint_class:search}
+    ✓ 'count>=0' count=4
+
+
+  █ TOTAL RESULTS 
+
+    HTTP
+    http_req_duration..............: avg=1.1ms min=870.81µs med=995.89µs max=1.53ms p(90)=1.4ms  p(95)=1.47ms
+      { expected_response:true }...: avg=1.1ms min=870.81µs med=995.89µs max=1.53ms p(90)=1.4ms  p(95)=1.47ms
+    http_req_failed................: 0.00%  0 out of 4
+    http_reqs......................: 4      406.159531/s
+      { endpoint_class:search }....: 4      406.159531/s
+
+    EXECUTION
+    iteration_duration.............: avg=2ms   min=1.38ms   med=1.52ms   max=3.58ms p(90)=2.97ms p(95)=3.28ms
+    iterations.....................: 4      406.159531/s
+
+    NETWORK
+    data_received..................: 2.7 kB 275 kB/s
+    data_sent......................: 552 B  56 kB/s
+
+
+
+
+running (00m00.0s), 0/1 VUs, 4 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m00.0s/10m0s  4/4 shared iters

@@ -1,0 +1,4 @@
+fixture-run-vu1-0|search|GET|/||200|1500|42
+fixture-run-vu1-1|search|GET|/||200|1500|42
+fixture-run-vu1-2|search|GET|/||200|1500|42
+fixture-run-vu1-3|search|GET|/||200|1500|42
