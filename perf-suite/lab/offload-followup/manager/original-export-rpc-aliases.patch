@@ -1,0 +1,11 @@
+--- a/apps/khitmee_ops/khitmee_ops/hooks.py
++++ b/apps/khitmee_ops/khitmee_ops/hooks.py
+@@ -59,3 +59,8 @@
+ }
+ 
+ after_request = ["khitmee_ops.api.memory.maybe_trim_heap"]
++
++override_whitelisted_methods = {
++	"khitmee_ops.profit_summary.export_service.enqueue_profit_csv_export": "khitmee_ops.api.profit_export.enqueue_export",
++	"khitmee_ops.profit_summary.export_service.download_profit_csv_export": "khitmee_ops.api.profit_export.download_export",
++}

@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khitmee.local/manager-offload-trial-request.schema.json",
+  "title": "Manager offload trial request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trial_id",
+    "fixture_sha256",
+    "seed",
+    "site",
+    "artifact_dir",
+    "report_windows",
+    "source",
+    "oracle",
+    "manager_workload",
+    "integration",
+    "freshness"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "manager-offload-v1"
+    },
+    "trial_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,80}$"
+    },
+    "fixture_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "site": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "report_windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "year_to_date",
+        "full_year"
+      ],
+      "properties": {
+        "year_to_date": {
+          "$ref": "#/$defs/date_window"
+        },
+        "full_year": {
+          "$ref": "#/$defs/date_window"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_url",
+        "credential_env"
+      ],
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "credential_env": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "actors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "summary_warehouse": {
+              "$ref": "#/$defs/actor"
+            },
+            "summary_monthly": {
+              "$ref": "#/$defs/actor"
+            },
+            "detail_reader": {
+              "$ref": "#/$defs/actor"
+            },
+            "export_requester": {
+              "$ref": "#/$defs/actor"
+            }
+          }
+        }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_url",
+        "erpnext_unmodified",
+        "snapshot_kind",
+        "snapshot_cutoff_date"
+      ],
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "pattern": "^(https?|inprocess)://"
+        },
+        "credential_env": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "erpnext_unmodified": {
+          "type": "boolean"
+        },
+        "erpnext_version": {
+          "type": "string"
+        },
+        "snapshot_kind": {
+          "enum": [
+            "static-fixture",
+            "synced-replica",
+            "same-database-read-model"
+          ]
+        },
+        "snapshot_cutoff_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "snapshot_id": {
+          "type": "string"
+        },
+        "source_fixture_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "manager_workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_report",
+        "detail_report",
+        "detail_page_count",
+        "detail_page_length",
+        "export_enqueue_method",
+        "export_download_method"
+      ],
+      "properties": {
+        "summary_report": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail_report": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oracle_report": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail_page_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "detail_page_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "export_enqueue_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "export_download_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "export_in_timed_load": {
+          "type": "boolean"
+        }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "listen_host",
+        "listen_port"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "split-manager-url",
+            "reverse-proxy-shim"
+          ]
+        },
+        "listen_host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "listen_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "owner_accepted_proxy_overhead": {
+          "type": "boolean"
+        },
+        "fail_closed_on_cache_miss": {
+          "type": "boolean"
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_write_cutoff"
+      ],
+      "properties": {
+        "required_write_cutoff": {
+          "enum": [
+            "pre-trial-static",
+            "include-cashier-writes"
+          ]
+        },
+        "cashier_write_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_staleness_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "oracle_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600
+    }
+  },
+  "$defs": {
+    "date_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "from_date",
+        "to_date"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "to_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "user",
+        "expected_permissions"
+      ],
+      "properties": {
+        "user": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "experiment": "e208",
+  "confirmed_in_minute": 69,
+  "dropped_iterations": 0,
+  "fifo_witness_passed": true,
+  "source_summary_sha256": "0a5282aa7d791dc2714b6c5e46f6a9dfdc9155c99bcb310c620d5a24ce5a5043",
+  "last_confirmation_s": 81.753,
+  "routes": {
+    "manager_detail": {
+      "count": 2,
+      "p95_ms": 113
+    },
+    "manager_detail_reject": {
+      "count": 0,
+      "p95_ms": null
+    },
+    "manager_summary": {
+      "count": 12,
+      "p95_ms": 2
+    },
+    "manager_summary_reject": {
+      "count": 0,
+      "p95_ms": null
+    },
+    "search_complete": {
+      "count": 81,
+      "p95_ms": 12116
+    },
+    "search_reject": {
+      "count": 0,
+      "p95_ms": null
+    }
+  },
+  "work": {
+    "purchase_invoice": {
+      "confirmed": 5,
+      "confirmed_in_first_60s": 3,
+      "confirmed_p95_ms": 24731,
+      "max_confirmed_ms": 24731,
+      "offered": 5,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 12288,
+      "started": 5
+    },
+    "purchase_receipt": {
+      "confirmed": 5,
+      "confirmed_in_first_60s": 5,
+      "confirmed_p95_ms": 16134,
+      "max_confirmed_ms": 16134,
+      "offered": 5,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 13996,
+      "started": 5
+    },
+    "sale": {
+      "confirmed": 80,
+      "confirmed_in_first_60s": 56,
+      "confirmed_p95_ms": 14784,
+      "max_confirmed_ms": 24134,
+      "offered": 80,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 14727,
+      "started": 80
+    },
+    "sale_10": {
+      "confirmed": 60,
+      "confirmed_in_first_60s": 45,
+      "confirmed_p95_ms": 14358,
+      "max_confirmed_ms": 24134,
+      "offered": 60,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 14308,
+      "started": 60
+    },
+    "sale_200": {
+      "confirmed": 4,
+      "confirmed_in_first_60s": 3,
+      "confirmed_p95_ms": 15872,
+      "max_confirmed_ms": 15872,
+      "offered": 4,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 15819,
+      "started": 4
+    },
+    "sale_50": {
+      "confirmed": 16,
+      "confirmed_in_first_60s": 8,
+      "confirmed_p95_ms": 15443,
+      "max_confirmed_ms": 15443,
+      "offered": 16,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 15388,
+      "started": 16
+    },
+    "transfer": {
+      "confirmed": 10,
+      "confirmed_in_first_60s": 5,
+      "confirmed_p95_ms": 18758,
+      "max_confirmed_ms": 18758,
+      "offered": 10,
+      "rejected": 0,
+      "request_elapsed_p95_ms": 18298,
+      "started": 10
+    }
+  },
+  "stock_conservation_passed": true,
+  "verifier": {
+    "by_type": {
+      "purchase_invoice": {
+        "confirmed": 5,
+        "duplicates": 0,
+        "found": 5,
+        "missing": 0,
+        "started": 5,
+        "unknown": 0
+      },
+      "purchase_receipt": {
+        "confirmed": 5,
+        "duplicates": 0,
+        "found": 5,
+        "missing": 0,
+        "started": 5,
+        "unknown": 0
+      },
+      "sale": {
+        "confirmed": 80,
+        "duplicates": 0,
+        "found": 80,
+        "missing": 0,
+        "started": 80,
+        "unknown": 0
+      },
+      "transfer": {
+        "confirmed": 10,
+        "duplicates": 0,
+        "found": 10,
+        "missing": 0,
+        "started": 10,
+        "unknown": 0
+      }
+    },
+    "completed": 100,
+    "defects": [],
+    "lost_ack_observed": 4,
+    "passed": true,
+    "reconciled_completed": 2,
+    "rejected": 0,
+    "retried_completed": 4,
+    "run_id": "mixed-year-minute-20261127",
+    "run_prefix": "K6S-831c44f1d3-",
+    "started": 100,
+    "unknown": 0,
+    "verifier": "independent-direct-mariadb-readonly",
+    "warnings": []
+  }
+}

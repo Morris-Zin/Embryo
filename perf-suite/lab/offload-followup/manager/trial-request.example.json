@@ -1,0 +1,83 @@
+{
+  "schema_version": "manager-offload-v1",
+  "trial_id": "example-static-smoke",
+  "fixture_sha256": "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19",
+  "seed": 42,
+  "site": "bench-loadtest.localhost",
+  "artifact_dir": "perf-suite/lab/offload-followup/manager/evidence/example-static-smoke",
+  "report_windows": {
+    "year_to_date": {
+      "scope": "year_to_date",
+      "from_date": "2026-01-01",
+      "to_date": "2026-11-26"
+    },
+    "full_year": {
+      "scope": "full_year",
+      "from_date": "2025-11-27",
+      "to_date": "2026-11-26"
+    }
+  },
+  "source": {
+    "base_url": "http://127.0.0.1:18086",
+    "credential_env": "MANAGER_SOURCE_CREDENTIALS_JSON",
+    "actors": {
+      "summary_warehouse": {
+        "user": "warehouse-reader@seasonal.invalid",
+        "expected_permissions": [
+          "report:Fast Gross Profit"
+        ]
+      },
+      "summary_monthly": {
+        "user": "monthly-reader@seasonal.invalid",
+        "expected_permissions": [
+          "report:Fast Gross Profit"
+        ]
+      },
+      "detail_reader": {
+        "user": "detail-reader@seasonal.invalid",
+        "expected_permissions": [
+          "report:Fast Gross Profit"
+        ]
+      },
+      "export_requester": {
+        "user": "export-requester@seasonal.invalid",
+        "expected_permissions": [
+          "report:Fast Gross Profit",
+          "export:Sales Invoice"
+        ]
+      }
+    }
+  },
+  "oracle": {
+    "base_url": "http://127.0.0.1:18086",
+    "credential_env": "MANAGER_ORACLE_CREDENTIALS_JSON",
+    "erpnext_unmodified": true,
+    "erpnext_version": "16.60.0",
+    "snapshot_kind": "static-fixture",
+    "snapshot_cutoff_date": "2026-11-26",
+    "source_fixture_sha256": "8cc3e00c5bf5c41d7565bced818d718e21fc18d32b8ea651ec227e4b614a6d19"
+  },
+  "manager_workload": {
+    "summary_report": "Fast Gross Profit",
+    "detail_report": "Fast Gross Profit",
+    "oracle_report": "Gross Profit",
+    "detail_page_count": 2,
+    "detail_page_length": 50,
+    "export_enqueue_method": "khitmee_ops.profit_summary.export_service.enqueue_profit_csv_export",
+    "export_download_method": "khitmee_ops.profit_summary.export_service.download_profit_csv_export",
+    "export_in_timed_load": true
+  },
+  "integration": {
+    "mode": "split-manager-url",
+    "listen_host": "127.0.0.1",
+    "listen_port": 18186,
+    "owner_accepted_proxy_overhead": false,
+    "fail_closed_on_cache_miss": true
+  },
+  "freshness": {
+    "required_write_cutoff": "pre-trial-static",
+    "cashier_write_cursor": null,
+    "max_staleness_seconds": 0
+  },
+  "oracle_timeout_seconds": 900
+}
