@@ -325,11 +325,13 @@ def _run_idempotent(
 
 	prepared = prepare() if callable(prepare) else None
 
-	# Clear any REPEATABLE READ MVCC snapshot opened by pre-lock reads (such as
-	# _lookup_idempotency or master-data cache misses in prepare()) before
-	# reserving the idempotency key and acquiring stock locks.
-	frappe.db.rollback()
-	clear_transaction_stock_locks()
+	# Clear any REPEATABLE READ MVCC snapshot opened by pre-lock reads ONLY when
+	# the outer transaction has no uncommitted writes; otherwise fail closed by
+	# passing fresh_snapshot=False so the future-SLE fastpath is disabled safely.
+	fresh_snapshot = cint(getattr(frappe.db, "transaction_writes", 0)) == 0
+	if fresh_snapshot:
+		frappe.db.rollback()
+		clear_transaction_stock_locks()
 
 	lock = _acquire_idempotency_lock(key)
 	if lock is None:
@@ -357,7 +359,7 @@ def _run_idempotent(
 				)
 			)
 
-		doc = create_document(prepared) if callable(prepare) else create_document()
+		doc = create_document(prepared, fresh_snapshot) if callable(prepare) else create_document()
 		_bind_reservation(key, doc.doctype, doc.name)
 		_release_lock_after_transaction(lock)
 		lock_handled = True
@@ -475,6 +477,7 @@ def _create_sales_invoice(
 	payment_mode,
 	override_rate,
 	prepared=None,
+	fresh_snapshot=True,
 ):
 	meta = prepared if prepared is not None else _prepare_sale_metadata(
 		warehouse, customer, price_list, payment_mode
@@ -529,7 +532,7 @@ def _create_sales_invoice(
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
 		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
-		proven_empty_future_sle_fastpath(doc, lock_result["pairs"]),
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
 	):
 		doc.insert()
 	return doc
@@ -649,7 +652,7 @@ def submit_sale(
 			"sale",
 			"Sales Invoice",
 			fingerprint,
-			lambda prepared: _create_sales_invoice(
+			lambda prepared, fresh_snapshot: _create_sales_invoice(
 				client_voucher_id,
 				warehouse,
 				customer,
@@ -658,6 +661,7 @@ def submit_sale(
 				payment_mode,
 				override_rate,
 				prepared=prepared,
+				fresh_snapshot=fresh_snapshot,
 			),
 			prepare=lambda: _prepare_sale_metadata(warehouse, customer, price_list, payment_mode),
 		)
@@ -714,7 +718,7 @@ def _prepare_direct_transfer_metadata(source_warehouse, target_warehouse):
 
 
 def _create_direct_or_dispatch_transfer(
-	source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=None
+	source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=None, fresh_snapshot=True
 ):
 	meta = prepared if prepared is not None else _prepare_direct_transfer_metadata(
 		source_warehouse, target_warehouse
@@ -754,7 +758,7 @@ def _create_direct_or_dispatch_transfer(
 	item_codes = [row["item_code"] for row in cleaned_items]
 	with (
 		voucher_transaction_read_cache(doc, item_codes=item_codes, locked_pairs=lock_result["pairs"]),
-		proven_empty_future_sle_fastpath(doc, lock_result["pairs"]),
+		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
 	):
 		doc.insert()
 	return doc
@@ -869,11 +873,22 @@ def _create_receive_transfer(
 
 
 def _create_transfer(
-	source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items, prepared=None
+	source_warehouse,
+	target_warehouse,
+	transfer_mode,
+	outgoing_stock_entry,
+	cleaned_items,
+	prepared=None,
+	fresh_snapshot=True,
 ):
 	if transfer_mode in {"direct", "dispatch"}:
 		return _create_direct_or_dispatch_transfer(
-			source_warehouse, target_warehouse, transfer_mode, cleaned_items, prepared=prepared
+			source_warehouse,
+			target_warehouse,
+			transfer_mode,
+			cleaned_items,
+			prepared=prepared,
+			fresh_snapshot=fresh_snapshot,
 		)
 	if transfer_mode == "receive":
 		return _create_receive_transfer(
@@ -924,8 +939,14 @@ def submit_transfer(
 			"Stock Entry",
 			fingerprint,
 			(
-				(lambda prepared: _create_transfer(
-					source_warehouse, target_warehouse, transfer_mode, outgoing_stock_entry, cleaned_items, prepared=prepared
+				(lambda prepared, fresh_snapshot: _create_transfer(
+					source_warehouse,
+					target_warehouse,
+					transfer_mode,
+					outgoing_stock_entry,
+					cleaned_items,
+					prepared=prepared,
+					fresh_snapshot=fresh_snapshot,
 				))
 				if prepare_fn
 				else (lambda: _create_transfer(

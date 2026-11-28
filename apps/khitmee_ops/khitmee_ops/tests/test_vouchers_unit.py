@@ -354,11 +354,13 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 
 	def test_run_idempotent_rolls_back_pre_lock_snapshot_before_reserving(self):
 		events = []
+		fresh_seen = []
 		lock = TestIdempotencyLockCleanup.Lock()
 		doc = FakeSalesInvoice(payable_total=100)
 
 		with (
 			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 0, create=True),
 			patch.object(vouchers.frappe.db, "rollback", side_effect=lambda: events.append("rollback"), create=True),
 			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
 			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
@@ -370,11 +372,69 @@ class TestSinglePassVoucherSubmit(unittest.TestCase):
 				"sale",
 				"Sales Invoice",
 				"fp",
-				lambda prepared: (events.append("create") or doc),
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
 				prepare=lambda: events.append("prepare") or {"company": "C"},
 			)
 
 		self.assertEqual(events, ["lookup", "prepare", "rollback", "reserve", "create"])
+		self.assertEqual(fresh_seen, [True])
+
+	def test_run_idempotent_skips_rollback_and_fails_closed_when_outer_transaction_has_writes(self):
+		events = []
+		fresh_seen = []
+		lock = TestIdempotencyLockCleanup.Lock()
+		doc = FakeSalesInvoice(payable_total=100)
+
+		with (
+			patch.object(vouchers, "_lookup_idempotency", side_effect=lambda *a, **kw: events.append("lookup") or None),
+			patch.object(vouchers.frappe.db, "transaction_writes", 2, create=True),
+			patch.object(vouchers.frappe.db, "rollback", side_effect=AssertionError("must not rollback outer writes"), create=True),
+			patch.object(vouchers, "_acquire_idempotency_lock", return_value=lock),
+			patch.object(vouchers, "_reserve_idempotency_key", side_effect=lambda *a, **kw: events.append("reserve") or True),
+			patch.object(vouchers, "_bind_reservation", return_value=None),
+			patch.object(vouchers, "_release_lock_after_transaction", return_value=None),
+		):
+			vouchers._run_idempotent(
+				"client-1",
+				"sale",
+				"Sales Invoice",
+				"fp",
+				lambda prepared, fresh_snapshot: (fresh_seen.append(fresh_snapshot), events.append("create"), doc)[2],
+				prepare=lambda: events.append("prepare") or {"company": "C"},
+			)
+
+		self.assertEqual(events, ["lookup", "prepare", "reserve", "create"])
+		self.assertEqual(fresh_seen, [False])
+
+	def test_create_sales_invoice_disables_future_sle_fastpath_when_fresh_snapshot_is_false(self):
+		doc = FakeSalesInvoice(payable_total=100)
+		seen_enabled = []
+
+		from contextlib import contextmanager
+
+		@contextmanager
+		def spy_fastpath(d, pairs, *, enabled=True):
+			seen_enabled.append(enabled)
+			yield None
+
+		with (
+			patch.object(vouchers, "_validate_warehouse", return_value=SimpleNamespace(company="Company")),
+			patch.object(vouchers, "_validate_sale_inputs", return_value=None),
+			patch.object(vouchers, "proven_empty_future_sle_fastpath", side_effect=spy_fastpath),
+			patch.object(vouchers.frappe, "get_doc", return_value=doc),
+		):
+			vouchers._create_sales_invoice(
+				"client-1",
+				"Main Warehouse",
+				"Customer",
+				"Standard Selling",
+				[{"item_code": "ITEM-1", "qty": 1, "uom": "Nos", "rate": 100}],
+				"Cash",
+				False,
+				fresh_snapshot=False,
+			)
+
+		self.assertEqual(seen_enabled, [False])
 
 	def test_counter_autopay_validate_hook_leaves_credit_and_unflagged_invoices_untouched(self):
 		for is_pos, flagged in ((0, True), (1, False)):
