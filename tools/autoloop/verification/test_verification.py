@@ -8,7 +8,10 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
+from autoloop.verification import cache as cache_module
+from autoloop.verification.digests import canonical_json_bytes
 from autoloop.verification import (
+    CACHE_SCHEMA_VERSION,
     ApprovalRequirement,
     Binding,
     CampaignEvidence,
@@ -29,6 +32,7 @@ from autoloop.verification import (
     Obligation,
     OwnerApprovalEvidence,
     PolicyContract,
+    ReceiptAttestation,
     ReviewEvidence,
     SafeguardEvidence,
     ShardContract,
@@ -38,6 +42,7 @@ from autoloop.verification import (
     ToolingSource,
     tooling_sources_digest,
     env_allowlist_digest,
+    receipt_attestation,
     verify,
 )
 
@@ -584,8 +589,13 @@ class CheckCacheTests(unittest.TestCase):
             completed_at=NOW,
         )
 
-    def valid_receipt(self, receipt_id: str) -> bool:
-        return receipt_id == "receipt-1"
+        # Receipts ledger: receipt id -> the execution it attests (None once revoked).
+        self.ledger: dict[str, ReceiptAttestation | None] = {
+            "receipt-1": receipt_attestation(self.cache.key_digest(self.key), self.outcome)
+        }
+
+    def valid_receipt(self, receipt_id: str, attestation: ReceiptAttestation) -> bool:
+        return self.ledger.get(receipt_id) == attestation
 
     def store_valid(self) -> None:
         stored = self.cache.store(
@@ -633,12 +643,60 @@ class CheckCacheTests(unittest.TestCase):
 
     def test_hit_without_valid_receipt_is_refused(self) -> None:
         self.store_valid()
-        found = self.cache.lookup(self.key, lambda receipt_id: False, cacheable=True)
+        found = self.cache.lookup(self.key, lambda receipt_id, attestation: False, cacheable=True)
         self.assertFalse(found.hit)
         self.assertEqual("invalid-receipt", found.reason)
         self.assertFalse(
             self.cache.store(self.key, self.outcome, "", self.valid_receipt, cacheable=True)
         )
+
+    def test_receipt_for_a_different_outcome_cannot_vouch(self) -> None:
+        """Integration-shard repro: a current receipt that recorded exit 1 must not vouch for exit 0."""
+        failed = replace(self.outcome, evidence_id="failed-evidence", exit_code=1)
+        key_digest = self.cache.key_digest(self.key)
+        self.ledger = {"receipt-failed": receipt_attestation(key_digest, failed)}
+        self.assertFalse(self.cache.store(self.key, self.outcome, "receipt-failed", self.valid_receipt, cacheable=True))
+        # Even a planted entry claiming exit 0 under that receipt is refused on lookup.
+        entry = {
+            "schema_version": CACHE_SCHEMA_VERSION,
+            "key_digest": key_digest,
+            "key": cache_module._canonical_key(self.key),
+            "receipt_id": "receipt-failed",
+            "outcome": cache_module._canonical_outcome(self.outcome),
+        }
+        path = self.cache._entry_path(key_digest)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(canonical_json_bytes(entry) + b"\n")
+        found = self.cache.lookup(self.key, self.valid_receipt, cacheable=True)
+        self.assertFalse(found.hit)
+        self.assertEqual("invalid-receipt", found.reason)
+        self.assertFalse((self.cache.root / "cached-evidence").exists())
+        # A receipt for the same outcome under another key cannot vouch either.
+        other_key = replace(self.key, argv=("python", "-B", "other.py"))
+        self.ledger = {"receipt-other": receipt_attestation(self.cache.key_digest(other_key), self.outcome)}
+        self.assertFalse(self.cache.store(self.key, self.outcome, "receipt-other", self.valid_receipt, cacheable=True))
+
+    def test_revoked_entry_is_replaced_by_fresh_validated_result(self) -> None:
+        self.store_valid()
+        self.ledger["receipt-1"] = None  # revoked
+        self.assertEqual("invalid-receipt", self.cache.lookup(self.key, self.valid_receipt, cacheable=True).reason)
+        fresh = replace(self.outcome, evidence_id="fresh-evidence", completed_at=NOW + 5)
+        self.ledger["receipt-2"] = receipt_attestation(self.cache.key_digest(self.key), fresh)
+        self.assertTrue(self.cache.store(self.key, fresh, "receipt-2", self.valid_receipt, cacheable=True))
+        found = self.cache.lookup(self.key, self.valid_receipt, cacheable=True)
+        self.assertTrue(found.hit, found.reason)
+        assert found.evidence is not None
+        self.assertEqual("receipt-2", found.evidence.original_receipt_id)
+        self.assertEqual("fresh-evidence", found.evidence.original_evidence_id)
+
+    def test_still_valid_entry_is_not_overwritten_by_a_different_result(self) -> None:
+        self.store_valid()
+        other = replace(self.outcome, evidence_id="other-evidence", output_digest="9" * 64)
+        self.ledger["receipt-3"] = receipt_attestation(self.cache.key_digest(self.key), other)
+        self.assertFalse(self.cache.store(self.key, other, "receipt-3", self.valid_receipt, cacheable=True))
+        found = self.cache.lookup(self.key, self.valid_receipt, cacheable=True)
+        assert found.evidence is not None
+        self.assertEqual("receipt-1", found.evidence.original_receipt_id)
 
     def test_non_cacheable_check_never_hits(self) -> None:
         self.store_valid()

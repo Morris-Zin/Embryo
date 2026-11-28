@@ -12,10 +12,11 @@ from .cache import (
     InputDigest,
     default_check_cache_dir,
     env_allowlist_digest,
+    receipt_attestation,
 )
 from .digests import tooling_sources_digest
 from .predicate import verify
-from .receipts import ReceiptValidator, missing_receipts_shard_validator
+from .receipts import ReceiptAttestation, ReceiptValidator, missing_receipts_shard_validator
 from .schemas import (
     NEVER_CACHEABLE_CHECK_KINDS,
     OBLIGATION_ORDER,
@@ -74,6 +75,7 @@ __all__ = [
     "Obligation",
     "OwnerApprovalEvidence",
     "PolicyContract",
+    "ReceiptAttestation",
     "ReceiptValidator",
     "ReviewEvidence",
     "SafeguardEvidence",
@@ -87,6 +89,7 @@ __all__ = [
     "default_check_cache_dir",
     "env_allowlist_digest",
     "missing_receipts_shard_validator",
+    "receipt_attestation",
     "tooling_sources_digest",
     "verify",
 ]
