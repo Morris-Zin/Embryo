@@ -6,8 +6,8 @@
   "allowed_paths": [],
   "base_branch": "main",
   "base_sha": "84667dacc7a2c8a92a5f244dc7a7d89e8de148cb",
-  "contract_revision": 1,
-  "contract_sha256": "767c93b27965c09b185ce84cc5d6cb31c52ff3903d52894021aefc2b657b29d6",
+  "contract_revision": 2,
+  "contract_sha256": "4da5a57d4fb0dc7c98116b7b3d88c9404f9bda1476a4ab8c02a36672c74a1bd2",
   "created_at": "2026-11-28T05:40:30Z",
   "dead_ends": [],
   "findings": {
@@ -490,12 +490,58 @@
       "stage": "deep",
       "status": "ready_to_merge",
       "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:36:22Z",
+      "code_tree_sha256": "ab7a8c904428ee72a389171ef8e628ab0f4f5f96bb79993dfdf36be2e5591e39",
+      "event": "shard-passed",
+      "shard": "cashier_backend",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:37:58Z",
+      "code_tree_sha256": "4d1269b7872fe87d2985d7fb027c414d4b2343d07c01f2f73564d1a16587e1d2",
+      "event": "shard-passed",
+      "shard": "manager_parity",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:40:46Z",
+      "code_tree_sha256": "4e9db4265424490e49ca817e37d730958339ebbfd394d4db4747a0bd920e1341",
+      "event": "shard-passed",
+      "shard": "fast_verify",
+      "status": "in_progress"
+    },
+    {
+      "at": "2026-11-28T10:40:51Z",
+      "code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
+      "event": "all-shards-passed",
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "contract_revision": 2,
+      "event": "bind-pr",
+      "pr_number": 17,
+      "status": "gate_passed"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "event": "submit-for-review",
+      "status": "awaiting_deep_review"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "event": "record-review",
+      "stage": "deep",
+      "status": "ready_to_merge",
+      "verdict": "pass"
     }
   ],
   "issue_number": null,
   "last_integrated_branch": "feat/backend-2gb-2vcpu-autoloop",
   "last_integrated_detached": false,
-  "last_integrated_sha": "71ed7b305f2fa6a97d2955e8e21033c7d1a5b149",
+  "last_integrated_sha": "726e4fe82a143dcc7c89c081fa42d0e8b8e1df46",
   "last_integrated_worktree": "E:\\khitmee-backend-2gb-autoloop",
   "limits": {
     "max_replan_count": 1,
@@ -510,7 +556,7 @@
     "workers": "gemini-4-neon-medium"
   },
   "pending_contract_amendments": [],
-  "pr_number": null,
+  "pr_number": 17,
   "replan_count": 0,
   "reviewers": {
     "cloud": false,
@@ -548,6 +594,13 @@
     {
       "at": "2026-11-28T07:37:23Z",
       "code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "reviewer": "gemini-4-neon-high",
+      "stage": "deep",
+      "verdict": "pass"
+    },
+    {
+      "at": "2026-11-28T10:40:52Z",
+      "code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
       "reviewer": "gemini-4-neon-high",
       "stage": "deep",
       "verdict": "pass"
@@ -668,8 +721,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "3fad3bb7f933be7bc9bf3e4e105440439611dcb1",
-      "passed_code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "last_green_sha": "9831e58c19732dcb627f499c3438475ae6de0a76",
+      "passed_code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -694,8 +747,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "faec968dce01c690d7fbc6f1e59484299f804672",
-      "passed_code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "last_green_sha": "d91fbd25987274a37b84e43012db23c7d2203aca",
+      "passed_code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -723,8 +776,8 @@
       ],
       "goal": "",
       "has_passed_individually": true,
-      "last_green_sha": "526f053d3bb796008ac31ad179dcf163769087f3",
-      "passed_code_tree_sha256": "9b4c12123c8b08bd2147723899298f0698e6769ec335c4a7c812910655db48ff",
+      "last_green_sha": "fa3b85efea7566319cad4b2c73cf4c4a2be5933e",
+      "passed_code_tree_sha256": "b0929d303224378ec10d65f69e654e4884ce3aee7ea6e263030033be551b2a55",
       "pending_dead_end_sig": null,
       "retry_scope": null,
       "status": "passed",
@@ -734,5 +787,5 @@
   },
   "status": "ready_to_merge",
   "total_attempts": 0,
-  "updated_at": "2026-11-28T07:37:23Z"
+  "updated_at": "2026-11-28T10:40:52Z"
 }
