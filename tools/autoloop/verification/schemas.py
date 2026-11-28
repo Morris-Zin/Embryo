@@ -150,9 +150,19 @@ class ToolingSource:
 
 @dataclass(frozen=True)
 class ToolingEvidence:
+    """Trusted tooling used by a gate.
+
+    ``gate`` binds the record to the obligation whose checks ran with it. The
+    legacy CLI legitimately uses different trusted tooling per gate (the shard
+    under check is excluded from its own tooling; approved policy overlays join
+    for the integrated gate). ``None`` means the record applies to every gate
+    without its own binding and must equal ``EvidenceSnapshot.tooling_digest``.
+    """
+
     meta: EvidenceMeta
     tooling_digest: str
     sources: tuple[ToolingSource, ...] = field(default_factory=tuple)
+    gate: Obligation | None = None
 
 
 @dataclass(frozen=True)

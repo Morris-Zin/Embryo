@@ -213,18 +213,22 @@ def _validate_tooling(snapshot: EvidenceSnapshot, failures: list[VerificationFai
             VerificationFailure(Obligation.SHARD, "missing-tooling-evidence", "no trusted tooling evidence is present")
         )
         return
-    digests = {item.tooling_digest for item in snapshot.tooling}
-    if len(digests) > 1:
-        failures.append(
-            VerificationFailure(
-                Obligation.SHARD,
-                "contradictory-tooling-evidence",
-                "multiple tooling records disagree about the trusted tooling digest",
+    digests_by_gate: dict[Obligation | None, set[str]] = {}
+    for item in snapshot.tooling:
+        digests_by_gate.setdefault(item.gate, set()).add(item.tooling_digest)
+    for gate, digests in sorted(digests_by_gate.items(), key=lambda entry: "" if entry[0] is None else entry[0].value):
+        if len(digests) > 1:
+            label = "unbound" if gate is None else gate.value
+            failures.append(
+                VerificationFailure(
+                    Obligation.SHARD,
+                    "contradictory-tooling-evidence",
+                    f"multiple {label} tooling records disagree about the trusted tooling digest",
+                )
             )
-        )
     for item in snapshot.tooling:
         failures.extend(_validate_meta(item.meta, snapshot, None, Obligation.SHARD, "tooling evidence"))
-        if item.tooling_digest != snapshot.tooling_digest:
+        if item.gate is None and item.tooling_digest != snapshot.tooling_digest:
             failures.append(
                 VerificationFailure(
                     Obligation.SHARD,
@@ -274,6 +278,19 @@ def _validate_tooling(snapshot: EvidenceSnapshot, failures: list[VerificationFai
                         item.meta.evidence_id,
                     )
                 )
+
+
+def _tooling_digest_for_gate(snapshot: EvidenceSnapshot, gate: Obligation) -> str | None:
+    """Trusted tooling digest that checks of ``gate`` must have used.
+
+    A record bound to the gate wins; otherwise the snapshot's current digest
+    (which unbound records must equal) applies. Contradictory bound records are
+    reported by ``_validate_tooling`` and make the foundation fail first.
+    """
+    bound = sorted({item.tooling_digest for item in snapshot.tooling if item.gate is gate})
+    if bound:
+        return bound[0]
+    return snapshot.tooling_digest
 
 
 def _validate_integrated_obligation(snapshot: EvidenceSnapshot, failures: list[VerificationFailure]) -> None:
@@ -813,12 +830,13 @@ def _validate_required_checks(
                         check.meta.evidence_id,
                     )
                 )
-            if check.tooling_digest != snapshot.tooling_digest:
+            expected_tooling = _tooling_digest_for_gate(snapshot, check.obligation)
+            if check.tooling_digest != expected_tooling:
                 failures.append(
                     VerificationFailure(
                         obligation,
                         "stale-check-tooling",
-                        f"check {check.check_id!r} used tooling {check.tooling_digest!r}, not {snapshot.tooling_digest!r}",
+                        f"check {check.check_id!r} used tooling {check.tooling_digest!r}, not {expected_tooling!r}",
                         check.meta.evidence_id,
                     )
                 )
