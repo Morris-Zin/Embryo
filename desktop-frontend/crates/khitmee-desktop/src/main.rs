@@ -1847,12 +1847,24 @@ fn load_counter_context(
         "warehouse_name",
         None,
     );
-    let customers = choice_rows(
+    let mut customers = choice_rows(
         context.get("customers").unwrap_or(&serde_json::Value::Null),
         "name",
         "customer_name",
         Some("Choose customer"),
     );
+    let duplicate_names = customers
+        .iter()
+        .filter(|(_, value)| !value.is_empty())
+        .fold(HashMap::<String, usize>::new(), |mut counts, (label, _)| {
+            *counts.entry(label.clone()).or_insert(0) += 1;
+            counts
+        });
+    for (label, value) in &mut customers {
+        if !value.is_empty() && duplicate_names.get(label).copied().unwrap_or(0) > 1 {
+            *label = format!("{} ({})", label, value);
+        }
+    }
     let payments = choice_rows(
         context
             .get("modes_of_payment")
