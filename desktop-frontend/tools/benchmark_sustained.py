@@ -249,6 +249,8 @@ def measure_workload(
         latencies = []
         click_latencies = []
         verified_load_more_clicks = 0
+        filtered_load_more_attempts = 0
+        filtered_load_more_verified = 0
         memory_checkpoints = []
         for iteration in range(iterations):
             action_started = time.perf_counter()
@@ -261,6 +263,13 @@ def measure_workload(
                 client.tool("set_element_value", {"elementHandle": target, "value": terms[iteration % len(terms)]})
             latencies.append((time.perf_counter() - action_started) * 1000)
             if workload == "invoice" and iteration % 10 == 9:
+                use_filtered_page = len(click_latencies) % 2 == 0
+                verification_term = "customer" if use_filtered_page else ""
+                edit_started = time.perf_counter()
+                client.tool("set_element_value", {"elementHandle": target, "value": verification_term})
+                latencies.append((time.perf_counter() - edit_started) * 1000)
+                if use_filtered_page:
+                    filtered_load_more_attempts += 1
                 before_count = loaded_invoice_count(client, count_target)
                 click_started = time.perf_counter()
                 client.tool("click_element", {"elementHandle": load_more})
@@ -268,6 +277,8 @@ def measure_workload(
                 after_count = loaded_invoice_count(client, count_target)
                 if before_count is not None and after_count == before_count + 20:
                     verified_load_more_clicks += 1
+                    if use_filtered_page:
+                        filtered_load_more_verified += 1
             if (iteration + 1) % 100 == 0:
                 memory_checkpoints.append({
                     "iteration": iteration + 1,
@@ -292,7 +303,7 @@ def measure_workload(
             "memoryCheckpoints": memory_checkpoints,
             "interactionWallSeconds": interaction_wall_seconds,
             "interactionCpuSeconds": cpu_seconds,
-            "cpuMsPerInteraction": (cpu_seconds * 1000 / (iterations + len(click_latencies))) if cpu_seconds is not None else None,
+            "cpuMsPerInteraction": (cpu_seconds * 1000 / (len(latencies) + len(click_latencies))) if cpu_seconds is not None else None,
             "latencyMs": {
                 "p50": statistics.median(all_latencies) if all_latencies else None,
                 "p95": percentile(all_latencies, 0.95),
@@ -309,6 +320,8 @@ def measure_workload(
             result.update({
                 "loadMoreAttempts": len(click_latencies),
                 "loadMoreVerified": verified_load_more_clicks,
+                "filteredLoadMoreAttempts": filtered_load_more_attempts,
+                "filteredLoadMoreVerified": filtered_load_more_verified,
                 "finalInvoiceCountText": client.tool("get_element_properties", {"elementHandle": count_target}).get("accessibleLabel"),
             })
     except Exception as error:
@@ -367,6 +380,12 @@ def main() -> int:
             failures.append(
                 f"{label}: only {run.get('loadMoreVerified')} of {run.get('loadMoreAttempts')} Load More clicks appended rows"
             )
+        if label == "invoice" and run.get("filteredLoadMoreVerified") != run.get("filteredLoadMoreAttempts"):
+            failures.append(
+                f"{label}: only {run.get('filteredLoadMoreVerified')} of {run.get('filteredLoadMoreAttempts')} filtered Load More clicks appended rows"
+            )
+        if label == "invoice" and not run.get("filteredLoadMoreAttempts"):
+            failures.append(f"{label}: filtered Load More paging was not exercised")
 
     report = {
         "schemaVersion": 1,
