@@ -1,6 +1,7 @@
 import base64
 import json
 import math
+import re
 import shutil
 import subprocess
 import sys
@@ -1109,6 +1110,21 @@ console.log(JSON.stringify({
 
 
 class SeasonalStaticContractTests(unittest.TestCase):
+    def test_constant_arrival_scenarios_use_canonical_k6_option_casing(self):
+        scenario_dir = ROOT / "scenarios"
+        bad_key = re.compile(r"(?:^|[{\s])(preAllocatedVus|maxVus|timeunit|time_unit|gracefulstop|graceful_stop|starttime|start_time|maxduration|max_duration)\s*:")
+        for path in scenario_dir.glob("*.js"):
+            source = path.read_text(encoding="utf-8")
+            self.assertIsNone(bad_key.search(source), f"mis-cased k6 option in {path.name}")
+        seasonal = (scenario_dir / "seasonal.js").read_text(encoding="utf-8")
+        constant_arrivals = seasonal.count("executor: 'constant-arrival-rate'")
+        self.assertGreaterEqual(constant_arrivals, 4)
+        self.assertEqual(constant_arrivals, len(re.findall(r"^\s+preAllocatedVUs(?:\s*:|,)", seasonal, re.MULTILINE)))
+        self.assertEqual(constant_arrivals, len(re.findall(r"^\s+maxVUs(?:\s*:|,)", seasonal, re.MULTILINE)))
+        self.assertNotIn("preAllocatedVus,", seasonal)
+        for canonical in ("timeUnit", "startTime", "gracefulStop"):
+            self.assertIn(canonical, seasonal)
+
     def test_exact_open_arrival_schedule_uses_iteration_in_test(self):
         source = (ROOT / "scenarios/seasonal.js").read_text(encoding="utf-8")
         self.assertIn("iterationInTest", source)
