@@ -34,6 +34,10 @@ class ProfitExportBusyError(Exception):
 
 EXPORT_DOCTYPE = "Khitmee Profit Export Log"
 EXPORT_TIMEOUT_SECONDS = 3600
+EXPORT_RECOVERY_GRACE_SECONDS = 60
+EXPORT_RECOVERY_SCAN_LIMIT = 8
+ABANDONED_WORKER_REASON = "abandoned: worker lost"
+ABANDONED_QUEUE_REASON = "abandoned: queue job missing"
 EXPORT_DIRECTORY = "khitmee_profit_exports"
 RESTRICTED_EXPORT_MAX_INVOICES = 5000
 EXPORT_SCOPE_CHECK_BATCH_SIZE = SALES_INVOICE_SCOPE_BATCH_SIZE
@@ -399,11 +403,120 @@ def _lock_export_admission():
 	db.after_rollback.add(release)
 
 
+def _datetime_value(value):
+	if isinstance(value, datetime):
+		return value
+	if isinstance(value, str):
+		try:
+			return datetime.fromisoformat(value)
+		except ValueError:
+			return None
+	return None
+
+
+def _rq_job_matches_export(job, export_log_name):
+	try:
+		queue_args = job.kwargs
+	except Exception:
+		return False
+	if not hasattr(queue_args, "get"):
+		return False
+	site = getattr(getattr(frappe, "local", None), "site", None)
+	if site and queue_args.get("site") != site:
+		return False
+	job_kwargs = queue_args.get("kwargs") or {}
+	return hasattr(job_kwargs, "get") and job_kwargs.get("export_log_name") == export_log_name
+
+
+def _scan_rq_for_export(export_log_name):
+	if not export_log_name:
+		return None
+	try:
+		from frappe.utils.background_jobs import get_queue, get_running_jobs_in_queue
+	except Exception:
+		return None
+	try:
+		queue = get_queue("long")
+		jobs = [*queue.jobs, *get_running_jobs_in_queue(queue)]
+	except Exception:
+		return None
+	return any(_rq_job_matches_export(job, export_log_name) for job in jobs)
+
+
+def _rq_job_is_active(job_id, export_log_name=None):
+	if not job_id:
+		return None
+	try:
+		from frappe.utils.background_jobs import get_job_status
+	except Exception:
+		return None
+	try:
+		status = get_job_status(str(job_id))
+	except Exception:
+		return None
+	if status is not None:
+		status_value = getattr(status, "value", status)
+		return str(status_value).lower() in {"queued", "started", "deferred", "scheduled"}
+	return _scan_rq_for_export(export_log_name)
+
+
+def _abandoned_export_reason(export, now):
+	status = _doc_get(export, "status")
+	modified = _datetime_value(_doc_get(export, "modified"))
+	if modified is None:
+		return None
+	if status == "Running":
+		claim_timeout = timedelta(seconds=EXPORT_TIMEOUT_SECONDS + EXPORT_RECOVERY_GRACE_SECONDS)
+		if modified + claim_timeout < now:
+			return ABANDONED_WORKER_REASON
+	elif status == "Queued":
+		enqueue_grace = timedelta(seconds=EXPORT_RECOVERY_GRACE_SECONDS)
+		if modified + enqueue_grace > now:
+			return None
+		if _rq_job_is_active(_doc_get(export, "export_uuid"), _doc_get(export, "name")) is False:
+			return ABANDONED_QUEUE_REASON
+	return None
+
+
+def _fail_abandoned_export(export, reason):
+	frappe.db.sql(
+		f"""
+		UPDATE `tab{EXPORT_DOCTYPE}`
+		SET `status` = 'Failed',
+			`active_dedupe_key` = NULL,
+			`error` = %s,
+			`modified` = %s
+		WHERE `name` = %s
+			AND `status` = %s
+			AND `modified` = %s
+		""",
+		(
+			reason,
+			_now_datetime(),
+			_doc_get(export, "name"),
+			_doc_get(export, "status"),
+			_doc_get(export, "modified"),
+		),
+	)
+	rows = frappe.db.sql("SELECT ROW_COUNT()")
+	return bool(rows and rows[0][0])
+
+
+def _recover_abandoned_export(export):
+	"""Return True when admission must re-read this export before using it."""
+	reason = _abandoned_export_reason(export, _now_datetime())
+	if not reason:
+		return False
+	_fail_abandoned_export(export, reason)
+	return True
+
+
 def _get_active_export(active_dedupe_key):
 	# A current read must see admissions committed after this request began.
 	rows = frappe.db.sql(
 		f"""
-		SELECT `name`, `status`, `expires_at`, `artifact_published`, `active_dedupe_key`, `permission_fingerprint`
+		SELECT `name`, `status`, `expires_at`, `artifact_published`, `active_dedupe_key`, `permission_fingerprint`,
+			`modified`, `export_uuid`
 		FROM `tab{EXPORT_DOCTYPE}`
 		WHERE `active_dedupe_key` IS NOT NULL AND `status` IN ('Queued', 'Running')
 		ORDER BY (`active_dedupe_key` = %s) DESC
@@ -413,6 +526,14 @@ def _get_active_export(active_dedupe_key):
 		as_dict=True,
 	)
 	return rows[0] if rows else None
+
+
+def _get_live_active_export(active_dedupe_key):
+	for _ in range(EXPORT_RECOVERY_SCAN_LIMIT):
+		existing = _get_active_export(active_dedupe_key)
+		if not existing or not _recover_abandoned_export(existing):
+			return existing
+	raise ProfitExportBusyError("Profit export recovery is still settling. Retry shortly.")
 
 
 def _whitelist():
@@ -467,7 +588,7 @@ def enqueue_profit_csv_export_for_user(
 
 	permission_fingerprint = compute_permission_fingerprint(normalized_filters, user)
 	_lock_export_admission()
-	existing = _get_active_export(active_dedupe_key)
+	existing = _get_live_active_export(active_dedupe_key)
 	if existing:
 		if _doc_get(existing, "active_dedupe_key") != active_dedupe_key:
 			raise ProfitExportBusyError("A profit export is already queued or running. Retry after it finishes.")
@@ -505,6 +626,7 @@ def enqueue_profit_csv_export_for_user(
 				"khitmee_ops.profit_summary.export_service.run_profit_csv_export",
 				queue="long",
 				timeout=EXPORT_TIMEOUT_SECONDS,
+				job_id=export_uuid,
 				export_log_name=export_log_name,
 			)
 		except Exception as error:
@@ -552,6 +674,7 @@ def _commit_completed_export(export_log_name, exported_invoice_sha256, row_count
 			`error` = NULL,
 			`modified` = %s
 		WHERE `name` = %s
+			AND `status` = 'Running'
 		""",
 		(exported_invoice_sha256, row_count, _now_datetime(), export_log_name),
 	)

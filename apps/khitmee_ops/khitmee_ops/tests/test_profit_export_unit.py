@@ -78,6 +78,7 @@ class FakeDB:
 		self.commit_count = 0
 		self.external_admission_lock = False
 		self.admission_locks = 0
+		self.row_count = 0
 
 	def get_value(self, doctype, filters=None, fieldname=None, as_dict=False):
 		if doctype == "User":
@@ -96,15 +97,29 @@ class FakeDB:
 		if "RELEASE_LOCK(" in query:
 			self.admission_locks -= 1
 			return [(1,)]
+		if "SELECT ROW_COUNT()" in query:
+			return [(self.row_count,)]
 		if query.lstrip().upper().startswith("UPDATE"):
 			self.update_sql.append((query, params))
+			if "AND `status` = %s" in query and "AND `modified` = %s" in query:
+				doc = self.state.docs[params[-3]]
+				if doc.get("status") != params[-2] or doc.get("modified") != params[-1]:
+					self.row_count = 0
+					return []
+				doc.update(status="Failed", active_dedupe_key=None, error=params[0], modified=params[1])
+				self.row_count = 1
+				return []
 			doc = self.state.docs[params[-1]]
+			if "AND `status` = 'Running'" in query and doc.get("status") != "Running":
+				self.row_count = 0
+				return []
 			status = "Completed" if "`status` = 'Completed'" in query else params[0]
 			doc.update(status=status, modified=self.state.now)
 			if "`active_dedupe_key` = NULL" in query:
 				doc["active_dedupe_key"] = None
 			if status == "Completed":
 				doc.update(artifact_published=1, exported_invoice_sha256=params[0], row_count=params[1])
+			self.row_count = 1
 			return []
 		if "FOR UPDATE" in query and "Khitmee Profit Export Log" in query:
 			if "WHERE `name`" in query:
@@ -348,12 +363,38 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(self.fake.db.admission_locks, 0)
 		self.assertEqual(self.fake.enqueued[0][0], "khitmee_ops.profit_summary.export_service.run_profit_csv_export")
 		self.assertEqual(self.fake.enqueued[0][1]["export_log_name"], result["export_log_name"])
+		self.assertEqual(self.fake.enqueued[0][1]["job_id"], doc["export_uuid"])
 
 	def test_permission_names_accept_frappe_user_permission_doc_shape(self):
 		self.assertEqual(
 			export_service._permission_names({"Company": [{"doc": "Company B"}, {"doc": "Company A"}]}, "Company"),
 			["Company A", "Company B"],
 		)
+
+	def test_rq_activity_uses_deterministic_status_before_scanning_legacy_jobs(self):
+		background_jobs = types.ModuleType("frappe.utils.background_jobs")
+		background_jobs.get_job_status = lambda job_id: "failed"
+		sys.modules["frappe.utils.background_jobs"] = background_jobs
+
+		with patch.object(export_service, "_scan_rq_for_export") as scan:
+			self.assertFalse(export_service._rq_job_is_active("export-uuid", "EXP-TEST"))
+		scan.assert_not_called()
+
+		background_jobs.get_job_status = lambda job_id: None
+		with patch.object(export_service, "_scan_rq_for_export", return_value=True) as scan:
+			self.assertTrue(export_service._rq_job_is_active("export-uuid", "EXP-TEST"))
+		scan.assert_called_once_with("EXP-TEST")
+
+	def test_rq_scan_matches_the_nested_export_log_argument(self):
+		job = types.SimpleNamespace(kwargs={"kwargs": {"export_log_name": "EXP-TEST"}})
+		other_job = types.SimpleNamespace(kwargs={"kwargs": {"export_log_name": "EXP-OTHER"}})
+		background_jobs = types.ModuleType("frappe.utils.background_jobs")
+		background_jobs.get_queue = lambda queue: types.SimpleNamespace(jobs=[other_job])
+		background_jobs.get_running_jobs_in_queue = lambda queue: [job]
+		sys.modules["frappe.utils.background_jobs"] = background_jobs
+
+		self.assertTrue(export_service._scan_rq_for_export("EXP-TEST"))
+		self.assertFalse(export_service._scan_rq_for_export("EXP-MISSING"))
 
 	def test_active_dedupe_key_reuses_queued_or_running_export(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})
@@ -365,6 +406,131 @@ class TestEnqueueAndWorker(ExportServiceTestCase):
 		self.assertEqual(second["export_log_name"], first["export_log_name"])
 		self.fake.db.commit()
 		self.assertEqual(len(self.fake.enqueued), 1)
+
+	def test_abandoned_running_export_no_longer_blocks_a_different_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(
+				seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+			),
+		)
+		self.fake.set_user("other")
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_WORKER_REASON)
+		self.assertIsNone(doc["active_dedupe_key"])
+
+	def test_identical_request_after_abandonment_creates_a_new_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(
+				seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+			),
+		)
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_WORKER_REASON)
+
+	def test_live_running_export_still_blocks_and_deduplicates_within_timeout(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc.update(
+			status="Running",
+			modified=self.state.now - timedelta(seconds=export_service.EXPORT_TIMEOUT_SECONDS - 1),
+		)
+
+		second = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.assertTrue(second["deduplicated"])
+		self.assertEqual(second["export_log_name"], first["export_log_name"])
+		self.fake.db.commit()
+
+		self.fake.set_user("other")
+		with self.assertRaises(export_service.ProfitExportBusyError):
+			export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.rollback()
+		self.assertEqual(doc["status"], "Running")
+
+	def test_missing_rq_job_recovers_an_old_queued_export(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1)
+		self.fake.set_user("other")
+
+		with patch.object(export_service, "_rq_job_is_active", return_value=False):
+			second = export_service.enqueue_profit_csv_export({"company": "Company"})
+
+		self.assertFalse(second["deduplicated"])
+		self.assertNotEqual(second["export_log_name"], first["export_log_name"])
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["error"], export_service.ABANDONED_QUEUE_REASON)
+
+	def test_live_rq_job_still_blocks_after_enqueue_grace(self):
+		first = export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.commit()
+		doc = self.fake.docs[first["export_log_name"]]
+		doc["modified"] = self.state.now - timedelta(seconds=export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1)
+		self.fake.set_user("other")
+
+		with patch.object(export_service, "_rq_job_is_active", return_value=True), self.assertRaises(
+			export_service.ProfitExportBusyError
+		):
+			export_service.enqueue_profit_csv_export({"company": "Company"})
+		self.fake.db.rollback()
+		self.assertEqual(doc["status"], "Queued")
+
+	def test_recovery_conditional_update_loses_to_a_completed_worker(self):
+		stale_modified = self.state.now - timedelta(
+			seconds=export_service.EXPORT_TIMEOUT_SECONDS + export_service.EXPORT_RECOVERY_GRACE_SECONDS + 1
+		)
+		doc = self.make_log(
+			status="Running",
+			artifact_published=0,
+			active_dedupe_key="owner:hash",
+			modified=stale_modified,
+		)
+		seen = dict(doc)
+		doc.update(status="Completed", active_dedupe_key=None, modified=self.state.now)
+
+		self.assertTrue(export_service._recover_abandoned_export(seen))
+
+		self.assertEqual(self.fake.db.row_count, 0)
+		self.assertEqual(doc["status"], "Completed")
+		update_sql, params = self.fake.db.update_sql[-1]
+		self.assertIn("AND `status` = %s", update_sql)
+		self.assertIn("AND `modified` = %s", update_sql)
+		self.assertEqual(params[-2:], ("Running", stale_modified))
+
+	def test_late_completion_cannot_overwrite_a_recovered_failure(self):
+		doc = self.make_log(
+			status="Failed",
+			artifact_published=0,
+			active_dedupe_key=None,
+			error=export_service.ABANDONED_WORKER_REASON,
+		)
+
+		export_service._commit_completed_export(doc["name"], "digest", 2)
+
+		self.assertEqual(self.fake.db.row_count, 0)
+		self.assertEqual(doc["status"], "Failed")
+		self.assertEqual(doc["artifact_published"], 0)
+		completion_update, _ = self.fake.db.update_sql[-1]
+		self.assertIn("AND `status` = 'Running'", completion_update)
 
 	def test_one_slot_bounds_queued_and_running_exports_across_requesters(self):
 		first = export_service.enqueue_profit_csv_export({"company": "Company"})
