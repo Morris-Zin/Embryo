@@ -10,7 +10,7 @@
 - `registry/` — generated migration registry plus explicit screen overrides and ownership scopes.
 - `tools/` — discovery, deterministic web capture, Slint MCP native capture, visual comparison, architectural lint, verification and performance harnesses.
 - `experiments/` — persistent framework and qualification records.
-- `evidence/` — generated screenshots, traces, comparisons and benchmark reports (not source of truth until regenerated and verified).
+- `evidence/` — generated screenshots, traces, comparisons and benchmark reports. These artifacts are intentionally gitignored; regenerate them with the harness commands instead of committing bulky machine output.
 
 ## Commands
 
@@ -85,4 +85,4 @@ A screen may move to `verified` only after all evidence kinds exist. Shared-comp
 
 ## Current honesty boundary
 
-The first pilot implementation uses deterministic fixture data. Fixture-only rendering and local search evidence do not prove ERPNext parity. Authoritative submission/printing are deliberately blocked in the UI until the ERPNext adapters and security review exist.
+The current implementation is a qualified pilot slice, not mass migration. Live isolated-ERP evidence exists for the documented counter journeys, but fixture-only rendering does not prove parity, printing is dry-run companion evidence, and production hardware/performance qualification remains open.

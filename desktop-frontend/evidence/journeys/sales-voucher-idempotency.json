@@ -1,1 +1,0 @@
-{"schemaVersion":1,"passed":true,"clientVoucherId":"native-proof-5ea921a6898d481eaac72bfe06c0c964","initialStatuses":[200,200],"voucherAttempts":["ACC-SINV-2026-04935","ACC-SINV-2026-04935"],"distinctVouchers":["ACC-SINV-2026-04935"],"oracle":"all concurrent/replayed attempts for one client_voucher_id must resolve to the same voucher"}

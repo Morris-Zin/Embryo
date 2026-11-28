@@ -6,9 +6,8 @@ tools/autoloop/** text eol=lf
 .github/CODEOWNERS text eol=lf
 AGENTS.md text eol=lf
 
-# Machine-generated migration evidence and lock/fixture artifacts are inputs to
+# Machine-generated migration fixtures and the Rust lockfile are inputs to
 # reproducible verification, not hand-reviewed source. Marking them generated keeps
-# Devin Review focused on the implementation while preserving the evidence in git.
-desktop-frontend/evidence/** linguist-generated
+# Devin Review focused on the implementation.
 desktop-frontend/fixtures/** linguist-generated
 desktop-frontend/Cargo.lock linguist-generated

@@ -1,1 +1,0 @@
-[{"index":0,"action":{"type":"click","label":"Transfer"}},{"index":1,"action":{"type":"probe-key","key":"F2","probeText":"KM","targetElementId":"item-search"}},{"index":2,"action":{"type":"probe-key","key":"F9","expectText":"Add at least one item before submitting."}}]
