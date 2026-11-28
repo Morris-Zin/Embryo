@@ -1,5 +1,6 @@
 use crate::models::CatalogItem;
 use memchr::memmem;
+use rayon::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -54,7 +55,7 @@ pub struct CatalogIndex {
 impl CatalogIndex {
     pub fn rebuild(mut rows: Vec<CatalogItem>) -> Self {
         rows.retain(|row| !row.deleted && !row.item_code.is_empty());
-        rows.sort_by(|left, right| left.item_code.cmp(&right.item_code));
+        rows.par_sort_by(|left, right| left.item_code.cmp(&right.item_code));
         rows.dedup_by(|left, right| {
             if left.item_code == right.item_code {
                 *left = right.clone();
@@ -65,7 +66,7 @@ impl CatalogIndex {
         });
 
         let mut exact_barcode = HashMap::new();
-        let items: Vec<IndexedItem> = rows.into_iter().map(IndexedItem::new).collect();
+        let items: Vec<IndexedItem> = rows.into_par_iter().map(IndexedItem::new).collect();
         for (position, item) in items.iter().enumerate() {
             if let Some(barcode) = item.row.barcode.as_deref() {
                 let folded = fold(barcode);
@@ -85,6 +86,13 @@ impl CatalogIndex {
 
     pub fn len(&self) -> usize {
         self.items.len()
+    }
+
+    pub fn get_by_item_code(&self, item_code: &str) -> Option<&CatalogItem> {
+        self.items
+            .binary_search_by(|item| item.row.item_code.as_str().cmp(item_code))
+            .ok()
+            .map(|position| &self.items[position].row)
     }
 
     pub fn search(&self, term: &str, limit: usize) -> Vec<CatalogItem> {
@@ -192,6 +200,73 @@ mod tests {
         assert_eq!(hits.first().map(|row| row.item_code.as_str()), Some("MM-1"));
     }
 
+    #[test]
+    fn exact_item_code_lookup_uses_canonical_catalog_row() {
+        let index = CatalogIndex::rebuild(vec![
+            row("B-CODE", "Second", "222"),
+            row("A-CODE", "First", "111"),
+        ]);
+        assert_eq!(
+            index
+                .get_by_item_code("A-CODE")
+                .map(|row| row.item_name.as_deref()),
+            Some(Some("First"))
+        );
+        assert!(index.get_by_item_code("a-code").is_none());
+    }
+
+    fn reference_search(rows: &[CatalogItem], term: &str, limit: usize) -> Vec<String> {
+        let folded_term = term.trim().to_lowercase();
+        if folded_term.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+        let limit = limit.min(25);
+        let mut ordered: Vec<CatalogItem> = rows
+            .iter()
+            .filter(|row| !row.deleted && !row.item_code.is_empty())
+            .cloned()
+            .collect();
+        ordered.sort_by(|left, right| left.item_code.cmp(&right.item_code));
+        for row in &ordered {
+            let barcodes = row
+                .barcode
+                .iter()
+                .map(|value| value.to_lowercase())
+                .chain(
+                    row.barcode_text
+                        .as_deref()
+                        .unwrap_or("")
+                        .split_whitespace()
+                        .map(str::to_lowercase),
+                )
+                .collect::<Vec<_>>();
+            if barcodes.iter().any(|barcode| barcode == &folded_term) {
+                return vec![row.item_code.clone()];
+            }
+        }
+        let mut prefix = Vec::new();
+        let mut substring = Vec::new();
+        for row in ordered {
+            let fields = [
+                row.item_code.to_lowercase(),
+                row.item_name.clone().unwrap_or_default().to_lowercase(),
+                row.item_group.clone().unwrap_or_default().to_lowercase(),
+                row.brand.clone().unwrap_or_default().to_lowercase(),
+            ];
+            if fields.iter().any(|field| field.starts_with(&folded_term)) {
+                prefix.push(row.item_code.clone());
+                continue;
+            }
+            let search_text = fields.join("\u{1f}")
+                + "\u{1f}"
+                + &row.barcode_text.clone().unwrap_or_default().to_lowercase();
+            if search_text.contains(&folded_term) {
+                substring.push(row.item_code.clone());
+            }
+        }
+        prefix.into_iter().chain(substring).take(limit).collect()
+    }
+
     proptest::proptest! {
         #[test]
         fn exact_ascii_barcode_is_a_single_fast_result(barcode in "[0-9]{8,14}") {
@@ -204,6 +279,26 @@ mod tests {
             let hits = index.search(&barcode, 25);
             proptest::prop_assert_eq!(hits.len(), 1);
             proptest::prop_assert_eq!(hits[0].item_code.as_str(), "EXACT");
+        }
+
+        #[test]
+        fn indexed_search_matches_naive_reference_oracle(
+            term in proptest::prop_oneof![
+                "[a-z0-9 ]{0,12}",
+                proptest::sample::select(vec!["red".to_string(), "ham".to_string(), "8888".to_string(), "ဆန်".to_string(), "retail".to_string()])
+            ],
+            limit in 0usize..30
+        ) {
+            let rows = vec![
+                row("A-PREFIX", "Red Hammer", "111"),
+                row("B-SUBSTRING", "Large Red Nail", "222 8888"),
+                row("C-EXACT", "Other", "red"),
+                row("MM-1", "ဆန်၀ါး ၅ ကီလို", "333"),
+                row("D-RETAIL", "Grocery retail pack", "444"),
+            ];
+            let index = CatalogIndex::rebuild(rows.clone());
+            let actual: Vec<String> = index.search(&term, limit).into_iter().map(|row| row.item_code).collect();
+            proptest::prop_assert_eq!(actual, reference_search(&rows, &term, limit));
         }
     }
 }

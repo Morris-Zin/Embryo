@@ -84,12 +84,20 @@ def mcp_ready(port: int) -> bool:
         return False
 
 
-def measure_run(executable: Path, rows: int, invoice_rows: int, port: int, hold_seconds: float) -> dict[str, Any]:
+def benchmark_environment(rows: int, invoice_rows: int, port: int) -> dict[str, str]:
     env = os.environ.copy()
+    for key in tuple(env):
+        if key.startswith("KHITMEE_ERP_"):
+            env.pop(key)
     env["KHITMEE_CATALOG_ROWS"] = str(rows)
     env["KHITMEE_INVOICE_ROWS"] = str(invoice_rows)
     env["SLINT_MCP_PORT"] = str(port)
     env.setdefault("SLINT_EMIT_DEBUG_INFO", "1")
+    return env
+
+
+def measure_run(executable: Path, rows: int, invoice_rows: int, port: int, hold_seconds: float) -> dict[str, Any]:
+    env = benchmark_environment(rows, invoice_rows, port)
     started = time.perf_counter()
     process = subprocess.Popen([str(executable)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     startup_ms = None

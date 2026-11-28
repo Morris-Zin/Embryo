@@ -39,7 +39,92 @@ def main() -> int:
         try:
             from PIL import Image, ImageChops
         except ImportError:
-            report["error"] = "Pillow is required for pixel comparison (python -m pip install --user pillow)"
+            try:
+                from png_codec import read_png_rgba, write_png_rgba
+
+                left_width, left_height, left_pixels = read_png_rgba(reference)
+                right_width, right_height, right_pixels = read_png_rgba(native)
+            except Exception as exc:
+                report["error"] = f"screenshot decoding failed without Pillow: {exc}"
+            else:
+                report["referenceSize"] = [left_width, left_height]
+                report["nativeSize"] = [right_width, right_height]
+                report["byteIdentical"] = reference.read_bytes() == native.read_bytes()
+                if (left_width, left_height) != (right_width, right_height):
+                    report["dimensionsMatch"] = False
+                    report["failedPixelRatio"] = 1.0
+                    report["error"] = "screenshot dimensions differ"
+                else:
+                    width, height = left_width, left_height
+                    total = width * height
+                    diff_pixels = bytearray(len(left_pixels))
+                    channel_deltas = []
+                    nonzero = []
+                    failed = 0
+                    for pixel_index in range(total):
+                        offset = pixel_index * 4
+                        max_delta = 0
+                        for channel in range(4):
+                            delta = abs(left_pixels[offset + channel] - right_pixels[offset + channel])
+                            diff_pixels[offset + channel] = delta
+                            max_delta = max(max_delta, delta)
+                        channel_deltas.append(max_delta)
+                        if max_delta:
+                            failed += 1
+                            nonzero.append((pixel_index % width, pixel_index // width))
+                    ratio = failed / total if total else 1.0
+                    exact_or_near = {}
+                    for tolerance in (1, 2, 5, 10, 25):
+                        near = sum(1 for delta in channel_deltas if delta <= tolerance)
+                        exact_or_near[f"within{tolerance}PixelRatio"] = near / total if total else 0.0
+                    regions = {}
+                    grid_x, grid_y = 8, 5
+                    for gy in range(grid_y):
+                        for gx in range(grid_x):
+                            left_bound = gx * width // grid_x
+                            top_bound = gy * height // grid_y
+                            right_bound = (gx + 1) * width // grid_x
+                            bottom_bound = (gy + 1) * height // grid_y
+                            region_total = (right_bound - left_bound) * (bottom_bound - top_bound)
+                            region_failed = 0
+                            for y in range(top_bound, bottom_bound):
+                                for x in range(left_bound, right_bound):
+                                    offset = (y * width + x) * 4
+                                    luminance = (
+                                        diff_pixels[offset] * 299
+                                        + diff_pixels[offset + 1] * 587
+                                        + diff_pixels[offset + 2] * 114
+                                        + 500
+                                    ) // 1000
+                                    if luminance:
+                                        region_failed += 1
+                            regions[f"{gx},{gy}"] = round(region_failed / region_total, 6) if region_total else 1.0
+                    report.update(
+                        dimensionsMatch=True,
+                        pixelsExactlyEqual=failed == 0,
+                        totalPixels=total,
+                        failedPixels=failed,
+                        failedPixelRatio=ratio,
+                        maxFailedPixelRatio=args.max_failed_pixel_ratio,
+                        meanMaxChannelDelta=(sum(channel_deltas) / total) if total else 255.0,
+                        maxChannelDelta=max(channel_deltas, default=255),
+                        nearEqualRatios=exact_or_near,
+                        regionalFailedPixelRatio=regions,
+                    )
+                    if nonzero:
+                        xs = [point[0] for point in nonzero]
+                        ys = [point[1] for point in nonzero]
+                        report["diffBounds"] = {
+                            "left": min(xs),
+                            "top": min(ys),
+                            "right": max(xs) + 1,
+                            "bottom": max(ys) + 1,
+                        }
+                    diff_path = Path(args.report).with_suffix(".diff.png")
+                    diff_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_png_rgba(diff_path, width, height, bytes(diff_pixels))
+                    report["diffImage"] = str(diff_path)
+                    report["passed"] = ratio <= args.max_failed_pixel_ratio
         else:
             with Image.open(reference) as left_image, Image.open(native) as right_image:
                 left = left_image.convert("RGBA")

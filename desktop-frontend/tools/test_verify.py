@@ -3,13 +3,42 @@
 from __future__ import annotations
 
 import json
+import binascii
+import os
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
+import zlib
 from pathlib import Path
 
-from PIL import Image
+import architecture_lint
+from benchmark_native import benchmark_environment
+from png_codec import PNG_SIGNATURE, write_png_rgba
+
+
+
+def png_chunk(kind: bytes, payload: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(payload))
+        + kind
+        + payload
+        + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
+    )
+
+
+def write_rgb_png(path: Path, red: int, green: int, blue: int, transparent: bool) -> None:
+    width, height = 8, 5
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    chunks = [png_chunk(b"IHDR", ihdr)]
+    if transparent:
+        chunks.append(png_chunk(b"tRNS", struct.pack(">HHH", red, green, blue)))
+    row = b"\x00" + bytes((red, green, blue)) * width
+    chunks.append(png_chunk(b"IDAT", zlib.compress(row * height)))
+    chunks.append(png_chunk(b"IEND", b""))
+    path.write_bytes(PNG_SIGNATURE + b"".join(chunks))
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,12 +54,12 @@ class VerifyHarnessTest(unittest.TestCase):
         native = tmp / "native" / "sales-voucher"
         web.mkdir(parents=True)
         native.mkdir(parents=True)
-        left = Image.new("RGBA", (8, 8), (255, 255, 255, 255))
-        right = Image.new("RGBA", (8, 8), (255, 255, 255, 255))
+        left_pixels = bytes((255, 255, 255, 255)) * 64
+        right_pixels = bytearray(left_pixels)
         if mutate_pixel:
-            right.putpixel((0, 0), (0, 0, 0, 255))
-        left.save(web / "reference.png")
-        right.save(native / "native.png")
+            right_pixels[0:4] = bytes((0, 0, 0, 255))
+        write_png_rgba(web / "reference.png", 8, 8, left_pixels)
+        write_png_rgba(native / "native.png", 8, 8, bytes(right_pixels))
         control = {
             "tag": "button",
             "id": "save",
@@ -100,6 +129,58 @@ class VerifyHarnessTest(unittest.TestCase):
             visual = report["results"][0]["states"][0]["checks"]["visual-comparison"]
             self.assertFalse(visual["passed"])
             self.assertEqual(visual["failedPixels"], 1)
+
+    def test_rgb_transparency_key_is_a_visual_difference(self):
+        with tempfile.TemporaryDirectory() as raw:
+            tmp = Path(raw)
+            reference = tmp / "reference.png"
+            native = tmp / "native.png"
+            write_rgb_png(reference, 255, 0, 0, transparent=True)
+            write_rgb_png(native, 255, 0, 0, transparent=False)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-S",
+                    str(ROOT / "tools" / "compare_screenshots.py"),
+                    str(reference),
+                    str(native),
+                    "--report",
+                    str(tmp / "compare.json"),
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stderr + result.stdout)
+            report = json.loads((tmp / "compare.json").read_text())
+            self.assertEqual(report["failedPixels"], 40)
+            self.assertEqual(report["regionalFailedPixelRatio"]["0,0"], 0.0)
+
+    def test_architecture_lint_fallback_reads_dependency_subtable_aliases(self):
+        with tempfile.TemporaryDirectory() as raw:
+            manifest = Path(raw) / "Cargo.toml"
+            manifest.write_text('[dependencies.tauri-ui]\nversion = "1"\n', encoding="utf-8")
+            original = architecture_lint.tomllib
+            architecture_lint.tomllib = None
+            try:
+                self.assertIn("tauri-ui", architecture_lint.manifest_dependency_names(manifest))
+            finally:
+                architecture_lint.tomllib = original
+
+    def test_benchmark_environment_forces_fixture_mode_in_live_shell(self):
+        with unittest.mock.patch.dict(
+            os.environ,
+            {
+                "KHITMEE_ERP_URL": "http://erp.example",
+                "KHITMEE_ERP_WAREHOUSE": "Stores",
+                "KHITMEE_ERP_PASSWORD": "secret",
+            },
+        ):
+            env = benchmark_environment(10, 5, 49600)
+        self.assertNotIn("KHITMEE_ERP_URL", env)
+        self.assertNotIn("KHITMEE_ERP_WAREHOUSE", env)
+        self.assertNotIn("KHITMEE_ERP_PASSWORD", env)
+        self.assertEqual(env["KHITMEE_CATALOG_ROWS"], "10")
+        self.assertEqual(env["KHITMEE_INVOICE_ROWS"], "5")
 
     def test_missing_behavioral_keyboard_evidence_fails(self):
         with tempfile.TemporaryDirectory() as raw:

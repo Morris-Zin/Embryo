@@ -17,6 +17,14 @@ impl Error for ErpError {}
 
 type ErpResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+fn sales_invoice_order_by(ascending: bool) -> &'static str {
+    if ascending {
+        "`tabSales Invoice`.`creation` asc"
+    } else {
+        "`tabSales Invoice`.`creation` desc"
+    }
+}
+
 #[derive(Clone)]
 pub struct ErpClient {
     base_url: String,
@@ -147,7 +155,7 @@ impl ErpClient {
                     "`tabSales Invoice`.`grand_total`"
                 ],
                 "filters": filters,
-                "order_by": if ascending { "name asc" } else { "name desc" },
+                "order_by": sales_invoice_order_by(ascending),
                 "start": start,
                 "page_length": limit,
                 "view": "List",
@@ -295,4 +303,21 @@ fn compact_error(body: &Value) -> String {
         }
     }
     body.to_string().chars().take(300).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sales_invoice_order_by;
+
+    #[test]
+    fn sales_invoice_order_matches_original_created_on_sort() {
+        assert_eq!(
+            sales_invoice_order_by(false),
+            "`tabSales Invoice`.`creation` desc"
+        );
+        assert_eq!(
+            sales_invoice_order_by(true),
+            "`tabSales Invoice`.`creation` asc"
+        );
+    }
 }

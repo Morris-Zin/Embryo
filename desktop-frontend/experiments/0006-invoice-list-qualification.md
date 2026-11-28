@@ -8,7 +8,7 @@
 - `evidence/journeys/invoice-list-initial.json` — first page parity against `/app/sales-invoice`: all 20 visible ERP rows match exactly for customer, status, posting date, due date, grand total and invoice ID; count text matches `20 of 1,000+`.
 - `evidence/journeys/invoice-list-filter.json` — ID filter `04921` matches exactly: one row, same financial values, count `1 of 1`.
 - `evidence/journeys/invoice-list-load-more.json` — Load More parity matches exactly: both sides expose the same 40 rows in the same order and count `40 of 1,000+`.
-- `evidence/journeys/invoice-list-sort-asc.json` — sort-order toggle parity matches exactly: both sides sort ascending by invoice ID with the same first page and row order.
+- `evidence/journeys/invoice-list-sort-asc.json` — sort-order toggle parity matches exactly: both sides sort ascending by the original ERP `Created On`/`creation` sort field with the same first page and row order.
 
 ## Implementation changes
 
@@ -17,7 +17,7 @@
 - Invoice ID filtering uses the same server-side `name like` filter as the ERPNext list column.
 - Native rows expose one machine-readable `list-item` accessibility row and visible text for every compared column.
 - Native Load More increases the authoritative ERP page length by 20 and the row list is scrollable through `Flickable`.
-- Native sorting uses the authoritative ERP reportview `name asc`/`name desc` ordering and the visible sort-direction control toggles it.
+- Native sorting uses the authoritative ERP reportview `` `tabSales Invoice`.`creation` asc``/``desc`` ordering and the visible sort-direction control toggles it.
 - The harness normalizes the browser sort direction to descending before each invoice journey so user-specific ERP sort state cannot leak between runs.
 - Invoice MCP extraction uses targeted `query_element_descendants` because `get_element_tree` is hard-capped at 1,000 elements.
 - Because native rows outside the scroll viewport are clipped from accessibility extraction, invoice observation now scrolls through the native list, deduplicates semantic rows by invoice ID, and restores the viewport before comparison. This verifies loaded-row parity without requiring off-screen rows to be visually rendered.
@@ -33,6 +33,17 @@
 7. Slint MCP tree extraction truncated large lists at 1,000 total elements; the verifier now uses targeted descendant queries rather than weakening row expectations.
 8. Naive descendant queries duplicated results when an extra `matchDescendants` stage was added; corrected to use the query root's built-in descendant traversal.
 9. Adding the visible `ID` sort field exposed an oracle ambiguity: extraction initially read the sort control instead of the `TextInput` filter. The verifier now targets the input by role rather than weakening value comparison.
+10. A fresh isolated seed exposed that the browser default sort field is `Created On` (`creation`), while native had hard-coded invoice-name ordering. The differential harness caught the row-order divergence and native now follows the original ERP `creation` ordering.
+
+
+## 2026-11-28 speed-regression addendum
+
+After the native startup optimization, the live invoice-list differential journeys were regenerated on the isolated ERPNext stack and passed with zero mismatches:
+
+- `evidence/journeys/invoice-list-speed-initial.json`
+- `evidence/journeys/invoice-list-speed-load-more.json`
+- `evidence/journeys/invoice-list-speed-filter.json`
+- `evidence/journeys/invoice-list-speed-sort-asc.json`
 
 ## Regression
 
