@@ -9,6 +9,12 @@ import sys
 PROJECT = "khitmee-perf"
 SERVICES = ("db", "backend", "queue", "scheduler", "redis-cache", "redis-queue", "websocket", "frontend", "configurator")
 RUNNING_SERVICES = SERVICES[:-1]
+# The 2 GiB guest needs operating-system headroom. The binding ADR budget is
+# 2048 - 480 = 1568 MiB for the eight long-running workload containers. The
+# configurator is a one-shot setup container: it must still be capped and is
+# recorded, but it is not resident during the workload and is therefore not
+# part of the steady-state memory budget.
+WORKLOAD_MEMORY_BUDGET_MIB = 1568
 GIB = 1024 ** 3
 
 
@@ -36,11 +42,42 @@ def inspect_containers():
     return items
 
 
+
+
+def cgroup_limits(info):
+    """Read the kernel-enforced cgroup v2 memory/CPU limits for a running container."""
+    state = info.get("State") or {}
+    pid = int(state.get("Pid") or 0)
+    if not state.get("Running") or pid <= 0:
+        return {"cgroup_memory_max_bytes": None, "cgroup_cpu_limit": None, "cgroup_path": ""}
+    try:
+        relative = ""
+        with open(f"/proc/{pid}/cgroup", encoding="utf-8") as handle:
+            for line in handle:
+                parts = line.strip().split(":", 2)
+                if len(parts) == 3 and parts[0] == "0":
+                    relative = parts[2]
+                    break
+        if not relative:
+            return {"cgroup_memory_max_bytes": None, "cgroup_cpu_limit": None, "cgroup_path": ""}
+        root = Path("/sys/fs/cgroup" + relative)
+        memory_text = (root / "memory.max").read_text(encoding="utf-8").strip()
+        cpu_text = (root / "cpu.max").read_text(encoding="utf-8").strip().split()
+        memory = None if memory_text == "max" else int(memory_text)
+        cpu = None
+        if len(cpu_text) >= 2 and cpu_text[0] != "max":
+            cpu = int(cpu_text[0]) / int(cpu_text[1])
+        return {"cgroup_memory_max_bytes": memory, "cgroup_cpu_limit": cpu, "cgroup_path": str(root)}
+    except (OSError, ValueError, IndexError):
+        return {"cgroup_memory_max_bytes": None, "cgroup_cpu_limit": None, "cgroup_path": ""}
+
+
 def proof():
     containers = inspect_containers()
     rows = []
     problems = []
     memory_total = 0
+    workload_memory_total = 0
     cpu_total = 0.0
     for service in SERVICES:
         matches = [c for c in containers if (c.get("Config") or {}).get("Labels", {}).get("com.docker.compose.service") == service]
@@ -65,6 +102,7 @@ def proof():
             "oom_killed": bool(state.get("OOMKilled")),
             "image": (info.get("Config") or {}).get("Image"),
         }
+        row.update(cgroup_limits(info))
         rows.append(row)
         if service in RUNNING_SERVICES and not row["running"]:
             problems.append(service + " is not running")
@@ -72,20 +110,42 @@ def proof():
             problems.append(service + " has no memory limit")
         if nano <= 0:
             problems.append(service + " has no CPU limit")
+        if service in RUNNING_SERVICES and row["running"]:
+            if row.get("cgroup_memory_max_bytes") != memory:
+                problems.append(service + " cgroup memory.max does not match the configured memory limit")
+            cgroup_cpu = row.get("cgroup_cpu_limit")
+            if cgroup_cpu is None or abs(float(cgroup_cpu) - cpus) > 0.001:
+                problems.append(service + " cgroup cpu.max does not match the configured CPU limit")
         memory_total += memory
+        if service in RUNNING_SERVICES:
+            workload_memory_total += memory
         cpu_total += cpus
-    if memory_total > 2 * GIB:
-        problems.append(f"container memory limits total {memory_total} bytes, above 2 GiB")
+    measurement_problems = list(problems)
+    budget_problems = []
+    workload_budget_bytes = WORKLOAD_MEMORY_BUDGET_MIB * 1024**2
+    if workload_memory_total > workload_budget_bytes:
+        budget_problems.append(
+            f"long-running container memory limits total {workload_memory_total} bytes, "
+            f"above the {WORKLOAD_MEMORY_BUDGET_MIB} MiB workload budget after 480 MiB OS headroom"
+        )
     if cpu_total > 2.0000001:
-        problems.append(f"container CPU limits total {cpu_total:.3f}, above 2 vCPU")
+        budget_problems.append(f"container CPU limits total {cpu_total:.3f}, above 2 vCPU")
     return {
-        "passed": not problems,
+        "passed": not measurement_problems and not budget_problems,
+        "measurement_passed": not measurement_problems,
+        "within_budget": not budget_problems,
         "project": PROJECT,
         "memory_limit_total_bytes": memory_total,
         "memory_limit_total_mib": memory_total / 1024**2,
+        "workload_memory_limit_total_bytes": workload_memory_total,
+        "workload_memory_limit_total_mib": workload_memory_total / 1024**2,
+        "workload_memory_budget_mib": WORKLOAD_MEMORY_BUDGET_MIB,
+        "os_headroom_mib": 480,
         "cpu_limit_total": cpu_total,
         "services": rows,
-        "problems": problems,
+        "measurement_problems": measurement_problems,
+        "budget_problems": budget_problems,
+        "problems": measurement_problems + budget_problems,
     }
 
 

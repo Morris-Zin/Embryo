@@ -1273,7 +1273,7 @@ def render_markdown(run_label, gates, count_rows, feature_statuses, verification
         for entry in sorted(memory.containers.values(), key=lambda item: item.name):
             restarts = base.observed_restarts(entry)
             lines.append("| {} | {} | {} | {} | {} | {} | {} |".format(
-                str(entry.name).replace("|", "\|"),
+                str(entry.name).replace("|", "\\|"),
                 "no data" if entry.peak_cgroup_bytes is None else f"{entry.peak_cgroup_bytes / 1024**2:.1f}",
                 "no data" if entry.memory_limit_bytes is None else f"{entry.memory_limit_bytes / 1024**2:.1f}",
                 int(entry.peak_oom_kills),

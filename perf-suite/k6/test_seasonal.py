@@ -880,6 +880,17 @@ class SeasonalStaticContractTests(unittest.TestCase):
         self.assertEqual(purchase_source.count("sendVoucherAttempt"), 1)
         self.assertNotIn("while (", purchase_source)
 
+    def test_retry_witnesses_are_started_while_first_request_is_in_flight(self):
+        runtime = (ROOT / "lib/seasonal_runtime.js").read_text(encoding="utf-8")
+        self.assertIn("function resolveDirectVoucherInFlight", runtime)
+        self.assertIn("function resolvePurchaseVoucherInFlight", runtime)
+        self.assertIn("duplicate_idempotent_submit_batch", runtime)
+        self.assertIn("submit_plus_readonly_recovery_batch", runtime)
+        self.assertIn("http.batch([batchEntry(firstRequest), batchEntry(retryRequest)])", runtime)
+        self.assertIn("http.batch([batchEntry(submitRequest), batchEntry(listRequest)])", runtime)
+        self.assertIn("event: 'voucher_retry_overlap'", runtime)
+        self.assertIn("first_inflight: true", runtime)
+
     def test_no_invented_capabilities_or_server_reconciliation_contract(self):
         combined = "\n".join(
             (ROOT / path).read_text(encoding="utf-8")
