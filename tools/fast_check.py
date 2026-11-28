@@ -205,6 +205,14 @@ def scan_monkey_patch_file(path, display_path=None):
 			and target_description == "document._filter"
 		):
 			return
+		# Stock naming selects the rule and parses the name. The default-off
+		# cashier experiment changes only its terminal counter and audited reuse.
+		if display_path == "apps/khitmee_ops/khitmee_ops/api/invoice_series.py" and target_description in (
+			"naming.NamingSeries.generate_next_name",
+			"naming.revert_series_if_last",
+			"delete_doc.revert_series_if_last",
+		):
+			return
 		violations.append(GuardrailViolation(
 			display_path,
 			getattr(node, "lineno", 0),

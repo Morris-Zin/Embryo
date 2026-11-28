@@ -8,6 +8,8 @@ from frappe.utils import cint, cstr, flt, nowdate, nowtime, random_string
 from erpnext.stock.doctype.stock_entry.stock_entry import make_stock_in_entry
 from erpnext.stock.get_item_details import get_conversion_factor
 
+from khitmee_ops.api.invoice_series import counter_series_reservation
+
 from khitmee_ops.api.payloads import (
 	RECEIPT_PRINTER_TYPES,
 	idempotency_key,
@@ -550,6 +552,7 @@ def _create_sales_invoice(
 			fresh_snapshot=fresh_snapshot,
 		),
 		proven_empty_future_sle_fastpath(doc, lock_result["pairs"], enabled=fresh_snapshot),
+		counter_series_reservation(doc, client_voucher_id, fresh_snapshot=fresh_snapshot),
 	):
 		doc.insert()
 	return doc
