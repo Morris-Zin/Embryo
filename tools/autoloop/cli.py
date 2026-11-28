@@ -336,6 +336,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="autoloop", description="Opt-in autonomous workflow loop CLI (V3)")
     parser.add_argument("--repo", type=Path, default=_default_repo(), help="Repository root path")
     sub = parser.add_subparsers(dest="command", required=True)
+    from autoloop.profile.__main__ import build_parser as profile_parser
+
+    sub.add_parser("profile", parents=[profile_parser()], add_help=False,
+                   help="Profile existing local agent usage")
 
     # init
     p_init = sub.add_parser("init", help="Initialize a new /autoloop run in draft state")
@@ -588,12 +592,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    command_line = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(command_line)
     repo: Path = args.repo.resolve()
 
     try:
         cmd = args.command
-        if cmd == "init":
+        if cmd == "profile":
+            from autoloop.profile.__main__ import main as profile_main
+
+            # The only global option is --repo, which the profiler doesn't use.
+            option = command_line[0]
+            offset = (1 if "=" in option else 2) if option.startswith("--") else 0
+            return profile_main(command_line[offset + 1:])
+        elif cmd == "init":
             lessons = matching_lessons(repo, args.paths)
             models = json.loads(args.models_json) if args.models_json else {}
             res = init_run(
